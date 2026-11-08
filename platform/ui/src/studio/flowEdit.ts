@@ -637,6 +637,18 @@ export function setCatchCodes(flow: Flow, id: string, k: number, codes: string[]
   return f;
 }
 
+/** A Catch part's settings besides its codes (items 19 and 20): where the error goes, and what happens around its steps. */
+export type CatchSettings = { as?: string; message_to?: string; line_to?: string; continueOnError?: boolean; screenshot?: boolean; rethrow?: boolean };
+
+/** Sets a Catch part's settings; an empty name or false removes the setting. */
+export function setCatch(flow: Flow, id: string, k: number, patch: CatchSettings): Flow {
+  const f = copy(flow);
+  const c = findStep(f, id)?.step.catch?.[k] as (Record<string, unknown> | undefined);
+  if (!c) return flow;
+  for (const [key, v] of Object.entries(patch)) { if (v === undefined || v === "" || v === false) delete c[key]; else c[key] = v; }
+  return f;
+}
+
 /** Sets the condition of an Else if. */
 export function setElseIfCondition(flow: Flow, id: string, k: number, condition: unknown): Flow {
   const f = copy(flow);
@@ -710,12 +722,13 @@ export function addOnError(flow: Flow): Flow {
   return f;
 }
 
-/** Changes the error handler's settings: its variable, what happens after it (fail or succeed), the screenshot. */
-export function setOnError(flow: Flow, patch: { as?: string; then?: "fail" | "succeed"; screenshot?: boolean }): Flow {
+/** Changes the error handler's settings: its variables, what happens after it (fail or succeed), the screenshot. */
+export function setOnError(flow: Flow, patch: { as?: string; message_to?: string; line_to?: string; then?: "fail" | "succeed"; screenshot?: boolean }): Flow {
   if (!flow.onError) return flow;
   const f = copy(flow);
   const h = f.onError!;
-  if ("as" in patch) { const v = (patch.as ?? "").trim().replace(/^\$/, ""); if (v) h.as = v; else delete h.as; }
+  for (const key of ["as", "message_to", "line_to"] as const)
+    if (key in patch) { const v = (patch[key] ?? "").trim().replace(/^\$/, ""); if (v) h[key] = v; else delete h[key]; }
   if ("then" in patch) { if (patch.then === "succeed") h.then = "succeed"; else delete h.then; }   // fail is the default
   if ("screenshot" in patch) { if (patch.screenshot) h.screenshot = true; else delete h.screenshot; }
   return f;

@@ -9,7 +9,7 @@ import { Button, Dialog, Field, HelpButton, Icon, IconButton, IconTile, is, keyO
 import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor } from "./ConditionEditor";
 import {
-  addBranch, addOnError, blockIds, CLIP_KEY, copySteps, disabledState, duplicateSteps, findStep, foldedSet, inHandler, innerLists, isBlock, moveManyTo, moveSelection, ON_ERROR, partList, parseSection,
+  addBranch, addOnError, blockIds, CLIP_KEY, setCatch, copySteps, disabledState, duplicateSteps, findStep, foldedSet, inHandler, innerLists, isBlock, moveManyTo, moveSelection, ON_ERROR, partList, parseSection,
   pasteSteps, readClip, removeBranch, removeOnError, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded, setOnError,
   replaceInSteps, setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
   moveCase, parseLoose, setCaseValues, showValue,
@@ -31,6 +31,7 @@ const openUrl = (flow: Flow): string | undefined => {
     const inner = find([...(s.children ?? []), ...(s.else ?? [])]); if (inner) return inner; } return undefined; };
   return find(flow.steps);
 };
+import { VariableChooser } from "./ValueSources";
 import { agentRows, describeAction, startState, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
 import { AA_NAMES } from "./aaNames";
 
@@ -994,16 +995,20 @@ function onErrorSummary(flow: Flow): string {
  */
 function OnErrorProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow, select?: string[]) => void }) {
   const h = flow.onError!;
-  const dicts = (flow.variables ?? []).filter((v) => v.type === "Dictionary" || v.type === "Any");
   const n = (h.steps ?? []).length;
   return (
     <div>
       <div className="st-prop-head"><div><strong>On error</strong><div>Runs once when an error no Try block catches ends the agent, while its windows and files are still open. Steps you click in the library go at its end{n ? ` (${n} now)` : ""}.</div></div></div>
       <div className="st-prop-fields">
-        <Field label="Keep the error in" hint="A Dictionary variable: code, message, suggestedFix, stepId, line, action and stack." layout="beside">{(fid) =>
-          <Select id={fid} value={h.as ?? ""} onChange={(e) => onEdit(setOnError(flow, { as: e.target.value }))}
-            options={[{ value: "", label: "(not kept)" }, ...dicts.map((v) => ({ value: v.name, label: "$" + v.name })),
-              ...(h.as && !dicts.some((v) => v.name === h.as) ? [{ value: h.as, label: "$" + h.as + " (not a Dictionary variable)" }] : [])]} />}</Field>
+        <Field label="Keep the error message in" hint="A text variable, for a log line or an e-mail." layout="beside">{() =>
+          <VariableChooser value={h.message_to} type="String" label="Keep the error message in" nameHint="error_message"
+            onPick={(f, n) => setOnError(f, { message_to: n ?? "" })} />}</Field>
+        <Field label="Keep the line number in" hint="A number variable: the line that failed." layout="beside">{() =>
+          <VariableChooser value={h.line_to} type="Number" label="Keep the line number in" nameHint="error_line"
+            onPick={(f, n) => setOnError(f, { line_to: n ?? "" })} />}</Field>
+        <Field label="Keep the whole error in" hint="A Dictionary variable: code, message, suggestedFix, stepId, line, action and stack." layout="beside">{() =>
+          <VariableChooser value={h.as} type="Dictionary" label="Keep the whole error in" nameHint="error"
+            onPick={(f, n) => setOnError(f, { as: n ?? "" })} />}</Field>
         <Field label="Then" hint="Fail keeps the original error, so One CommandCenter, retries and parent agents see the real cause." layout="beside">{() =>
           <div className="st-seg" role="radiogroup" aria-label="After the error steps">
             {([["fail", "Fail the run"], ["succeed", "Succeed with a warning"]] as const).map(([k, t]) =>
@@ -1019,6 +1024,34 @@ function OnErrorProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow, 
   );
 }
 
+/**
+ * A Catch part's settings in AA's order (usage review item 19, 9 Nov 2026): the errors it catches, whether its steps go
+ * on after one of them fails, where the error message and line number go; then ours: the whole error, a screenshot,
+ * and raising the error again after its steps.
+ */
+function CatchFields({ flow, id, k, onEdit }: { flow: Flow; id: string; k: number; onEdit: (next: Flow, select?: string[]) => void }) {
+  const c = findStep(flow, id)?.step.catch?.[k];
+  if (!c) return null;
+  const codes = c.codes ?? [];
+  return <>
+    <Field label="Errors it catches" hint="Error codes or kinds (NOT_FOUND, TIMEOUT, FILE.*), separated by commas. Empty catches every error." layout="beside">{(fid) =>
+      <CommitInput key={id + k + codes.join(",")} id={fid} mono initial={codes.join(", ")} placeholder="Any error"
+        onCommit={(t) => onEdit(setCatchCodes(flow, id, k, t.split(",").map((x) => x.trim()).filter(Boolean)))} />}</Field>
+    <label className="st-check-line"><input type="checkbox" checked={!!c.continueOnError} onChange={(e) => onEdit(setCatch(flow, id, k, { continueOnError: e.target.checked }))} />
+      On error, continue with the next step (every step of this Catch runs, even when one fails)</label>
+    <Field label="Keep the error message in" hint="A text variable, for a log line or an e-mail." layout="beside">{() =>
+      <VariableChooser value={c.message_to} type="String" label="Keep the error message in" nameHint="error_message" onPick={(f, n) => setCatch(f, id, k, { message_to: n })} />}</Field>
+    <Field label="Keep the line number in" hint="A number variable: the line that failed." layout="beside">{() =>
+      <VariableChooser value={c.line_to} type="Number" label="Keep the line number in" nameHint="error_line" onPick={(f, n) => setCatch(f, id, k, { line_to: n })} />}</Field>
+    <Field label="Keep the whole error in" hint="A Dictionary variable: code, message, suggestedFix, stepId, line, action and stack." layout="beside">{() =>
+      <VariableChooser value={c.as} type="Dictionary" label="Keep the whole error in" nameHint="error" onPick={(f, n) => setCatch(f, id, k, { as: n })} />}</Field>
+    <label className="st-check-line"><input type="checkbox" checked={!!c.screenshot} onChange={(e) => onEdit(setCatch(flow, id, k, { screenshot: e.target.checked }))} />
+      Take a screenshot when it catches an error (saved under screenshots/)</label>
+    <label className="st-check-line"><input type="checkbox" checked={!!c.rethrow} onChange={(e) => onEdit(setCatch(flow, id, k, { rethrow: e.target.checked }))} />
+      Raise the error again after these steps (an outer Try or On error then handles it)</label>
+  </>;
+}
+
 /** Settings of a selected block part: an Else if's condition, the errors a Catch takes; and removing the part. */
 function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: string; id: string; part: Part; onEdit: (next: Flow, select?: string[]) => void }) {
   const step = findStep(flow, id)?.step;
@@ -1032,9 +1065,7 @@ function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: 
       <div className="st-prop-fields">
         {kind === "elseIf" && <Field label="Condition">{() =>
           <ConditionEditor key={id + part} value={step.elseIf?.[+k]?.condition} onCommit={(v) => onEdit(setElseIfCondition(flow, id, +k, v))} />}</Field>}
-        {kind === "catch" && <Field label="Errors it catches" hint="Error codes, separated by commas. Empty catches every error." layout="beside">{(fid) =>
-          <CommitInput key={id + part + (step.catch?.[+k]?.codes ?? []).join(",")} id={fid} mono initial={(step.catch?.[+k]?.codes ?? []).join(", ")} placeholder="Any error"
-            onCommit={(t) => onEdit(setCatchCodes(flow, id, +k, t.split(",").map((x) => x.trim()).filter(Boolean)))} />}</Field>}
+        {kind === "catch" && <CatchFields flow={flow} id={id} k={+k} onEdit={onEdit} />}
         {kind === "cases" && <Field label={step.args?.match === "expression" ? "Conditions (any one selects this case)" : "Values (any one selects this case)"}
           hint="Cases are tried from the top; only the first that matches runs.">{() => <CaseValues flow={flow} id={id} k={+k} onEdit={onEdit} />}</Field>}
         {kind === "entry" && <StateFields key={id + part} flow={flow} id={id} k={+k} onEdit={onEdit} />}

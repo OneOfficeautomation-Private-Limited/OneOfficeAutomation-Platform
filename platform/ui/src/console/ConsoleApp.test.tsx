@@ -459,6 +459,11 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(menu).getAllByRole("button").filter((b) => b.classList.contains("st-menu-entry")).map((b) => b.textContent)).toEqual(["Automation", "Ideas and apps",
       "Activity", "Runners", "Scheduling", "Work queues", "Shared data", "Credentials", "Overview", "Alerts", "Operations and business",
       "People and roles", "Settings and audit", "One Chat", "AI setup", "Document Automation"]);
+    // item 16: a section folds from its heading and unfolds again (the choice is remembered)
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
+    expect(within(menu).queryByRole("button", { name: "Runners" })).toBeNull();
+    expect(within(menu).getByRole("button", { name: "MANAGE" }).getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
     expect(within(menu).queryAllByRole("link")).toEqual([]);   // every page is rebuilt here
     expect(within(menu).queryByText(/AgentStudio/)).toBeNull();   // only the agent editor carries that name
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");

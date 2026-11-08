@@ -80,6 +80,30 @@ export function OutputChooser({ step, output, type, label }: { step: FlowStep; o
   }} options={opts} />;
 }
 
+/**
+ * The variable a value goes into, for the Catch part and On error (usage review items 19 and 20, as AA's "Assign
+ * exception message to"): the agent's variables that hold the type, or a new one of that type. A Dictionary also goes
+ * into an Any variable; text also into an Any variable.
+ */
+export function VariableChooser({ value, type, label, nameHint, onPick }: { value?: string; type: string; label: string; nameHint: string;
+  onPick: (f: Flow, name: string | undefined) => Flow }) {
+  const vars = useVars();
+  if (!vars) return null;
+  const cur = value ?? "";
+  const all = vars.flow.variables ?? [];
+  const fit = all.filter((v) => holdsType(v.type, type) || v.type === "Any");
+  const opts = [{ value: "", label: "(not kept)" }, ...fit.map((v) => ({ value: v.name, label: "$" + v.name + " (" + v.type + ")" }))];
+  const other = cur && !fit.some((v) => v.name === cur) ? all.find((v) => v.name === cur) : undefined;
+  if (other) opts.push({ value: other.name, label: "$" + other.name + " (" + other.type + ": does not hold " + type + ")" });
+  else if (cur && !all.some((v) => v.name === cur)) opts.push({ value: cur, label: "$" + cur + " (not a variable of this agent)" });
+  opts.push({ value: NEW, label: "+ New " + type + " variable" });
+  return <Select aria-label={label} value={cur} onChange={(e) => {
+    const v = e.target.value;
+    if (v === NEW) vars.newVariable({ type, name: nameHint, then: (n, f) => onPick(f, n) });
+    else applyNow(vars, (f) => onPick(f, v || undefined));
+  }} options={opts} />;
+}
+
 /** Steps' fields change the agent through the context's editor, from the agent as it is now. */
 function applyNow(vars: NonNullable<ReturnType<typeof useVars>>, change: (f: Flow) => Flow) { vars.edit(change(vars.flow)); }
 

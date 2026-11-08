@@ -1360,6 +1360,9 @@ public final class Runner {
                 err.put("stack", frame(Map.of("id", sid == null ? "" : sid)).stack());
                 if (h.get("screenshot") != null && !Boolean.FALSE.equals(h.get("screenshot"))) err.put("screenshot", screenshot(h.get("screenshot"), sid == null ? "run" : sid));
                 if (h.get("as") instanceof String as && !as.isBlank()) scope.set(as, err);
+                // as a Catch (usage review item 20): the message and the line number in variables of their own
+                if (h.get("message_to") instanceof String mt && !mt.isBlank()) scope.set(mt, e.getMessage());
+                if (h.get("line_to") instanceof String lt && !lt.isBlank()) scope.set(lt, err.get("line"));
                 execSteps(Steps.onErrorSteps(flow), false);
             } catch (StopSignal stop) {
                 log("info", "A Stop step ended the error handler", sid);

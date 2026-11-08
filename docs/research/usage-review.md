@@ -114,8 +114,8 @@ Order, one tested commit each. Tick when committed:
 - [x] 24: one-line command description under the name; field hints as text, ⓘ only for long help
 - [x] 27: info notices close after about 6 s (hover or focus keeps them), errors stay with a labelled Close; one notice at a time (a newer one replaces it)
 - [x] 26: Open program/file command (location, start in, parameters, timeout); Open file hidden from the library; library search by AA command names
-- [ ] 16: foldable menu sections (remembered, current always open)
-- [ ] 19, 20: Catch fields in AA's order; On error variable field with message and line
+- [x] 16: foldable menu sections (remembered, current always open)
+- [x] 19, 20: Catch fields in AA's order; On error variable field with message and line
 - [ ] Full test suite, UI check at full width (item 17), push branch
 
 After that, with the user's OK: the per-command review (UI, behaviour, technical logic, reuse, easy upgrades).

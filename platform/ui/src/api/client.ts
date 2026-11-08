@@ -54,7 +54,7 @@ export type FlowStep = {
   id: string; action: string; args?: Record<string, unknown>; out?: Record<string, string>; disabled?: boolean; note?: string;
   /** A saved connection that supplies the connector's address and sign-in. */
   connection?: string;
-  children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; children?: FlowStep[] }[]; finally?: FlowStep[];
+  children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; message_to?: string; line_to?: string; continueOnError?: boolean; screenshot?: boolean | string; rethrow?: boolean; children?: FlowStep[] }[]; finally?: FlowStep[];
   /** Switch: the cases, tried in order (a case value is a value to compare, or a condition when match is expression), and the default steps. */
   cases?: { values?: unknown[]; children?: FlowStep[] }[]; default?: FlowStep[];
   /** State machine: named states, each with entry steps and transitions tried in order (one without "when" is the default); a final state ends it. */
@@ -74,7 +74,7 @@ export type Flow = { kind: string; id: string; name: string; description?: strin
  * The agent's error handler: steps that run once when an error no Try block caught ends the run, while its windows and
  * files are still open; then the run fails with that error (fail, the default) or ends as succeeded with a warning.
  */
-export type FlowOnError = { as?: string; steps: FlowStep[]; then?: "fail" | "succeed"; screenshot?: boolean | string };
+export type FlowOnError = { as?: string; message_to?: string; line_to?: string; steps: FlowStep[]; then?: "fail" | "succeed"; screenshot?: boolean | string };
 
 /** An agent to start from (Create > Start from): its variables and steps are copied into the new agent. */
 export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; onError?: FlowOnError };

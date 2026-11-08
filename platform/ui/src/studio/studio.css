@@ -645,3 +645,8 @@ body.st-printing-doc .st-print-doc { display: block; color: #000; background: #f
 .st-ai-note.st-clone-note { flex-wrap: wrap; background: var(--ui-offer-bg); color: var(--ui-text); }
 .st-prop-about { margin: 0; padding: 8px 12px 10px; color: var(--ui-text); font-size: 13px; line-height: 1.45; border-bottom: 1px solid var(--ui-border); background: var(--ui-soft); }
 .st-action .st-aa-name { display: block; color: var(--ui-text-2); font-size: 12px; }
+/* item 16 (9 Nov 2026): a section heading folds its section; the section of the page on screen stays open */
+button.st-menu-group-head { width: 100%; border: 0; background: transparent; font-family: inherit; text-align: left; cursor: pointer; border-radius: var(--ui-radius); }
+button.st-menu-group-head:hover { background: rgba(255, 255, 255, .06); }
+button.st-menu-group-head:focus-visible { outline: 2px solid #8fb4ff; outline-offset: -2px; }
+.st-menu-group-head .st-menu-caret { margin-left: auto; display: inline-flex; color: #8b97a8; }

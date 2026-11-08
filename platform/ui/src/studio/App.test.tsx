@@ -1248,6 +1248,14 @@ describe("new Studio", () => {
     fireEvent.change(screen.getByLabelText("Errors it catches"), { target: { value: "FILE.NOT_FOUND, BUSINESS.ERROR" } });
     fireEvent.blur(screen.getByLabelText("Errors it catches"));
     expect(within(steps).getByRole("button", { name: "Catch FILE.NOT_FOUND, BUSINESS.ERROR" })).toBeTruthy();
+    // item 19: AA's Catch fields in AA's order, each variable field a choice of variables with + New variable
+    const labels = ["Errors it catches", "On error, continue with the next step", "Keep the error message in", "Keep the line number in", "Keep the whole error in",
+      "Take a screenshot when it catches an error", "Raise the error again after these steps"];
+    const at = labels.map((l) => screen.getByLabelText(new RegExp("^" + l)));
+    for (let i = 1; i < at.length; i++) expect(at[i - 1].compareDocumentPosition(at[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(screen.getByLabelText("Keep the error message in") as HTMLElement).getByRole("option", { name: "+ New String variable" })).toBeTruthy();
+    fireEvent.click(screen.getByLabelText(/^On error, continue with the next step/));
+    fireEvent.click(screen.getByLabelText(/^Raise the error again/));
     // fold the Try: its line shows how many steps it hides
     fireEvent.click(within(steps).getByRole("button", { name: "Fold line 1" }));
     expect(within(steps).getByText("1 step folded")).toBeTruthy();
@@ -1255,7 +1263,7 @@ describe("new Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(created.some((c: any) => c.saved?.ui?.collapsed?.length === 1)).toBe(true));
     const saved = (created.filter((c: any) => c.saved).pop() as any).saved;
-    expect(saved.steps[0]).toMatchObject({ action: "core/try", catch: [{ codes: ["FILE.NOT_FOUND", "BUSINESS.ERROR"], children: [] }], finally: [{ action: "core/log" }] });
+    expect(saved.steps[0]).toMatchObject({ action: "core/try", catch: [{ codes: ["FILE.NOT_FOUND", "BUSINESS.ERROR"], continueOnError: true, rethrow: true, children: [] }], finally: [{ action: "core/log" }] });
     fireEvent.keyDown(within(steps).getByRole("button", { name: "More" }), { key: "Enter" });
     fireEvent.click(await screen.findByRole("menuitem", { name: "Unfold all" }));
     expect(within(steps).getByRole("button", { name: "Finally (always)" })).toBeTruthy();

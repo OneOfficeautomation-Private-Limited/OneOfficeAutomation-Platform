@@ -59,6 +59,18 @@ class ErrorHandlerTest {
         assertEquals("failed", stack.status(), "then defaults to fail");
     }
 
+    @Test void theHandlerKeepsTheMessageAndLineInVariablesOfTheirOwn() {
+        // usage review item 20: as AA's Catch, the message and the line number go into a text and a number variable
+        RunResult r = run("""
+            {"kind":"TaskBot","id":"eh","name":"eh","variables":[{"name":"msg","type":"String","direction":"output","default":"-"},
+              {"name":"line","type":"Number","direction":"output","default":0}],
+             "steps":[{"id":"a","action":"core/log","args":{"message":"one"}},{"id":"x","action":"core/throw","args":{"code":"A.B","message":"no invoice"}}],
+             "onError":{"message_to":"msg","line_to":"line","then":"succeed","steps":[]}}""");
+        ok(r);
+        assertEquals("no invoice", r.outputs().get("msg"));
+        assertEquals(new java.math.BigDecimal("2"), new java.math.BigDecimal(String.valueOf(r.outputs().get("line"))));
+    }
+
     @Test void thenSucceedEndsTheRunSucceededWithAWarning() {
         EventSink.ListSink sink = new EventSink.ListSink();
         RunResult r = Runner.builder(registry()).sink(sink).build().run(flow(agent(THROWS, "succeed", NOTE)), Map.of());

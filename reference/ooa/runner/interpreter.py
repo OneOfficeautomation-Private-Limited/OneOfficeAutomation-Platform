@@ -291,6 +291,11 @@ class _Run:
             err["stack"] = [{"automation": str(self.flow.get("id", "?")), "stepId": sid or ""}]
             if h.get("as"):
                 self.scope.set(h["as"], err)
+            # the message and the line number in variables of their own, as a Catch's (usage review item 20)
+            if h.get("message_to"):
+                self.scope.set(h["message_to"], e.message)
+            if h.get("line_to"):
+                self.scope.set(h["line_to"], err["line"])
             self._exec_steps(h.get("steps"))
         except RunCancelled:
             self.emit("error_handler.finished", sid, status="stopped", durationMs=_ms(t0))
