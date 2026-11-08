@@ -34,6 +34,34 @@ export const KERNEL_SECTIONS: MenuSection[] = [
 /** The menu: the kernel's sections with the pages of every module found (modules/registry.ts). */
 export const MENU_SECTIONS: MenuSection[] = withModules(KERNEL_SECTIONS, UI_MODULES);
 
+/**
+ * The menu's entries (option B of the console usability canvas, chosen 8 Nov 2026): 17 entries in five sections, all
+ * open, each a group of related pages shown as tabs of one page (Scheduling: Schedules, Triggers, Upcoming runs). Every
+ * page keeps its own address; an entry opens the first of its pages the person may see. A page in no group (a module
+ * added later) is an entry of its own in its section.
+ */
+export type MenuGroup = { id: string; label: string; icon: IconName; section: string; pages: string[] };
+export const MENU_GROUPS: MenuGroup[] = [
+  { id: "g-automation", label: "Automation", icon: "folder", section: "build", pages: ["automation", "templates", "apitasks", "tests", "toolkits"] },
+  { id: "g-ideas", label: "Ideas and apps", icon: "idea", section: "build", pages: ["ideas", "apps"] },
+  { id: "g-activity", label: "Activity", icon: "pulse", section: "manage", pages: ["activity", "inbox"] },
+  { id: "g-runners", label: "Runners", icon: "machine", section: "manage", pages: ["devices", "locks", "runner-status"] },
+  { id: "g-scheduling", label: "Scheduling", icon: "clock", section: "manage", pages: ["schedules", "triggers", "upcoming"] },
+  { id: "g-queues", label: "Work queues", icon: "queue", section: "manage", pages: ["queues", "workflows"] },
+  { id: "g-data", label: "Shared data", icon: "db", section: "manage", pages: ["globals", "data", "savedconn"] },
+  { id: "g-credentials", label: "Credentials", icon: "lock", section: "manage", pages: ["credentials"] },
+  { id: "g-overview", label: "Overview", icon: "chart", section: "insights", pages: ["insights"] },
+  { id: "g-alerts", label: "Alerts", icon: "bell", section: "insights", pages: ["alerts", "alert-rules"] },
+  { id: "g-operations", label: "Operations and business", icon: "sliders", section: "insights", pages: ["operations", "business"] },
+  { id: "g-people", label: "People and roles", icon: "people", section: "administration", pages: ["users", "roles", "teams"] },
+  { id: "g-settings", label: "Settings and audit", icon: "gear", section: "administration", pages: ["settings", "policies", "audit", "events", "licenses"] },
+  { id: "g-chat", label: "One Chat", icon: "chat", section: "ai", pages: ["chat"] },
+  { id: "g-ai", label: "AI setup", icon: "spark", section: "ai", pages: ["connections", "skills", "knowledge", "governance"] },
+  { id: "g-docs", label: "Document Automation", icon: "doc", section: "ai", pages: ["docautomation"] },
+];
+/** The group a page is in, or undefined. */
+export const groupOf = (page: string) => MENU_GROUPS.find((g) => g.pages.includes(page));
+
 /** What a signed-in person may see; Studio, which has no sign-in of its own, shows every page. */
 export type MenuViewer = { permissions: string[]; leadsTeam?: boolean } | null;
 

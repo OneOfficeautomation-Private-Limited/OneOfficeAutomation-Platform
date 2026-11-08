@@ -1,6 +1,13 @@
 /** Line icons (24 px grid, drawn with the current text colour). Names describe the picture, not where it is used. */
 export const ICONS = {
   folder: "M3 7h6l2 2h10v10H3z",
+  lock: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
+  clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2",
+  chart: "M4 20V10M10 20V4M16 20v-7M2 20h20",
+  chat: "M4 5h16v11H9l-5 4z",
+  people: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21c0-4 3-6 7-6s7 2 7 6M17 11a3 3 0 1 0 0-6M22 21c0-3-2-5-5-5",
+  idea: "M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5V16h8v-2.5A6 6 0 0 0 12 3z",
+  machine: "M3 4h18v12H3zM8 20h8M12 16v4",
   bolt: "M13 2L4 14h7l-1 8 9-12h-7z",
   spark: "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6",
   mail: "M3 6h18v12H3zM3 7l9 7 9-7",

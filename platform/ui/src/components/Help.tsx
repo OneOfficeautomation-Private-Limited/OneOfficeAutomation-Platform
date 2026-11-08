@@ -1,11 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Icon } from "./Icon";
+import { Splitter, usePanelSize } from "./Splitter";
 
 /**
  * Help beside the page (issue 11, design B on the canvas, chosen 1 Nov 2026): a small ⓘ after a page title, section or
  * group heading opens a Help panel at the right of the page that says, in plain words, what each option there does and
  * how to use it. One topic shows at a time; the same ⓘ, the ✕ or Esc closes it, and it closes when the page changes.
+ * Its left edge resizes it (drag, or the arrow keys), Widen makes it as wide as allowed and Narrow puts it back; the
+ * width is remembered in this browser (item 13, docs/research/input-help-check.md).
  */
+const HELP_MIN = 260, HELP_MAX = 720, HELP_DEFAULT = 300;
 export type HelpItem = { name: string; text: string };
 export type HelpTopic = { title: string; about?: string; items?: HelpItem[] };
 
@@ -32,6 +36,7 @@ export function HelpButton({ topic }: { topic: HelpTopic }) {
 export function HelpPanel({ page }: { page?: string }) {
   const help = useContext(HelpContext);
   const topic = help?.topic ?? null;
+  const [width, setWidth] = usePanelSize("help");
   useEffect(() => { help?.open(null); }, [page]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!topic) return;
@@ -40,10 +45,14 @@ export function HelpPanel({ page }: { page?: string }) {
     return () => window.removeEventListener("keydown", esc);
   }, [topic, help]);
   if (!help || !topic) return null;
+  const wide = (width ?? HELP_DEFAULT) >= HELP_MAX - 20;
   return (
-    <aside className="ui-help-panel" aria-label={"Help: " + topic.title}>
+    <aside className="ui-help-panel" aria-label={"Help: " + topic.title} style={{ width: width ?? HELP_DEFAULT }}>
+      <Splitter label="Help panel width" axis="x" grow={-1} value={width} min={HELP_MIN} max={HELP_MAX} measure={() => HELP_DEFAULT} onChange={setWidth} />
       <div className="ui-help-head">
         <h2>Help: {topic.title}</h2>
+        <button type="button" className="ui-help-close" aria-label={wide ? "Narrow the help" : "Widen the help"} title={wide ? "Narrow" : "Widen"}
+          onClick={() => setWidth(wide ? null : HELP_MAX)}><Icon name={wide ? "shrink" : "expand"} size={14} /></button>
         <button type="button" className="ui-help-close" aria-label="Close the help" title="Close (Esc)" onClick={() => help.open(null)}><Icon name="close" size={14} /></button>
       </div>
       <div className="ui-help-body">

@@ -62,7 +62,8 @@ function save(fileName: string, text: string) {
   document.body.appendChild(a); a.click(); a.remove();
 }
 
-export function Operations({ api, user, tabs }: { api: CrApi; user: CrUser; tabs?: ReactNode }) {
+/** part (item 12): the agents' lists, or the trends (the charts), each its own tab of Operations rather than both on one screen. */
+export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; user: CrUser; tabs?: ReactNode; part?: "lists" | "trends" }) {
   const [days, setDays] = usePersistent("operations.days", "30");
   const [tab, setTab] = usePersistent<ListTab>("operations.list", "most_run");
   const [f, setF] = useState<Record<string, string>>({});
@@ -131,13 +132,13 @@ export function Operations({ api, user, tabs }: { api: CrApi; user: CrUser; tabs
           <a className="cc-sum" href={activity({ status: "stopped" })}><strong>{t.stopped}</strong><span>Stopped by someone</span></a>
           <div className="cc-sum is-static"><strong>{dur(t.avg_ms)}</strong><span>Average run · 95% within {dur(t.p95_ms)} · total {dur(t.total_ms)}</span></div>
         </div>
-        <div className="cc-ops-charts">
+        {part === "trends" && <div className="cc-ops-charts">
           <div className="cc-card cc-card-flat"><h2>How long runs take</h2><Bars items={o.duration_distribution.map((x) => ({ label: x.bucket, value: x.runs }))} label="How long runs take" /></div>
           <div className="cc-card cc-card-flat"><h2>Runs by week</h2>
             {o.by_day.length ? <WeekBars days={o.by_day} /> : <p className="st-muted">No runs in the period.</p>}</div>
           {o.by_hour && <div className="cc-card cc-card-flat"><h2>When runs start</h2><Heatmap h={o.by_hour} /></div>}
-        </div>
-        <div className="cc-list-panel cc-ops-lists">
+        </div>}
+        {part === "lists" && <div className="cc-list-panel cc-ops-lists">
           <div className="ov-tabs" role="tablist" aria-label="Lists">
             {lists.map(([k, l, n, bad]) => <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>
               {l}<span className={"ov-cnt" + (bad && n ? " is-bad" : "")}>{n}</span></button>)}
@@ -166,7 +167,7 @@ export function Operations({ api, user, tabs }: { api: CrApi; user: CrUser; tabs
             {tab === "by_source" && <StatList rows={o.by_source} label="How runs were started" head={["Started by"]} cells={(r) => <td>{howStarted(r.source)}</td>} name={(r) => howStarted(r.source)}
               open={(r) => setF({ ...f, source: r.source })} openTitle="Show only runs started this way" />}
           </div>
-        </div>
+        </div>}
       </>}
       {stats && <AgentStatistics api={api} path={stats} days={days} label={label} onClose={() => setStats(null)} />}
     </section>

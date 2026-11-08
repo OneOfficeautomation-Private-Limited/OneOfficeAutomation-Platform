@@ -143,6 +143,44 @@ class StudioServerRoutesTest {
     @SuppressWarnings("unchecked")
     static String code(Map<String, Object> r) { return r.get("error") instanceof Map<?, ?> e ? String.valueOf(((Map<String, Object>) e).get("code")) : "none: " + r; }
 
+    /**
+     * Browse… in a step's file or folder field (docs/research/input-help-check.md, items 4 and 5): the places to start
+     * from, a folder's contents with folders first, a file's own folder, and no hidden files; and a Credential field's
+     * vault list, empty when Studio is not connected to One CommandCenter (item 6).
+     */
+    @SuppressWarnings("unchecked")
+    @Test void browseThisComputerAndTheVaultList() throws Exception {
+        Path root = Files.createTempDirectory("ooa-browse");
+        int port = StudioControlRoomTest.freePort();
+        new StudioServer(root, port, Path.of("../../examples/refund")).start();
+        String base = "http://127.0.0.1:" + port;
+
+        Map<String, Object> places = call(base, "GET", "/api/fs/list?path=", null);
+        List<Map<String, Object>> start = (List<Map<String, Object>>) places.get("places");
+        assertEquals("Workspace", start.get(0).get("name"));
+        assertEquals(root.toAbsolutePath().normalize().toString(), start.get(0).get("path"));
+        assertTrue(start.stream().anyMatch(p -> "Home".equals(p.get("name"))));
+
+        Path dir = Files.createDirectories(root.resolve("Browse test"));
+        Files.createDirectories(dir.resolve("b folder"));
+        Files.writeString(dir.resolve("a.txt"), "x");
+        Files.writeString(dir.resolve("c.csv"), "x");
+        Map<String, Object> listed = call(base, "GET", "/api/fs/list?path=" + enc(dir.toString()), null);
+        assertEquals(dir.toAbsolutePath().normalize().toString(), listed.get("path"));
+        assertEquals(dir.getParent().toAbsolutePath().normalize().toString(), listed.get("parent"));
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) listed.get("entries");
+        assertEquals(List.of("b folder", "a.txt", "c.csv"), entries.stream().map(e -> e.get("name")).toList(), "folders first, then files by name");
+        assertEquals(true, entries.get(0).get("dir"));
+
+        // a file's path opens its folder; a path that is not there is refused
+        assertEquals(dir.toAbsolutePath().normalize().toString(), call(base, "GET", "/api/fs/list?path=" + enc(dir.resolve("a.txt").toString()), null).get("path"));
+        assertEquals("STUDIO.NOT_A_FOLDER", code(call(base, "GET", "/api/fs/list?path=" + enc(root.resolve("nowhere/at/all").toString()), null)));
+
+        Map<String, Object> vault = call(base, "GET", "/api/cr/credentials", null);
+        assertEquals(false, vault.get("connected"));
+        assertEquals(List.of(), vault.get("credentials"));
+    }
+
     static String enc(String s) { return java.net.URLEncoder.encode(s, java.nio.charset.StandardCharsets.UTF_8); }
 
     static Map<String, Object> call(String base, String method, String path, Object body) throws Exception { return StudioControlRoomTest.call(base, method, path, body, null); }

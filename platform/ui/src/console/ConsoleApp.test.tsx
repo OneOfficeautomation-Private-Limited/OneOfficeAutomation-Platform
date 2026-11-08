@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, describe, expect, it } from "vitest";
 import { CrApi } from "../api/cr";
 import { ConsoleApp } from "./ConsoleApp";
-import { MENU_SECTIONS } from "../shell/menu";
+import { groupOf, MENU_SECTIONS } from "../shell/menu";
 
 afterEach(() => { cleanup(); localStorage.clear(); });
 
@@ -386,14 +386,19 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
   return { api: new CrApi("/api/", f), calls };
 }
 
-/** Opens a page from the menu: the console keeps one section open, so its section is opened first when needed. */
+/**
+ * Opens a page as a person does (option B): the menu entry of its group, then its tab when it is not the group's first
+ * page; a page in no group is an entry of its own.
+ */
 async function go(name: string) {
   const nav = await screen.findByRole("navigation", { name: "One CommandCenter" });
-  if (!within(nav).queryByRole("button", { name })) {
-    const sec = MENU_SECTIONS.find((x) => x.pages.some((pg) => pg.label === name));
-    if (sec) fireEvent.click(within(nav).getByRole("button", { name: sec.label }));
-  }
-  fireEvent.click(within(nav).getByRole("button", { name }));
+  const page = MENU_SECTIONS.flatMap((s) => s.pages).find((p) => p.label === name);
+  const group = page && groupOf(page.id);
+  if (!group) { fireEvent.click(within(nav).getByRole("button", { name })); return; }
+  fireEvent.click(within(nav).getByRole("button", { name: group.label }));
+  const tabs = screen.queryByRole("navigation", { name: group.label });
+  const tab = tabs && within(tabs).queryByRole("button", { name });
+  if (tab && tab.getAttribute("aria-current") !== "page") fireEvent.click(tab);
 }
 
 describe("rebuilt One CommandCenter console", () => {
@@ -450,7 +455,10 @@ describe("rebuilt One CommandCenter console", () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    fireEvent.click(within(menu).getByRole("button", { name: "BUILD" }));
+    // option B (8 Nov 2026): every section open, one entry per group of pages
+    expect(within(menu).getAllByRole("button").filter((b) => b.classList.contains("st-menu-entry")).map((b) => b.textContent)).toEqual(["Automation", "Ideas and apps",
+      "Activity", "Runners", "Scheduling", "Work queues", "Shared data", "Credentials", "Overview", "Alerts", "Operations and business",
+      "People and roles", "Settings and audit", "One Chat", "AI setup", "Document Automation"]);
     expect(within(menu).queryAllByRole("link")).toEqual([]);   // every page is rebuilt here
     expect(within(menu).queryByText(/AgentStudio/)).toBeNull();   // only the agent editor carries that name
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -463,13 +471,11 @@ describe("rebuilt One CommandCenter console", () => {
     const { api } = fakeServer({ signedIn: viewer });
     render(<ConsoleApp api={api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
-    expect(within(menu).getByRole("button", { name: "Runner Machines" })).toBeTruthy();
-    expect(within(menu).getByRole("button", { name: "Credential vault" })).toBeTruthy();   // the vault is for everyone, under MANAGE as AA's
+    expect(within(menu).getByRole("button", { name: "Runners" })).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: "Credentials" })).toBeTruthy();   // the vault is for everyone, under MANAGE as AA's
     expect(within(menu).queryByText("ADMINISTRATION")).toBeNull();   // no page in it is open to a viewer
     expect(within(menu).queryByRole("link", { name: "Users" })).toBeNull();
     expect(within(menu).queryByText("OPERATIONAL INSIGHTS")).toBeNull();   // no page in it is open to a viewer
-    fireEvent.click(within(menu).getByRole("button", { name: "AI" }));
     expect(within(menu).getByRole("button", { name: "Document Automation" })).toBeTruthy();   // AI shows only what a viewer may open
     expect(within(menu).queryByRole("link", { name: "Model Connections" })).toBeNull();
     fireEvent.keyDown(screen.getByRole("button", { name: "Account: Vic Viewer" }), { key: "Enter" });
@@ -491,7 +497,13 @@ describe("rebuilt One CommandCenter console", () => {
     expect(screen.getByText("Installed").closest(".cc-pill")).toBeTruthy();
     // the service it uses: its version against the one this release is tested with
     const service = await screen.findByRole("generic", { name: "Document Automation service" });
-    expect(within(service).getByRole("heading", { name: /Service: DocFlow 3\.2\.0/ })).toBeTruthy();
+    expect(within(service).getByText("DocFlow 3.2.0")).toBeTruthy();
+    // the start screen (item 15): each area opens at its own address in the module's pages, and the first steps
+    const areas = screen.getByRole("navigation", { name: "Document Automation areas" });
+    expect(within(areas).getByRole("link", { name: /^Inbox/ }).getAttribute("href")).toBe("/plugins/document-automation/#/inbox");
+    expect(within(areas).getAllByRole("link")).toHaveLength(7);
+    expect(screen.getByRole("link", { name: "Open the Inbox" }).getAttribute("href")).toBe("/plugins/document-automation/#/inbox");
+    expect(within(screen.getByRole("generic", { name: "First steps" })).getAllByRole("listitem")).toHaveLength(4);
     expect(within(service).getByText("Newer than tested").closest(".cc-pill")?.className).toContain("is-pending");
     expect(within(service).getByText(/tested with DocFlow 3\.1\.0 \(works from 3\.1\.0\)/)).toBeTruthy();
   });
@@ -622,10 +634,12 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click((within(latest).getAllByRole("row")[1] as HTMLTableRowElement).cells[3]);
     expect(location.hash).toMatch(/^#\/activity\?run=/);
     location.hash = "#/insights";
-    // the next scheduled runs: enabled ones only, soonest first
-    const next = await screen.findByRole("list", { name: "Next scheduled runs" });
-    expect(within(next).getByText("Nightly invoices")).toBeTruthy();
-    expect(within(next).queryByText("Hourly onboarding")).toBeNull();
+    // item 11: one card per area, each opening its own page; the upcoming runs card names the next enabled one
+    const more = await screen.findByRole("group", { name: "More detail" });
+    const upcoming = within(more).getByRole("link", { name: /^Upcoming runs/ });
+    expect(upcoming.getAttribute("href")).toBe("#/upcoming");
+    expect(within(upcoming).getByText("Next: Nightly invoices")).toBeTruthy();
+    expect(within(more).getByRole("link", { name: /^Runners/ }).getAttribute("href")).toBe("#/runner-status");
     expect(screen.queryByRole("list", { name: "Set up next" })).toBeNull();
     expect(screen.getByRole("link", { name: "New alert rule" }).getAttribute("href")).toBe("#/alerts?new=1");
     // the period, then a failure reason opens Agent Activity's Completed runs, filtered to it
@@ -663,7 +677,9 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "alerts/acknowledge", body: { ids: ["al1"] } }));
     expect(await screen.findByText("Acknowledged 1 alert.")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: /^Rules/ }));
+    // item 12: the rules are their own page
+    fireEvent.click(screen.getByRole("link", { name: /rules? ›$/ }));
+    expect(await screen.findByRole("heading", { name: "Alert rules", level: 1 })).toBeTruthy();
     const rules = await screen.findByRole("table", { name: "Alert rules" });
     expect(within(rules).getByText("Too many runs fail · Invoice intake")).toBeTruthy();
     expect(within(rules).getByText("Failed share of finished runs: 50% · Over the last 60 min")).toBeTruthy();
@@ -710,14 +726,18 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(figs).getByText(/^Succeeded · \d+% · \+25 points on before$/)).toBeTruthy();
     expect(within(figs).getByText("In progress or waiting")).toBeTruthy();
     expect(within(figs).getByText("Stopped by someone")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Runs by week" })).toBeTruthy();
-    expect(within(screen.getByRole("tablist", { name: "Operations" })).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Agents", "Runners", "Work queues", "Audit"]);
+    expect(within(screen.getByRole("tablist", { name: "Operations" })).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Agents", "Trends", "Runners", "Work queues", "Audit"]);
+    // item 12: the charts are on their own tab, Trends; the lists stay on Agents
+    expect(screen.queryByRole("heading", { name: "Runs by week" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Trends" }));
+    expect(await screen.findByRole("heading", { name: "Runs by week" })).toBeTruthy();
     const heat = screen.getByRole("table", { name: "When runs start, by weekday and hour (UTC)" });
     const busy = within(heat).getByTitle("Mon 09:00 · 4 runs, 1 failed");
     expect(busy.className).toBe("cc-heat-l4 has-failed");
     expect(within(heat).getByTitle("Wed 14:00 · 1 run").className).toBe("cc-heat-l1");
+    fireEvent.click(screen.getByRole("tab", { name: "Agents" }));
     // the lists in one tabbed panel, one line per row
-    expect(screen.getByRole("tab", { name: /^Agents run most/ }).getAttribute("aria-selected")).toBe("true");
+    expect((await screen.findByRole("tab", { name: /^Agents run most/ })).getAttribute("aria-selected")).toBe("true");
     fireEvent.click(screen.getByRole("tab", { name: /^Why runs failed/ }));
     expect(within(screen.getByRole("table", { name: "Why runs failed" })).getByRole("link", { name: "EXCEL.NOT_FOUND" }).getAttribute("href"))
       .toBe("#/activity?tab=completed&status=failed&q=EXCEL.NOT_FOUND");
@@ -1031,7 +1051,22 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Export or promote" }));
     const ex = await screen.findByRole("dialog", { name: "Export or promote agents" });
     const pick = await within(ex).findByRole("group", { name: "Agents to export" });
+    // the repository's folder tree (item 1, docs/research/input-help-check.md): a folder's box ticks all its agents
+    const tree = within(pick).getByRole("tree", { name: "Agents and folders" });
+    const finance = within(tree).getByLabelText("All of Finance") as HTMLInputElement;
+    fireEvent.click(finance);
+    const financeRow = finance.closest("[role=treeitem]") as HTMLElement;
+    const inFinance = Number(/(\d+) agents?/.exec(financeRow.textContent ?? "")![1]);
+    expect(inFinance).toBeGreaterThan(0);
+    expect(within(ex).getByText(inFinance + " ticked")).toBeTruthy();
+    fireEvent.click(finance);
+    expect(within(ex).getByText("0 ticked")).toBeTruthy();
+    // searching narrows the tree to the matches
+    fireEvent.change(within(ex).getByLabelText("Search agents to export"), { target: { value: "zzz-no-such-agent" } });
+    expect(within(pick).getByText("No agents match.")).toBeTruthy();
+    fireEvent.change(within(ex).getByLabelText("Search agents to export"), { target: { value: "" } });
     fireEvent.click(within(pick).getByLabelText(/^Invoice intake/));
+    if (inFinance > 1) expect((within(pick).getByLabelText("All of Finance") as HTMLInputElement).indeterminate).toBe(true);
     fireEvent.click(within(ex).getByRole("button", { name: "Promote to another One CommandCenter" }));
     fireEvent.change(within(ex).getByLabelText("Its address"), { target: { value: "https://cc-prod.example.com" } });
     fireEvent.change(within(ex).getByLabelText("Its API key (vault reference)"), { target: { value: "Prod/cc-key/token" } });
@@ -1055,6 +1090,11 @@ describe("rebuilt One CommandCenter console", () => {
     const inside = await within(im).findByRole("table", { name: "In the bundle" });
     expect(within(inside).getByText("Yes: skipped")).toBeTruthy();   // Invoice intake is here already
     expect(within(inside).getByText("Called by another")).toBeTruthy();
+    // the target folder is chosen from the tree, or typed (a new name makes the folder)
+    fireEvent.click(within(im).getByRole("button", { name: "Choose…" }));
+    const folders = await within(im).findByRole("tree", { name: "Folders" });
+    fireEvent.click(within(folders).getByText("Finance"));
+    expect((within(im).getByLabelText("Put them under folder") as HTMLInputElement).value).toBe("Finance");
     fireEvent.change(within(im).getByLabelText("Put them under folder"), { target: { value: "Imported" } });
     expect(within(inside).getByText("Imported/Shared/Read PDF.flow.json")).toBeTruthy();
     await act(async () => { fireEvent.click(within(im).getByRole("button", { name: "Import" })); });
@@ -1099,10 +1139,14 @@ describe("rebuilt One CommandCenter console", () => {
     await go("Users");
     await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Administration›Users"));
     const menu = screen.getByRole("navigation", { name: "One CommandCenter" });
-    expect(within(menu).getByRole("button", { name: "ADMINISTRATION" }).getAttribute("aria-expanded")).toBe("true");
-    expect(within(menu).getByRole("button", { name: "MANAGE" }).getAttribute("aria-expanded")).toBe("false");   // one section open
-    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
-    expect(within(menu).queryByRole("button", { name: "Roles" })).toBeNull();   // opening another closes it
+    // option B: the group's entry is current on any of its pages, and its pages are tabs above the page
+    expect(within(menu).getByRole("button", { name: "People and roles" }).getAttribute("aria-current")).toBe("page");
+    const people = screen.getByRole("navigation", { name: "People and roles" });
+    expect(within(people).getAllByRole("button").map((b) => b.textContent)).toEqual(["Users", "Roles", "Teams"]);
+    fireEvent.click(within(people).getByRole("button", { name: "Roles" }));
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Administration›Roles"));
+    expect(within(menu).getByRole("button", { name: "People and roles" }).getAttribute("aria-current")).toBe("page");
+    expect(within(menu).queryByRole("button", { name: "Roles" })).toBeNull();   // pages are tabs, not menu entries
     expect(within(menu).queryByText("Favourites")).toBeNull();   // taken out on 1 Nov 2026
     expect(within(within(menu).getByRole("group", { name: "Menu width" }).parentElement!).getByRole("button", { name: "Collapse menu" })).toBeTruthy();   // at the bottom
     expect(menu.style.width).toBe("232px");
@@ -1595,7 +1639,8 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.change(within(sec).getByLabelText("Two-step sign-in"), { target: { value: "1" } });
     expect(within(sec).getByText("was Optional (each person decides)")).toBeTruthy();
     fireEvent.click(within(sec).getByRole("switch", { name: "Viewer in use" }));
-    expect(within(nav).getByTitle("Changed, not saved yet").textContent).toBe("3");
+    // a section is its own page (item 14): the section menu at the top says which sections have changes not saved
+    expect((screen.getByLabelText("Go to section") as HTMLSelectElement).selectedOptions[0].textContent).toBe("Sign-in and security (3 not saved)");
     const bar = within(sec).getByRole("group", { name: "Changes in Sign-in and security" });
     expect(within(bar).getByText("3 changes")).toBeTruthy();
     await act(async () => { fireEvent.click(within(bar).getByRole("button", { name: "Save Sign-in and security" })); });
@@ -1613,7 +1658,7 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(mail).getByRole("button", { name: "Send a test e-mail" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "settings/mail-test", body: { to: "me@example.com" } }));
     // the directory test: who it finds, their groups and the role they get
-    fireEvent.click(within(nav).getByRole("button", { name: "Single sign-on" }));
+    fireEvent.change(screen.getByLabelText("Go to section"), { target: { value: "sso" } });
     const sso = await screen.findByRole("region", { name: "Single sign-on" });
     expect(within(sso).getByLabelText(/Directory addresses/)).toBeTruthy();
     fireEvent.change(within(sso).getByLabelText("A user name to look up in the directory"), { target: { value: "alice" } });
@@ -1628,7 +1673,8 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(scim).getByRole("button", { name: "Make a SCIM token" })); });
     expect((within(scim).getByLabelText("The new SCIM token") as HTMLInputElement).value).toBe("scim_secret123");
     // removing old runs asks first, with the saved numbers (not ones typed but not saved)
-    fireEvent.click(within(nav).getByRole("button", { name: "Data retention and backups" }));
+    fireEvent.click(screen.getByRole("button", { name: "‹ All settings" }));
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Settings sections" })).getByRole("button", { name: "Data retention and backups" }));
     const data = await screen.findByRole("region", { name: "Data retention and backups" });
     fireEvent.change(within(data).getByLabelText("Keep runs for"), { target: { value: "7" } });
     fireEvent.click(within(data).getByRole("button", { name: "Remove old runs now…" }));
@@ -2006,7 +2052,7 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows the AI pages: model connections with budget and test, a prompt skill saved as a new version, AI governance by model and agent", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "skills.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    const nav = await screen.findByRole("navigation", { name: "One CommandCenter" });
+    await screen.findByRole("navigation", { name: "One CommandCenter" });
     await go("Model Connections");
     const mc = await screen.findByRole("table", { name: "Model connections list" });
     expect(await within(mc).findByText("Masks personal data, Checks answers")).toBeTruthy();
@@ -2025,7 +2071,7 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Test connection" })); });
     expect(await within(d).findByText("Connected in 120 ms: pong")).toBeTruthy();
     fireEvent.click(within(d).getByRole("button", { name: "Cancel" }));
-    fireEvent.click(within(nav).getByRole("button", { name: "Prompt Skills" }));
+    await go("Prompt Skills");
     fireEvent.click(await within(await screen.findByRole("table", { name: "Skills list" })).findByText("summarise"));
     const sk = await screen.findByRole("dialog", { name: "summarise (v2)" });
     expect(within(sk).getByText("The prompt uses: text.")).toBeTruthy();
@@ -2045,7 +2091,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(screen.getByRole("alert").textContent).toContain("Delete summarise and its versions?");
     fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Cancel" }));
     expect(calls.some((c) => c.method === "DELETE" && c.route === "skills/summarise")).toBe(false);
-    fireEvent.click(within(nav).getByRole("button", { name: "AI governance" }));
+    await go("AI governance");
     expect(await screen.findByText("Calls with personal data masked")).toBeTruthy();
     expect(within(screen.getByRole("table", { name: "Recent AI calls" })).getByText("PERSON")).toBeTruthy();
     // By agent in the same panel; an agent's row shows its calls

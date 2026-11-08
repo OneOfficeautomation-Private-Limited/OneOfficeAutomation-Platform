@@ -14,7 +14,7 @@ describe("the UI module registry", () => {
     expect(MENU_SECTIONS.map((s) => s.id + ": " + s.pages.map((p) => p.id).join(" "))).toEqual([
       "build: automation templates apitasks tests ideas apps",
       "manage: activity inbox devices locks schedules triggers queues workflows globals data savedconn credentials toolkits",
-      "insights: insights alerts operations business",
+      "insights: insights alerts alert-rules operations business runner-status upcoming",
       "administration: users roles teams policies audit events licenses settings",
       "ai: chat connections skills docautomation knowledge governance",
     ]);

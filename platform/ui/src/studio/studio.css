@@ -38,6 +38,12 @@
 .st-menu-item:hover { background: rgba(255, 255, 255, .08); color: var(--ui-frame-text); }
 .st-menu-item.is-current { background: var(--ui-accent); color: #ffffff; font-weight: 700; }
 .st-menu-item.is-off { cursor: not-allowed; }
+/* the console's grouped menu (option B, 8 Nov 2026): every section open, its heading a label, entries with an icon */
+.st-menu-section.is-grouped { margin-top: 6px; }
+.st-menu-group-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 4px; color: #c8d1de; font-size: 12.5px; font-weight: 700; letter-spacing: .05em; }
+.st-menu-section.is-grouped .st-menu-items { margin: 0; padding: 0; border-left: 0; }
+.st-menu-entry { gap: 10px; height: 32px; padding: 0 10px; font-size: 14px; }
+.st-menu-entry-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Main area, tabs */
 .st-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .st-tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--ui-border); min-height: 40px; padding-left: 4px; }
@@ -335,6 +341,17 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-seg-btn:last-child { border-right: 0; }
 .st-seg-btn[aria-checked="true"], .st-seg-btn[aria-selected="true"] { background: var(--ui-accent); color: #ffffff; font-weight: 600; }
 .st-row-tight { display: flex; gap: 6px; align-items: center; }
+/* step fields by kind (FieldKinds.tsx): a note under a source switch, Browse's places, the folder line and its list */
+.st-source-note { font-size: 12px; }
+.st-source-value { min-width: 0; }
+.st-row-tight > .st-var-field { flex: 1; min-width: 0; }
+.st-fs-places { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.st-fs-where { margin-bottom: 6px; min-width: 0; }
+.st-fs-where .ui-mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-fs-list { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow: auto; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
+.st-fs-item { display: flex; align-items: center; gap: 6px; width: 100%; height: var(--ui-row); padding: 0 8px; border: 0; background: transparent; color: var(--ui-text); font: inherit; text-align: left; cursor: pointer; }
+.st-fs-item:hover, .st-fs-item:focus-visible { background: var(--ui-row-hover); }
+.st-fs-item:disabled { color: var(--ui-text-3); cursor: default; background: transparent; }
 .st-run-agent { display: flex; flex-direction: column; gap: 6px; }
 .st-assignments { display: flex; flex-direction: column; gap: 8px; }
 /* the variable and the row's buttons on one line, the value under them: readable in the narrow details pane */

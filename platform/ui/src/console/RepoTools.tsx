@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentBundle, CodePolicy, CodeReport, CrApi, CrUser, ImportResult, RepoAgent, RepoFile } from "../api/cr";
-import { Button, Dialog, Field, Select, TextInput } from "../components";
+import { Button, Dialog, Field, Icon, Select, TextInput, Tree, type TreeNode } from "../components";
 import { when } from "./ListParts";
 
 /**
@@ -19,6 +19,88 @@ function save(fileName: string, text: string, type: string) {
   a.download = fileName;
   document.body.appendChild(a); a.click(); a.remove();
 }
+/** Folders (ids "f:Finance/2026") and, when given, agents (ids their paths) as a tree: folders first, then by name. */
+function repoTree(folders: string[], agents: RepoAgent[]): TreeNode[] {
+  type N = TreeNode & { children: TreeNode[] };
+  const root: N = { id: "f:", label: "", children: [] };
+  const at = new Map<string, N>([["", root]]);
+  const folder = (path: string): N => {
+    const had = at.get(path);
+    if (had) return had;
+    const cut = path.lastIndexOf("/"), parent = folder(cut < 0 ? "" : path.slice(0, cut));
+    const n: N = { id: "f:" + path, label: path.slice(cut + 1), children: [] };
+    parent.children.push(n); at.set(path, n);
+    return n;
+  };
+  for (const f of folders) if (f) folder(f);
+  for (const a of agents) folder(a.path.includes("/") ? a.path.slice(0, a.path.lastIndexOf("/")) : "").children.push({ id: a.path, label: agentName(a.path) });
+  const sort = (list: TreeNode[]) => {
+    list.sort((x, y) => Number(!x.id.startsWith("f:")) - Number(!y.id.startsWith("f:")) || x.label.localeCompare(y.label));
+    for (const n of list) if (n.children) sort(n.children);
+  };
+  sort(root.children);
+  return root.children;
+}
+const leaves = (n: TreeNode): string[] => n.id.startsWith("f:") ? (n.children ?? []).flatMap(leaves) : [n.id];
+const allFolders = (list: TreeNode[]): string[] => list.flatMap((n) => n.id.startsWith("f:") ? [n.id, ...allFolders(n.children ?? [])] : []);
+const findNode = (id: string, list: TreeNode[]): TreeNode | undefined => {
+  for (const n of list) { if (n.id === id) return n; const c = n.children && findNode(id, n.children); if (c) return c; }
+  return undefined;
+};
+
+/** A checkbox that also shows "some of it" (a folder with some of its agents ticked). */
+function TriCheck({ state, label, onChange }: { state: "all" | "some" | "none"; label: string; onChange: (on: boolean) => void }) {
+  return <input type="checkbox" aria-label={label} checked={state === "all"} ref={(el) => { if (el) el.indeterminate = state === "some"; }}
+    onClick={(e) => e.stopPropagation()} onChange={(e) => onChange(e.target.checked)} />;
+}
+
+/**
+ * Agents to export as the repository's folder tree (item 1, docs/research/input-help-check.md): ticking a folder ticks
+ * every agent in it, a folder with some of them ticked shows so, and searching narrows the tree to the matches.
+ */
+function AgentPickTree({ agents, picked, setPicked, q }: { agents: RepoAgent[]; picked: string[]; setPicked: (p: string[]) => void; q: string }) {
+  const f = q.trim().toLowerCase();
+  const shownKey = agents.filter((a) => !f || a.path.toLowerCase().includes(f)).map((a) => a.path).join("|");
+  const nodes = useMemo(() => repoTree([], agents.filter((a) => !f || a.path.toLowerCase().includes(f))), [shownKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const [open, setOpen] = useState<Set<string> | null>(null);
+  // every folder open while searching or when the repository is small; otherwise the top level, until folders are opened
+  const expanded = f || !open ? new Set(f || agents.length <= 60 ? allFolders(nodes) : nodes.filter((n) => n.id.startsWith("f:")).map((n) => n.id)) : open;
+  const toggle = (id: string) => { const next = new Set(expanded); if (next.has(id)) next.delete(id); else next.add(id); setOpen(next); };
+  const byPath = new Map(agents.map((a) => [a.path, a]));
+  const ticked = new Set(picked);
+  const stateOf = (n: TreeNode) => { const l = leaves(n), on = l.filter((p) => ticked.has(p)).length; return on === 0 ? "none" : on === l.length ? "all" : "some"; };
+  const tick = (n: TreeNode, on: boolean) => { const l = leaves(n); setPicked(on ? [...new Set([...picked, ...l])] : picked.filter((p) => !l.includes(p))); };
+  return <div className="cc-pick cc-pick-tree" role="group" aria-label="Agents to export">
+    {!nodes.length ? <p className="st-muted">{f ? "No agents match." : "No agents yet."}</p>
+      : <Tree label="Agents and folders" nodes={nodes} selected="" expanded={expanded} onToggle={toggle}
+        onSelect={(id) => { if (id.startsWith("f:")) toggle(id); else { const n = findNode(id, nodes); if (n) tick(n, !ticked.has(id)); } }}
+        renderIcon={(n) => <>
+          <TriCheck state={stateOf(n)} label={n.id.startsWith("f:") ? "All of " + n.id.slice(2) : n.label} onChange={(on) => tick(n, on)} />
+          {n.id.startsWith("f:") && <Icon name="folder" size={14} />}</>}
+        renderActions={(n) => { const a = byPath.get(n.id); const count = leaves(n).length;
+          return a ? <span className="st-muted">v{a.latest_version}{a.production_version ? ", live v" + a.production_version : ", not live"}</span>
+            : <span className="st-muted">{count} agent{count === 1 ? "" : "s"}</span>; }} />}
+  </div>;
+}
+
+/** A repository folder chosen from the tree (Import's target); the top level is "". */
+function FolderPick({ api, value, onPick }: { api: CrApi; value: string; onPick: (folder: string) => void }) {
+  const [folders, setFolders] = useState<string[] | null>(null);
+  useEffect(() => {
+    Promise.all([api.repoFolders().catch(() => []), api.repo().catch(() => [] as RepoAgent[])]).then(([fs, as]) =>
+      setFolders([...new Set([...fs.map((x) => x.path), ...as.filter((a) => a.path.includes("/")).map((a) => a.path.slice(0, a.path.lastIndexOf("/")))])]));
+  }, [api]);
+  const nodes = useMemo(() => repoTree(folders ?? [], []), [folders]);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  if (!folders) return <p className="st-muted" role="status">Loading folders…</p>;
+  const top: TreeNode = { id: "f:", label: "Top level", children: nodes };
+  return <div className="cc-pick cc-pick-tree" role="group" aria-label="Folders">
+    <Tree label="Folders" nodes={[top]} selected={"f:" + value.replace(/\/+$/, "")} expanded={new Set(["f:", ...open])}
+      onToggle={(id) => { const next = new Set(open); if (next.has(id)) next.delete(id); else next.add(id); setOpen(next); }}
+      onSelect={(id) => onPick(id.slice(2))} renderIcon={() => <Icon name="folder" size={14} />} />
+  </div>;
+}
+
 const STATUS: Record<string, string> = { created: "Added", updated: "New version", skipped: "Already here: skipped", failed: "Failed", "not imported": "Not imported" };
 
 function Results({ r, label }: { r: ImportResult["results"]; label: string }) {
@@ -60,13 +142,11 @@ export function ExportAgents({ api, onClose, onNotice }: { api: CrApi; onClose: 
       <p className="st-muted">A bundle holds each agent's exact version with a checksum and, when ticked, every agent it calls. Import it in another One CommandCenter, or promote straight to one. Shared values, credentials and files are not included: the other One CommandCenter needs its own.</p>
       <div className="cc-bar cc-bar-tight">
         <TextInput type="search" aria-label="Search agents to export" placeholder="Search agents" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Button kind="plain" onClick={() => setPicked([...new Set([...picked, ...shown.map((a) => a.path)])])}>Tick all shown</Button>
+        <Button kind="plain" disabled={!shown.length} onClick={() => setPicked([...new Set([...picked, ...shown.map((a) => a.path)])])}>Tick all shown</Button>
         <Button kind="plain" disabled={!picked.length} onClick={() => setPicked([])}>Clear</Button>
         <span className="cc-chosen">{picked.length} ticked</span>
       </div>
-      <div className="cc-pick" role="group" aria-label="Agents to export">{shown.map((a) => <label key={a.path} className="st-check-line">
-        <input type="checkbox" checked={picked.includes(a.path)} onChange={(e) => setPicked(e.target.checked ? [...picked, a.path] : picked.filter((p) => p !== a.path))} />
-        {agentName(a.path)} <span className="st-muted">{a.path.includes("/") ? a.path.slice(0, a.path.lastIndexOf("/")) + " · " : ""}v{a.latest_version}{a.production_version ? ", live v" + a.production_version : ", not live"}</span></label>)}</div>
+      <AgentPickTree agents={agents} picked={picked} setPicked={setPicked} q={q} />
       <div className="cc-grid2">
         <Field label="Version" hint="production (the live one), latest, a number or a label">{(id) => <TextInput id={id} value={v.version} onChange={(e) => setV({ ...v, version: e.target.value })} />}</Field>
         <label className="st-check-line cc-gap"><input type="checkbox" checked={v.deps} onChange={(e) => setV({ ...v, deps: e.target.checked })} /> Include the agents they call</label>
@@ -94,6 +174,7 @@ export function ImportAgents({ api, folder, onClose, onDone }: { api: CrApi; fol
   useEffect(() => { api.repo().then((a) => setExisting(new Set(a.map((x) => x.path))), () => {}); }, [api]);
   const [bundle, setBundle] = useState<AgentBundle | null>(null);
   const [v, setV] = useState({ folder, conflict: "skip" as "skip" | "overwrite", live: false });
+  const [choosing, setChoosing] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const read = async (f?: File) => {
@@ -128,11 +209,14 @@ export function ImportAgents({ api, folder, onClose, onDone }: { api: CrApi; fol
         </table>
       </>}
       <div className="cc-grid2 cc-gap">
-        <Field label="Put them under folder" hint="Their own folders go under it; empty keeps them as they are">{(id) => <TextInput id={id} value={v.folder} onChange={(e) => setV({ ...v, folder: e.target.value })} />}</Field>
+        <Field label="Put them under folder" hint="Their own folders go under it; empty keeps them as they are; a new name makes the folder">{(id) => <div className="st-row-tight">
+          <TextInput id={id} value={v.folder} onChange={(e) => setV({ ...v, folder: e.target.value })} />
+          <Button kind="secondary" aria-expanded={choosing} onClick={() => setChoosing(!choosing)}>Choose…</Button></div>}</Field>
         <Field label="If an agent is already here">{(id) => <Select id={id} value={v.conflict} onChange={(e) => setV({ ...v, conflict: e.target.value as "skip" | "overwrite" })}
           options={[{ value: "skip", label: "Skip it" }, { value: "overwrite", label: "Add a new version of it" }]} />}</Field>
         <label className="st-check-line"><input type="checkbox" checked={v.live} onChange={(e) => setV({ ...v, live: e.target.checked })} /> Make the imported versions live</label>
       </div>
+      {choosing && <FolderPick api={api} value={v.folder} onPick={(f) => { setV({ ...v, folder: f }); setChoosing(false); }} />}
       {result && <>{!result.ok && <p className="st-alert">Nothing was imported: fix the problems listed.</p>}<Results r={result.results} label="Import results" /></>}
     </Dialog>
   );

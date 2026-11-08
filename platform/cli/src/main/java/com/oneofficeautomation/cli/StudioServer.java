@@ -316,6 +316,8 @@ public final class StudioServer {
             else if (method.equals("POST") && r.equals("checkout")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkout((String) b.get("path"), b.get("version"), json)); }
             else if (method.equals("POST") && r.equals("checkin")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkin((String) b.get("local"), (String) b.get("path"), (String) b.get("comment"), !Boolean.FALSE.equals(b.get("production")), json)); }
             else if (method.equals("GET") && r.equals("states")) sendJson(ex, 200, cr.states(json));
+            // a step's Credential field: the vault credentials the person may use (names only, never values)
+            else if (method.equals("GET") && r.equals("credentials")) sendJson(ex, 200, Map.of("connected", cr.connected(), "credentials", cr.connected() ? cr.credentials() : List.of()));
             else if (method.equals("POST") && r.equals("revert")) sendJson(ex, 200, cr.revert((String) ((Map<String, Object>) body(ex)).get("local"), json));
             else if (method.equals("POST") && r.equals("undo-checkout")) { cr.undoCheckout((String) ((Map<String, Object>) body(ex)).get("path")); sendJson(ex, 200, Map.of("ok", true)); }
             else send(ex, 404, "text/plain", "Unknown API route");
@@ -460,6 +462,8 @@ public final class StudioServer {
             captureDesktop(ex);
         } else if (method.equals("GET") && route.equals("windows")) {
             listWindows(ex);
+        } else if (method.equals("GET") && route.equals("fs/list")) {
+            sendJson(ex, 200, listFolder(query(ex).getOrDefault("path", "")));
         } else if (method.equals("GET") && route.equals("search")) {
             sendJson(ex, 200, Map.of("results", search(query(ex).getOrDefault("q", ""))));
         } else if (route.equals("clipboard") && (method.equals("GET") || method.equals("PUT"))) {
@@ -567,6 +571,36 @@ public final class StudioServer {
      * web actions. 200 {windows: [{source: "browser" | "application", title, url, browser}]}; browser tabs come from browsers with a
      * debugging port, desktop titles only on Windows.
      */
+    /**
+     * Browse… in a step's file or folder field: a folder of this computer (One AgentStudio only answers this computer,
+     * so it shows the person's own disks), folders first, then files, by name; with no path, the places to start
+     * from: the workspace, the home folder and the drives.
+     */
+    Map<String, Object> listFolder(String path) throws IOException {
+        List<Map<String, Object>> places = new ArrayList<>();
+        places.add(Map.of("name", "Workspace", "path", ws.root.toAbsolutePath().normalize().toString()));
+        places.add(Map.of("name", "Home", "path", Path.of(System.getProperty("user.home")).toString()));
+        for (Path root : FileSystems.getDefault().getRootDirectories()) places.add(Map.of("name", root.toString(), "path", root.toString()));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("places", places);
+        if (path == null || path.isBlank()) { out.put("entries", places.stream().map(p -> Map.of("name", p.get("name"), "path", p.get("path"), "dir", true)).toList()); return out; }
+        Path dir = Path.of(path.strip()).toAbsolutePath().normalize();
+        if (!Files.isDirectory(dir)) dir = dir.getParent() != null && Files.isDirectory(dir.getParent()) ? dir.getParent() : null;
+        if (dir == null) throw new OoaException("STUDIO.NOT_A_FOLDER", "There is no folder " + path, "Choose a place on the left.");
+        List<Map<String, Object>> entries = new ArrayList<>();
+        try (Stream<Path> s = Files.list(dir)) {
+            s.limit(5000).forEach(p -> {
+                try { if (Files.isHidden(p)) return; } catch (IOException ignored) { return; }
+                entries.add(Map.of("name", p.getFileName().toString(), "path", p.toString(), "dir", Files.isDirectory(p)));
+            });
+        } catch (AccessDeniedException e) { throw new OoaException("STUDIO.NO_ACCESS", "This folder cannot be opened: " + dir, "Choose another folder."); }
+        entries.sort(Comparator.comparing((Map<String, Object> m) -> !(Boolean) m.get("dir")).thenComparing(m -> String.valueOf(m.get("name")).toLowerCase(Locale.ROOT)));
+        out.put("path", dir.toString());
+        if (dir.getParent() != null) out.put("parent", dir.getParent().toString());
+        out.put("entries", entries);
+        return out;
+    }
+
     private void listWindows(HttpExchange ex) throws IOException {
         if (registry.allManifests().stream().noneMatch(m -> "ooa.browser".equals(m.get("id"))))
             throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");

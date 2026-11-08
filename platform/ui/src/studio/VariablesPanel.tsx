@@ -46,10 +46,15 @@ const usedAs = (v: FlowVariable) => GROUPS.find((g) => g.dir === (v.direction ??
  * Pick a variable to put in a field: the agent's variables of the field's type first (text takes any), then the
  * platform's $sys values and the shared $global values; the rest one click away; or make a new one of that type.
  */
-export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor }:
-  { want?: string; onPick: (ref: string) => void; onNew?: (ref: string, flow: Flow) => Flow; onClose: () => void; nameHint?: string; anchor?: DOMRect }) {
+export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor, typed: fromDollar }:
+  { want?: string; onPick: (ref: string) => void; onNew?: (ref: string, flow: Flow) => Flow; onClose: () => void; nameHint?: string; anchor?: DOMRect;
+    /** Opened by typing $ in the field: the next keys go on narrowing the list, and @ first shows the Shared Global values only. */
+    typed?: boolean }) {
   const ctx = useVars();
-  const [q, setQ] = useState("");
+  const [query, setQ] = useState("");
+  // "@" first (typing $@ in a field): the Shared Global values only
+  const globalsOnly = query.startsWith("@");
+  const q = globalsOnly ? query.slice(1) : query;
   const [all, setAll] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => { box.current?.querySelector("input")?.focus(); }, []);
@@ -64,12 +69,12 @@ export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor }:
   const f = q.trim().toLowerCase();
   const typed = want && want !== "Any" ? want : undefined;
   const fits = (t: string) => all || typed === "String" || compatible(typed, t);
-  const vars = (ctx.flow.variables ?? []).filter((v) => !f || v.name.toLowerCase().includes(f));
+  const vars = globalsOnly ? [] : (ctx.flow.variables ?? []).filter((v) => !f || v.name.toLowerCase().includes(f));
   const good = vars.filter((v) => fits(v.type));
   const hidden = all ? 0 : vars.length - good.length;
   const builtin = (prefix: string, values: Record<string, unknown>) => Object.entries(values)
     .filter(([k, val]) => (!f || (prefix + k).toLowerCase().includes(f)) && fits(guessType(val)));
-  const sys = builtin("sys.", ctx.builtins.sys), glob = builtin("global.", ctx.builtins.global);
+  const sys = globalsOnly ? [] : builtin("sys.", ctx.builtins.sys), glob = builtin("global.", ctx.builtins.global);
   const keys = (e: KeyboardEvent) => {
     const items = [...(box.current?.querySelectorAll<HTMLElement>(".st-vp-item") ?? [])];
     const i = items.indexOf(document.activeElement as HTMLElement);
@@ -89,7 +94,8 @@ export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor }:
     top: anchor.bottom + H + 8 > window.innerHeight ? Math.max(8, anchor.top - H - 4) : anchor.bottom + 4 } : undefined;
   return createPortal(
     <div className="st-vp" role="dialog" aria-label="Insert a variable" ref={box} onKeyDown={keys} style={at}>
-      <TextInput type="search" aria-label="Find a variable" placeholder="Find a variable" value={q} onChange={(e) => setQ(e.target.value)} />
+      <TextInput type="search" aria-label="Find a variable" placeholder={fromDollar ? "Type to narrow; @ for Shared Global values" : "Find a variable (@ for Shared Global values)"}
+        value={query} onChange={(e) => setQ(e.target.value)} />
       <div className="st-vp-list" role="listbox" aria-label="Variables">
         {good.length > 0 && <div className="st-vp-head">{typed && typed !== "String" && !all ? typed + " variables" : "Agent variables"}</div>}
         {good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? usedAs(v).toLowerCase() : ""))}
@@ -97,7 +103,8 @@ export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor }:
         {sys.map(([k, val]) => item("$sys." + k, guessType(val), preview(val)))}
         {glob.length > 0 && <div className="st-vp-head">Shared Global values</div>}
         {glob.map(([k, val]) => item("$global." + k, guessType(val), preview(val)))}
-        {!good.length && !sys.length && !glob.length && <p className="st-vp-empty">{typed && !all ? "No " + typed + " variables yet." : "No variables match."}</p>}
+        {!good.length && !sys.length && !glob.length && <p className="st-vp-empty">{globalsOnly ? "No Shared Global values match (they are managed in One CommandCenter)."
+          : typed && !all ? "No " + typed + " variables yet." : "No variables match."}</p>}
       </div>
       <div className="st-vp-foot">
         {hidden > 0 && <Button kind="plain" onClick={() => setAll(true)}>Show all ({hidden} of another type)</Button>}
@@ -149,7 +156,7 @@ function TimeSpanEditor({ value, onChange }: { value: string; onChange: (v: unkn
   );
 }
 
-function ListEditor({ value, onChange }: { value: unknown[]; onChange: (v: unknown[]) => void }) {
+export function ListEditor({ value, onChange }: { value: unknown[]; onChange: (v: unknown[]) => void }) {
   const [items, setItems] = useState<string[]>(value.map(showValue));
   const put = (next: string[]) => { setItems(next); onChange(next.filter((x) => x !== "").map((x) => parseLoose(x))); };
   return (
@@ -163,7 +170,7 @@ function ListEditor({ value, onChange }: { value: unknown[]; onChange: (v: unkno
   );
 }
 
-function PairsEditor({ value, onChange }: { value: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void }) {
+export function PairsEditor({ value, onChange }: { value: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void }) {
   const [pairs, setPairs] = useState<[string, string][]>(Object.entries(value).map(([k, v]) => [k, showValue(v)]));
   const put = (next: [string, string][]) => { setPairs(next); onChange(Object.fromEntries(next.filter(([k]) => k.trim()).map(([k, v]) => [k.trim(), parseLoose(v) ?? ""]))); };
   return (

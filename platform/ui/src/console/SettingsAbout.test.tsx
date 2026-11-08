@@ -4,7 +4,7 @@ import { CrApi } from "../api/cr";
 import { HelpProvider } from "../components";
 import { Settings } from "./Settings";
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); history.replaceState(null, "", "#/settings"); });
 
 function server(modules: unknown[] | null) {
   const f = (async (url: string) => {

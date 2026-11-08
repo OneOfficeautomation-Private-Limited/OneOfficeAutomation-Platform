@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { CrApi, CrFailure, type CrUser, type Environment } from "../api/cr";
 import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, ShortcutsDialog, TextInput, usePersistent } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
-import { MENU_SECTIONS } from "../shell/menu";
+import { canSee, groupOf, MENU_GROUPS, MENU_SECTIONS } from "../shell/menu";
 import { MODULE_PAGES } from "../modules/pages";
 import { MOVED_PAGES } from "../modules/registry";
 import { enableTableTools } from "./TableTools";
@@ -120,8 +120,9 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
       {notice && <div className="st-notice" role="status"><span>{notice}</span><Button kind="secondary" onClick={() => setNotice(null)}>OK</Button></div>}
       <HelpProvider><div className="st-body">
         <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
-          home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }} console />
+          home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }} console groups={MENU_GROUPS} />
         <main className="st-main cc-main" onKeyDown={listKeys}>
+          <GroupTabs page={page} user={user} onPage={setPage} hrefFor={hrefFor} />
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
           {MODULE_PAGES[page]?.({ api, user, onNotice: setNotice, setPage, studio })}
           {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}
@@ -150,6 +151,24 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
       </div></HelpProvider>
     </div>
   );
+}
+
+/**
+ * The pages of the current page's group (option B, 8 Nov 2026) as tabs above it: Scheduling shows Schedules, Triggers
+ * and Upcoming runs; each tab is its own page and address. Only pages the person may see; none for a group of one.
+ */
+function GroupTabs({ page, user, onPage, hrefFor }: { page: string; user: CrUser; onPage: (id: string) => void; hrefFor: (id: string) => string }) {
+  const group = groupOf(page);
+  if (!group) return null;
+  const pages = MENU_SECTIONS.flatMap((s) => s.pages).filter((p) => group.pages.includes(p.id) && canSee(p, { permissions: user.permissions, leadsTeam: user.leads_team }));
+  pages.sort((a, b) => group.pages.indexOf(a.id) - group.pages.indexOf(b.id));
+  if (pages.length < 2) return null;
+  return <nav className="cc-group-tabs" aria-label={group.label}>
+    <span className="cc-group-name">{group.label}</span>
+    {pages.map((p) => LOCAL.has(p.id)
+      ? <button key={p.id} type="button" className="cc-group-tab" aria-current={p.id === page ? "page" : undefined} onClick={() => onPage(p.id)}>{p.label}</button>
+      : <a key={p.id} className="cc-group-tab" href={hrefFor(p.id)}>{p.label}</a>)}
+  </nav>;
 }
 
 /**

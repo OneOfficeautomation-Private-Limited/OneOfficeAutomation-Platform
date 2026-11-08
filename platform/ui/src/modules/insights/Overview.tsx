@@ -13,6 +13,9 @@ import { rowClick } from "../../console/ListParts";
  * Each figure opens the page behind it. Only what the viewer may see is shown; it refreshes every 30 seconds.
  * Review round 2 (31 Oct 2026): the latest runs as in Agent Activity (its status pills, the agent icon and version, a row
  * opens the run, the error's message on hover), and the next scheduled runs, as AA's Home and Bots dashboards show them.
+ * Item 11 (docs/research/input-help-check.md): no short side panels. Runners, upcoming runs, work queues and AI use are
+ * one card each with "View all", which opens their own full page (Runner status, Upcoming runs, Operations > Work
+ * queues, AI governance); what is not set up yet stays as a short list.
  */
 const HELP: HelpTopic = { title: "Overview", about: "How your agents, runners, work queues and AI connections are doing now, and what needs attention. "
   + "It refreshes every 30 seconds and shows only what you may see.",
@@ -26,14 +29,13 @@ const HELP: HelpTopic = { title: "Overview", about: "How your agents, runners, w
     { name: "Alerts, Failed runs, Runners, Queues", text: "The same, one kind at a time. Failed runs groups the failures by error; "
       + "click an error to see those runs." },
     { name: "Latest runs", text: "The last few runs, as in Agent Activity. Click a run to open it." },
-    { name: "Next scheduled runs", text: "The schedules that run next, soonest first." },
-    { name: "AI use this month", text: "Tokens each model connection used this month, as a share of its budget when one is set." },
+    { name: "Runners, Upcoming runs, Work queues, AI use", text: "A card each with the main figure; View all opens its own full page." },
     { name: "Set up next", text: "Things not set up yet, such as work queues, model connections, alert rules or minutes saved, with a link to do it." },
     { name: "New alert rule", text: "Opens Alerts with a new rule ready to fill in. It needs the Manage alert rules permission." },
   ] };
 const PERIODS: [string, string, string][] = [["1", "24 hours", "24h"], ["7", "7 days", "7d"]];
-const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
-const time = (t?: string | null) => {
+export const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\.json$/, "");
+export const time = (t?: string | null) => {
   if (!t) return "";
   const d = new Date(t);
   return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -50,7 +52,7 @@ const PILL: Record<string, string> = { queued: "pending", running: "active", pau
 /** The Agent Activity address for a tab and filters. */
 const activity = (p: Record<string, string>) => "#/activity?" + new URLSearchParams(p).toString();
 /** Why a runner needs attention, or null when it is fine. */
-function trouble(d: Runner): string | null {
+export function trouble(d: Runner): string | null {
   if (d.status === "disabled") return null;
   if (d.maintenance) return d.maintenance === "drain" ? "Out of service, finishing its runs" : "Out of service";
   if (d.status === "offline") return "Offline" + (d.last_seen ? " since " + time(d.last_seen) : "");
@@ -172,7 +174,7 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
           <span className="ov-fig-m">{f.meta}</span></a>)}
       </div>}
 
-      <div className="ov-grid">
+      <div className="ov-grid ov-grid-single">
         <div className="ov-main">
           <div className="ov-panel">
             <div className="ov-tabs" role="tablist" aria-label="Needs attention">{tabs.map(([k, l]) => {
@@ -224,37 +226,33 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
           </div>}
         </div>
 
-        <div className="ov-side">
-          {runners && <div className="ov-panel">
-            <div className="ov-ph"><h2>Runners</h2><span className="ov-meta">{online} of {live.length} online</span><a href="#/devices" className="ov-more">Runner Machines ›</a></div>
-            <ul className="ov-rows">
-              {attention.slice(0, 4).map(({ x, why }) => <li key={x.id}><span className="ov-dot is-bad" />{x.nickname || x.name}<span className="ov-r ov-bad">{why}</span></li>)}
-              {live.filter((x) => !trouble(x)).slice(0, attention.length ? 1 : 3).map((x) => <li key={x.id}><span className="ov-dot" />{x.nickname || x.name}<span className="ov-r ov-good">Online</span></li>)}
-              {live.length - attention.length > (attention.length ? 1 : 3) && <li><span className="ov-dot" />{live.length - attention.length - (attention.length ? 1 : 3)} more<span className="ov-r ov-good">Online</span></li>}
-              {!live.length && <li>No runners yet.</li>}
-            </ul>
-          </div>}
-          {schedules && <div className="ov-panel">
-            <div className="ov-ph"><h2>Next scheduled runs</h2><a href="#/schedules" className="ov-more">Schedules ›</a></div>
-            <ul className="ov-rows" aria-label="Next scheduled runs">{next.map((s) => <li key={s.id} title={name(s.bot_path)}><span className="cc-aico" aria-hidden="true">A</span>{s.name}
-              <span className="ov-r">{time(s.next_run)}</span></li>)}
-              {!next.length && <li>Nothing is scheduled.</li>}</ul>
-          </div>}
-          {queues && queues.length > 0 && <div className="ov-panel">
-            <div className="ov-ph"><h2>Work queues</h2><a href="#/operations?tab=queues" className="ov-more">Work queue insights ›</a></div>
-            <ul className="ov-rows">{queues.slice(0, 5).map((q) => <li key={q.id}>{q.name}<span className="ov-r">{waiting(q)} waiting{q.overdue ? <> · <span className="ov-bad">{q.overdue} overdue</span></> : ""}</span></li>)}</ul>
-          </div>}
-          {ai && ai.length > 0 && <div className="ov-panel">
-            <div className="ov-ph"><h2>AI use this month</h2>{can("audit.view") && <a href="#/governance" className="ov-more">AI governance ›</a>}</div>
-            <ul className="ov-rows">{ai.map((c) => { const pct = c.monthly_tokens ? Math.round(100 * (c.tokens_this_month ?? 0) / c.monthly_tokens) : null; return <li key={c.name}>{c.name}
-              <span className={"ov-r" + (pct != null && pct >= 80 ? " ov-bad" : "")}>{pct == null ? short(c.tokens_this_month ?? 0) + " tokens" : <span className="cc-use"><progress max={100} value={Math.min(pct, 100)} aria-label={"Budget used by " + c.name} /> {pct}%</span>}</span></li>; })}</ul>
-          </div>}
-          {setUp.length > 0 && <div className="ov-panel">
-            <div className="ov-ph"><h2>Set up next</h2></div>
-            <ul className="ov-rows" aria-label="Set up next">{setUp.map((s) => <li key={s.text}><Tile kind={s.kind} />{s.text}<a className="ov-r" href={s.href}>{s.link}</a></li>)}</ul>
-          </div>}
-        </div>
       </div>
+      <div className="ov-cards" role="group" aria-label="More detail">
+        {runners && <a className="ov-card" href="#/runner-status">
+          <span className="ov-card-l"><Tile kind="runner" />Runners</span>
+          <span className="ov-card-v">{online} of {live.length} online</span>
+          <span className={"ov-card-m" + (attention.length ? " ov-bad" : "")}>{attention.length ? attention.length + " need attention" : "All fine"}</span>
+          <span className="ov-card-go">View all ›</span></a>}
+        {schedules && <a className="ov-card" href="#/upcoming">
+          <span className="ov-card-l"><Tile kind="run" />Upcoming runs</span>
+          <span className="ov-card-v">{next.length ? time(next[0].next_run) : "Nothing scheduled"}</span>
+          <span className="ov-card-m">{next.length ? "Next: " + next[0].name : "Schedules start agents on time"}</span>
+          <span className="ov-card-go">View all ›</span></a>}
+        {queues && queues.length > 0 && <a className="ov-card" href="#/operations?tab=queues">
+          <span className="ov-card-l"><Tile kind="queue" />Work queues</span>
+          <span className="ov-card-v">{queues.reduce((n, q) => n + waiting(q), 0)} waiting</span>
+          <span className={"ov-card-m" + (overdue ? " ov-bad" : "")}>{overdue ? overdue + " overdue" : "Within target times"}</span>
+          <span className="ov-card-go">View all ›</span></a>}
+        {ai && ai.length > 0 && <a className="ov-card" href={can("audit.view") ? "#/governance" : "#/connections"}>
+          <span className="ov-card-l"><Tile kind="ai" />AI use this month</span>
+          <span className="ov-card-v">{short(tokens)} tokens</span>
+          <span className={"ov-card-m" + (budget && tokens / budget >= 0.8 ? " ov-bad" : "")}>{budget ? Math.round(100 * tokens / budget) + "% of budget" : ai.length + " model connection" + (ai.length === 1 ? "" : "s")}</span>
+          <span className="ov-card-go">View all ›</span></a>}
+      </div>
+      {setUp.length > 0 && <div className="ov-panel">
+        <div className="ov-ph"><h2>Set up next</h2></div>
+        <ul className="ov-rows" aria-label="Set up next">{setUp.map((x) => <li key={x.text}><Tile kind={x.kind} />{x.text}<a className="ov-r" href={x.href}>{x.link}</a></li>)}</ul>
+      </div>}
     </section>
   );
 }
