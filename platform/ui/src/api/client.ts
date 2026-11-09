@@ -27,7 +27,7 @@ export type ActionManifest = {
   outputs?: { properties?: Record<string, FieldSpec> };
   "x-ooa-panel"?: { main?: string[]; more?: string[] };
 };
-export type PackageManifest = { id: string; name: string; version: string; description?: string; actions: ActionManifest[]; conditions?: ActionManifest[] };
+export type PackageManifest = { id: string; name: string; version: string; description?: string; actions: ActionManifest[]; conditions?: ActionManifest[]; iterators?: ActionManifest[] };
 
 /** A variable: in_out is both an input and an output; local (or none) is a working value inside the agent. */
 export type FlowVariable = { name: string; type: string; direction?: "input" | "output" | "in_out" | "local"; default?: unknown; description?: string;

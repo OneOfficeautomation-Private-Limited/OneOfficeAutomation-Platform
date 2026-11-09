@@ -117,8 +117,18 @@ const specOf = (packages: PackageManifest[], address: string): ActionManifest | 
 };
 const labelOf = (name: string, spec?: FieldSpec) => (spec?.["x-ooa-label"] as string | undefined) ?? (name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " "));
 
-/** A toolkit condition's own fields, each taking a value or a $variable (Browse and the like stay in the step panels). */
+/** A toolkit condition's own fields. */
 function ToolkitFields({ node, spec, onChange }: { node: ToolkitCheck; spec?: ActionManifest; onChange: (args: Record<string, unknown>) => void }) {
+  return <SpecFields args={node.args} spec={spec} keyPrefix={node.condition} onChange={onChange} />;
+}
+
+/**
+ * The fields a toolkit's condition or loop type declares (C1, C2), each taking a value or a $variable; a list of
+ * choices is a drop-down, yes/no a Yes/No choice. An empty field is left out, so the toolkit's default applies.
+ */
+export function SpecFields({ args, spec, keyPrefix, onChange }: { args: Record<string, unknown>; spec?: ActionManifest; keyPrefix: string;
+  onChange: (args: Record<string, unknown>) => void }) {
+  const node = { args, condition: keyPrefix };
   const props = spec?.inputs?.properties ?? {};
   const required = new Set(spec?.inputs?.required ?? []);
   const names = Object.keys(props);

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
-import { ConditionEditor } from "./ConditionEditor";
+import { ConditionEditor, SpecFields } from "./ConditionEditor";
 import { fieldOrder, findAction, labelsInScope, parseLoose, setArg, showValue } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
@@ -50,11 +50,15 @@ export function StepForm({ step, packages, onArg, onNote }:
   const only = elementFields(step);
   const isLoop = step.action === "core/loop";
   const mode: LoopMode = isLoop ? loopMode(step) : "each";
+  // a toolkit's loop type (C2: each row in a worksheet, each file in a folder...): its own settings instead of "Go through"
+  const iterator = String(step.args?.iterator ?? "");
+  const itSpec = isLoop && mode === "each" && iterator.includes("/")
+    ? packages.find((p) => p.id === iterator.split("/")[0])?.iterators?.find((x) => x.id === iterator.split("/")[1]) : undefined;
   // an input that applies only in some cases (Loop's count only for "N times") is shown only then; an element action
   // shows the inputs of its chosen action; a saved connection hides the inputs it supplies
   const applies = (name: string) => shownWhen(props[name]?.["x-ooa-visible-when"], (o) => step.args?.[o] ?? props[o]?.default)
     && (!only || only.has(name)) && !(step.connection && conn.has(name) && !showConn)
-    && !(isLoop && (name === "iterator" || (mode === "times" && name === "index")))
+    && !(isLoop && (name === "iterator" || (mode === "times" && name === "index") || (itSpec && (name === "over" || name === "iterator_args"))))
     && !(capturable && ((name === "selector" && !bySelector) || (name === "object" && bySelector)));
   const order = fieldOrder(spec);
   const timeouts = TIMEOUT_FIELDS.filter((n) => n in props && applies(n));
@@ -75,7 +79,7 @@ export function StepForm({ step, packages, onArg, onNote }:
 
   const each = EACH_KINDS.find((k) => k.value === step.args?.iterator);
   const labelOf = (name: string) => valueLabel(step) && name === "value" ? valueLabel(step)!
-    : isLoop && name === "over" && each ? each.over : isLoop && name === "as" ? (mode === "times" ? "Counter (optional)" : each?.as ?? LOOP_LABELS.as)
+    : isLoop && name === "over" && each ? each.over : isLoop && name === "as" ? (mode === "times" ? "Counter (optional)" : each?.as ?? (itSpec ? "Store each one in" : LOOP_LABELS.as))
     : isLoop && LOOP_LABELS[name] ? LOOP_LABELS[name] : boxed.has(name) ? TIMEOUT_LABELS[name] : props[name]?.["x-ooa-label"] ?? name.replace(/_/g, " ");
   const req = (name: string) => required.includes(name) || (isLoop && ((mode === "times" && name === "count") || (mode === "each" && name === "over") || (mode === "while" && name === "condition")));
   const field = (name: string) => {
@@ -136,10 +140,24 @@ export function StepForm({ step, packages, onArg, onNote }:
             {([["times", "N times"], ["each", "For each"], ["while", "While"]] as const).map(([m, t]) =>
               <button key={m} type="button" role="radio" aria-checked={mode === m} className="st-seg-btn" onClick={() => setMode(m)}>{t}</button>)}
           </div>}</Field>
-          {mode === "each" && <Field label="Go through" layout="beside">{(id) =>
-            <Select id={id} aria-label="Loop type" value={String(step.args?.iterator ?? "list")} onChange={(e) => onArg("iterator", e.target.value)}
+          {mode === "each" && <Field label="Go through" layout="beside" hint={itSpec?.description}>{(id) =>
+            <Select id={id} aria-label="Loop type" value={String(step.args?.iterator ?? "list")} onChange={(e) => {
+              if (!vars) { onArg("iterator", e.target.value); return; }
+              let f = setArg(vars.flow, step.id, "iterator_args", undefined);
+              if (e.target.value.includes("/")) f = setArg(f, step.id, "over", undefined);
+              vars.edit(setArg(f, step.id, "iterator", e.target.value));
+            }}
               options={[...EACH_KINDS.map((k) => ({ value: k.value, label: k.label })),
-                ...(each || !step.args?.iterator ? [] : [{ value: String(step.args.iterator), label: String(step.args.iterator) + " (a toolkit's iterator)" }])]} />}</Field>}
+                // the toolkits' loop types by toolkit, as AA's iterator list (C2)
+                ...[...packages].filter((p) => p.iterators?.length).sort((a, b) => a.name.localeCompare(b.name))
+                  .flatMap((p) => p.iterators!.map((x) => ({ value: p.id + "/" + x.id, label: x.name, group: p.name }))),
+                ...(each || itSpec || !step.args?.iterator ? [] : [{ value: iterator, label: iterator + " (a toolkit's loop type not installed)" }])]} />}</Field>}
+          {itSpec && <Field label="Settings" layout="beside">{() =>
+            <SpecFields args={(step.args?.iterator_args && typeof step.args.iterator_args === "object" ? step.args.iterator_args : {}) as Record<string, unknown>}
+              spec={itSpec} keyPrefix={step.id + iterator} onChange={(a) => {
+                const kept = Object.fromEntries(Object.entries(a).filter(([, v]) => v !== undefined && v !== ""));
+                onArg("iterator_args", Object.keys(kept).length ? kept : undefined);
+              }} />}</Field>}
         </>}
         {main.map(field)}
         {extra.map(field)}
