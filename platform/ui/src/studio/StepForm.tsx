@@ -101,7 +101,8 @@ export function StepForm({ step, packages, onArg, onNote }:
           options={[{ value: "", label: choices.length ? "Choose…" : none }, ...choices.map((c) => ({ value: c, label: c })),
             ...(value && !choices.includes(value) ? [{ value, label: value + " (not found)" }] : [])]} />}</Field>;
     }
-    if (step.action === "core/run_bot" && (name === "inputs" || name === "output_map")) return null;   // with the agent to run
+    // with the agent to run; an agent from a variable (C4) is not known here, so its inputs are a Dictionary of their own
+    if (step.action === "core/run_bot" && (name === "inputs" || name === "output_map") && !String(step.args?.automation ?? "").startsWith("$")) return null;
     if (isElementAction(step.action) && name === "action") return <Field key={step.id + ":action"} layout="beside"
       label="Action" info="The actions that suit the captured control come first; the rest are under Other actions.">{(id) =>
       <ElementActionSelect id={id} step={step} all={(props.action?.enum ?? []).map(String)} />}</Field>;
