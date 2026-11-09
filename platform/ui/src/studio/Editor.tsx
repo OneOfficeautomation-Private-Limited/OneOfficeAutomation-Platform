@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ClipboardEvent, type PointerEvent as ReactPointerEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { simplePackages } from "./simpleMode";
 import { SapImportDialog } from "./sapRecording";
-import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, StudioApi } from "../api/client";
+import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, RetryPolicy, StudioApi } from "../api/client";
+import { RetryFields } from "./ErrorPolicy";
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
@@ -151,6 +152,16 @@ export type StepsClipboard = Clip & { system: boolean };
  * With no step selected, the agent's own settings, as AA's bot properties: its id, by which One CommandCenter's agent
  * repository and Run agent steps know it (each agent needs its own), and its description, which people and AI agents read.
  */
+/** The agent's error handling with a change; empty settings are left out. */
+function withErrorHandling(flow: Flow, patch: { default?: "continue"; retry?: RetryPolicy | undefined }): Flow {
+  const eh = { ...(flow.errorHandling ?? {}) };
+  if ("default" in patch) { if (patch.default) eh.default = patch.default; else delete eh.default; }
+  if ("retry" in patch) { if (patch.retry) eh.retry = patch.retry; else delete eh.retry; }
+  const next = { ...flow };
+  if (Object.keys(eh).length) next.errorHandling = eh; else delete next.errorHandling;
+  return next;
+}
+
 function AgentProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow) => void }) {
   const [id, setId] = useState(flow.id);
   const [about, setAbout] = useState(flow.description ?? "");
@@ -166,6 +177,12 @@ function AgentProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow) =>
       <Field label="Description" hint="What the agent does: people who run it read this, and AI agents that may call it.">
         {(fid) => <TextArea id={fid} rows={3} value={about} onChange={(e) => setAbout(e.target.value)}
           onBlur={() => { if (about !== (flow.description ?? "")) onEdit({ ...flow, description: about }); }} />}</Field>
+      {/* C3: the agent's default when a step fails outside a Try; a step's own setting wins */}
+      <h3 className="st-prop-section">When a step fails</h3>
+      <Field label="Outside a Try block" layout="beside" hint="A step's own If it fails setting wins. Errors inside a Try go to its Catch.">{(fid) =>
+        <Select id={fid} value={flow.errorHandling?.default ?? "stop"} onChange={(e) => onEdit(withErrorHandling(flow, { default: e.target.value === "continue" ? "continue" : undefined }))}
+          options={[{ value: "stop", label: "Stop the agent (On error runs first)" }, { value: "continue", label: "Log it and continue with the next step" }]} />}</Field>
+      <RetryFields idPrefix="agent" value={flow.errorHandling?.retry} onChange={(r) => onEdit(withErrorHandling(flow, { retry: r }))} />
     </div>
   );
 }
@@ -571,6 +588,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             return <span className="st-step-sum" title={sum || undefined}>{sum}</span>; })()}
           {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
           {r.step.disabled && <span className="st-badge" title="Disabled: kept in the agent, skipped when it runs">Disabled</span>}
+          {r.step.retry?.max ? <span className="st-badge is-info" title="Tried again when it fails (If this step fails)">Retries {r.step.retry.max}×</span> : null}
+          {r.step.continueOnError && <span className="st-badge is-info" title="Logs its error and goes on (If this step fails)">Continues on error</span>}
           {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
         </button>
         <span className="st-step-tools">

@@ -1,4 +1,4 @@
-import type { ActionManifest, Flow, FlowOnError, FlowState, FlowStep, FlowVariable, PackageManifest } from "../api/client";
+import type { ActionManifest, Flow, FlowOnError, FlowState, FlowStep, FlowVariable, PackageManifest, RetryPolicy } from "../api/client";
 
 /**
  * Editing an agent, as pure functions: each takes a flow and returns a changed copy, so undo is keeping the old one.
@@ -634,6 +634,16 @@ export function setCatchCodes(flow: Flow, id: string, k: number, codes: string[]
   const c = findStep(f, id)?.step.catch?.[k];
   if (!c) return flow;
   c.codes = codes;
+  return f;
+}
+
+/** A step's "If it fails" (C3): continue with the next step, and trying it again; false or undefined removes the setting. */
+export function setStepPolicy(flow: Flow, id: string, patch: { continueOnError?: boolean; retry?: RetryPolicy | undefined }): Flow {
+  const f = copy(flow);
+  const s = findStep(f, id)?.step;
+  if (!s) return flow;
+  if ("continueOnError" in patch) { if (patch.continueOnError) s.continueOnError = true; else delete s.continueOnError; }
+  if ("retry" in patch) { if (patch.retry) s.retry = patch.retry; else delete s.retry; }
   return f;
 }
 

@@ -659,3 +659,6 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-cond-fields { display: flex; flex-direction: column; gap: 6px; }
 .st-cond-field { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ui-text-2); }
 .st-cond-field > span { font-weight: 600; }
+/* C3: a step that is tried again or goes on after an error says so on its line */
+.st-badge + .st-badge { margin-left: 4px; }
+.st-badge.is-info { background: var(--ui-selected); color: var(--ui-pill-text); }

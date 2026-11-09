@@ -2,7 +2,8 @@ import { useState } from "react";
 import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
-import { fieldOrder, findAction, labelsInScope, parseLoose, setArg, showValue } from "./flowEdit";
+import { StepErrorFields } from "./ErrorPolicy";
+import { fieldOrder, findAction, labelsInScope, parseLoose, setArg, setStepPolicy, showValue } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
 import {
@@ -186,6 +187,14 @@ export function StepForm({ step, packages, onArg, onNote }:
             <Field key={step.id + ":out:" + name} label={o["x-ooa-label"] ?? name.replace(/_/g, " ")} layout="beside" info={o.description}>{() =>
               <OutputChooser step={step} output={name} type={o["x-ooa-type"]} label={"Keep " + (o["x-ooa-label"] ?? name.replace(/_/g, " ")) + " in"} />}</Field>
           ))}
+        </div>
+      </>}
+      {/* C3: what happens when this step fails, as UiPath's ContinueOnError and Retry Scope */}
+      {vars && step.action !== "core/comment" && step.action !== "core/label" && step.action !== "core/step" && <>
+        <h3 className="st-prop-section">If this step fails</h3>
+        <div className="st-prop-fields">
+          <StepErrorFields stepId={step.id} continueOnError={step.continueOnError} retry={step.retry} canRetry={!step.action.startsWith("core/")}
+            onChange={(patch) => vars.edit(setStepPolicy(vars.flow, step.id, patch))} />
         </div>
       </>}
       <h3 className="st-prop-section">Comment</h3>

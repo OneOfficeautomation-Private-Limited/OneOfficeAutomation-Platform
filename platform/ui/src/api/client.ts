@@ -54,6 +54,8 @@ export type FlowStep = {
   id: string; action: string; args?: Record<string, unknown>; out?: Record<string, string>; disabled?: boolean; note?: string;
   /** A saved connection that supplies the connector's address and sign-in. */
   connection?: string;
+  /** If the step fails: log it and go on (C3), and trying an action again. */
+  continueOnError?: boolean; retry?: RetryPolicy;
   children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; message_to?: string; line_to?: string; continueOnError?: boolean; screenshot?: boolean | string; rethrow?: boolean; children?: FlowStep[] }[]; finally?: FlowStep[];
   /** Switch: the cases, tried in order (a case value is a value to compare, or a condition when match is expression), and the default steps. */
   cases?: { values?: unknown[]; children?: FlowStep[] }[]; default?: FlowStep[];
@@ -68,7 +70,11 @@ export type FlowTransition = { to: string; when?: unknown; steps?: FlowStep[] };
 export type FlowUi = { collapsed?: string[]; breakpoints?: string[]; [key: string]: unknown };
 /** A named list of steps inside an agent, run by a Run subflow step; it shares the agent's variables. */
 export type Subflow = { name: string; description?: string; steps: FlowStep[] };
-export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; onError?: FlowOnError; ui?: FlowUi };
+export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; onError?: FlowOnError; ui?: FlowUi;
+  /** The agent's default when a step fails outside a Try (C3): stop or continue, and trying actions again. */
+  errorHandling?: { default?: "stop" | "continue"; retry?: RetryPolicy } };
+/** Trying a failed action again: up to max more times, delayMs between (doubled each time when exponential), for the codes named ("*" any; none: temporary errors). */
+export type RetryPolicy = { max?: number; backoff?: "fixed" | "exponential"; delayMs?: number; codes?: string[] };
 
 /**
  * The agent's error handler: steps that run once when an error no Try block caught ends the run, while its windows and
