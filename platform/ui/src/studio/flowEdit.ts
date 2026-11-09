@@ -829,6 +829,19 @@ export function locateAny(flow: Flow, id: string): Lists | null {
  * The labels a Go to step can jump to: those in its own step list and in the lists around it (not inside blocks, and
  * not across a Parallel branch or out of a State machine), nearest first.
  */
+/** The names of the loops around a step, innermost first (C5): what Exit loop and Continue loop can name. */
+export function loopLabelsAround(steps: FlowStep[], id: string): string[] {
+  const find = (list: FlowStep[], around: string[]): string[] | null => {
+    for (const s of list) {
+      if (s.id === id) return around;
+      const here = s.action === "core/loop" && typeof s.args?.label === "string" && s.args.label.trim() ? [String(s.args.label).trim(), ...around] : around;
+      for (const inner of innerLists(s)) { const r = find(inner, here); if (r) return r; }
+    }
+    return null;
+  };
+  return find(steps, []) ?? [];
+}
+
 export function labelsInScope(steps: FlowStep[], id: string): string[] {
   const labelsOf = (list: FlowStep[]) => list.filter((s) => s.action === "core/label" && typeof s.args?.name === "string" && s.args.name.trim())
     .map((s) => String(s.args!.name).trim());

@@ -95,7 +95,7 @@ class CorePackage:
 
     @action("throw", "Throw error", category="Error handling", description="Raise an error with a custom code that Try/Catch can match.",
             inputs=[Input("code", "String", description="Error code, e.g. BUSINESS.INVOICE_DUPLICATE."),
-                    Input("message", "String", description="Error message."),
+                    Input("message", "String", required=False, description="What went wrong, for the log and the Catch; the code when empty."),
                     Input("suggested_fix", "String", required=False, description="How to resolve the error.")])
     def throw(self, ctx, **a): _interp()
 

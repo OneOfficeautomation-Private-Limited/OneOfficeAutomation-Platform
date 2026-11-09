@@ -31,6 +31,8 @@ public final class CodeAnalysis {
         rule("variable_naming", false, "warning", Map.of("pattern", "^[a-z][a-z0-9_]*$"), "Variable names follow the naming pattern");
         rule("unused_variables", true, "warning", Map.of(), "Variables no step uses");
         rule("disabled_steps", true, "warning", Map.of(), "Steps switched off are left in the agent");
+        // command review C8 (9 Nov 2026): AA keeps its Goto for migrated bots only; ours stays, with a hint
+        rule("go_to", true, "warning", Map.of(), "Go to jumps make an agent hard to follow; prefer Loop, If, Exit loop or a subflow");
         rule("long_waits", true, "warning", Map.of("max_seconds", 600), "Fixed delays longer than the limit");
         rule("max_steps", true, "warning", Map.of("limit", 300), "Very long agents are hard to maintain; split them into child agents");
         rule("max_nesting", true, "warning", Map.of("limit", 6), "Blocks nested deeper than the limit");
@@ -43,6 +45,10 @@ public final class CodeAnalysis {
         rule("connector_groups", false, "error", Map.of("business", List.of(), "blocked", List.of(), "neutral", neutralToolkits()),
                 "Toolkits are grouped as business, non-business (the rest) and blocked; an agent may not mix business and non-business ones");
     }
+    private static String label(Map<String, Object> step) {
+        return step.get("args") instanceof Map<?, ?> a && a.get("label") != null ? "'" + a.get("label") + "'" : "a label";
+    }
+
     /** Toolkits that only work on the agent's own values (text, numbers, dates, lists): in no group, so they mix with both. */
     public static List<String> neutralToolkits() { return List.of("core", "ooa.string", "ooa.number", "ooa.datetime", "ooa.boolean", "ooa.list", "ooa.dictionary",
             "ooa.datatable", "ooa.log", "ooa.json", "ooa.xml", "ooa.csv", "ooa.locks", "ooa.jobs"); }
@@ -218,6 +224,10 @@ public final class CodeAnalysis {
                 }
                 case "disabled_steps" -> {
                     for (Map<String, Object> s : all) if (Boolean.TRUE.equals(s.get("disabled"))) out.add(new Violation("disabled_steps", sev, id(s), "A switched-off step is left in the agent"));
+                }
+                case "go_to" -> {
+                    for (Map<String, Object> s : all) if ("core/goto".equals(s.get("action")))
+                        out.add(new Violation("go_to", sev, id(s), "Go to " + label(s) + ": a Loop, If, Exit loop or subflow is easier to follow"));
                 }
                 case "long_waits" -> {
                     int max = num(p.get("max_seconds"), 600);

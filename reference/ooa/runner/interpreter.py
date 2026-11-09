@@ -467,7 +467,9 @@ class _Run:
                 self._sleep(poll)
             return
         if aid == "throw":
-            raise ThrownError(str(resolve(a["message"], self.lookup)), code=str(resolve(a["code"], self.lookup)),
+            code = str(resolve(a["code"], self.lookup))
+            msg = resolve(a.get("message"), self.lookup)   # optional, as AA's Throw (command review C6)
+            raise ThrownError(f"Error {code}" if msg is None or str(msg).strip() == "" else str(msg), code=code,
                               suggested_fix=resolve(a.get("suggested_fix"), self.lookup))
         if aid == "comment":
             return

@@ -3,7 +3,7 @@ import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
 import { StepErrorFields } from "./ErrorPolicy";
-import { fieldOrder, findAction, labelsInScope, parseLoose, setArg, setStepPolicy, showValue } from "./flowEdit";
+import { fieldOrder, findAction, labelsInScope, loopLabelsAround, parseLoose, setArg, setStepPolicy, showValue } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
 import {
@@ -83,6 +83,9 @@ export function StepForm({ step, packages, onArg, onNote }:
     : isLoop && name === "over" && each ? each.over : isLoop && name === "as" ? (mode === "times" ? "Counter (optional)" : each?.as ?? (itSpec ? "Store each one in" : LOOP_LABELS.as))
     : isLoop && LOOP_LABELS[name] ? LOOP_LABELS[name] : boxed.has(name) ? TIMEOUT_LABELS[name] : props[name]?.["x-ooa-label"] ?? name.replace(/_/g, " ");
   const req = (name: string) => required.includes(name) || (isLoop && ((mode === "times" && name === "count") || (mode === "each" && name === "over") || (mode === "while" && name === "condition")));
+  /** A field shown as the catalogue describes it, under a label of our own (Delay's From and To). */
+  const plainInput = (name: string, label: string) => <InputField key={step.id + ":" + name} action={step.action} name={name} label={label} spec={props[name] ?? {}}
+    required={req(name)} value={step.args?.[name]} onCommit={(v) => onArg(name, v)} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
   const field = (name: string) => {
     if (step.action.startsWith("core/") && name === "condition") return <Field key={step.id + ":condition"} label={isLoop ? "Repeat while" : "Condition"} info={props[name]?.description}>{() =>
       <ConditionEditor key={step.id} value={step.args?.condition} onCommit={(v) => onArg(name, v)} />}</Field>;
@@ -91,6 +94,34 @@ export function StepForm({ step, packages, onArg, onNote }:
     if (step.action === "core/set_many" && name === "assignments") return <Field key={step.id + ":assignments"} label={"Assignments" + (req(name) ? " *" : "")}
       info={props[name]?.description}>{() => <AssignmentsEditor step={step} />}</Field>;
     if (step.action === "core/run_bot" && name === "automation") return <RunAgentFields key={step.id + ":agent"} step={step} />;
+    // C5: Exit loop and Continue loop name a loop around them, picked from a list (AA's "Label of loop to break from")
+    if ((step.action === "core/break" || step.action === "core/continue") && name === "label") {
+      const loops = loopLabelsAround(vars?.flow.steps ?? [], step.id);
+      const value = typeof step.args?.label === "string" ? String(step.args.label) : "";
+      return <Field key={step.id + ":label"} label={step.action === "core/break" ? "Loop to leave" : "Loop to continue"} layout="beside"
+        hint={loops.length ? "The nearest loop when none is chosen." : "Name a loop (its More options) to pick it here; without a name, the nearest loop."}>{(id) =>
+        <Select id={id} value={value} onChange={(e) => onArg("label", e.target.value || undefined)}
+          options={[{ value: "", label: "The nearest loop" }, ...loops.map((l) => ({ value: l, label: l })),
+            ...(value && !loops.includes(value) ? [{ value, label: value + " (not a loop around this step)" }] : [])]} />}</Field>;
+    }
+    // C6: Throw error's code from a list of the usual ones, or a code of your own (AA picks an exception from a list)
+    if (step.action === "core/throw" && name === "code") return <ThrowCode key={step.id + ":code"} value={typeof step.args?.code === "string" ? String(step.args.code) : ""} onCommit={(v) => onArg("code", v)} />;
+    // C9: Delay is Regular (a fixed time) or Random (between two times), as AA's Delay type
+    if (step.action === "core/delay" && name === "seconds") {
+      const random = step.args?.random_max !== undefined && step.args.random_max !== "";
+      return <div key={step.id + ":delay"} className="st-delay">
+        <Field label="Delay type" layout="beside">{() => <div className="st-seg" role="radiogroup" aria-label="Delay type">
+          {([["regular", "Regular"], ["random", "Random"]] as const).map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={(k === "random") === random} className="st-seg-btn"
+            onClick={() => {
+              if ((k === "random") === random) return;
+              const from = Number(step.args?.seconds ?? 1);
+              onArg("random_max", k === "random" ? (Number.isFinite(from) ? from + 5 : 5) : undefined);
+            }}>{t}</button>)}</div>}</Field>
+        {plainInput("seconds", random ? "From" : "Wait")}
+        {random && plainInput("random_max", "To")}
+      </div>;
+    }
+    if (step.action === "core/delay" && name === "random_max") return null;   // with Delay type, above
     // Run subflow: one of this agent's subflows; Go to: a label it can reach (its own list or one around it)
     if ((step.action === "core/run_subflow" && name === "subflow") || (step.action === "core/goto" && name === "label")) {
       const choices = step.action === "core/goto" ? labelsInScope(vars?.flow.steps ?? [], step.id) : (vars?.flow.subflows ?? []).map((s) => s.name);
@@ -205,6 +236,25 @@ export function StepForm({ step, packages, onArg, onNote }:
       </div>
     </div>
   );
+}
+
+/** The usual codes for Throw error (C6), in plain words; a Catch can name them, or a kind such as NOT_FOUND. */
+const THROW_CODES: [string, string][] = [
+  ["BUSINESS.ERROR", "A business rule was not met"], ["VALIDATION.FAILED", "The data is not valid"], ["DATA.NOT_FOUND", "Something needed was not found"],
+  ["DATA.DUPLICATE", "It was done or exists already"], ["SYSTEM.UNAVAILABLE", "A system is down or not answering"], ["PROCESS.TIMEOUT", "It took too long"],
+  ["ACCESS.DENIED", "Not allowed (sign-in or permission)"]];
+const OWN = " own";
+
+/** Throw error's code: one of the usual ones, or your own (letters, digits, _ and dots, e.g. BUSINESS.INVOICE_DUPLICATE). */
+function ThrowCode({ value, onCommit }: { value: string; onCommit: (v: string | undefined) => void }) {
+  const known = THROW_CODES.some(([c]) => c === value);
+  const [own, setOwn] = useState(!known && value !== "");
+  return <Field label="Error code *" layout="beside" hint="A Catch takes errors by code, by a prefix such as BUSINESS.* or by a kind such as NOT_FOUND.">{(id) => <>
+    <Select id={id} value={own ? OWN : value} onChange={(e) => { if (e.target.value === OWN) setOwn(true); else { setOwn(false); onCommit(e.target.value || undefined); } }}
+      options={[{ value: "", label: "Choose…" }, ...THROW_CODES.map(([c, words]) => ({ value: c, label: words + " (" + c + ")" })), { value: OWN, label: "A code of your own…" }]} />
+    {own && <CommitInput key={"own" + value} label="Your own error code" mono want="String" initial={known ? "" : value} placeholder="BUSINESS.INVOICE_DUPLICATE"
+      onCommit={(t) => onCommit(t.trim() || undefined)} />}
+  </>}</Field>;
 }
 
 /** File fields that take a folder (Browse… then chooses a folder). */

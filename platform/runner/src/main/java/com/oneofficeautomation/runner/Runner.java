@@ -900,7 +900,11 @@ public final class Runner {
                     Object fix = resolve(a.get("suggested_fix"));
                     Object details = resolve(a.get("details"));
                     boolean retryable = Boolean.TRUE.equals(Values.coerce(resolve(a.get("retryable")), "Boolean", "retryable"));
-                    throw new OoaException(Values.text(resolve(a.get("code"))), Values.text(resolve(a.get("message"))), fix == null ? null : Values.text(fix),
+                    // the message is optional, as AA's Throw (command review C6): without one, the code says what happened
+                    String code = Values.text(resolve(a.get("code")));
+                    Object msg = resolve(a.get("message"));
+                    String message = msg == null || Values.text(msg).isBlank() ? "Error " + code : Values.text(msg);
+                    throw new OoaException(code, message, fix == null ? null : Values.text(fix),
                             retryable, details instanceof Map<?, ?> d ? (Map<String, Object>) d : null);
                 }
                 case "comment" -> { }

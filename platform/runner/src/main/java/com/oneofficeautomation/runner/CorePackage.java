@@ -129,7 +129,7 @@ public final class CorePackage {
     @Action(id = "throw", name = "Throw error", category = "Error handling", description = "Raise an error with a custom code that Try/Catch can match.")
     public Map<String, Object> throwAction(ActionContext c,
             @Input(name = "code", type = OoaType.STRING, description = "Error code, e.g. BUSINESS.INVOICE_DUPLICATE.") String code,
-            @Input(name = "message", type = OoaType.STRING, description = "Error message.") String message,
+            @Input(name = "message", type = OoaType.STRING, required = false, description = "What went wrong, for the log and the Catch; the code when empty.") String message,
             @Input(name = "suggested_fix", type = OoaType.STRING, required = false, description = "How to resolve the error.") String fix,
             @Input(name = "details", type = OoaType.DICTIONARY, required = false, description = "Extra values carried with the error, readable in Catch.") Object details,
             @Input(name = "retryable", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mark the error as temporary so retry policies try the step again.") Object retryable) { return interp(); }
