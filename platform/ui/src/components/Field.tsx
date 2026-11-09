@@ -37,10 +37,19 @@ export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   return <textarea className="ui-input ui-textarea" {...props} />;
 }
 
-export function Select({ options, ...rest }: { options: { value: string; label: string }[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+/** A drop-down list; options with a group are shown under that group's heading (an optgroup), in the order given. */
+export function Select({ options, className, ...rest }: { options: { value: string; label: string; group?: string }[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+  const parts: (typeof options[number] | { group: string; items: typeof options })[] = [];
+  for (const o of options) {
+    if (!o.group) { parts.push(o); continue; }
+    const last = parts[parts.length - 1];
+    if (last && "items" in last && last.group === o.group) last.items.push(o); else parts.push({ group: o.group, items: [o] });
+  }
   return (
-    <select className="ui-input ui-select" {...rest}>
-      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    <select className={"ui-input ui-select" + (className ? " " + className : "")} {...rest}>
+      {parts.map((p) => "items" in p
+        ? <optgroup key={"g:" + p.group} label={p.group}>{p.items.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</optgroup>
+        : <option key={p.value} value={p.value}>{p.label}</option>)}
     </select>
   );
 }

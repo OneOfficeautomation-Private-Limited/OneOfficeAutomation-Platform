@@ -787,7 +787,7 @@ describe("new Studio", () => {
     fireEvent.change(within(check2).getByLabelText("Value"), { target: { value: "$vendor" } });
     fireEvent.change(within(check2).getByLabelText("Comparison"), { target: { value: "empty" } });
     expect(within(screen.getByRole("group", { name: "Check 2" })).queryByLabelText("Compared with")).toBeNull();
-    fireEvent.change(screen.getByLabelText("Match"), { target: { value: "any" } });
+    fireEvent.change(screen.getByLabelText("Combine checks"), { target: { value: "any" } });
     expect(screen.getByText("Reads: $total is greater than 1000 or $vendor is empty")).toBeTruthy();
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });

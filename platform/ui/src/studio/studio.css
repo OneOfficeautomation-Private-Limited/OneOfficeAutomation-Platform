@@ -652,3 +652,10 @@ button.st-menu-group-head:focus-visible { outline: 2px solid #8fb4ff; outline-of
 .st-menu-group-head .st-menu-caret { margin-left: auto; display: inline-flex; color: #8b97a8; }
 button.st-menu-group-head { letter-spacing: .02em; gap: 6px; padding-right: 6px; }
 button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* C1, C7 (9 Nov 2026): groups of checks, and a toolkit condition with its own fields */
+.st-cond-group { display: flex; flex-direction: column; gap: 8px; }
+.st-cond-group.is-inner { padding: 8px; border: 1px dashed var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-soft); }
+.st-cond-group-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.st-cond-fields { display: flex; flex-direction: column; gap: 6px; }
+.st-cond-field { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ui-text-2); }
+.st-cond-field > span { font-weight: 600; }
