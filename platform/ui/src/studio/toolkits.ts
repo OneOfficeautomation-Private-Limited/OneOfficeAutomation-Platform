@@ -172,6 +172,8 @@ export function conditionText(c: unknown, packages: PackageManifest[] = []): str
   if (typeof c.expr === "string") return c.expr;
   if (Array.isArray(c.all)) return c.all.map((x) => conditionText(x, packages)).join(" and ");
   if (Array.isArray(c.any)) return c.any.map((x) => conditionText(x, packages)).join(" or ");
+  // a toolkit condition turned round reads as the builder shows it: "File exists (…) is not true"
+  if (isObj(c.not) && typeof c.not.condition === "string") return conditionText(c.not, packages) + " is not true";
   if (c.not !== undefined) return "not (" + conditionText(c.not, packages) + ")";
   if (typeof c.condition === "string") {
     const [pid, cid] = c.condition.split("/");
@@ -225,6 +227,13 @@ export function summarize(step: FlowStep, packages: PackageManifest[] = []): str
   if (step.action === "core/state_machine") {
     const n = step.states?.length ?? 0;
     return n + (n === 1 ? " state" : " states") + (n ? ", starts in " + startState(step) : "");
+  }
+  // a loop over a toolkit's loop type says it in words: "Each file in folder (C:/In) → $file" (C2)
+  if (step.action === "core/loop" && typeof step.args?.iterator === "string" && step.args.iterator.includes("/")) {
+    const [pid, iid] = step.args.iterator.split("/");
+    const name = packages.find((p) => p.id === pid)?.iterators?.find((x) => x.id === iid)?.name ?? step.args.iterator;
+    const args = Object.values(isObj(step.args.iterator_args) ? step.args.iterator_args : {}).filter((v) => v !== undefined && v !== "").map((v) => plainValue(v, 40));
+    return name + (args.length ? " (" + args.join(", ") + ")" : "") + (typeof step.args.as === "string" && step.args.as ? " → $" + step.args.as : "");
   }
   if (step.action === "core/set_many" && Array.isArray(step.args?.assignments))
     return (step.args!.assignments as { variable?: string; value?: unknown }[]).map((r) => "$" + (r.variable ?? "?") + " = " + plainValue(r.value)).join(" · ");
