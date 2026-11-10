@@ -373,7 +373,7 @@ Raise an error with a custom code that Try/Catch can match.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Code | `code` | Text | Yes |  | Main | Error code, e.g. BUSINESS.INVOICE_DUPLICATE. |
-| Message | `message` | Text | Yes |  | Main | Error message. |
+| Message | `message` | Text | No |  | Main | What went wrong, for the log and the Catch; the code when empty. |
 | Suggested fix | `suggested_fix` | Text | No |  | Main | How to resolve the error. |
 | Details | `details` | Dictionary | No |  | Main | Extra values carried with the error, readable in Catch. |
 | Retryable | `retryable` | Yes/No | No | No | Main | Mark the error as temporary so retry policies try the step again. |

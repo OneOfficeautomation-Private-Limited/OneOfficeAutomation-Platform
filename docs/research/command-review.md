@@ -96,3 +96,11 @@ retry and continue-on-error all work in the runner and pass its tests. Nobody bu
 | **C11** | One name per core command everywhere. | Small |
 
 Suggested order: C1 and C2 first (most used and most visible), then C3 and C4, then the small ones together.
+
+**Built 9 to 10 Nov 2026 (all of C1 to C11)** on ui/usage-review, each tested and tried in One AgentStudio as a user:
+the condition builder lists 24 toolkits' conditions with their fields, is/is not and groups; For each lists the 15 loop
+types with their settings; every step has If this step fails (continue, try again) and the agent a default; Run Agent
+has Quick map and the agent from a variable; Exit/Continue loop pick a loop; Throw has usual codes (message optional);
+Go to gets a code-analysis warning; Delay is Regular/Random; core names are one each. Follow-up seen while testing:
+the core commands' one-line descriptions (shown since item 24) are technical ("Repeat the children using an
+iterator..."); rewrite them in plain words with batch 2.
