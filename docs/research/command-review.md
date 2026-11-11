@@ -170,3 +170,56 @@ commands, e.g. Format date's Format, Add column from list's Insert at) were not 
 options; they are drawn again, and Format date / Text to date show the pattern and time zone among the main fields.
 Not changed: other toolkits' time-zone fields (Google, Microsoft 365 calendars) get the picker but not Local, since
 their services take zone names.
+
+---
+
+## Batch 3: files (69 commands in 6 toolkits)
+
+File (19), Folder (10), CSV/TXT (2 plus the loop type), PDF (16), Log to file (5), FTP/SFTP (15). Checked 11 Nov 2026 against
+AA's File, Folder, CSV/TXT, Text file, PDF, Logging and FTP/SFTP packages.
+
+### What AA teaches about how these are used
+
+- **Where a file comes from** is the first choice in AA's file fields: a **Control Room file** (kept in the repository and
+  sent to the runner with the bot), a **Desktop file** (a path on the runner), or a **Variable**. "Copy Control Room
+  file" copies one out explicitly.
+- **CSV/TXT**: Open asks for Contains header, a **Delimiter from a list** (Comma, Tab, Regional list separator, Newline,
+  Other), Trim leading and trailing spaces, and an **Encoding from a list** (ANSI, UTF-8, Unicode…). It reads a whole file
+  to a table, or row by row with the Loop iterator. Ours does the same.
+- **Text file**, **PDF**, **Logging** and **FTP/SFTP**: every AA action has ours (sessions for FTP as in AA). Ours add
+  file filters by size and date, AES zip passwords, PDF tables, form fields, OCR and images, XPS, folder sync, log fields
+  and logging to One CommandCenter.
+
+### Automated pass
+
+Every field has a label and help text, and every command has a test sample. Migration map: AA's "File: Open" still
+points to our old "Open file", which item 26 retired from the library. It should point to Open program/file.
+
+### Findings, checked against our code
+
+| # | Finding | Why it matters |
+|---|---|---|
+| F1 | **No way in Studio to use a file kept in One CommandCenter.** The agent format already has `files` (repository files placed at the same path on the runner before the run), but no field or panel sets it. File fields offer Browse on *this computer*, a path or a $variable. This is open item 4b. | Templates, mapping sheets and reference files are how AA bots carry their files. Without it a runner needs the file put there by hand. |
+| F2 | **Delimiter** (11 fields: CSV, Data Table, Database, Excel, SAP) is free text; "tab" and "regional" work only if typed. | AA lists Comma, Tab, Regional, Other. Nobody guesses "regional". |
+| F3 | **Encoding** (20 fields) is free text ("utf-8"); "ansi", "unicode" and "utf-8-bom" work only if typed. | AA lists them. A wrong guess garbles characters silently. |
+| F4 | Size limits are in **bytes** (List, Copy, Move, Delete files). | People think in KB and MB. |
+| F5 | **Write text** shows Path, Fail if exists, Text, Append. | Text belongs right after Path; "Fail if exists" is rare (More options). |
+| F6 | **FTP Connect** shows Host and Port before Protocol, and password and key fields together for SFTP. | AA asks for the protocol first, then how to sign in. |
+| F7 | Migration map: AA "File: Open" points to the retired "Open file". | Migrated bots should use Open program/file. |
+
+Fine as they are: PDF (every option, page choices drawn since X2), Zip and Unzip, Folder, Log to file, copy, move and delete
+filters, and the CSV read options (header, trim, skip lines, first rows, numbers and dates).
+
+### Proposals (choose; nothing built)
+
+| # | Proposal | Upgrade safety | Size |
+|---|---|---|---|
+| **F1** | **Files from One CommandCenter**, AA's Control Room file. File fields get a source choice: *This computer* (Browse, as now), *One CommandCenter* (browse the repository's files after sign-in; the path is kept, and the file is added to the agent's list of files to send with it), or a *$variable*. The agent's Details show that list, with Remove and Add. | Uses the `files` list the runner already reads. | Medium |
+| **F2** | **Delimiter picker**: Comma, Semicolon, Tab, Pipe, Regional (the runner's list separator), Other. | It writes the words the runner already reads. | Small |
+| **F3** | **Encoding picker**: UTF-8, UTF-8 with BOM, ANSI (Windows), Unicode (UTF-16), and others by name. | Same. | Small |
+| **F4** | Size fields take a number and a unit (bytes, KB, MB, GB) and keep bytes in the agent. | Values unchanged. | Small |
+| **F5** | Write text: Path, Text, Append; Fail if exists and Encoding under More options. | Layout only. | Small |
+| **F6** | FTP Connect: Protocol, Host, Port, User, then "Sign in with: Password / Private key" for SFTP. | Layout only. | Small |
+| **F7** | Migration map: AA File: Open goes to Open program/file. | Map only. | Small |
+
+Suggested order: F1 (closes 4b), then F2/F3 (cross-cutting), then the small ones.
