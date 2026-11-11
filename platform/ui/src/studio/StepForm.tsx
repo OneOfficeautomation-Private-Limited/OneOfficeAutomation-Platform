@@ -3,6 +3,8 @@ import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
 import { StepErrorFields } from "./ErrorPolicy";
+import { enumWord } from "./enumWords";
+import { DatePatternField, LocaleField, TimeZoneField } from "./PickerFields";
 import { fieldOrder, findAction, labelsInScope, loopLabelsAround, parseLoose, setArg, setStepPolicy, showValue } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
@@ -278,8 +280,13 @@ function InputField({ action, name, label, spec, required, value, onCommit, appl
       if (spec.enum?.length) {
         // a Number field with choices (e.g. key length 128/256) keeps the number type when a choice is picked
         return <Select id={id} value={value === undefined ? "" : String(value)} onChange={(e) => onCommit(e.target.value === "" ? undefined : isNumber(spec) ? Number(e.target.value) : e.target.value)}
-          options={[{ value: "", label: fallback || "Choose…" }, ...spec.enum.map((v) => ({ value: String(v), label: String(v).replace(/_/g, " ") }))]} />;
+          options={[{ value: "", label: spec.default !== undefined ? "Default: " + enumWord(spec.default) : fallback || "Choose…" }, ...spec.enum.map((v) => ({ value: String(v), label: enumWord(v) }))]} />;
       }
+      // pickers for what people typed and got wrong (D1, D2, D8): time zone, date pattern, language and region
+      const asText = (v: string | undefined) => onCommit(v);
+      if (name === "time_zone" && spec["x-ooa-type"] !== "Dictionary") return <TimeZoneField id={id} value={value} local={action.startsWith("ooa.datetime/")} onCommit={asText} />;
+      if (name === "pattern" && /^ooa\.datetime\/(format|parse)$/.test(action)) return <DatePatternField id={id} value={value} fallback={spec.default as string | undefined} onCommit={asText} />;
+      if (name === "locale" && (spec["x-ooa-type"] === "String" || spec["x-ooa-type"] === undefined)) return <LocaleField id={id} value={value} fallback={spec.default as string | undefined} onCommit={asText} />;
       // by kind (docs/research/input-help-check.md): a value or a variable, Browse, the vault, the open windows
       const kind = { id, name, value, fallback, onCommit, apply };
       const ooaType = spec["x-ooa-type"];

@@ -211,6 +211,12 @@ class DataOptionsTest {
         assertFalse(d.isEqual(ctx(), a, b, true, "UTC"));
         assertTrue(d.isEqual(ctx(), a, b, false, "UTC"));
         assertFalse(d.isEqual(ctx(), a, b, false, "Asia/Kolkata"), "22:30 UTC is the next day in India");
+        // command review D1: "local" is the runner's own time zone, as AA's dates
+        java.time.ZoneId here = java.time.ZoneId.systemDefault();
+        assertEquals(here, DateTimePackage.zone("local"));
+        assertEquals(here, DateTimePackage.zone(" Local "));
+        assertEquals(b.atOffset(java.time.ZoneOffset.UTC).atZoneSameInstant(here).toLocalDate().toString(),
+                d.format(ctx(), b, "yyyy-MM-dd", "local", "en", null).get("text"));
         assertTrue(d.isBetween(ctx(), a, a.minusDays(1), b, true, "UTC"));
         assertEquals(false, d.isAfterAction(ctx(), b, a, false, "UTC").get("result"));
         assertEquals(LocalDateTime.of(2026, 10, 19, 8, 0, 0, 250_000_000), d.add(ctx(), a, 250, "milliseconds").get("result"));

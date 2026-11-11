@@ -662,3 +662,4 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 /* C3: a step that is tried again or goes on after an error says so on its line */
 .st-badge + .st-badge { margin-left: 4px; }
 .st-badge.is-info { background: var(--ui-selected); color: var(--ui-pill-text); }
+.st-picker { display: flex; flex-direction: column; gap: 4px; }

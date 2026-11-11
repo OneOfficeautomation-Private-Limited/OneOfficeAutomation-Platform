@@ -112,6 +112,8 @@ export function newStep(action: string, flow: Flow, packages: PackageManifest[])
     else if ((spec?.inputs?.required ?? []).includes(name) && prop.examples?.length) args[name] = prop.examples[0];
   }
   if (action === "core/throw" && args.code === undefined) args.code = "BUSINESS.ERROR";   // a business error unless another code is chosen
+  // a new date step works in the runner's own time zone, as AA's dates (command review D1); older steps keep UTC
+  if (action.startsWith("ooa.datetime/") && "time_zone" in props && args.time_zone === undefined) args.time_zone = "local";
   if (Object.keys(args).length) step.args = args;
   if (action === "core/if") { step.children = []; step.else = []; }
   else if (action === "core/try") { step.children = []; step.catch = [{ codes: [], children: [] }]; }   // Finally only when wanted

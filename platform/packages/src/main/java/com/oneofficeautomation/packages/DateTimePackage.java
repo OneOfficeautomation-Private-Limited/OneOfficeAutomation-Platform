@@ -41,8 +41,10 @@ public final class DateTimePackage {
         }
     }
 
-    private static ZoneId zone(String z) {
-        try { return ZoneId.of(z); }
+    /** A time zone by name; "local" (any case) is the runner's own, as AA's dates are (command review D1, 10 Nov 2026). */
+    static ZoneId zone(String z) {
+        if (z != null && z.strip().equalsIgnoreCase("local")) return ZoneId.systemDefault();
+        try { return ZoneId.of(z == null ? "UTC" : z.strip()); }
         catch (DateTimeException e) { throw new ActionException("DATETIME.BAD_ZONE", "Unknown time zone '" + z + "'", "Use an IANA name such as Europe/London or Asia/Kolkata."); }
     }
 
@@ -134,7 +136,7 @@ public final class DateTimePackage {
     public Map<String, Object> format(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to format (UTC).") LocalDateTime value,
             @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"yyyy-MM-dd\"", visibleWhen = "standard=", description = "Pattern, e.g. dd/MM/yyyy, yyyy-MM-dd HH:mm, MMM d, yyyy.") String pattern,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "IANA time zone for display, e.g. Asia/Kolkata.") String tz,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone to show the date in: local (the runner's own), UTC or a name such as Asia/Kolkata.") String tz,
             @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en\"", description = "Language for month and day names, e.g. en, de-DE, fr-FR.") String locale,
             @Input(name = "standard", type = OoaType.STRING, required = false, enumValues = {"ISO_LOCAL_DATE", "ISO_LOCAL_TIME", "ISO_LOCAL_DATE_TIME", "ISO_OFFSET_DATE_TIME", "ISO_ZONED_DATE_TIME", "ISO_INSTANT",
                     "ISO_DATE", "ISO_DATE_TIME", "ISO_ORDINAL_DATE", "ISO_WEEK_DATE", "BASIC_ISO_DATE", "RFC_1123_DATE_TIME"},
@@ -155,7 +157,7 @@ public final class DateTimePackage {
     public Map<String, Object> parse(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text such as 18/10/2026.") String text,
             @Input(name = "pattern", type = OoaType.STRING, required = false, visibleWhen = "standard=", description = "Pattern of the text, e.g. dd/MM/yyyy; needed unless a standard format is chosen.") String pattern,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone the text is in.") String tz,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone the text is in: local (the runner's own), UTC or a name such as Asia/Kolkata.") String tz,
             @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en\"", description = "Language of month and day names in the text, e.g. en, de-DE.") String locale,
             @Input(name = "standard", type = OoaType.STRING, required = false, enumValues = {"ISO_LOCAL_DATE", "ISO_LOCAL_DATE_TIME", "ISO_OFFSET_DATE_TIME", "ISO_ZONED_DATE_TIME", "ISO_INSTANT",
                     "ISO_DATE", "ISO_DATE_TIME", "BASIC_ISO_DATE", "RFC_1123_DATE_TIME"},
@@ -189,7 +191,7 @@ public final class DateTimePackage {
     @Output(name = "text", type = OoaType.STRING, description = "Local time with offset, e.g. 2026-10-18T20:00+05:30.")
     public Map<String, Object> convertTimeZone(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date (UTC).") LocalDateTime value,
-            @Input(name = "time_zone", type = OoaType.STRING, description = "Target IANA zone.") String tz) {
+            @Input(name = "time_zone", type = OoaType.STRING, description = "Time zone to convert to: local (the runner's own), UTC or a name such as Europe/London.") String tz) {
         return Out.of("text", value.atOffset(ZoneOffset.UTC).atZoneSameInstant(zone(tz)).toOffsetDateTime().toString());
     }
 
@@ -376,7 +378,7 @@ public final class DateTimePackage {
             @Input(name = "part", type = OoaType.STRING, enumValues = {"year", "month", "day", "hour", "minute", "second", "millisecond", "day_of_week", "day_name",
                     "month_name", "day_of_year", "week_of_year", "quarter", "days_in_month", "days_in_year"},
                     description = "Which part to return; day_of_week is 1 for Monday to 7 for Sunday, week_of_year follows ISO 8601.") String part,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone the part is read in.") String tz,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone the part is read in: local (the runner's own), UTC or a name such as Asia/Kolkata.") String tz,
             @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en\"", description = "Language for day_name and month_name.") String locale) {
         ZonedDateTime z = need(value, "value").atOffset(ZoneOffset.UTC).atZoneSameInstant(zone(tz == null ? "UTC" : tz));
         Object r = switch (part == null ? "" : part) {
