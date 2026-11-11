@@ -276,3 +276,9 @@ commands for macros and refresh.
 | **E1** | **Recalculate on save**: Save, Save as and Close-with-save work out every formula they can (POI) and mark the workbook so Excel recalculates when it opens it; a formula POI cannot work out keeps its stored value and is logged once. | Files get correct stored values; nothing else changes. | Small |
 | **X3** | **Session picker** in every toolkit: the field lists the sessions the agent's own Open and Connect steps of that toolkit name, with "the default" and typing your own or a $variable still possible. Same pattern as the column suggestions (D4). | Values unchanged. | Medium (one component, all 21 toolkits) |
 | **E2** | Test samples for the 8 commands (the Excel desktop ones marked "desktop"). | None. | Small |
+
+**Built 11 Nov 2026 (E1, E2, X3)** on ui/usage-review. E1 tested with a formula whose input changes (the stored result
+follows, and Excel is asked to recalculate on opening). E2: the Excel desktop samples were also run once with Excel on
+this machine (convert to .xls, export to PDF, refresh, update links, a clear error for a missing macro). X3 tried in One
+AgentStudio: with Open workbook on session "invoices", a Get cell left on the default session suggests "invoices" and
+says no step opens "excel".
