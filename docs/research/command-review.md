@@ -229,3 +229,50 @@ CommandCenter picked into Read to table and listed in the agent's Details). Also
 now reads the same delimiter and encoding words (one shared reading: CSV, Data Table, Database, SAP, File), so the
 pickers' choices work everywhere; a file field's sources are written under the path ("Browse this computer", "From One
 CommandCenter") so the path keeps the field's width.
+
+---
+
+## Batch 4: Excel, Word, PowerPoint (117 commands in 5 toolkits)
+
+Excel, no Office needed (75); Excel desktop, needs Excel (5); Word (16); PowerPoint (17); PowerPoint desktop (4). Checked
+11 Nov 2026 against AA's Excel basic, Excel advanced, Word and PowerPoint packages. Outlook desktop goes with e-mail
+(batch 7), and Microsoft 365 Excel with the cloud connectors (batch 10).
+
+### What AA teaches about how these are used
+
+- **Which Excel**: AA has three packages: Excel basic (no Excel installed), Excel advanced (Excel installed) and
+  Microsoft 365 Excel. Ours: "Excel (no Office needed)" does almost everything without Excel, including charts, pivot
+  tables, formats and protection; "Excel (desktop)" is only for what needs Excel itself (macros, Refresh all, links,
+  export to PDF, convert). AA's Word needs Word installed; ours does not.
+- **Sessions**: a workbook, document or presentation is opened under a session name, and later actions name that
+  session. AA lets a child bot share the parent's Excel session; our Run Agent has "same session" for that.
+- **Cells**: Get or Set cell offers *Active cell* or *Specific cell*, and many actions *a named sheet* or *the active
+  sheet*. Ours offers the same choices, drawn since X2. "Each row in a worksheet" is a Loop type since C2.
+- Coverage: every AA Excel basic, Excel advanced, Word and PowerPoint action has ours (the map's only exception, "screen
+  update", is not needed without a visible Excel).
+
+### Automated pass
+
+Labels and help are complete. **No test samples** for the five Excel desktop commands (they need Excel; samples can be
+marked "desktop" and run where Office is installed), for Word's Extract text from a file and Get page count, or for
+PowerPoint's Extract text from a file.
+
+### Findings, checked against our code
+
+| # | Finding | Why it matters |
+|---|---|---|
+| E1 | **Saving a workbook does not recalculate its formulas.** Our reads work formulas out fresh, but Save and Close write the file as it is: the stored results of formulas that depend on changed cells stay old, and nothing asks Excel to recalculate when the file is opened. | Set A1 = 5 where B1 is =A1*2, save, and a later tool (another bot, a report, a mail with the file, Excel itself until it recalculates) can read B1's old value. AA's Excel advanced runs in Excel, which recalculates. |
+| X3 | **Session fields are free text** (default "excel", "word", "transfer"…) in **348 commands across 21 toolkits** (Excel 73, Active Directory 38, Browser 28, SAP 27, Email 20…). | With two workbooks open, a misspelt session fails only at run time ("no session"). The sessions an agent opens are known from its own Open and Connect steps. |
+| E2 | Test samples are missing for 8 commands (above). | Every command should have one. |
+
+Fine as they are: the Excel cell, range, table, sheet and workbook commands (with active or named sheet and cell
+choices); Word and PowerPoint (no Office needed, find and replace text and pictures, tables, formatting); the desktop
+commands for macros and refresh.
+
+### Proposals (choose; nothing built)
+
+| # | Proposal | Upgrade safety | Size |
+|---|---|---|---|
+| **E1** | **Recalculate on save**: Save, Save as and Close-with-save work out every formula they can (POI) and mark the workbook so Excel recalculates when it opens it; a formula POI cannot work out keeps its stored value and is logged once. | Files get correct stored values; nothing else changes. | Small |
+| **X3** | **Session picker** in every toolkit: the field lists the sessions the agent's own Open and Connect steps of that toolkit name, with "the default" and typing your own or a $variable still possible. Same pattern as the column suggestions (D4). | Values unchanged. | Medium (one component, all 21 toolkits) |
+| **E2** | Test samples for the 8 commands (the Excel desktop ones marked "desktop"). | None. | Small |
