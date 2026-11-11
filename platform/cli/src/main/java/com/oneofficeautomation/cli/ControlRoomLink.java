@@ -521,4 +521,8 @@ final class ControlRoomLink {
     }
 
     void undoCheckout(String repoPath) { call("POST", "repo/undo-checkout", Map.of("path", repoPath), true); }
+
+    /** The files kept in One CommandCenter's repository that the person may see (command review F1, AA's Control Room files). */
+    @SuppressWarnings("unchecked")
+    List<Object> repoFiles() { return (List<Object>) call("GET", "repo/files", null, true).getOrDefault("files", List.of()); }
 }

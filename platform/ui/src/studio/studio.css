@@ -664,3 +664,8 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-badge.is-info { background: var(--ui-selected); color: var(--ui-pill-text); }
 .st-picker { display: flex; flex-direction: column; gap: 4px; }
 .st-more-conds { display: flex; flex-direction: column; gap: 6px; }
+/* F1: a file field with its sources, and the agent's files from One CommandCenter */
+.st-file-field { display: flex; flex-direction: column; gap: 2px; }
+.st-fs-size { margin-left: auto; padding-left: 12px; }
+.st-repo-files { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.st-repo-files li { display: flex; align-items: center; gap: 8px; }

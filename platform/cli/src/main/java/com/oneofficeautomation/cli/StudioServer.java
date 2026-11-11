@@ -320,6 +320,7 @@ public final class StudioServer {
             else if (method.equals("GET") && r.equals("states")) sendJson(ex, 200, cr.states(json));
             // a step's Credential field: the vault credentials the person may use (names only, never values)
             else if (method.equals("GET") && r.equals("credentials")) sendJson(ex, 200, Map.of("connected", cr.connected(), "credentials", cr.connected() ? cr.credentials() : List.of()));
+            else if (method.equals("GET") && r.equals("files")) sendJson(ex, 200, Map.of("files", cr.repoFiles()));
             else if (method.equals("POST") && r.equals("clone")) sendJson(ex, 200, cr.cloneBot((String) ((Map<String, Object>) body(ex)).get("path"), json));
             else if (method.equals("POST") && r.equals("copy")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.copyToPrivate((String) b.get("path"), (String) b.get("to"), json)); }
             else if (method.equals("POST") && r.equals("revert")) sendJson(ex, 200, cr.revert((String) ((Map<String, Object>) body(ex)).get("local"), json));

@@ -170,6 +170,11 @@ class StudioControlRoomTest {
             assertEquals(200, call(sb, "POST", "/api/cr/checkout", Map.of("path", "Team/Report.flow.json"), null).get("_status"));
             assertEquals("checked_out", stateOf(sb, "Team/Report.flow.json"));
 
+            // F1: the files kept in One CommandCenter, as Studio's file fields list them (AA's Control Room files)
+            assertEquals(200, call(crUrl, "PUT", "/api/repo/files?path=Templates/rates.csv", "a,b", aliceToken).get("_status"));
+            List<Object> repoFiles = (List<Object>) call(sb, "GET", "/api/cr/files", null, null).get("files");
+            assertTrue(repoFiles.stream().anyMatch(f -> "Templates/rates.csv".equals(((Map<String, Object>) f).get("path"))), String.valueOf(repoFiles));
+
             Files.writeString(wsA.resolve("My Bots/Broken.flow.json"), "{\"kind\":\"TaskBot\",\"id\":\"broken_bot\",\"name\":\"b\",\"variables\":[],\"steps\":[{\"id\":\"s1\",\"action\":\"core/log\",\"args\":{\"message\":\"$nope\"}}]}");
             Map<String, Object> bad = call(sa, "POST", "/api/cr/checkin", Map.of("local", "My Bots/Broken.flow.json"), null);
             assertEquals("CR.INVALID_BOT", ((Map<String, Object>) bad.get("error")).get("code"));

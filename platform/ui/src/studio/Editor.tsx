@@ -3,6 +3,7 @@ import { simplePackages } from "./simpleMode";
 import { SapImportDialog } from "./sapRecording";
 import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, RetryPolicy, StudioApi } from "../api/client";
 import { RetryFields } from "./ErrorPolicy";
+import { AgentRepoFiles } from "./RepoFiles";
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
@@ -177,6 +178,8 @@ function AgentProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow) =>
       <Field label="Description" hint="What the agent does: people who run it read this, and AI agents that may call it.">
         {(fid) => <TextArea id={fid} rows={3} value={about} onChange={(e) => setAbout(e.target.value)}
           onBlur={() => { if (about !== (flow.description ?? "")) onEdit({ ...flow, description: about }); }} />}</Field>
+      {/* F1: files kept in One CommandCenter that go to the runner with the agent */}
+      <AgentRepoFiles flow={flow} onEdit={onEdit} />
       {/* C3: the agent's default when a step fails outside a Try; a step's own setting wins */}
       <h3 className="st-prop-section">When a step fails</h3>
       <Field label="Outside a Try block" layout="beside" hint="A step's own If it fails setting wins. Errors inside a Try go to its Catch.">{(fid) =>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Flow, FsEntry, FsListing, OpenWindow, VaultCredentialRef } from "../api/client";
 import { Button, Dialog, Icon, IconButton, Select, TextInput } from "../components";
 import { showValue } from "./flowEdit";
+import { RepoFileBrowser, withRepoFile } from "./RepoFiles";
 import { CommitInput } from "./ValueSources";
 import { ListEditor, PairsEditor, useVars } from "./VariablesPanel";
 
@@ -86,16 +87,29 @@ export function CollectionField({ id, name, type, value, onCommit, apply }: Fiel
 
 // ------------------------------------------------------------------ files and folders
 
-/** A path typed in (with the variable list) or chosen with Browse… on this computer (files or folders). */
+/**
+ * A path typed in (with the variable list), chosen with Browse… on this computer, or (files) one kept in One CommandCenter
+ * (F1, as AA's Control Room file): that one is also added to the agent's files, so the runner gets it before the run.
+ */
 export function FileField({ id, name, value, fallback, onCommit, apply, folder }: FieldProps & { folder: boolean }) {
+  const vars = useVars();
   const [browsing, setBrowsing] = useState(false);
+  const [fromRepo, setFromRepo] = useState(false);
   const text = typeof value === "string" ? value : value === undefined ? "" : showValue(value);
-  return <div className="st-row-tight">
+  const inRepo = !!vars?.flow.files?.includes(text);
+  return <div className="st-file-field"><div className="st-row-tight">
     <CommitInput key={"f" + text} id={id} initial={text} placeholder={fallback || (folder ? "C:\\Folder or $folder" : "C:\\Folder\\file.xlsx or $file")} want="File"
       nameHint={name} onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
     <IconButton icon="folder" label="Browse…" onClick={() => setBrowsing(true)} />
+    {!folder && vars && <IconButton icon="globe" label="A file kept in One CommandCenter…" onClick={() => setFromRepo(true)} />}
+    </div>
+    {inRepo && <div className="ui-field-hint">A file from One CommandCenter: the runner gets it with the agent.</div>}
     {browsing && <FileBrowser folder={folder} start={isVarText(text) ? "" : text}
       onPick={(p) => { setBrowsing(false); onCommit(p); }} onClose={() => setBrowsing(false)} />}
+    {fromRepo && <RepoFileBrowser onClose={() => setFromRepo(false)} onPick={(p) => {
+      setFromRepo(false);
+      if (vars && apply) vars.edit(withRepoFile(apply(p, vars.flow), p)); else onCommit(p);
+    }} />}
   </div>;
 }
 
