@@ -669,3 +669,5 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-fs-size { margin-left: auto; padding-left: 12px; }
 .st-repo-files { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .st-repo-files li { display: flex; align-items: center; gap: 8px; }
+.st-file-sources { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; }
+.st-file-sources .st-link { display: inline-flex; align-items: center; gap: 4px; }

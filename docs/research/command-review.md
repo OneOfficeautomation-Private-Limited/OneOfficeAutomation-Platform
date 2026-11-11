@@ -223,3 +223,9 @@ filters, and the CSV read options (header, trim, skip lines, first rows, numbers
 | **F7** | Migration map: AA File: Open goes to Open program/file. | Map only. | Small |
 
 Suggested order: F1 (closes 4b), then F2/F3 (cross-cutting), then the small ones.
+
+**Built 11 Nov 2026 (all of F1 to F7)** on ui/usage-review, tested and tried in One AgentStudio (a file put in One
+CommandCenter picked into Read to table and listed in the agent's Details). Also changed while building: every toolkit
+now reads the same delimiter and encoding words (one shared reading: CSV, Data Table, Database, SAP, File), so the
+pickers' choices work everywhere; a file field's sources are written under the path ("Browse this computer", "From One
+CommandCenter") so the path keeps the field's width.

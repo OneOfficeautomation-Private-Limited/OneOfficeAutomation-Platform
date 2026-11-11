@@ -97,11 +97,14 @@ export function FileField({ id, name, value, fallback, onCommit, apply, folder }
   const [fromRepo, setFromRepo] = useState(false);
   const text = typeof value === "string" ? value : value === undefined ? "" : showValue(value);
   const inRepo = !!vars?.flow.files?.includes(text);
-  return <div className="st-file-field"><div className="st-row-tight">
+  // the path gets the field's whole width; where it comes from is chosen just below it, in words (as AA's file sources)
+  return <div className="st-file-field">
     <CommitInput key={"f" + text} id={id} initial={text} placeholder={fallback || (folder ? "C:\\Folder or $folder" : "C:\\Folder\\file.xlsx or $file")} want="File"
       nameHint={name} onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
-    <IconButton icon="folder" label="Browse…" onClick={() => setBrowsing(true)} />
-    {!folder && vars && <IconButton icon="globe" label="A file kept in One CommandCenter…" onClick={() => setFromRepo(true)} />}
+    <div className="st-file-sources">
+      <button type="button" className="st-link" aria-label="Browse…" title="Choose on this computer" onClick={() => setBrowsing(true)}><Icon name="folder" size={13} /> Browse this computer</button>
+      {!folder && vars && <button type="button" className="st-link" aria-label="A file kept in One CommandCenter…" title="The runner gets it with the agent" onClick={() => setFromRepo(true)}>
+        <Icon name="globe" size={13} /> From One CommandCenter</button>}
     </div>
     {inRepo && <div className="ui-field-hint">A file from One CommandCenter: the runner gets it with the agent.</div>}
     {browsing && <FileBrowser folder={folder} start={isVarText(text) ? "" : text}
