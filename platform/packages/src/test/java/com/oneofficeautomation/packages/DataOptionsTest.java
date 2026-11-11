@@ -161,10 +161,18 @@ class DataOptionsTest {
         assertEquals("Cid", ((List<Object>) ((List<Object>) sorted.get("rows")).get(0)).get(1));
         Map<String, Object> caseSorted = (Map<String, Object>) t.sort(ctx(), tb, "name", false, null, false, null).get("table");
         assertEquals("bob", ((List<Object>) ((List<Object>) caseSorted.get("rows")).get(2)).get(1), "upper case sorts first when case matters");
-        num(1, t.filter(ctx(), tb, "name", "ends_with", "B", false).get("count"));
-        num(0, t.filter(ctx(), tb, "name", "ends_with", "B", true).get("count"));
-        num(1, t.filter(ctx(), tb, "name", "matches", "^[AB]", true).get("count"));
-        num(1, t.filter(ctx(), tb, "city", "not_contains", "pu", false).get("count"));
+        num(1, t.filter(ctx(), tb, "name", "ends_with", "B", false, null, null, null, null).get("count"));
+        num(0, t.filter(ctx(), tb, "name", "ends_with", "B", true, null, null, null, null).get("count"));
+        num(1, t.filter(ctx(), tb, "name", "matches", "^[AB]", true, null, null, null, null).get("count"));
+        num(1, t.filter(ctx(), tb, "city", "not_contains", "pu", false, null, null, null, null).get("count"));
+        // command review D3: more conditions, all or any, keep or remove, only some columns
+        Map<String, Object> f2 = t.filter(ctx(), tb, "city", "eq", "pune", false, List.of(Map.of("column", "id", "operator", "gt", "value", 1)), "all", null, List.of("name", "id"));
+        num(1, f2.get("count"));
+        assertEquals(List.of("name", "id"), ((Map<String, Object>) f2.get("table")).get("columns"));
+        assertEquals("[Cid, 3]", String.valueOf(((List<Object>) ((Map<String, Object>) f2.get("table")).get("rows")).get(0)));
+        num(3, t.filter(ctx(), tb, "city", "eq", "pune", false, List.of(Map.of("column", "name", "operator", "eq", "value", "bob")), "any", null, null).get("count"));
+        num(1, t.filter(ctx(), tb, "city", "eq", "pune", false, null, null, "not_matching", null).get("count"));
+        assertEquals("TABLE.BAD_CONDITION", code(() -> t.filter(ctx(), tb, "city", "eq", "x", false, List.of(Map.of("column", "id", "operator", "near")), null, null, null)));
         Map<String, Object> f = t.find(ctx(), tb, "pune", null, "equals", false);
         num(2, f.get("count"));
         num(0, f.get("first_row"));

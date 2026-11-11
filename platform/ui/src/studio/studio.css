@@ -663,3 +663,4 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-badge + .st-badge { margin-left: 4px; }
 .st-badge.is-info { background: var(--ui-selected); color: var(--ui-pill-text); }
 .st-picker { display: flex; flex-direction: column; gap: 4px; }
+.st-more-conds { display: flex; flex-direction: column; gap: 6px; }

@@ -4,6 +4,7 @@ import { Button, Field, Select } from "../components";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
 import { StepErrorFields } from "./ErrorPolicy";
 import { enumWord } from "./enumWords";
+import { ColumnField, knownColumns, MoreConditions } from "./TableFields";
 import { DatePatternField, LocaleField, TimeZoneField } from "./PickerFields";
 import { fieldOrder, findAction, labelsInScope, loopLabelsAround, parseLoose, setArg, setStepPolicy, showValue } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
@@ -106,6 +107,13 @@ export function StepForm({ step, packages, onArg, onNote }:
           options={[{ value: "", label: "The nearest loop" }, ...loops.map((l) => ({ value: l, label: l })),
             ...(value && !loops.includes(value) ? [{ value, label: value + " (not a loop around this step)" }] : [])]} />}</Field>;
     }
+    // D3 and D4: Filter rows' further conditions, and column names picked from the table's known columns
+    if (step.action === "ooa.datatable/filter" && name === "more_conditions") return <Field key={step.id + ":more"} label="More conditions" layout="beside"
+      hint="Each row is one more check on a column; Rows must meet says whether all of them or any one must hold.">{() =>
+      <MoreConditions value={step.args?.more_conditions} columns={vars ? knownColumns(vars.flow, step.args?.table) : []} onCommit={(v) => onArg("more_conditions", v)} />}</Field>;
+    if (step.action.startsWith("ooa.datatable/") && (name === "column" || name === "return_column") && props[name]?.["x-ooa-type"] !== "Number")
+      return <Field key={step.id + ":" + name} label={labelOf(name) + (req(name) ? " *" : "")} layout="beside" hint={props[name]?.description}>{(id) =>
+        <ColumnField id={id} value={step.args?.[name]} columns={vars ? knownColumns(vars.flow, step.args?.table) : []} onCommit={(v) => onArg(name, v)} />}</Field>;
     // C6: Throw error's code from a list of the usual ones, or a code of your own (AA picks an exception from a list)
     if (step.action === "core/throw" && name === "code") return <ThrowCode key={step.id + ":code"} value={typeof step.args?.code === "string" ? String(step.args.code) : ""} onCommit={(v) => onArg("code", v)} />;
     // C9: Delay is Regular (a fixed time) or Random (between two times), as AA's Delay type
