@@ -243,7 +243,7 @@ const THROW_CODES: [string, string][] = [
   ["BUSINESS.ERROR", "A business rule was not met"], ["VALIDATION.FAILED", "The data is not valid"], ["DATA.NOT_FOUND", "Something needed was not found"],
   ["DATA.DUPLICATE", "It was done or exists already"], ["SYSTEM.UNAVAILABLE", "A system is down or not answering"], ["PROCESS.TIMEOUT", "It took too long"],
   ["ACCESS.DENIED", "Not allowed (sign-in or permission)"]];
-const OWN = " own";
+const OWN = "\u0000own";
 
 /** Throw error's code: one of the usual ones, or your own (letters, digits, _ and dots, e.g. BUSINESS.INVOICE_DUPLICATE). */
 function ThrowCode({ value, onCommit }: { value: string; onCommit: (v: string | undefined) => void }) {
