@@ -1,4 +1,4 @@
-import type { ActionManifest, Flow, FlowOnError, FlowState, FlowStep, FlowVariable, PackageManifest, RetryPolicy } from "../api/client";
+import type { ActionManifest, Flow, FlowOnError, FlowState, FlowStep, FlowVariable, PackageManifest, PanelEntry, RetryPolicy } from "../api/client";
 
 /**
  * Editing an agent, as pure functions: each takes a flow and returns a changed copy, so undo is keeping the old one.
@@ -382,17 +382,26 @@ export function logFields(f: unknown): string {
  * The order of an action's fields: the main ones first, then those under More options, as its panel layout lists
  * them; any input the layout does not mention goes under More options.
  */
-export function fieldOrder(spec: ActionManifest | undefined): { main: string[]; more: string[] } {
+/** The groups of a panel (choices and tick boxes) and the fields each holds (command review X2, 10 Nov 2026). */
+export type PanelGroup = Exclude<PanelEntry, string>;
+export const groupFields = (g: PanelGroup): string[] => "choice" in g ? g.options.flatMap((o) => o.fields) : g.fields;
+
+export function fieldOrder(spec: ActionManifest | undefined): { main: string[]; more: string[]; groups: PanelGroup[] } {
   const names = Object.keys(spec?.inputs?.properties ?? {});
-  const pick = (entries: unknown) => {
-    const text = Array.isArray(entries) ? entries.join(" ") : "";
-    return [...new Set(text.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? [])].filter((n) => names.includes(n));
+  // a choice or a tick box holds fields of its own: they count where the group stands (before X2 an object read as
+  // "[object Object]", so 329 commands showed those fields under More options)
+  const pick = (entries: PanelEntry[] | undefined) => {
+    const out: string[] = [];
+    for (const e of entries ?? []) for (const n of typeof e === "string" ? (e.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []) : groupFields(e))
+      if (names.includes(n) && !out.includes(n)) out.push(n);
+    return out;
   };
   const panel = spec?.["x-ooa-panel"];
-  if (!panel) return { main: names, more: [] };
+  if (!panel) return { main: names, more: [], groups: [] };
+  const groups = [...(panel.main ?? []), ...(panel.more ?? [])].filter((e): e is PanelGroup => typeof e !== "string");
   const main = pick(panel.main);
   const more = pick(panel.more).filter((n) => !main.includes(n));
-  return { main, more: [...more, ...names.filter((n) => !main.includes(n) && !more.includes(n))] };
+  return { main, more: [...more, ...names.filter((n) => !main.includes(n) && !more.includes(n))], groups };
 }
 
 /** Moves every selected step one place up (-1) or down (+1) in its own list; selected neighbours move together. */

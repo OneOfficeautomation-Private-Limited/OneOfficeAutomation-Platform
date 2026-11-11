@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
@@ -6,7 +6,7 @@ import { StepErrorFields } from "./ErrorPolicy";
 import { enumWord } from "./enumWords";
 import { ColumnField, knownColumns, MoreConditions } from "./TableFields";
 import { DatePatternField, LocaleField, TimeZoneField } from "./PickerFields";
-import { fieldOrder, findAction, labelsInScope, loopLabelsAround, parseLoose, setArg, setStepPolicy, showValue } from "./flowEdit";
+import { fieldOrder, findAction, groupFields, labelsInScope, loopLabelsAround, parseLoose, setArg, setStepPolicy, showValue, type PanelGroup } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
 import {
@@ -164,6 +164,25 @@ export function StepForm({ step, packages, onArg, onNote }:
     const picker = pickerFor(step, name, props as Record<string, unknown>);
     return picker ? <div key={step.id + ":" + name + ":with-picker"} className="st-field-with-picker">{input}{picker}</div> : input;
   };
+  /**
+   * The fields in order, a choice or tick box drawn where its first field stands (X2): a choice shows its options as
+   * buttons and only the chosen option's fields; a tick box shows its fields when ticked. Switching clears the fields
+   * left behind, so the agent never keeps a value the panel hides.
+   */
+  const grouped = (names: string[]) => {
+    const done = new Set<string>();
+    const out: ReactNode[] = [];
+    for (const n of names) {
+      if (done.has(n)) continue;
+      const g = order.groups.find((x) => groupFields(x).includes(n));
+      if (!g) { out.push(field(n)); continue; }
+      const inside = groupFields(g).filter((f) => names.includes(f));
+      inside.forEach((f) => done.add(f));
+      out.push(<PanelGroupView key={step.id + ":g:" + ("choice" in g ? g.choice : g.tick)} group={g} step={step} props={props} shown={inside} field={field}
+        clear={(fields) => { if (vars) { let f = vars.flow; for (const k of fields) f = setArg(f, step.id, k, undefined); vars.edit(f); } }} />);
+    }
+    return out;
+  };
   // inputs the agent sets that the catalogue does not list (an older toolkit, a hand-edited file) stay editable
   const extra = Object.keys(step.args ?? {}).filter((n) => !(n in props));
   const setMode = (m: LoopMode) => {
@@ -202,14 +221,14 @@ export function StepForm({ step, packages, onArg, onNote }:
                 onArg("iterator_args", Object.keys(kept).length ? kept : undefined);
               }} />}</Field>}
         </>}
-        {main.map(field)}
+        {grouped(main)}
         {extra.map(field)}
         {!main.length && !extra.length && !isLoop && <p className="st-muted">This step has no main settings.</p>}
       </div>
       {more.length > 0 && (
         <details className="st-more">
           <summary>More options ({more.length})</summary>
-          <div className="st-prop-fields">{more.map(field)}</div>
+          <div className="st-prop-fields">{grouped(more)}</div>
         </details>
       )}
       {boxed.size > 0 && (
@@ -246,6 +265,38 @@ export function StepForm({ step, packages, onArg, onNote }:
       </div>
     </div>
   );
+}
+
+/** Which option of a choice is on: the one with a value set, else one with a default, else the first. */
+function chosenOption(g: Extract<PanelGroup, { choice: string }>, step: FlowStep, props: Record<string, FieldSpec>): number {
+  const set = (f: string) => step.args?.[f] !== undefined && step.args[f] !== "";
+  let i = g.options.findIndex((o) => o.fields.some(set));
+  if (i < 0) i = g.options.findIndex((o) => o.fields.some((f) => props[f]?.default !== undefined));
+  if (i < 0) i = g.options.findIndex((o) => !o.fields.length);
+  return Math.max(0, i);
+}
+
+/** A choice (buttons, then the chosen option's fields) or a tick box (its fields when ticked), as the Classic Studio drew them. */
+function PanelGroupView({ group, step, props, shown, field, clear }: { group: PanelGroup; step: FlowStep; props: Record<string, FieldSpec>; shown: string[];
+  field: (name: string) => ReactNode; clear: (fields: string[]) => void }) {
+  const has = (f: string) => step.args?.[f] !== undefined && step.args[f] !== "";
+  const [picked, setPicked] = useState<number | null>(null);
+  const [ticked, setTicked] = useState<boolean | null>(null);
+  if ("choice" in group) {
+    const on = picked ?? chosenOption(group, step, props);
+    return <div className="st-group-choice">
+      <Field label={group.choice} layout="beside">{() => <div className="st-seg" role="radiogroup" aria-label={group.choice}>
+        {group.options.map((o, i) => <button key={o.label} type="button" role="radio" aria-checked={i === on} className="st-seg-btn"
+          onClick={() => { if (i === on) return; setPicked(i); clear(group.options.filter((_, k) => k !== i).flatMap((x) => x.fields).filter(has)); }}>{o.label}</button>)}
+      </div>}</Field>
+      {group.options[on]?.fields.filter((f) => shown.includes(f)).map(field)}
+    </div>;
+  }
+  const on = ticked ?? group.fields.some(has);
+  return <div className="st-group-tick">
+    <label className="st-check-line"><input type="checkbox" checked={on} onChange={(e) => { setTicked(e.target.checked); if (!e.target.checked) clear(group.fields.filter(has)); }} /> {group.tick}</label>
+    {on && group.fields.filter((f) => shown.includes(f)).map(field)}
+  </div>;
 }
 
 /** The usual codes for Throw error (C6), in plain words; a Catch can name them, or a kind such as NOT_FOUND. */

@@ -89,7 +89,13 @@ describe("editing an agent", () => {
     expect(parseLoose('{"a":1}')).toEqual({ a: 1 });
     expect(parseLoose("$total")).toBe("$total");
     expect(parseLoose("12 apples")).toBe("12 apples");
-    expect(fieldOrder(packages[1].actions[0])).toEqual({ main: ["path", "password"], more: ["session"] });
+    expect(fieldOrder(packages[1].actions[0])).toEqual({ main: ["path", "password"], more: ["session"], groups: [] });
+    // X2: a choice and a tick box count where they stand (they read as "[object Object]" before, so their fields went to More)
+    const grouped = fieldOrder({ id: "x", name: "x", inputs: { properties: { value: {}, standard: {}, pattern: {}, zone: {}, locale: {} } },
+      "x-ooa-panel": { main: ["value", { choice: "Format", options: [{ label: "Standard", fields: ["standard"] }, { label: "Own", fields: ["pattern"] }] }, { tick: "In a zone", fields: ["zone"] }], more: ["locale"] } });
+    expect(grouped.main).toEqual(["value", "standard", "pattern", "zone"]);
+    expect(grouped.more).toEqual(["locale"]);
+    expect(grouped.groups.length).toBe(2);
   });
 
   it("moves by drag and drop: before, after, inside a block; never into itself", () => {

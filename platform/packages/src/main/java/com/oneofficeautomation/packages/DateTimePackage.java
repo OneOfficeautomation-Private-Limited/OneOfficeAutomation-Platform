@@ -131,7 +131,7 @@ public final class DateTimePackage {
 
     @Action(id = "format", name = "Format date", category = "Date and time", idempotent = true,
             description = "Format a date as text in a time zone, using a pattern such as dd/MM/yyyy HH:mm.",
-            panel = "value, (Format: A standard format = standard / My own pattern = pattern) | time_zone, locale")
+            panel = "value, (Format: My own pattern = pattern / A standard format = standard), time_zone | locale")
     @Output(name = "text", type = OoaType.STRING, description = "Formatted date.")
     public Map<String, Object> format(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to format (UTC).") LocalDateTime value,
@@ -152,7 +152,7 @@ public final class DateTimePackage {
 
     @Action(id = "parse", name = "Text to date", category = "Date and time", idempotent = true,
             description = "Read a date from text with a pattern such as dd/MM/yyyy, in the time zone the text is written in (Local, the runner's own, for new steps).",
-            panel = "text, (Format: A standard format = standard / My own pattern = pattern) | time_zone, locale")
+            panel = "text, (Format: My own pattern = pattern / A standard format = standard), time_zone | locale")
     @Output(name = "value", type = OoaType.DATETIME, description = "Parsed date (UTC).")
     public Map<String, Object> parse(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text such as 18/10/2026.") String text,

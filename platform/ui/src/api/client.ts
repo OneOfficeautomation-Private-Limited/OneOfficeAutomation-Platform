@@ -21,11 +21,13 @@ export type FieldSpec = {
   /** Shown only when another input has one of these values, e.g. { iterator: ["while"] }. */
   "x-ooa-visible-when"?: Record<string, unknown[]>;
 };
+/** A command panel's entry: a field, a choice of options each showing its own fields, or a tick box that shows its fields. */
+export type PanelEntry = string | { choice: string; options: { label: string; fields: string[] }[] } | { tick: string; fields: string[] };
 export type ActionManifest = {
   id: string; name: string; category?: string; description?: string;
   inputs?: { properties?: Record<string, FieldSpec>; required?: string[] };
   outputs?: { properties?: Record<string, FieldSpec> };
-  "x-ooa-panel"?: { main?: string[]; more?: string[] };
+  "x-ooa-panel"?: { main?: PanelEntry[]; more?: PanelEntry[] };
 };
 export type PackageManifest = { id: string; name: string; version: string; description?: string; actions: ActionManifest[]; conditions?: ActionManifest[]; iterators?: ActionManifest[] };
 
