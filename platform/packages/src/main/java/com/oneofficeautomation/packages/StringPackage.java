@@ -66,7 +66,7 @@ public final class StringPackage {
     }
 
     @Action(id = "replace", name = "Replace", category = "Text", idempotent = true, description = "Replace text, optionally using a regular expression.",
-            panel = "text, find, ignore_case, regex, start, count, replace_with")
+            panel = "text, find, replace_with | ignore_case, regex, start, count")
     @Output(name = "result", type = OoaType.STRING, description = "Text after replacement.")
     public Map<String, Object> replace(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,

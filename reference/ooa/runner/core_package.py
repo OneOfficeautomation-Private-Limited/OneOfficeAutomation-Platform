@@ -19,12 +19,12 @@ def _interp(*_a, **_k):  # pragma: no cover - never called; interpreter dispatch
 
 @package("core", "Core", "1.0.0", description="Control flow, variables and runtime built-ins.")
 class CorePackage:
-    @action("if", "If", category="Logic", description="Run the children when the condition is true; otherwise evaluate elseIf branches, then else.",
+    @action("if", "If", category="Logic", description="Run the steps inside when the condition is true; otherwise try each Else if, then Else.",
             inputs=[Input("condition", "Any", description="Condition object, expression string or $reference.")])
     def if_(self, ctx, **a): _interp()
 
     @action("switch", "Switch", category="Logic",
-            description="Compare one value with each case in turn and run the steps of the first case that matches (no fall-through); run the default steps when none does.",
+            description="Compare one value with each case in turn and run the steps of the first case that matches; Default runs when none does.",
             inputs=[Input("value", "Any", required=False, visible_when="match!=expression",
                           description="Value to compare with each case's values: text, a number, a $reference or an expression."),
                     Input("match", "String", required=False, default="equals", enum=SWITCH_MATCHES,
@@ -34,7 +34,7 @@ class CorePackage:
     def switch(self, ctx, **a): _interp()
 
     @action("state_machine", "State machine", category="Logic",
-            description="Move between named states: each state runs its entry steps, then the first of its transitions whose condition is true runs its steps "
+            description="Move between named states: each state runs its steps, then the first transition whose condition holds takes the agent to the next state, until a final state."
                         "and moves to the next state; the step ends in a final state. Fails with STATE.NO_TRANSITION when a state that is not final has no true transition.",
             inputs=[Input("initial", "String", required=False, description="Name of the state to start in; the first state when empty."),
                     Input("max_transitions", "Number", required=False, default=1000,
@@ -42,7 +42,7 @@ class CorePackage:
     def state_machine(self, ctx, **a): _interp()
 
     @action("loop", "Loop", category="Logic",
-            description="Repeat the children using an iterator: times, while, list, dictionary, table_rows or a package iterator (package/iterator).",
+            description="Repeat the steps inside: a number of times, while a condition holds, or once for each item, row, file, e-mail and so on.",
             inputs=[Input("iterator", "String", description="Iterator kind or package/iterator address.", example="list"),
                     Input("over", "Any", required=False, description="Collection for list, dictionary and table_rows iterators."),
                     Input("count", "Number", required=False, description="Repetitions for the times iterator."),
@@ -57,24 +57,24 @@ class CorePackage:
                     Input("max_iterations", "Number", required=False, default=100000, description="Safety limit; the loop fails with LOOP.LIMIT when reached.")])
     def loop(self, ctx, **a): _interp()
 
-    @action("try", "Try", category="Error handling", description="Run the children; on error run the first matching catch block, then always run finally.")
+    @action("try", "Try", category="Error handling", description="Run the steps inside; if one fails, run the first Catch that takes the error, then always Finally.")
     def try_(self, ctx, **a): _interp()
 
-    @action("step", "Step", category="Logic", description="Named group of steps for readability; no runtime effect.",
+    @action("step", "Step", category="Logic", description="A named group of steps that keeps the agent tidy; it changes nothing when the agent runs.",
             inputs=[Input("title", "String", required=False, description="Group title shown in Studio.")])
     def step(self, ctx, **a): _interp()
 
-    @action("parallel", "Parallel", category="Logic", description="Run each child step as a concurrent branch and wait for all branches.",
+    @action("parallel", "Parallel", category="Logic", description="Run each step inside at the same time, and wait until all of them have finished.",
             inputs=[Input("max_concurrency", "Number", required=False, default=4, description="Maximum branches running at once.")])
     def parallel(self, ctx, **a): _interp()
 
-    @action("set", "Assign variable", category="Variables", description="Assign a value or expression result to a declared variable.",
+    @action("set", "Assign variable", category="Variables", description="Put a value, or the result of a calculation, in a variable.",
             inputs=[Input("variable", "String", description="Name of a declared variable."),
                     Input("value", "Any", required=False, description="Value, $reference or {\"expr\": ...}.")])
     def set(self, ctx, **a): _interp()
 
     @action("set_many", "Assign several variables", category="Variables",
-            description="Assign values to several declared variables in one step, in order: a later value can use a variable set above it.",
+            description="Put values in several variables in one step, in order: a later value can use a variable set above it.",
             inputs=[Input("assignments", "List", description="Records with variable (a declared variable's name) and value (a value, $reference or {\"expr\": ...}).")])
     def set_many(self, ctx, **a): _interp()
 
@@ -83,52 +83,52 @@ class CorePackage:
                     Input("level", "String", required=False, default="info", enum=("debug", "info", "warning", "error"), description="Log level.")])
     def log(self, ctx, **a): _interp()
 
-    @action("delay", "Delay", category="Runtime", description="Pause the run for a number of seconds.",
+    @action("delay", "Delay", category="Runtime", description="Wait a fixed time, or a random time between two values, before the next step.",
             inputs=[Input("seconds", "Number", description="Seconds to wait.")])
     def delay(self, ctx, **a): _interp()
 
-    @action("wait_until", "Wait for condition", category="Runtime", description="Poll a condition until it is true or the timeout expires (WAIT.TIMEOUT).",
+    @action("wait_until", "Wait for condition", category="Runtime", description="Wait until a condition is true, checking it again and again, up to a time limit.",
             inputs=[Input("condition", "Any", description="Condition to poll."),
                     Input("timeout_seconds", "Number", required=False, default=30, description="Maximum wait."),
                     Input("poll_seconds", "Number", required=False, default=1, description="Interval between checks.")])
     def wait_until(self, ctx, **a): _interp()
 
-    @action("throw", "Throw error", category="Error handling", description="Raise an error with a custom code that Try/Catch can match.",
+    @action("throw", "Throw error", category="Error handling", description="Raise an error with a code of your choice, for a Catch (or On error) to handle.",
             inputs=[Input("code", "String", description="Error code, e.g. BUSINESS.INVOICE_DUPLICATE."),
                     Input("message", "String", required=False, description="What went wrong, for the log and the Catch; the code when empty."),
                     Input("suggested_fix", "String", required=False, description="How to resolve the error.")])
     def throw(self, ctx, **a): _interp()
 
-    @action("comment", "Comment", category="Logic", description="Non-executing note.",
+    @action("comment", "Comment", category="Logic", description="A note in the steps for people reading the agent; it does nothing when the agent runs.",
             inputs=[Input("text", "String", required=False, description="Comment text.")])
     def comment(self, ctx, **a): _interp()
 
-    @action("break", "Exit loop", category="Logic", description="Leave the innermost loop.")
+    @action("break", "Exit loop", category="Logic", description="Leave the loop now and carry on after it; name a loop to leave an outer one.")
     def break_(self, ctx, **a): _interp()
 
-    @action("continue", "Continue loop", category="Logic", description="Skip to the next pass of the innermost loop.")
+    @action("continue", "Continue loop", category="Logic", description="Skip the rest of this pass and start the next pass of the loop; name a loop to continue an outer one.")
     def continue_(self, ctx, **a): _interp()
 
     @action("run_subflow", "Run subflow", category="Task Bot",
-            description="Run one of this automation's subflows (a named step list kept beside the main steps); it uses the same variables.",
+            description="Run one of this agent's subflows (a named list of steps kept beside the main steps), then carry on; it shares the agent's variables.",
             inputs=[Input("subflow", "String", description="Name of the subflow to run.")])
     def run_subflow(self, ctx, **a): _interp()
 
     @action("exit_subflow", "Exit subflow", category="Task Bot",
-            description="Leave the subflow being run; the automation carries on after the Run subflow step.")
+            description="Leave the subflow now; the agent carries on after the step that ran it (Finally steps still run).")
     def exit_subflow(self, ctx, **a): _interp()
 
-    @action("label", "Label", category="Logic", description="A named place that Go to can jump to; does nothing itself.",
+    @action("label", "Label", category="Logic", description="A named place in the steps that Go to can jump to; it does nothing itself.",
             inputs=[Input("name", "String", description="Name of the place.")])
     def label(self, ctx, **a): _interp()
 
     @action("goto", "Go to", category="Logic",
-            description="Carry on from a Label in the same step list or a list around it (GOTO.LIMIT after too many jumps).",
+            description="Jump to a Label in the same list of steps or one around it. Kept for agents moved from other tools; a Loop, If or subflow is easier to follow.",
             inputs=[Input("label", "String", description="Name of the Label to carry on from.")])
     def goto(self, ctx, **a): _interp()
 
     @action("run_bot", "Run Task Bot", category="Task Bot",
-            description="Run a published child automation with mapped inputs and receive its outputs.",
+            description="Run another agent with the inputs you give it, and keep the outputs it gives back.",
             inputs=[Input("automation", "String", description="Id of the published automation."),
                     Input("version", "Any", required=False, description="Version number or 'production' (default)."),
                     Input("inputs", "Dictionary", required=False, description="Values for the child's input variables.")],

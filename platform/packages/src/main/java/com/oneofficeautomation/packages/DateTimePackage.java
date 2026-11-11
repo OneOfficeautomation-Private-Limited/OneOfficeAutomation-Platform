@@ -49,7 +49,7 @@ public final class DateTimePackage {
     }
 
     @Action(id = "now", name = "Get current date and time", category = "Date and time",
-            description = "Return the current date and time in UTC. Every DateTime in OOA is UTC; use Format date with a time zone to show local time, or the ISO_INSTANT / ISO_OFFSET_DATE_TIME standard for text with Z or an offset for other systems.")
+            description = "The date and time now. Show it in your time zone with Format date (Local, the runner's own, for new steps).")
     @Output(name = "value", type = OoaType.DATETIME, description = "Current date and time in UTC.")
     public Map<String, Object> now(ActionContext ctx) {
         return Out.of("value", LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS));
@@ -151,7 +151,7 @@ public final class DateTimePackage {
     }
 
     @Action(id = "parse", name = "Text to date", category = "Date and time", idempotent = true,
-            description = "Read a date from text using a pattern, interpreting it in a time zone; the result is UTC.",
+            description = "Read a date from text with a pattern such as dd/MM/yyyy, in the time zone the text is written in (Local, the runner's own, for new steps).",
             panel = "text, (Format: A standard format = standard / My own pattern = pattern) | time_zone, locale")
     @Output(name = "value", type = OoaType.DATETIME, description = "Parsed date (UTC).")
     public Map<String, Object> parse(ActionContext ctx,
@@ -186,7 +186,7 @@ public final class DateTimePackage {
     }
 
     @Action(id = "convert_time_zone", name = "Convert time zone", category = "Date and time", idempotent = true,
-            description = "Show a UTC date as local time in another zone, as ISO text with offset.",
+            description = "Show a date as the time in another time zone, as text with its offset (2026-11-10T14:30+05:30).",
             panel = "value, time_zone")
     @Output(name = "text", type = OoaType.STRING, description = "Local time with offset, e.g. 2026-10-18T20:00+05:30.")
     public Map<String, Object> convertTimeZone(ActionContext ctx,
