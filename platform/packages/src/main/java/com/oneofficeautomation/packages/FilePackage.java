@@ -112,7 +112,7 @@ public final class FilePackage {
     }
 
     @Action(id = "write_text", name = "Write text", category = "Files", capabilities = "filesystem", description = "Write text to a file, overwriting or appending.",
-            panel = "path, fail_if_exists, text, append | encoding")
+            panel = "path, text, append | fail_if_exists, encoding")
     public Map<String, Object> writeText(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
             @Input(name = "text", type = OoaType.STRING, description = "Text to write.") String text,

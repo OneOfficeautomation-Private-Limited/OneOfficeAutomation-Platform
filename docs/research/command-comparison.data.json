@@ -267,7 +267,7 @@
     "File/Copy Control Room file": "-: repository files listed in the agent's 'files' are placed in the runner's workspace before the run; then use ooa.file/copy",
     "File/Get name": "ooa.file/get_name",
     "File/Get path": "ooa.file/get_parent",
-    "File/Open": "ooa.application/open_file",
+    "File/Open": "ooa.application/open_program_file",
     "File/Print": "ooa.file/print_files",
     "File/Print multiple files": "ooa.file/print_files",
     "File/Rename": "ooa.file/move",

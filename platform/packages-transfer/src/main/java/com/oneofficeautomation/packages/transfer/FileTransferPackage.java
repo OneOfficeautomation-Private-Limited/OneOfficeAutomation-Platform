@@ -123,7 +123,7 @@ public final class FileTransferPackage {
 
     @Action(id = "connect", name = "Connect", category = "Connection", timeoutSeconds = 600, capabilities = "network",
             description = "Connect and sign in to an FTP, FTPS or SFTP server, optionally trying again when the server cannot be reached and starting in a chosen folder.",
-            panel = "host, port, protocol, user, password, private_key, key_passphrase, host_key_fingerprint, passive_mode, implicit_tls, transfer_mode, session"
+            panel = "protocol, host, port, user, password, private_key, key_passphrase, host_key_fingerprint, passive_mode, implicit_tls, transfer_mode, session"
                     + " | timeout_seconds, [Try again when connecting fails: retry_attempts, retry_delay_seconds], start_folder")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "protocol", type = OoaType.STRING, enumValues = {"sftp", "ftps", "ftp"}, description = "sftp (SSH), ftps (FTP over TLS) or plain ftp.") String protocol,
