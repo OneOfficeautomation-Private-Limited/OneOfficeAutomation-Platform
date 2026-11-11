@@ -86,3 +86,48 @@ export function LocaleField({ id, value, fallback, onCommit }: { id: string; val
     {own && <CommitInput label="Language and region code" mono want="String" initial={text} placeholder="sv-SE" onCommit={(t) => onCommit(t.trim() || undefined)} />}
   </div>;
 }
+
+/** A choice from a list of words the toolkits read, or your own value (F2, F3). */
+function ListOrOwn({ id, value, fallback, choices, ownLabel, placeholder, onCommit }: { id: string; value: unknown; fallback?: string; choices: [string, string][];
+  ownLabel: string; placeholder: string; onCommit: (v: string | undefined) => void }) {
+  const text = value === undefined || value === null ? "" : String(value);
+  const [own, setOwn] = useState(text !== "" && !choices.some(([v]) => v === text));
+  const words = (v?: string) => choices.find(([c]) => c === v)?.[1] ?? v;
+  return <div className="st-picker">
+    <Select id={id} value={own ? OWN : text} onChange={(e) => { if (e.target.value === OWN) setOwn(true); else { setOwn(false); onCommit(e.target.value || undefined); } }}
+      options={[{ value: "", label: fallback ? "Default: " + words(fallback) : "Choose…" }, ...choices.map(([v, w]) => ({ value: v, label: w })), { value: OWN, label: ownLabel }]} />
+    {own && <CommitInput label={ownLabel.replace(/…$/, "")} mono want="String" initial={text} placeholder={placeholder} onCommit={(t) => onCommit(t === "" ? undefined : t)} />}
+  </div>;
+}
+
+const DELIMITERS: [string, string][] = [[",", "Comma ( , )"], [";", "Semicolon ( ; )"], ["tab", "Tab"], ["|", "Pipe ( | )"],
+  ["regional", "Regional (the runner's list separator)"]];
+/** A delimiter (F2, as AA's Comma, Tab, Regional, Other); the words are read the same by every toolkit. */
+export function DelimiterField(p: { id: string; value: unknown; fallback?: string; onCommit: (v: string | undefined) => void }) {
+  return <ListOrOwn {...p} choices={DELIMITERS} ownLabel="Another delimiter or a $variable…" placeholder="~" />;
+}
+
+const ENCODINGS: [string, string][] = [["utf-8", "UTF-8"], ["utf-8-bom", "UTF-8 with BOM (for Excel)"], ["ansi", "ANSI (Windows)"], ["unicode", "Unicode (UTF-16 LE)"],
+  ["utf-16be", "UTF-16 BE"], ["windows-1252", "Western European (Windows-1252)"], ["iso-8859-1", "Latin-1 (ISO-8859-1)"], ["windows-1251", "Cyrillic (Windows-1251)"],
+  ["shift_jis", "Japanese (Shift-JIS)"]];
+/** A text encoding (F3, as AA's list); reading a file can also detect it. */
+export function EncodingField(p: { id: string; value: unknown; fallback?: string; detect: boolean; onCommit: (v: string | undefined) => void }) {
+  const choices: [string, string][] = p.detect ? [["auto", "Detect it (byte order mark)"], ...ENCODINGS] : ENCODINGS;
+  return <ListOrOwn id={p.id} value={p.value} fallback={p.fallback} onCommit={p.onCommit} choices={choices} ownLabel="Another encoding or a $variable…" placeholder="gb18030" />;
+}
+
+const UNITS: [string, number][] = [["bytes", 1], ["KB", 1024], ["MB", 1048576], ["GB", 1073741824]];
+/** A size typed with a unit (F4); the agent keeps bytes, as before. */
+export function SizeField({ id, value, onCommit }: { id: string; value: unknown; onCommit: (v: number | string | undefined) => void }) {
+  const bytes = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : undefined;
+  const best = bytes === undefined ? UNITS[2] : [...UNITS].reverse().find(([, f]) => bytes >= f && bytes % f === 0) ?? UNITS[0];
+  const [unit, setUnit] = useState(best[0]);
+  const factor = UNITS.find(([u]) => u === unit)![1];
+  if (typeof value === "string" && value.startsWith("$"))
+    return <CommitInput id={id} initial={value} mono want="Number" placeholder="$size" onCommit={(t) => onCommit(t === "" ? undefined : t)} />;
+  return <div className="st-row-tight">
+    <input id={id} className="ui-input" type="number" min={0} step="any" key={unit + String(bytes)} defaultValue={bytes === undefined ? "" : String(bytes / factor)}
+      onBlur={(e) => { const n = e.currentTarget.value === "" ? undefined : Math.round(Number(e.currentTarget.value) * factor); if (n !== bytes) onCommit(n); }} />
+    <Select aria-label="Unit" value={unit} onChange={(e) => setUnit(e.target.value)} options={UNITS.map(([u]) => ({ value: u, label: u }))} />
+  </div>;
+}

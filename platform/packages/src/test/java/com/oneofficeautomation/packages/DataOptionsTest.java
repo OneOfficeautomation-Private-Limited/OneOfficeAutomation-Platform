@@ -213,6 +213,20 @@ class DataOptionsTest {
 
     // ---- Date and time ----
 
+    @Test void delimiterAndEncodingWordsReadTheSameEverywhere() {
+        // command review F2, F3: the pickers' words work in every toolkit that reads a delimiter or an encoding
+        assertEquals("	", CsvPackage.delimiterText("tab"));
+        assertEquals("	", CsvPackage.delimiterText("\t"));
+        assertEquals(";", CsvPackage.delimiterText("semicolon"));
+        assertEquals("|", CsvPackage.delimiterText("pipe"));
+        assertEquals(",", CsvPackage.delimiterText(""));
+        assertEquals("||", CsvPackage.delimiterText("||"), "anything else as written");
+        assertTrue(List.of(",", ";").contains(CsvPackage.delimiterText("regional")));
+        assertEquals(java.nio.charset.StandardCharsets.UTF_8, FilePackage.charset("utf-8-bom"));
+        assertEquals(java.nio.charset.StandardCharsets.UTF_16LE, CsvPackage.encoding("unicode").charset());
+        assertEquals(java.nio.charset.Charset.defaultCharset(), CsvPackage.encoding("default").charset(), "CSV now knows the File toolkit's names too");
+    }
+
     @Test void dateTimeOptions() {
         DateTimePackage d = new DateTimePackage();
         LocalDateTime a = LocalDateTime.of(2026, 10, 19, 8, 0), b = LocalDateTime.of(2026, 10, 19, 22, 30);

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Flow, PackageManifest } from "../api/client";
 import { enumWord } from "./enumWords";
 import { newStep } from "./flowEdit";
-import { DatePatternField, LocaleField, sample, TimeZoneField } from "./PickerFields";
+import { DatePatternField, DelimiterField, EncodingField, LocaleField, sample, SizeField, TimeZoneField } from "./PickerFields";
 
 describe("plain words in lists (command review X1)", () => {
   it("has words for common codes and tidies the rest; the value is not touched", () => {
@@ -56,5 +56,38 @@ describe("pickers (command review D1, D2, D8)", () => {
     const pick = screen.getByRole("combobox") as HTMLSelectElement;
     expect(pick.selectedOptions[0].text).toBe("English (India) (en-IN)");
     expect(pick.options[0].text).toBe("Default: English (United States)");
+  });
+});
+
+describe("delimiter, encoding and size (command review F2, F3, F4)", () => {
+  afterEach(cleanup);
+
+  it("offers the delimiters every toolkit reads, and your own", () => {
+    const onCommit = vi.fn();
+    render(<DelimiterField id="d" value="tab" fallback="," onCommit={onCommit} />);
+    const pick = screen.getByRole("combobox") as HTMLSelectElement;
+    expect(pick.selectedOptions[0].text).toBe("Tab");
+    expect(pick.options[0].text).toBe("Default: Comma ( , )");
+    fireEvent.change(pick, { target: { value: "regional" } });
+    expect(onCommit).toHaveBeenLastCalledWith("regional");
+  });
+
+  it("offers encodings, with Detect only when reading a file", () => {
+    render(<EncodingField id="e" value={undefined} fallback="utf-8" detect onCommit={() => {}} />);
+    expect([...(screen.getByRole("combobox") as HTMLSelectElement).options].map((o) => o.value).slice(0, 3)).toEqual(["", "auto", "utf-8"]);
+    cleanup();
+    render(<EncodingField id="e" value="gb18030" fallback="utf-8" detect={false} onCommit={() => {}} />);
+    expect((screen.getByLabelText("Another encoding or a $variable") as HTMLInputElement).value).toBe("gb18030");
+  });
+
+  it("keeps bytes while showing a unit", () => {
+    const onCommit = vi.fn();
+    render(<SizeField id="s" value={2097152} onCommit={onCommit} />);
+    expect((screen.getByRole("combobox", { name: "Unit" }) as HTMLSelectElement).value).toBe("MB");
+    const n = screen.getByRole("spinbutton");
+    expect((n as HTMLInputElement).value).toBe("2");
+    fireEvent.change(n, { target: { value: "5" } });
+    fireEvent.blur(n);
+    expect(onCommit).toHaveBeenLastCalledWith(5242880);
   });
 });

@@ -5,7 +5,7 @@ import { ConditionEditor, SpecFields } from "./ConditionEditor";
 import { StepErrorFields } from "./ErrorPolicy";
 import { enumWord } from "./enumWords";
 import { ColumnField, knownColumns, MoreConditions } from "./TableFields";
-import { DatePatternField, LocaleField, TimeZoneField } from "./PickerFields";
+import { DatePatternField, DelimiterField, EncodingField, LocaleField, SizeField, TimeZoneField } from "./PickerFields";
 import { fieldOrder, findAction, groupFields, labelsInScope, loopLabelsAround, parseLoose, setArg, setStepPolicy, showValue, type PanelGroup } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
@@ -335,7 +335,7 @@ function InputField({ action, name, label, spec, required, value, onCommit, appl
   const fallback = spec.default !== undefined ? "Default: " + showValue(spec.default) : required ? "" : "Not set";
   const info = helpText(spec, required) || undefined;
   return (
-    <Field label={label + (required ? " *" : "")} layout="beside" info={info}>{(id) => {
+    <Field label={(name.endsWith("_bytes") ? label.replace(/ \(bytes\)$/, "") : label) + (required ? " *" : "")} layout="beside" info={info}>{(id) => {
       if (spec.enum?.length) {
         // a Number field with choices (e.g. key length 128/256) keeps the number type when a choice is picked
         return <Select id={id} value={value === undefined ? "" : String(value)} onChange={(e) => onCommit(e.target.value === "" ? undefined : isNumber(spec) ? Number(e.target.value) : e.target.value)}
@@ -346,6 +346,10 @@ function InputField({ action, name, label, spec, required, value, onCommit, appl
       if (name === "time_zone" && spec["x-ooa-type"] !== "Dictionary") return <TimeZoneField id={id} value={value} local={action.startsWith("ooa.datetime/")} onCommit={asText} />;
       if (name === "pattern" && /^ooa\.datetime\/(format|parse)$/.test(action)) return <DatePatternField id={id} value={value} fallback={spec.default as string | undefined} onCommit={asText} />;
       if (name === "locale" && (spec["x-ooa-type"] === "String" || spec["x-ooa-type"] === undefined)) return <LocaleField id={id} value={value} fallback={spec.default as string | undefined} onCommit={asText} />;
+      // F2, F3, F4: delimiter and encoding from the lists every toolkit reads, sizes with a unit
+      if (name === "delimiter" && !spec.enum) return <DelimiterField id={id} value={value} fallback={spec.default as string | undefined} onCommit={asText} />;
+      if (name === "encoding" && !spec.enum) return <EncodingField id={id} value={value} fallback={spec.default as string | undefined} detect={action.startsWith("ooa.file/read")} onCommit={asText} />;
+      if (name.endsWith("_bytes") && isNumber(spec)) return <SizeField id={id} value={value} onCommit={(v) => onCommit(v)} />;
       // by kind (docs/research/input-help-check.md): a value or a variable, Browse, the vault, the open windows
       const kind = { id, name, value, fallback, onCommit, apply };
       const ooaType = spec["x-ooa-type"];

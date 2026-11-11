@@ -827,7 +827,7 @@ public final class DataTablePackage {
         if (fmt.equals("json")) {
             text = JsonLite.write(Values.toJsonable(toRecords(ctx, table).get("records")));
         } else if (fmt.equals("csv")) {
-            String d = delimiter == null || delimiter.isEmpty() ? "," : delimiter.equals("\\t") ? "\t" : delimiter;
+            String d = CsvPackage.delimiterText(delimiter);
             if (d.length() != 1) throw new ActionException("TABLE.BAD_DELIMITER", "Delimiter must be one character, got '" + d + "'", "Use , ; | or a tab.");
             char dc = d.charAt(0);
             StringBuilder sb = new StringBuilder();
@@ -862,7 +862,7 @@ public final class DataTablePackage {
     // ---------- text forms, replace, empty rows and column to list (gap G06, 3 Nov 2026) ----------
 
     private static char oneDelimiter(String delimiter) {
-        String d = delimiter == null || delimiter.isEmpty() ? "," : delimiter.equals("\\t") || delimiter.equalsIgnoreCase("tab") ? "\t" : delimiter;
+        String d = CsvPackage.delimiterText(delimiter);
         if (d.length() != 1) throw new ActionException("TABLE.BAD_DELIMITER", "Delimiter must be one character, got '" + d + "'", "Use , ; | or tab.");
         return d.charAt(0);
     }

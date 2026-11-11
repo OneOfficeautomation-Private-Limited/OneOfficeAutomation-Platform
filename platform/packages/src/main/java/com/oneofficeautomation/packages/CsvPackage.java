@@ -46,13 +46,26 @@ public final class CsvPackage {
     }
 
     private static char delim(String d) {
-        if (d.equals("\\t") || d.equals("tab")) return '\t';
-        if (d.equals("regional")) {
-            // the list separator of the machine's locale: ; where the decimal separator is a comma, otherwise ,
-            return java.text.DecimalFormatSymbols.getInstance().getDecimalSeparator() == ',' ? ';' : ',';
-        }
-        if (d.length() != 1) throw new ActionException("CSV.BAD_DELIMITER", "Delimiter must be one character", "Use , ; | tab or regional.");
-        return d.charAt(0);
+        String t = delimiterText(d);
+        if (t.length() != 1) throw new ActionException("CSV.BAD_DELIMITER", "Delimiter must be one character", "Use , ; | tab or regional.");
+        return t.charAt(0);
+    }
+
+    /**
+     * A delimiter as every toolkit reads it (command review F2, 11 Nov 2026): the words comma, semicolon, pipe, tab (or \t)
+     * and regional (the runner's list separator: ; where the decimal separator is a comma, otherwise ,); anything else as
+     * written; empty is a comma.
+     */
+    public static String delimiterText(String d) {
+        if (d == null || d.isEmpty()) return ",";
+        return switch (d.strip().toLowerCase(java.util.Locale.ROOT)) {
+            case "tab", "\\t" -> "\t";
+            case "comma" -> ",";
+            case "semicolon" -> ";";
+            case "pipe" -> "|";
+            case "regional" -> java.text.DecimalFormatSymbols.getInstance().getDecimalSeparator() == ',' ? ";" : ",";
+            default -> d.equals("\t") ? "\t" : d;
+        };
     }
 
     /** A text encoding and whether a byte order mark is written. */
@@ -66,7 +79,7 @@ public final class CsvPackage {
                 case "ansi" -> new Enc(Charset.forName("windows-1252"), false);
                 case "unicode", "utf-16le" -> new Enc(java.nio.charset.StandardCharsets.UTF_16LE, true);
                 case "utf-8-bom", "utf-8 bom", "utf8bom" -> new Enc(java.nio.charset.StandardCharsets.UTF_8, true);
-                default -> new Enc(Charset.forName(n), false);
+                default -> new Enc(FilePackage.charset(n), false);   // the same names as the File toolkit (F3)
             };
         } catch (IllegalArgumentException e) {
             throw new ActionException("FILE.BAD_ENCODING", "Unknown text encoding '" + name + "'", "Use utf-8, utf-8-bom, ansi, unicode, utf-16 or windows-1251.");
