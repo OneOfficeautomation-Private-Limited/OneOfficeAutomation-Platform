@@ -330,3 +330,75 @@ fresh folder; if it fails again it is reported as "outside site" with the reason
 nightly job with a screenshot, and watching P4 on demoqa.com (running the public-website samples here was declined by the
 permission check because they submit forms on outside sites; needs your OK). B2: samples 53-browser-ocr.json for Extract
 list, Start browser for automation with Attach to open browser, and Read text from image (Windows OCR); all pass here.
+
+
+---
+
+## Batch 6: desktop (93 commands in 8 toolkits)
+
+Window (16), Application (9), Mouse, keyboard and screen (21, with clipboard, prompts and message box), Terminal
+emulator (19), System (15), Windows services (6), Java applications (3), Windows Credential Manager (4). Checked
+11 Nov 2026 against AA's Window, Application, Mouse, Simulate keystrokes, Screen, Clipboard, Prompt, Message box, Wait,
+Terminal Emulator, System and Service packages, and Blue Prism's global mouse and keys, Wait stage, mainframe
+integration and Windows Credentials object. Tried in One AgentStudio: Activate window, Mouse click, Press keys.
+
+### What AA and Blue Prism teach about how these are used
+
+- **Choosing a window** is the same everywhere in AA (Window, Mouse, Keystrokes, Screen, Wait): pick from the windows
+  open now (with Refresh), a browser tab, or a window variable. The title takes a `*` wildcard (exact match first, then
+  "contains") or a regular expression, with or without case. AA's advice: keep the title in one variable so a renamed
+  window is fixed in one place.
+- **Mouse** (AA): click relative to a window rather than the screen (screen points move when the resolution changes);
+  *Capture coordinate* picks the point live; *Resize window* puts the window back to the size it had when the point was
+  taken, so the point still lands. Button down and up for dragging; a duration for move and scroll.
+- **Keystrokes**: AA always sends keys to a chosen window, with an on-screen list of special keys and a credential
+  option that types the secret without showing it. Blue Prism's order of preference: write into the field, press keys
+  without focus, send keys, and low-level key events (the only kind that works through Citrix); it needs an unlocked
+  desktop, the window in front, and short pauses after activating and between keys.
+- **Waits** (AA and Blue Prism): every wait has a timeout and a clear choice between failing and carrying on.
+- **Prompts and message box** (AA): auto-close for unattended runs; Cancel leaves a dummy value that builders must check.
+- **Terminal** (AA): TN3270E, TN5250E, VT100/220, ANSI and Linux over Telnet or SSH2, TLS, device/LU name, code page,
+  key-file sign-in; fields by index (counted from 0) or name; send a key after text with a wait for text before or
+  after it; wait for text, cursor position, blank screen or prompt; key mappings per session. Blue Prism drives an
+  installed emulator (HLLAPI) instead of having its own client.
+- **System and services** (AA): lock, sign out, restart, shut down at the end of a task; services picked from a list,
+  admin rights needed to change them.
+
+### What we have, checked in panels and code
+
+Everything AA documents is here, and several things go further: prompts return **cancelled** and **timed out** instead
+of a dummy value (AA's pitfall), the message box has buttons and an icon, Type text can type a vault credential key by
+key, Press keys has hold, down and up, mouse move and scroll have durations, waits all have "fail on timeout", Block
+input, callouts, screen resolution with restore at the end, background typing into a window without focus (Blue Prism's
+"no focus" option), and a terminal that needs no emulator for 5250 and VT/SSH. Every field has a label and help, and
+dangerous system commands (restart, shut down, screen resolution) need a Confirm tick.
+
+### Findings
+
+| # | Finding | Why it matters |
+|---|---|---|
+| W1 | **The Window toolkit's Title has no "Open windows" picker** (15 commands). Studio adds the picker only to fields named *window*; here the field is *title*. Tried: Activate window shows a bare text box. | The most common desktop step can't be filled by picking, as AA does everywhere. |
+| W2 | **Two rules for matching a title.** Mouse, keyboard, capture, triggers and interrupts use the shared rule (contained text, or `*`/`?` wildcards, or `re:` for a regular expression). The Window toolkit's Title only takes contained text; wildcards and `re:` work only inside *Alternatives*, and Close all matching windows has its own "regular expression" tick. | The same title written in two steps behaves differently; AA's wildcard titles do not carry over to Window commands. |
+| W3 | **Alternatives is a bare key/value list**: the builder must know the key names (title_pattern, class_name, process_name, index). | Hidden feature; nobody can fill it without reading the help. |
+| U1 | **The Window field in Mouse click, Press keys, Type text and the rest is squeezed** to a few letters next to the "Open windows" button (seen at 1500 px wide). | A picked title can't be read or checked. |
+| M1 | **No way to pick a point on screen**: X and Y are typed. Studio already has "hover and press Ctrl+Shift+C" for desktop objects. | AA's *Capture coordinate*; without it builders guess pixels. |
+| M2 | **Coordinates default to the screen even when a window is chosen** ("Relative to" sits under More options), and nothing puts the window back to the size it had when the point was taken. | AA's advice is window-relative points plus *Resize window*; screen points break when the window moves or the resolution changes. |
+| K1 | **Three ways of writing keys**: Press keys takes `CTRL+S`; Type text with Special keys takes `[ENTER]`, `[TAB 3]`; Type into window in background takes `{ENTER}`, `{TAB 3}`; the terminal takes `Enter`, `PF3`. Key names differ too (`PAGE_UP` vs `PageUp`). Every key field is free text with the names only in the help. | Easy to write the wrong form; AA has an on-screen key list. |
+| T1 | **AA map errors**: AA *Get field* and *Get text* both point at our *Find text on screen*; they should point at *Get field* and *Get screen text* / *Get text at position*. The map feeds Studio search (aaNames.ts), so searching "Get field" offers the wrong command. AA counts fields from 0, we count from 1: worth a line in the migration notes. (Outside this batch, *Excel advanced/Get multiple cells* points at a command that does not exist.) | Wrong suggestions for people coming from AA. |
+| T2 | **3270 needs the free wc3270 engine installed on the runner**; only the error after connecting says so (the toolkit page and Connect help do not). 5250 and VT/SSH need nothing. | First 3270 connection fails on a fresh runner. |
+| T3 | **No command samples for the terminal** (19 commands) although the unit tests already have a fake 5250 host and an in-process SSH host. Also missing: Press keys, Mouse click and scroll, prompts, Show desktop, background typing (these need a desktop), services stop/pause/restart (admin, change the machine), Java applications (needs Java Access Bridge). | The terminal's commands are not checked end to end as a builder would chain them. |
+| T4 | **Press key waits for the keyboard to unlock but not for an answer screen**; AA's Send key can wait for a text before or after the key in one step. Ours needs a separate Wait for text step. | Small; one step instead of two in every screen change. |
+
+### Proposals (choose; nothing built)
+
+| # | Proposal | Size |
+|---|---|---|
+| **W1+W2** | The Window toolkit's Title gets the "Open windows" picker, and accepts the same forms as every other window field (`*`/`?` wildcards and `re:`). Upgrade-safe: a title that has no match as a wildcard is tried as contained text, so an old title such as "Save?" still works; Close all matching windows keeps its tick for old agents. | Small |
+| **W3** | Alternatives drawn as named fields (Title pattern, Window class, Program name, Index) instead of a key/value list; stored the same way. | Small |
+| **U1** | The window field: picker under the text box (not beside it), full width. | Small |
+| **M1+M2** | "Pick on screen" for Mouse click, move, scroll, callout and Capture screen: hover, press Ctrl+Shift+C, and the step gets the window, the point measured from the window's corner, and the window's size. A new optional "Put the window back to this size first" uses that size at run time. New steps with a window chosen measure from the window; old steps keep what they had. | Medium |
+| **K1** | One key picker for every key field (Press keys, Wait for mouse or key, Type text, background typing, terminal Press key and Set field): a list of keys grouped (letters and digits, function, navigation, modifiers, terminal PF/PA), which writes the form that command expects. The runner also accepts the other spellings of key names (`PageUp` = `PAGE_UP`, `Esc` = `ESC`). No stored step changes. | Medium |
+| **T1** | Fix the AA map (Get field, Get text, the Excel entry) and regenerate aaNames.ts; note in the migration notes that AA field numbers start at 0. | Small |
+| **T2** | Connect's help and the toolkit page say 3270 needs wc3270 on the runner; Studio's Problems check warns when a flow uses 3270 and the runner has no engine. | Small |
+| **T3** | Command samples for the terminal against the in-process SSH host and fake 5250 host (connect, fields, keys, waits, key mappings, disconnect). | Medium |
+| **T4** | Press key and Type text get "Then wait for text" (text, timeout), the same as a following Wait for text step. | Small |
