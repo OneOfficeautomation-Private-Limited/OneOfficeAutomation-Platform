@@ -104,3 +104,62 @@ has Quick map and the agent from a variable; Exit/Continue loop pick a loop; Thr
 Go to gets a code-analysis warning; Delay is Regular/Random; core names are one each. Follow-up seen while testing:
 the core commands' one-line descriptions (shown since item 24) are technical ("Repeat the children using an
 iterator..."); rewrite them in plain words with batch 2.
+
+---
+
+## Batch 2: variables and data (127 commands in 10 toolkits)
+
+String (16), Number (6), Boolean (5), Date and time (19), List (17), Dictionary (7), Data Table (33), JSON (12),
+XML (9), Currency (3). Checked 11 Nov 2026 against AA's String, Number, Boolean, Datetime, List, Dictionary, Data Table,
+Record, JSON utilities and XML packages.
+
+### What AA teaches about how these are used
+
+- AA has an **Assign** in every type package (String: Assign, List: Assign…). Ours is one Assign variable. AA's names
+  already find it in search, and migration maps them all (checked).
+- AA's **Datetime** works in the **bot runner's local time**. "To string" offers a list of formats (MM/dd/yyyy,
+  dd/MM/yyyy HH:mm:ss…) or a custom one.
+- AA's **JSON utilities** and **XML** work in sessions (Start, read and change nodes, Save, End). Ours read and write
+  in one step, from text or a file. That is simpler, with no session to forget to close. Keep ours.
+- AA's **Record** package (add, delete or update a column) maps onto our Dictionary commands.
+- Coverage: every AA action in these packages has ours, and ours go further: working days, period start and end, Group
+  and summarise, Join tables, Look up value, list set operations, JSONPath, XPath functions, currency.
+
+### Automated pass over all 127 (labels, help, samples, wording)
+
+- Every field has a label and help text. Every command has a test sample except **Add column from list**.
+- **Wording**: the one-line descriptions shown at the top of a panel (since item 24) are technical for JSON ("node",
+  "JSONPath", "array"), XML ("XPath", "node") and dates ("UTC", "ISO").
+
+### Findings, checked against our code
+
+| # | Finding | Why it matters |
+|---|---|---|
+| D1 | **Every date command defaults to UTC**: Get current date and time, Format date, Text to date, Get part of date, the periods, working days. There is no "local" time zone. | In India, formatting "now" as dd/MM/yyyy between midnight and 05:30 gives **yesterday**, and "18/10/2026" read from text becomes 17 Oct 18:30 UTC. AA uses the runner's local time, so migrated bots and AA habits break silently. |
+| D2 | The date **pattern** is free text with an example in the help. | AA offers a list of formats. A wrong letter (mm instead of MM) gives minutes, not months, and nobody notices. |
+| X1 | **Drop-downs show coded values**: Operator shows "eq / ne / gt / ge…", Standard shows "ISO LOCAL DATE", AI provider shows "openai compatible". This affects **273 of the 472** list fields in the catalogue. | It reads as code, not as AA's or UiPath's words. Cross-cutting, so fix it once for every toolkit. |
+| D3 | **Filter rows** (Data Table) takes one condition and keeps matching rows. | UiPath's Filter Data Table takes several conditions with And/Or, keeps or removes the rows, and can keep only some columns. People chain three Filter steps today. |
+| D4 | Column fields (Filter, Sort, Get value, Look up, Sum…) are free text. | A misspelt column fails only at run time. The columns are often known (a table variable's default, or the last test run). |
+| D5 | **Replace** shows Text, Find, Ignore case, Regex, Start, Count, then Replace with. | "Replace with" belongs next to Find. Start and Count are rarely used (AA: Find, Replace with, Match case, Regex). |
+| D6 | Plain-word descriptions are needed for JSON (12), XML (9), the date commands that mention UTC (3) and the 23 core commands (batch 1 follow-up). | They are the first line of every panel. |
+| D8 | **Locale** fields (Format number, Text to number, Format date…) are free text (en-US, de-DE). | A short picker (English US, English India, German…) avoids typos. It is cross-cutting, like X1. |
+| D9 | Add column from list has no test sample. | Every command should have one. |
+
+Fine as they are: String, Number, Boolean, List, Dictionary, Currency, JSON and XML behaviour (numbers read in any locale,
+Indian grouping included; text helpers; set operations).
+
+### Proposals (choose; nothing built)
+
+| # | Proposal | Upgrade safety | Size |
+|---|---|---|---|
+| **D1** | A **Local** time zone (the runner's own) in every date command. New date steps start with Local, as AA. The time-zone field becomes a picker: Local, UTC, then zones by region, searchable. | Old agents keep UTC: only new steps get Local. Python reference runner too. | Medium |
+| **D2** | Date **pattern picker**: a list of common formats (dd/MM/yyyy, MM/dd/yyyy, yyyy-MM-dd, dd-MMM-yyyy, with time…) or your own. Under the field, today's date shown in that pattern. | Values unchanged. | Small |
+| **X1** | **Plain words in every drop-down** (all toolkits): a shared word list for the common codes (equals, is greater than, contains…; OpenAI, Azure OpenAI…; ISO date…), with every other code tidied (capitals, spaces). | Only the label changes; the value saved stays the same. | Medium |
+| **D3** | **Filter rows**: several conditions (All/Any), Keep or Remove matching rows, and optionally only some columns, as UiPath's Filter Data Table. | The old single condition still runs. | Medium |
+| **D4** | **Column pickers** in Data Table commands, from the table variable's default or the last test run; typing stays possible. | None. | Medium |
+| **D5** | Replace: Text, Find, Replace with first; Ignore case, Regex, Start, Count under More options. | Layout only. | Small |
+| **D6** | Plain-word descriptions for the JSON, XML, date and core commands. | Text only. | Small |
+| **D8** | Locale picker for every locale field (cross-cutting, as X1). | Values unchanged. | Small |
+| **D9** | A test sample for Add column from list. | None. | Small |
+
+Suggested order: D1 (silent wrong dates), then X1 (all toolkits), then D3/D4, then the small ones.
