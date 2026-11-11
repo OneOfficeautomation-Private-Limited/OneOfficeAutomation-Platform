@@ -323,3 +323,10 @@ All fields have labels and help.
 | **B2** | Command samples for Extract list, Attach to open browser and Start browser for automation on a local test page; OCR "Read text from image" with a generated picture where the Windows OCR engine is present. | Small |
 
 No other changes are needed in this batch.
+
+**Built 11 Nov 2026 (B1, B2)** on ui/usage-review. B1: a sample marked "requires internet" that fails is run once more in a
+fresh folder; if it fails again it is reported as "outside site" with the reason and counted as skipped, not failed
+(checked with a temporary sample that always fails; the progress table counts it with the skipped ones). Not done: the
+nightly job with a screenshot, and watching P4 on demoqa.com (running the public-website samples here was declined by the
+permission check because they submit forms on outside sites; needs your OK). B2: samples 53-browser-ocr.json for Extract
+list, Start browser for automation with Attach to open browser, and Read text from image (Windows OCR); all pass here.

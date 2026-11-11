@@ -184,6 +184,7 @@ class CommandSamplesTest {
                 .replace("\"{smtp_port}\"", mail == null ? "0" : String.valueOf(mail.getSmtp().getPort()))
                 .replace("\"{imap_port}\"", mail == null ? "0" : String.valueOf(mail.getImap().getPort()));
         try {
+            if (requires.equals("internet")) { runOnOutsideSite(runner, raw, json, label, tmp); return; }
             runCase(runner, (Map<String, Object>) JsonLite.parse(json), label, tmp);
             // "expectRequests": ["METHOD /path text that must appear in the request line or body", ...] in order
             List<String> want = (List<String>) ((Map<String, Object>) JsonLite.parse(json)).getOrDefault("expectRequests", List.of());
@@ -198,6 +199,28 @@ class CommandSamplesTest {
             if (mail != null) mail.stop();
             if (mockServer != null) mockServer.stop(0);
             if (ldapServer != null) ldapServer.shutDown(true);
+        }
+    }
+
+    /**
+     * A sample on a public website (command review B1, 11 Nov 2026): a third-party site has bad days (slow, a changed
+     * page, too many visitors), so a failure is tried once more in a fresh folder; when it fails again it is recorded as
+     * "outside site" with its message and skipped, so it never turns the whole suite red. The results file lists those
+     * apart, for a person to look at.
+     */
+    @SuppressWarnings("unchecked")
+    static void runOnOutsideSite(Runner runner, Map<String, Object> raw, String json, String label, Path tmp) throws Exception {
+        try { runCase(runner, (Map<String, Object>) JsonLite.parse(json), label, tmp); return; }
+        catch (AssertionError | RuntimeException first) {
+            System.out.println("    " + label + ": failed on the outside site, trying once more: " + first.getMessage());
+        }
+        Path again = Files.createTempDirectory(tmpRoot, "case");
+        try { runCase(runner, (Map<String, Object>) JsonLite.parse(json.replace(tmp.toString().replace('\\', '/'), again.toString().replace('\\', '/'))), label, again); }
+        catch (AssertionError | RuntimeException twice) {
+            String why = "outside site: " + raw.get("probe") + " failed twice: " + twice.getMessage();
+            RESULTS.removeIf(r -> Objects.equals(r.get("command"), raw.get("command")) && Objects.equals(r.get("name"), raw.getOrDefault("name", "")) && "fail".equals(r.get("check")));
+            RESULTS.add(new LinkedHashMap<>(Map.of("command", raw.get("command"), "name", raw.getOrDefault("name", ""), "check", "outside site", "detail", why)));
+            org.junit.jupiter.api.Assumptions.abort(why);
         }
     }
 
