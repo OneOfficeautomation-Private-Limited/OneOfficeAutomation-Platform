@@ -282,3 +282,44 @@ follows, and Excel is asked to recalculate on opening). E2: the Excel desktop sa
 this machine (convert to .xls, export to PDF, refresh, update links, a clear error for a missing macro). X3 tried in One
 AgentStudio: with Open workbook on session "invoices", a Get cell left on the default session suggests "invoices" and
 says no step opens "excel".
+
+---
+
+## Batch 5: browser and capture (59 commands in 6 toolkits)
+
+Browser (28), Desktop objects (10), Image recognition (6), OCR (8), AI screen (4), Web goal agent (3). Checked 11 Nov 2026
+against AA's Recorder (Capture), Browser, Image Recognition and OCR packages, and Blue Prism's Application Modeller.
+
+### What AA and Blue Prism teach about how these are used
+
+- **Capture** (AA): choose the window from open applications, browser tabs or a window variable; the title can use
+  wildcards or a regular expression, with or without case; *Resize window* puts it back to the recorded size; capture the
+  object, then choose the properties to search by (per technology: HTML, UI Automation, MSAA, Java) and the action that
+  suits the control. Blue Prism does the same with its spy modes (Win32, UI Automation, Accessibility, Java, HTML,
+  Chromium, Region, Smart Vision) and match types per attribute.
+- **Browser** (AA): Open, Close, Go back, Download files, Get source code, Run JavaScript, Call a JavaScript function,
+  Find broken links.
+
+### What we have, checked in panels and code
+
+Every one of those is ours, and the capture editor already covers AA's choices: the window by title with wildcard or
+regular expression, ignore case, resize to a size, the captured properties to search by with how each must match,
+the action list that suits the control, "if not found", and Test, which outlines what matches. The object repository
+(G42), desktop objects with UI Automation and legacy MSAA, image and OCR clicks, and AI-described controls go beyond AA.
+All fields have labels and help.
+
+### Findings
+
+| # | Finding | Why it matters |
+|---|---|---|
+| B1 | **Use case P4 fails some full test runs**: it adds and edits rows on demoqa.com, a public practice site, and sometimes the form does not close after Submit (step s19 waits 30 s for it). It passed in two of the last four full runs; the site loads and its form and checks are as the agent expects. Reproducing it needs submitting the form on that site, which this session did not do (declined by the permission check). | A third-party site makes the whole Java suite fail, so a real failure could be missed among them. |
+| B2 | Commands without a **command sample**: 30 here (OCR, image, desktop objects, AI screen, web agent, a few browser ones). They have unit tests (OCR 5 files, image 4, desktop objects 5, browser 11, AI screen 1, web agent 2), because they need a screen, an OCR engine or an AI model. Browser's Extract list, Attach to open browser and Start browser for automation could have samples on a local test page. | Small. |
+
+### Proposals (choose; nothing built)
+
+| # | Proposal | Size |
+|---|---|---|
+| **B1** | Public-website samples (P1 to P6 and the like) **try once more** before failing, and their failures are reported apart ("outside site") so the suite stays green on a site's bad day; a nightly job runs them with a screenshot on failure. Separately, with your OK, I watch P4 run once to find whether the site changed. | Small |
+| **B2** | Command samples for Extract list, Attach to open browser and Start browser for automation on a local test page; OCR "Read text from image" with a generated picture where the Windows OCR engine is present. | Small |
+
+No other changes are needed in this batch.
