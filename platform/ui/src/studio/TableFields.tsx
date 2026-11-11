@@ -65,3 +65,49 @@ export function MoreConditions({ value, columns, onCommit }: { value: unknown; c
     </div>
   );
 }
+
+/** Whether a step's action opens a session (Open workbook, Connect, Start session, Log in, Create...). */
+const OPENS = /^(open|connect|create|start|login|log_in|launch|attach|begin)(_|$)/;
+/** Marks the default session (the field's own default name) among the sessions an agent opens. */
+const DEFAULT = "\u0000default";
+
+/**
+ * The session names the agent's own steps of a toolkit use, the ones its Open/Connect steps name first (command review
+ * X3, 11 Nov 2026): what a session field offers. An agent with only the default session needs none of this.
+ */
+export function knownSessions(flow: Flow, toolkit: string): { opened: string[]; used: string[] } {
+  const opened = new Set<string>(), used = new Set<string>();
+  const walk = (steps: FlowStep[]) => {
+    for (const s of steps) {
+      const [pid, aid] = s.action.split("/");
+      const name = s.args?.session;
+      if (pid === toolkit && typeof name === "string" && name.trim() && !name.startsWith("$")) (OPENS.test(aid ?? "") ? opened : used).add(name.trim());
+      else if (pid === toolkit && name === undefined && OPENS.test(aid ?? "")) opened.add(DEFAULT);   // an Open step left on the default session
+      for (const inner of [s.children, s.else, s.finally, s.default, ...(s.elseIf ?? []).map((b) => b.children), ...(s.catch ?? []).map((c) => c.children),
+        ...(s.cases ?? []).map((c) => c.children), ...(s.states ?? []).flatMap((st) => [st.entry, ...(st.transitions ?? []).map((t) => t.steps)])])
+        if (inner) walk(inner);
+    }
+  };
+  walk(flow.steps);
+  for (const sub of flow.subflows ?? []) walk(sub.steps);
+  if (flow.onError?.steps) walk(flow.onError.steps);
+  return { opened: [...opened].sort(), used: [...used].filter((n) => !opened.has(n)).sort() };
+}
+
+/** A session name, picked from the agent's own sessions of the toolkit or typed; says so when no step opens it. */
+export function SessionField({ id, value, fallback, opens, sessions, onCommit }: { id: string; value: unknown; fallback?: string; opens: boolean;
+  sessions: { opened: string[]; used: string[] }; onCommit: (v: string | undefined) => void }) {
+  const listId = useId();
+  const text = value === undefined || value === null ? "" : String(value);
+  const opened = sessions.opened.map((n) => n === DEFAULT ? fallback ?? "" : n).filter(Boolean);
+  const names = [...new Set([...opened, ...sessions.used, ...(fallback ? [fallback] : [])])];
+  const shown = text || fallback || "";
+  const unknown = !opens && shown && !shown.startsWith("$") && opened.length > 0 && !opened.includes(shown);
+  return <>
+    <TextInput key={text} id={id} defaultValue={text} list={listId} placeholder={fallback ? "Default: " + fallback : "Session name"}
+      onBlur={(e) => { const t = e.currentTarget.value.trim(); if (t !== text) onCommit(t || undefined); }}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const t = e.currentTarget.value.trim(); if (t !== text) onCommit(t || undefined); } }} />
+    <datalist id={listId}>{names.map((n) => <option key={n} value={n}>{opened.includes(n) ? "opened by a step of this agent" : ""}</option>)}</datalist>
+    {unknown && <div className="st-check" role="note">No step of this agent opens a session named “{shown}”. Opened: {opened.join(", ")}.</div>}
+  </>;
+}

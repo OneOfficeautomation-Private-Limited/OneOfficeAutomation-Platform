@@ -4,7 +4,7 @@ import { Button, Field, Select } from "../components";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
 import { StepErrorFields } from "./ErrorPolicy";
 import { enumWord } from "./enumWords";
-import { ColumnField, knownColumns, MoreConditions } from "./TableFields";
+import { ColumnField, knownColumns, knownSessions, MoreConditions, SessionField } from "./TableFields";
 import { DatePatternField, DelimiterField, EncodingField, LocaleField, SizeField, TimeZoneField } from "./PickerFields";
 import { fieldOrder, findAction, groupFields, labelsInScope, loopLabelsAround, parseLoose, setArg, setStepPolicy, showValue, type PanelGroup } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
@@ -114,6 +114,14 @@ export function StepForm({ step, packages, onArg, onNote }:
     if (step.action.startsWith("ooa.datatable/") && (name === "column" || name === "return_column") && props[name]?.["x-ooa-type"] !== "Number")
       return <Field key={step.id + ":" + name} label={labelOf(name) + (req(name) ? " *" : "")} layout="beside" hint={props[name]?.description}>{(id) =>
         <ColumnField id={id} value={step.args?.[name]} columns={vars ? knownColumns(vars.flow, step.args?.table) : []} onCommit={(v) => onArg(name, v)} />}</Field>;
+    // X3: a session field offers the sessions the agent's own steps of this toolkit open, and warns about one none opens
+    if (name === "session" && !props[name]?.enum && (props[name]?.["x-ooa-type"] ?? "String") === "String" && vars) {
+      const [pid, aid] = step.action.split("/");
+      return <Field key={step.id + ":session"} label={labelOf(name) + (req(name) ? " *" : "")} layout="beside"
+        hint="Which open workbook, document, connection or window this step works on; steps that work on the same one use the same name.">{(id) =>
+        <SessionField id={id} value={step.args?.session} fallback={props[name]?.default as string | undefined} opens={/^(open|connect|create|start|login|log_in|launch|attach|begin)(_|$)/.test(aid ?? "")}
+          sessions={knownSessions(vars.flow, pid)} onCommit={(v) => onArg("session", v)} />}</Field>;
+    }
     // C6: Throw error's code from a list of the usual ones, or a code of your own (AA picks an exception from a list)
     if (step.action === "core/throw" && name === "code") return <ThrowCode key={step.id + ":code"} value={typeof step.args?.code === "string" ? String(step.args.code) : ""} onCommit={(v) => onArg("code", v)} />;
     // C9: Delay is Regular (a fixed time) or Random (between two times), as AA's Delay type
