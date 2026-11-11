@@ -14,7 +14,7 @@ Toolkit `ooa.json`, version 1.0.0. Parse, query and write JSON documents.
 
 `ooa.json/delete_node` (action)
 
-Remove the node at a path.
+Remove one value from JSON, found by its path (order.items[0]).
 
 **Settings**
 
@@ -36,7 +36,7 @@ Remove the node at a path.
 
 `ooa.json/get_node` (action)
 
-Read a value by dotted path (order.items[0].sku) or JSONPath ($.order.items[0].sku, $..sku, $.items[*].sku, $.items[?(@.qty > 1)]).
+Read one value from JSON by its path, such as order.items[0].sku; $..sku finds every sku, $.items[?(@.qty > 1)] the items with qty over 1.
 
 **Settings**
 
@@ -60,7 +60,7 @@ Read a value by dotted path (order.items[0].sku) or JSONPath ($.order.items[0].s
 
 `ooa.json/get_node_array` (action)
 
-Return the list found at a path, ready to loop over.
+Read the list found at a path, ready to go through with a Loop.
 
 **Settings**
 
@@ -82,7 +82,7 @@ Return the list found at a path, ready to loop over.
 
 `ooa.json/get_nodes` (action)
 
-Read several paths at once into one dictionary, e.g. {"id": "order.id", "email": "customer.email"}, optionally converting each value to a type.
+Read several values at once into a Dictionary, e.g. {"id": "order.id", "email": "customer.email"}, each turned into a type if you want.
 
 **Settings**
 
@@ -104,7 +104,7 @@ Read several paths at once into one dictionary, e.g. {"id": "order.id", "email":
 
 `ooa.json/insert_node` (action)
 
-Add a new key to a dictionary, or insert an item into a list, at a path such as order.items[1] or /order/items/-.
+Add a value to JSON: a new key, or an item in a list at a position such as order.items[1].
 
 **Settings**
 
@@ -128,7 +128,7 @@ Add a new key to a dictionary, or insert an item into a list, at a path such as 
 
 `ooa.json/parse` (action)
 
-Parse JSON text into a Dictionary or List.
+Read JSON text into a Dictionary or a List.
 
 **Settings**
 
@@ -148,7 +148,7 @@ Parse JSON text into a Dictionary or List.
 
 `ooa.json/read_file` (action)
 
-Read and parse a JSON file.
+Read a JSON file into a Dictionary or a List.
 
 **Settings**
 
@@ -169,7 +169,7 @@ Read and parse a JSON file.
 
 `ooa.json/stringify` (action)
 
-Serialise a value to JSON text.
+Write a value (Dictionary, List, table...) as JSON text.
 
 **Settings**
 
@@ -191,7 +191,7 @@ Serialise a value to JSON text.
 
 `ooa.json/to_table` (action)
 
-Turn a JSON array of objects into a table; each key becomes a column.
+Turn a JSON list of records into a table: each key becomes a column, each record a row.
 
 **Settings**
 
@@ -213,7 +213,7 @@ Turn a JSON array of objects into a table; each key becomes a column.
 
 `ooa.json/update_node` (action)
 
-Replace the value of an existing node at a path.
+Change one value in JSON, found by its path.
 
 **Settings**
 
@@ -237,7 +237,7 @@ Replace the value of an existing node at a path.
 
 `ooa.json/validate` (action)
 
-Check that JSON is well-formed, that required paths exist and, optionally, that it matches a JSON Schema (common keywords).
+Check JSON: that it is well written, that the paths you need are there and, if you give one, that it follows a JSON Schema.
 
 **Settings**
 
@@ -264,7 +264,7 @@ Check that JSON is well-formed, that required paths exist and, optionally, that 
 
 `ooa.json/write_file` (action)
 
-Write a value to a JSON file atomically.
+Save a value to a JSON file (written in one go, so a reader never sees half a file).
 
 **Settings**
 

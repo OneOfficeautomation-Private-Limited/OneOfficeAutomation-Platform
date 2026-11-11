@@ -18,7 +18,7 @@ Toolkit `core`, version 1.0.0. Control flow, variables and runtime built-ins.
 
 `core/break` (action)
 
-Leave the innermost loop, or the enclosing loop with the given label.
+Leave the loop now and carry on after it; name a loop to leave an outer one.
 
 **Settings**
 
@@ -32,7 +32,7 @@ Leave the innermost loop, or the enclosing loop with the given label.
 
 `core/comment` (action)
 
-Non-executing note.
+A note in the steps for people reading the agent; it does nothing when the agent runs.
 
 **Settings**
 
@@ -46,7 +46,7 @@ Non-executing note.
 
 `core/continue` (action)
 
-Skip to the next pass of the innermost loop, or of the enclosing loop with the given label.
+Skip the rest of this pass and start the next pass of the loop; name a loop to continue an outer one.
 
 **Settings**
 
@@ -60,7 +60,7 @@ Skip to the next pass of the innermost loop, or of the enclosing loop with the g
 
 `core/goto` (action)
 
-Carry on from a Label in the same step list or a list around it (never into a block or out of a subflow); a run fails with GOTO.LIMIT after too many jumps.
+Jump to a Label in the same list of steps or one around it. Kept for agents moved from other tools; a Loop, If or subflow is easier to follow.
 
 **Settings**
 
@@ -74,7 +74,7 @@ Carry on from a Label in the same step list or a list around it (never into a bl
 
 `core/if` (action)
 
-Run the children when the condition is true; otherwise evaluate elseIf branches, then else.
+Run the steps inside when the condition is true; otherwise try each Else if, then Else.
 
 **Settings**
 
@@ -88,7 +88,7 @@ Run the children when the condition is true; otherwise evaluate elseIf branches,
 
 `core/label` (action)
 
-A named place in the steps that Go to can jump to; does nothing itself.
+A named place in the steps that Go to can jump to; it does nothing itself.
 
 **Settings**
 
@@ -102,7 +102,7 @@ A named place in the steps that Go to can jump to; does nothing itself.
 
 `core/loop` (action)
 
-Repeat the children using an iterator: times, while, list, dictionary, dictionary_keys, dictionary_values, table_rows or a toolkit iterator (package/iterator).
+Repeat the steps inside: a number of times, while a condition holds, or once for each item, row, file, e-mail and so on.
 
 **Settings**
 
@@ -131,7 +131,7 @@ Repeat the children using an iterator: times, while, list, dictionary, dictionar
 
 `core/parallel` (action)
 
-Run each child step as a concurrent branch and wait for all branches.
+Run each step inside at the same time, and wait until all of them have finished.
 
 **Settings**
 
@@ -145,7 +145,7 @@ Run each child step as a concurrent branch and wait for all branches.
 
 `core/state_machine` (action)
 
-Move between named states: each state runs its entry steps, then the first of its transitions whose condition is true runs its steps and moves to the next state; the step ends in a final state. Fails with STATE.NO_TRANSITION when a state that is not final has no true transition.
+Move between named states: each state runs its steps, then the first transition whose condition holds takes the agent to the next state, until a final state.and moves to the next state; the step ends in a final state. Fails with STATE.NO_TRANSITION when a state that is not final has no true transition.
 
 **Settings**
 
@@ -160,7 +160,7 @@ Move between named states: each state runs its entry steps, then the first of it
 
 `core/step` (action)
 
-Named group of steps for readability; no runtime effect.
+A named group of steps that keeps the agent tidy; it changes nothing when the agent runs.
 
 **Settings**
 
@@ -174,7 +174,7 @@ Named group of steps for readability; no runtime effect.
 
 `core/switch` (action)
 
-Compare one value with each case in turn and run the steps of the first case that matches (no fall-through); run the default steps when none does.
+Compare one value with each case in turn and run the steps of the first case that matches; Default runs when none does.
 
 **Settings**
 
@@ -192,7 +192,7 @@ Compare one value with each case in turn and run the steps of the first case tha
 
 `core/delay` (action)
 
-Pause the run for a fixed time, or for a random time within a range.
+Wait a fixed time, or a random time between two values, before the next step.
 
 **Settings**
 
@@ -223,7 +223,7 @@ Write a message to the run log.
 
 `core/wait_until` (action)
 
-Poll a condition until it is true or the timeout expires (WAIT.TIMEOUT).
+Wait until a condition is true, checking it again and again, up to a time limit.
 
 **Settings**
 
@@ -248,7 +248,7 @@ Poll a condition until it is true or the timeout expires (WAIT.TIMEOUT).
 
 `core/exit_subflow` (action)
 
-Leave the subflow being run at once (Finally blocks still run); the agent carries on after the Run subflow step.
+Leave the subflow now; the agent carries on after the step that ran it (Finally steps still run).
 
 No settings.
 
@@ -258,7 +258,7 @@ No settings.
 
 `core/pause` (action)
 
-Pause the run until someone resumes it from One AgentStudio or One CommandCenter, or until the optional timeout.
+Stop and wait until someone presses Resume in One AgentStudio or One CommandCenter, or until the time limit.
 
 **Settings**
 
@@ -273,7 +273,7 @@ Pause the run until someone resumes it from One AgentStudio or One CommandCenter
 
 `core/run_bot` (action)
 
-Run a published child automation with mapped inputs and receive its outputs.
+Run another agent with the inputs you give it, and keep the outputs it gives back.
 
 **Settings**
 
@@ -304,7 +304,7 @@ Run a published child automation with mapped inputs and receive its outputs.
 
 `core/run_subflow` (action)
 
-Run one of this agent's subflows (a named list of steps kept beside the main steps) and carry on when it ends; it uses the agent's own variables.
+Run one of this agent's subflows (a named list of steps kept beside the main steps), then carry on; it shares the agent's variables.
 
 **Settings**
 
@@ -318,7 +318,7 @@ Run one of this agent's subflows (a named list of steps kept beside the main ste
 
 `core/stop` (action)
 
-End the current agent at once; Finally blocks still run and the run ends with the chosen status.
+End the agent now with the status you choose; Finally steps still run.
 
 **Settings**
 
@@ -335,7 +335,7 @@ End the current agent at once; Finally blocks still run and the run ends with th
 
 `core/set` (action)
 
-Assign a value or expression result to a declared variable.
+Put a value, or the result of a calculation, in a variable.
 
 **Settings**
 
@@ -350,7 +350,7 @@ Assign a value or expression result to a declared variable.
 
 `core/set_many` (action)
 
-Assign values to several declared variables in one step, in order: a later value can use a variable set above it.
+Put values in several variables in one step, in order: a later value can use a variable set above it.
 
 **Settings**
 
@@ -366,7 +366,7 @@ Assign values to several declared variables in one step, in order: a later value
 
 `core/throw` (action)
 
-Raise an error with a custom code that Try/Catch can match.
+Raise an error with a code of your choice, for a Catch (or On error) to handle.
 
 **Settings**
 
@@ -384,7 +384,7 @@ Raise an error with a custom code that Try/Catch can match.
 
 `core/try` (action)
 
-Run the children; on error run the first matching catch block, then always run finally.
+Run the steps inside; if one fails, run the first Catch that takes the error, then always Finally.
 
 No settings.
 

@@ -15,7 +15,7 @@ Toolkit `ooa.xml`, version 1.0.0. Query and change XML with XPath, convert to di
 
 `ooa.xml/delete_nodes` (action)
 
-Remove every node (or one attribute of every node) matching an XPath, in a file or in XML text.
+Remove every element (or one attribute of each) that a path such as //order/note finds, in a file or in XML text.
 
 **Settings**
 
@@ -41,7 +41,7 @@ Remove every node (or one attribute of every node) matching an XPath, in a file 
 
 `ooa.xml/get_nodes` (action)
 
-Return the text of every node matching an XPath.
+Read the text of every element a path such as //order/id finds.
 
 **Settings**
 
@@ -67,7 +67,7 @@ Return the text of every node matching an XPath.
 
 `ooa.xml/get_value` (action)
 
-Return the text of the first node matching an XPath.
+Read the text of the first element a path such as //order/id finds.
 
 **Settings**
 
@@ -93,7 +93,7 @@ Return the text of the first node matching an XPath.
 
 `ooa.xml/insert_node` (action)
 
-Add an element (with text and attributes) under, before or after every node matching an XPath.
+Add an element, with its text and attributes, under, before or after every element a path finds.
 
 **Settings**
 
@@ -124,7 +124,7 @@ Add an element (with text and attributes) under, before or after every node matc
 
 `ooa.xml/save_file` (action)
 
-Check that XML text is well-formed and write it to a file, optionally indented.
+Check that XML text is well written and save it to a file, indented if you want.
 
 **Settings**
 
@@ -147,7 +147,7 @@ Check that XML text is well-formed and write it to a file, optionally indented.
 
 `ooa.xml/set_value` (action)
 
-Set the text (or an attribute) of every node matching an XPath, in a file or in XML text.
+Change the text (or an attribute) of every element a path finds, in a file or in XML text.
 
 **Settings**
 
@@ -175,7 +175,7 @@ Set the text (or an attribute) of every node matching an XPath, in a file or in 
 
 `ooa.xml/to_dictionary` (action)
 
-Convert XML (or the part matched by an XPath) to a Dictionary; attributes become @name keys.
+Turn XML (or the part a path finds) into a Dictionary; attributes become keys starting with @.
 
 **Settings**
 
@@ -197,7 +197,7 @@ Convert XML (or the part matched by an XPath) to a Dictionary; attributes become
 
 `ooa.xml/validate` (action)
 
-Check that an XML document is well-formed and, when an XSD schema is given, valid against it; returns the result instead of failing.
+Check that XML is well written and, if you give an XSD schema, that it follows it; gives the result instead of failing.
 
 **Settings**
 
@@ -220,7 +220,7 @@ Check that an XML document is well-formed and, when an XSD schema is given, vali
 
 `ooa.xml/xpath_function` (action)
 
-Evaluate an XPath expression such as count(//line) or sum(//amount) and return text, a number or true/false.
+Work something out from XML with an XPath function, such as count(//line) or sum(//amount): text, a number or true/false.
 
 **Settings**
 

@@ -163,3 +163,10 @@ Indian grouping included; text helpers; set operations).
 | **D9** | A test sample for Add column from list. | None. | Small |
 
 Suggested order: D1 (silent wrong dates), then X1 (all toolkits), then D3/D4, then the small ones.
+
+**Built 10 to 11 Nov 2026 (all of D1 to D9 and X1)** on ui/usage-review, tested and tried in One AgentStudio. Found
+while testing and fixed too (**X2**): since the Classic Studio was removed, the panels' choices and tick boxes (329
+commands, e.g. Format date's Format, Add column from list's Insert at) were not drawn and their fields sat under More
+options; they are drawn again, and Format date / Text to date show the pattern and time zone among the main fields.
+Not changed: other toolkits' time-zone fields (Google, Microsoft 365 calendars) get the picker but not Local, since
+their services take zone names.
