@@ -767,3 +767,17 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-right .st-prop-about { font-size: 11.5px; }
 .st-right [role="tab"] { height: 30px; font-size: 12px; }
 .st-right .st-prop-section { font-size: 12px; }
+
+/* ---- Studio's own menu in the Console A look (improvement list 12 Nov 2026, item 3; 13 Nov 2026) ----
+   Sections as bold white capitals with a coloured tile on a line of their own; their pages smaller and lighter under the
+   guide line (11.1:1); the open page dark blue with a blue edge (10.3:1); a 44 px top bar, as in the console. */
+.st-app:not(.cc-app) .st-top { min-height: 44px; }
+.st-app:not(.cc-app) .st-menu-home { height: 30px; font-size: 13px; }
+.st-app:not(.cc-app) .st-menu-section { margin-top: 2px; padding-top: 2px; }
+.st-app:not(.cc-app) .st-menu-heading { height: 30px; padding: 0 6px 0 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #ffffff; }
+.st-app:not(.cc-app) .st-menu-heading .ui-tile { width: 18px !important; height: 18px !important; }
+.st-app:not(.cc-app) .st-menu-heading .st-menu-caret { color: #9aa6b8; }
+.st-app:not(.cc-app) .st-menu-items { margin: 0 0 6px 17px; }
+.st-app:not(.cc-app) .st-menu-item { height: 28px; padding: 0 8px; font-size: 13px; color: #c8d1de; border-radius: 0 5px 5px 0; }
+.st-app:not(.cc-app) .st-menu-item:hover { color: #ffffff; }
+.st-app:not(.cc-app) .st-menu-item.is-current { background: #24406f; color: #ffffff; font-weight: 600; box-shadow: inset 3px 0 0 #4d8dff; }
