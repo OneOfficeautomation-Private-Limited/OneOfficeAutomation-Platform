@@ -173,7 +173,7 @@ public final class AppEmbeds {
             z.putNextEntry(new ZipEntry("manifest.json")); z.write(JsonLite.write(manifest).getBytes(StandardCharsets.UTF_8)); z.closeEntry();
             z.putNextEntry(new ZipEntry("color.png")); z.write(icon(192, true)); z.closeEntry();
             z.putNextEntry(new ZipEntry("outline.png")); z.write(icon(32, false)); z.closeEntry();
-        } catch (IOException ex) { throw new OoaException("CR.INTERNAL", "Cannot make the Teams package: " + ex.getMessage()); }
+        } catch (IOException ex) { throw new OoaException("CR.INTERNAL", "Cannot make the Teams package: " + ex.getMessage(), "Try again; if it keeps happening, an administrator can look in the server log."); }
         ctx.audit(by.username(), "app.embed_teams", "app", appId, Map.of("embed", embedId), "ok", null);
         return out.toByteArray();
     }
@@ -192,7 +192,7 @@ public final class AppEmbeds {
         g.fillRect(m + w / 4, m + w / 2 + w / 12, w / 3, Math.max(2, size / 16));
         g.dispose();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try { ImageIO.write(img, "png", out); } catch (IOException e) { throw new OoaException("CR.INTERNAL", e.getMessage()); }
+        try { ImageIO.write(img, "png", out); } catch (IOException e) { throw new OoaException("CR.INTERNAL", e.getMessage(), "Try again; if it keeps happening, an administrator can look in the server log."); }
         return out.toByteArray();
     }
 }

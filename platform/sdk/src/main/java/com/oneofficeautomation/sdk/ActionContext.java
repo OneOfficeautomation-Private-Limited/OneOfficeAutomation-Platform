@@ -52,7 +52,7 @@ public final class ActionContext {
         if (o == null) throw new OoaException("SESSION.NOT_FOUND", "Session '" + name + "' is not open",
                 "Add an 'open' step that creates session '" + name + "' before this step.");
         if (!kind.isInstance(o)) throw new OoaException("SESSION.WRONG_TYPE",
-                "Session '" + name + "' is a " + o.getClass().getSimpleName() + ", expected " + kind.getSimpleName());
+                "Session '" + name + "' is a " + o.getClass().getSimpleName() + ", expected " + kind.getSimpleName(), "Use the session from the matching Open step (a browser session for browser steps, and so on).");
         return kind.cast(o);
     }
 
@@ -85,7 +85,7 @@ public final class ActionContext {
     }
 
     public void checkCancelled() {
-        if (cancelled.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter");
+        if (cancelled.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter", "The run was stopped before this step finished. Run the agent again when it should go on.");
     }
 
     /** A path relative to the working folder; where the run is confined to it (service confine_paths), no other path. */

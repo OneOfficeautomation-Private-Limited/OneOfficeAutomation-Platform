@@ -40,8 +40,8 @@ Every message is `What happened. What to do.` (both in our own words), with the 
 - **E3b** Their own fix for the errors in the core packages. **Done 13 Nov 2026**: 296 without a fix and 115 passing `null` (browser, LLM client, data store, generative AI, work queues, terminal, PDF, Windows, e-mail, file transfer and the rest) have their own; `CommandFixesTest` covers the core packages.
 - **E4** control-room. **Done 13 Nov 2026**: 442 found plus 9 that passed `null`; the 244 that are not input checks have their own fix (sign-in and SSO, vault and external vaults, database, TLS, licence, schedules, runs and waits, queues, repository, templates, tenants and regions, backups); every API error now leaves the server with a fix (`ServerFixes` where errors are sent, which also covers the modules' routes); `ServerFixesTest` fails when a new error other than an input check leaves its fix out.
 - **E5** cli and runner. **Done 13 Nov 2026**: 148 without a fix and 6 passing `null` (Studio's server, workspace, triggers, Control Room link, database and region commands, release signing, the runner and expressions) have their own; `CommandFixesTest` covers cli and runner too.
-- **E6** low-code, document automation, insights, governance: 133.
-- **E7** agent, sdk, packages and the other modules: the rest.
+- **E6** the modules. **Done 13 Nov 2026**: every module error that is not an input check has its own fix (knowledge bases, skills, ideas, Document Automation, production approval, dashboards, API tasks, Git, MCP, apps and data store, chat, workflows, pool scaling); input checks get the API's fallback.
+- **E7** the runner service (agent), SDK, vendor tools, conversation and the JSON adapter. **Done 13 Nov 2026**: their errors have their own fix. `CommandFixesTest` now guards every module and service (159 fixes in E6 and E7).
 - **E8** the 160 plain Java exceptions.
 - **E9** the error catalogue and the major/minor notice component.
 

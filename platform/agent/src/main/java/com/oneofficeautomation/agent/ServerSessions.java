@@ -40,7 +40,7 @@ public final class ServerSessions {
 
     /** The loopback address for the i-th robot account (0-based): 127.0.0.2 onwards. */
     static String address(int i) {
-        if (i < 0 || i > 250) throw new OoaException("AGENT.BAD_INPUT", "At most 250 sessions");
+        if (i < 0 || i > 250) throw new OoaException("AGENT.BAD_INPUT", "At most 250 sessions", "Set up at most 250 sessions.");
         return "127.0.0." + (i + 2);
     }
 
@@ -68,19 +68,19 @@ public final class ServerSessions {
 
     /** Opens the session of one robot account when it is not open: saves its credential for its address, then connects. */
     static String open(String user, String address, String password, int width, int height) throws IOException {
-        if (!user.matches("[A-Za-z0-9._\\-]{1,64}(\\\\[A-Za-z0-9._\\-]{1,104})?")) throw new OoaException("AGENT.BAD_INPUT", "Not an account name: " + user);
+        if (!user.matches("[A-Za-z0-9._\\-]{1,64}(\\\\[A-Za-z0-9._\\-]{1,104})?")) throw new OoaException("AGENT.BAD_INPUT", "Not an account name: " + user, "Write the account as DOMAIN\\name or name.");
         Object[] k = exec.run(List.of("cmdkey", "/generic:TERMSRV/" + address, "/user:" + user, "/pass:" + password));
-        if ((int) k[0] != 0) throw new OoaException("AGENT.SESSION_FAILED", "Windows did not keep the credential for " + user + ": " + String.valueOf(k[1]).strip());
+        if ((int) k[0] != 0) throw new OoaException("AGENT.SESSION_FAILED", "Windows did not keep the credential for " + user + ": " + String.valueOf(k[1]).strip(), "Run the command as an administrator; check the account and password.");
         launch.start(List.of("mstsc", "/v:" + address, "/w:" + width, "/h:" + height));   // runs on; not waited for
         return "Opening the session of " + user + " (" + address + ")";
     }
 
     /** ooa agent sessions --users a,b [--password-env-prefix P] [--width W --height H] [--watch] [--check]. */
     public static int run(Map<String, String> o, java.io.PrintStream out) throws IOException, InterruptedException {
-        if (!DesktopSession.WINDOWS) throw new OoaException("SYSTEM.WINDOWS_ONLY", "Server sessions are for Windows Server runners");
+        if (!DesktopSession.WINDOWS) throw new OoaException("SYSTEM.WINDOWS_ONLY", "Server sessions are for Windows Server runners", "Run this on a Windows runner.");
         List<String> users = new ArrayList<>();
         for (String u : String.valueOf(o.getOrDefault("users", "")).split("[,;\\s]+")) if (!u.isBlank()) users.add(u.strip());
-        if (users.isEmpty()) throw new OoaException("AGENT.BAD_INPUT", "Name the robot accounts with --users robot1,robot2");
+        if (users.isEmpty()) throw new OoaException("AGENT.BAD_INPUT", "Name the robot accounts with --users robot1,robot2", "Name the robot accounts with --users robot1,robot2.");
         String prefix = o.getOrDefault("password-env-prefix", "OOA_SESSION_PW_");
         int w = Integer.parseInt(o.getOrDefault("width", "1920")), h = Integer.parseInt(o.getOrDefault("height", "1080"));
         boolean check = o.containsKey("check"), watch = o.containsKey("watch");

@@ -61,19 +61,19 @@ final class Updater {
     static Path stage(Path lib, Source source) throws Exception {
         Map<String, Object> m = source.manifest();
         List<Map<String, Object>> files = (List<Map<String, Object>>) m.get("files");
-        if (files == null || files.isEmpty()) throw new OoaException("AGENT.UPDATE", "One CommandCenter sent an empty file list");
+        if (files == null || files.isEmpty()) throw new OoaException("AGENT.UPDATE", "One CommandCenter sent an empty file list", "Try the update again later; if it keeps failing, install the runner again from One CommandCenter.");
         Path target = lib.getParent().resolve("update").resolve("lib");
         if (Files.exists(target.getParent())) deleteTree(target.getParent());
         Files.createDirectories(target);
         for (Map<String, Object> f : files) {
             String name = (String) f.get("name"), sha = (String) f.get("sha256");
-            if (!name.matches("[A-Za-z0-9._+-]+\\.jar")) throw new OoaException("AGENT.UPDATE", "Unexpected file name " + name);
+            if (!name.matches("[A-Za-z0-9._+-]+\\.jar")) throw new OoaException("AGENT.UPDATE", "Unexpected file name " + name, "Try the update again later; if it keeps failing, install the runner again from One CommandCenter.");
             Path mine = lib.resolve(name);
             byte[] content = Files.exists(mine) && sha256(Files.readAllBytes(mine)).equals(sha) ? Files.readAllBytes(mine) : source.file(name);
-            if (!sha256(content).equals(sha)) { deleteTree(target.getParent()); throw new OoaException("AGENT.UPDATE", "The downloaded " + name + " does not match its checksum; update stopped"); }
+            if (!sha256(content).equals(sha)) { deleteTree(target.getParent()); throw new OoaException("AGENT.UPDATE", "The downloaded " + name + " does not match its checksum; update stopped", "Try the update again later; if it keeps failing, install the runner again from One CommandCenter."); }
             Files.write(target.resolve(name), content);
         }
-        if (!String.valueOf(m.get("build")).equals(build(target))) { deleteTree(target.getParent()); throw new OoaException("AGENT.UPDATE", "The staged files do not make the announced build"); }
+        if (!String.valueOf(m.get("build")).equals(build(target))) { deleteTree(target.getParent()); throw new OoaException("AGENT.UPDATE", "The staged files do not make the announced build", "Try the update again later; if it keeps failing, install the runner again from One CommandCenter."); }
         return target;
     }
 

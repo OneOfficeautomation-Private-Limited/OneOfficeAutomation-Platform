@@ -48,7 +48,7 @@ public final class ToolkitJar {
     /** Loads the toolkit class from the jar file in a class loader of its own (the SDK comes from the parent). */
     public static Loaded load(Path jarFile, ClassLoader parent) {
         byte[] bytes;
-        try { bytes = Files.readAllBytes(jarFile); } catch (IOException e) { throw new OoaException("PKG.BAD_JAR", "Cannot read " + jarFile + ": " + e.getMessage()); }
+        try { bytes = Files.readAllBytes(jarFile); } catch (IOException e) { throw new OoaException("PKG.BAD_JAR", "Cannot read " + jarFile + ": " + e.getMessage(), "Check that the file is the toolkit's jar as its publisher made it."); }
         Map<String, Object> d = descriptor(bytes);
         String cls = String.valueOf(d.get("class"));
         try {
@@ -73,7 +73,7 @@ public final class ToolkitJar {
             try (URLClassLoader loader = new URLClassLoader(new URL[]{tmp.toUri().toURL()}, ToolkitJar.class.getClassLoader())) {
                 sig = PackageSigning.sign(Class.forName(className, true, loader), key);
             } catch (ClassNotFoundException e) {
-                throw new OoaException("PKG.BAD_JAR", "The class " + className + " is not in the jar");
+                throw new OoaException("PKG.BAD_JAR", "The class " + className + " is not in the jar", "Check that the file is the toolkit's jar as its publisher made it.");
             }
             Map<String, Object> d = new LinkedHashMap<>(Map.of("class", className));
             d.putAll(sig.toMap());
@@ -118,10 +118,10 @@ public final class ToolkitJar {
     /** Reads a key file keygen wrote. */
     public static PackageSigning.PublisherKey readKey(Path file) throws IOException {
         List<String> l = Files.readAllLines(file).stream().map(String::trim).filter(s -> !s.isEmpty()).toList();
-        if (l.size() < 3) throw new OoaException("PKG.BAD_KEY", file + " is not a publisher key file");
+        if (l.size() < 3) throw new OoaException("PKG.BAD_KEY", file + " is not a publisher key file", "Use the publisher's key file as ooa toolkit key made it.");
         try {
             PrivateKey pk = KeyFactory.getInstance("Ed25519").generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(l.get(1))));
             return new PackageSigning.PublisherKey(l.get(0), pk, publicKey(l.get(2)));
-        } catch (GeneralSecurityException | IllegalArgumentException e) { throw new OoaException("PKG.BAD_KEY", file + " is not a publisher key file"); }
+        } catch (GeneralSecurityException | IllegalArgumentException e) { throw new OoaException("PKG.BAD_KEY", file + " is not a publisher key file", "Use the publisher's key file as ooa toolkit key made it."); }
     }
 }

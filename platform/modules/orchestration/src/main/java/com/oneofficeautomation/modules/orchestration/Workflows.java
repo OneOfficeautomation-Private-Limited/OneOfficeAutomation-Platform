@@ -103,7 +103,7 @@ public final class Workflows implements ModuleContext.WorkflowTasks {
         Map<String, Object> c = ctx.agentContent(path, "production");
         Map<String, Object> def = (Map<String, Object>) c.get("flow");
         List<Map<String, Object>> st = stages(def);
-        if (st.isEmpty()) throw new OoaException("WF.EMPTY", "The workflow has no stages");
+        if (st.isEmpty()) throw new OoaException("WF.EMPTY", "The workflow has no stages", "Add at least one stage to the workflow.");
         Map<String, Object> d = new LinkedHashMap<>(data == null ? Map.of() : data);
         if (def.get("start_form") instanceof String sf) d.putAll(ModuleContext.checkAnswers((Map<String, Object>) ctx.agentContent(sf, "production").get("flow"), d));
         String ref = reference == null || reference.isBlank() ? null : reference.trim();
@@ -184,7 +184,7 @@ public final class Workflows implements ModuleContext.WorkflowTasks {
                     case "bot" -> {
                         Map<String, Object> inputs = s.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) Expressions.resolve(in, n -> lookup(data, n)) : new LinkedHashMap<>();
                         Map<String, Object> starter = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", wf.get("started_by"));
-                        if (starter == null) throw new OoaException("WF.STARTER_DISABLED", "The person who started the workflow is disabled");
+                        if (starter == null) throw new OoaException("WF.STARTER_DISABLED", "The person who started the workflow is disabled", "Ask an administrator to enable the person who started it, or start the workflow again.");
                         String pool = s.get("pool_id") instanceof String p && !p.isBlank() ? p : null;
                         String device = pool == null ? ctx.onlineRunner() : null;
                         if (device == null && pool == null) {
@@ -242,7 +242,7 @@ public final class Workflows implements ModuleContext.WorkflowTasks {
                         history(wf, h, sid, "notified", sent);
                         next = after(st, s);
                     }
-                    default -> throw new OoaException("WF.BAD_STAGE", "Unknown stage type " + type);
+                    default -> throw new OoaException("WF.BAD_STAGE", "Unknown stage type " + type, "Update One CommandCenter; the workflow uses a stage it does not know.");
                 }
             } catch (OoaException e) {
                 history(wf, h, sid, "failed", Map.of("code", e.code(), "message", e.getMessage()));
@@ -328,7 +328,7 @@ public final class Workflows implements ModuleContext.WorkflowTasks {
         Map<String, Object> wf = db.one("SELECT * FROM workflow_runs WHERE id = ?", wfId);
         if (wf == null) throw notFound("Workflow run");
         if (!by.username().equals(wf.get("started_by"))) ctx.require(by, "runs.stop", "cancel workflows");
-        if (!Set.of("running", "waiting").contains(String.valueOf(wf.get("status")))) throw new OoaException("CR.CONFLICT", "The workflow run has already ended");
+        if (!Set.of("running", "waiting").contains(String.valueOf(wf.get("status")))) throw new OoaException("CR.CONFLICT", "The workflow run has already ended", "Reload the page; the workflow run has ended.");
         @SuppressWarnings("unchecked") Map<String, Object> data = (Map<String, Object>) JsonLite.parse((String) wf.get("data"));
         if (data.get("_run") instanceof String rid) db.update("UPDATE runs SET cancel_requested = TRUE WHERE id = ? AND status IN ('queued', 'running')", rid);
         db.update("UPDATE runs SET status = 'stopped', finished = ? WHERE source = ? AND status = 'queued'", now(), "workflow:" + wfId);

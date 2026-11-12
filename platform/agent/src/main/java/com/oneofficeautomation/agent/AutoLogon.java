@@ -67,8 +67,8 @@ public final class AutoLogon {
     }
 
     private static OoaException denied(int winError) {
-        return winError == 5 ? new OoaException("AGENT.NOT_ADMIN", "Windows refused: run this from a Command Prompt or PowerShell opened as administrator")
-                : new OoaException("AGENT.AUTOLOGON_FAILED", "Windows refused the change (error " + winError + ")");
+        return winError == 5 ? new OoaException("AGENT.NOT_ADMIN", "Windows refused: run this from a Command Prompt or PowerShell opened as administrator", "Open Command Prompt or PowerShell with Run as administrator and run the command again.")
+                : new OoaException("AGENT.AUTOLOGON_FAILED", "Windows refused the change (error " + winError + ")", "Run the command as an administrator; check the account and password.");
     }
 
     /** Stores the password as the LSA secret, or removes it (password null). */
@@ -95,18 +95,18 @@ public final class AutoLogon {
 
     /** The user name as Windows wants it: NAME, or DOMAIN\NAME split into domain and name; names with odd characters refused. */
     static String[] account(String user, String domain) {
-        if (user == null || user.isBlank()) throw new OoaException("AGENT.BAD_INPUT", "Give the Windows user with --user");
+        if (user == null || user.isBlank()) throw new OoaException("AGENT.BAD_INPUT", "Give the Windows user with --user", "Give the Windows user with --user.");
         String u = user.strip(), d = domain == null ? "" : domain.strip();
         int slash = u.indexOf('\\');
         if (slash > 0) { d = u.substring(0, slash); u = u.substring(slash + 1); }
         if (!u.matches("[^\\\\/\\[\\]:;|=,+*?<>\"@]{1,104}") || !d.matches("[A-Za-z0-9.\\-]{0,255}"))
-            throw new OoaException("AGENT.BAD_INPUT", "Not a Windows account name: " + user);
+            throw new OoaException("AGENT.BAD_INPUT", "Not a Windows account name: " + user, "Write the account as DOMAIN\\name or name.");
         return new String[]{d, u};
     }
 
     /** ooa agent autologon: --status, --off, or --user NAME [--domain D] --password-env VAR. */
     public static int run(Map<String, String> o, java.io.PrintStream out) {
-        if (!DesktopSession.WINDOWS) throw new OoaException("SYSTEM.WINDOWS_ONLY", "Automatic sign-in is for Windows runners");
+        if (!DesktopSession.WINDOWS) throw new OoaException("SYSTEM.WINDOWS_ONLY", "Automatic sign-in is for Windows runners", "Run this on a Windows runner.");
         if (o.containsKey("status")) {
             String on = read("AutoAdminLogon"), user = read("DefaultUserName"), dom = read("DefaultDomainName");
             boolean plain = read(SECRET) != null;
@@ -126,7 +126,7 @@ public final class AutoLogon {
         if (var == null || var.isBlank()) throw new OoaException("AGENT.BAD_INPUT", "Give the name of an environment variable holding the password with --password-env",
                 "The password is never typed on the command line, where it would stay in the history.");
         String pw = System.getenv(var);
-        if (pw == null || pw.isEmpty()) throw new OoaException("AGENT.BAD_INPUT", "The environment variable " + var + " is empty");
+        if (pw == null || pw.isEmpty()) throw new OoaException("AGENT.BAD_INPUT", "The environment variable " + var + " is empty", "Set the environment variable, then run the command again.");
         try {
             storeSecret(pw);
         } catch (com.sun.jna.platform.win32.Win32Exception e) { throw denied(e.getErrorCode()); }

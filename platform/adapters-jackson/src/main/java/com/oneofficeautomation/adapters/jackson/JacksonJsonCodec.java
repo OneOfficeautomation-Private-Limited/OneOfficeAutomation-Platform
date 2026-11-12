@@ -33,7 +33,7 @@ public final class JacksonJsonCodec implements JsonCodec {
         try {
             Object v = Values.toJsonable(value);
             return pretty ? MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(v) : MAPPER.writeValueAsString(v);
-        } catch (JsonProcessingException e) { throw new OoaException("JSON.WRITE_FAILED", e.getOriginalMessage()); }
+        } catch (JsonProcessingException e) { throw new OoaException("JSON.WRITE_FAILED", e.getOriginalMessage(), "Check the value; it holds something that cannot be written as JSON."); }
     }
 
     static Object normalise(Object v) {

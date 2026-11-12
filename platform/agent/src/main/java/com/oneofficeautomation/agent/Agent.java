@@ -119,7 +119,7 @@ public final class Agent {
      */
     @SuppressWarnings("unchecked")
     public static Map<String, Object> network(Path configFile, String proxy, String proxyUser, String proxyPassword, Path ca) throws IOException {
-        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")");
+        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")", "Register the runner first: ooa agent register --url <One CommandCenter address> --key <registration key>.");
         Map<String, Object> cfg = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(configFile)));
         Network now = Network.from(cfg);
         Path keptCa = now.ca();
@@ -141,8 +141,8 @@ public final class Agent {
      */
     @SuppressWarnings("unchecked")
     public static String moveTo(Path configFile, String url, Path ca) throws IOException {
-        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")");
-        if (url == null || !url.matches("(?i)https?://[^\\s/]+.*")) throw new OoaException("AGENT.BAD_URL", "One CommandCenter address starts with https:// (or http://)");
+        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")", "Register the runner first: ooa agent register --url <One CommandCenter address> --key <registration key>.");
+        if (url == null || !url.matches("(?i)https?://[^\\s/]+.*")) throw new OoaException("AGENT.BAD_URL", "One CommandCenter address starts with https:// (or http://)", "Give One CommandCenter's address starting with https:// (or http://).");
         Map<String, Object> cfg = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(configFile)));
         Network now = Network.from(cfg);
         Path newCa = null;

@@ -42,6 +42,26 @@ class CommandFixesTest {
         assertTrue(missing.isEmpty(), "Command errors without a suggested fix (give each a third argument saying what to do):\n" + String.join("\n", missing));
     }
 
+    /** E6 and E7: the modules, the runner service, the SDK and the vendor tools; input checks get the API's fallback. */
+    @Test
+    void everyModuleAndServiceErrorCarriesItsOwnFix() throws IOException {
+        List<String> missing = new ArrayList<>();
+        for (String root : List.of("modules", "agent", "sdk", "adapters-jackson", "conversation", "vendor-tools"))
+        try (Stream<Path> files = Files.walk(ROOT.resolve(root))) {
+            for (Path p : files.filter(f -> f.toString().endsWith(".java") && f.toString().replace('\\', '/').contains("/src/main/")).toList()) {
+                String s = Files.readString(p);
+                Matcher m = NEW.matcher(s);
+                while (m.find()) {
+                    List<String> args = args(s, m.end());
+                    boolean noFix = args.size() < 3 || args.get(2).strip().equals("null");
+                    if (noFix && !args.get(0).strip().equals("\"CR.BAD_INPUT\""))
+                        missing.add(ROOT.relativize(p) + ":" + (s.substring(0, m.start()).split("\n", -1).length) + " " + args.get(0).strip());
+                }
+            }
+        }
+        assertTrue(missing.isEmpty(), "Errors without a suggested fix (give each a third argument saying what to do):\n" + String.join("\n", missing));
+    }
+
     @Test
     void anyOtherCommandErrorGetsTheFixForItsCode() {
         assertEquals(CommandFixes.forCode("EXCEL.IO_ERROR"), new ActionException("EXCEL.IO_ERROR", "Cannot read a.xlsx").suggestedFix());

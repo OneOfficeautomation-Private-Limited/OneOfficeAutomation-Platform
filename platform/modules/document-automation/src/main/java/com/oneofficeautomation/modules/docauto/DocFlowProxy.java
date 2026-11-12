@@ -102,7 +102,7 @@ public final class DocFlowProxy {
             ctx.sendJson(ex, 200, version());
             return;
         }
-        if (!ROUTES.matcher(route).matches() || route.contains("..")) throw new OoaException("CR.NOT_FOUND", "Not found");
+        if (!ROUTES.matcher(route).matches() || route.contains("..")) throw new OoaException("CR.NOT_FOUND", "Not found", "Reload the page and choose it again; it may have been renamed, moved or deleted.");
         requirePermission(u, method, route);   // before the upload is read
         byte[] in = method.equals("GET") || method.equals("DELETE") ? null : body(ex);
         Map<String, String> headers = new HashMap<>();
@@ -128,7 +128,7 @@ public final class DocFlowProxy {
             try { parsed = JsonLite.parse(new String(body, StandardCharsets.UTF_8)); } catch (IllegalArgumentException e) { parsed = null; }
             if (status >= 300) {
                 Object msg = parsed instanceof Map<?, ?> m ? (m.get("message") != null ? m.get("message") : m.get("detail")) : null;
-                throw new OoaException(status == 404 ? "CR.NOT_FOUND" : "DOCS.REFUSED", "Document Automation refused it: " + (msg == null ? "HTTP " + status : msg));
+                throw new OoaException(status == 404 ? "CR.NOT_FOUND" : "DOCS.REFUSED", "Document Automation refused it: " + (msg == null ? "HTTP " + status : msg), "Reload the page and choose it again; it may have been renamed, moved or deleted.");
             }
             return parsed;
         }
@@ -208,7 +208,7 @@ public final class DocFlowProxy {
         if (in != null && method.equals("POST") && TESTSET_DOC.matcher(route).matches()) {
             try { if (JsonLite.parse(new String(in, StandardCharsets.UTF_8)) instanceof Map<?, ?> b && b.get("documentId") != null) docId = String.valueOf(b.get("documentId")); }
             catch (IllegalArgumentException ignored) { }
-            if (docId != null && !docId.matches("[A-Za-z0-9_-]+")) throw new OoaException("CR.NOT_FOUND", "Not found");
+            if (docId != null && !docId.matches("[A-Za-z0-9_-]+")) throw new OoaException("CR.NOT_FOUND", "Not found", "Reload the page and choose it again; it may have been renamed, moved or deleted.");
         }
         if (!listing && !flow && docId == null && newFolder == null) return null;
         Map<String, String> folders = processFolders();
@@ -269,7 +269,7 @@ public final class DocFlowProxy {
                     "Check that DocFlow is running (on Windows: the OneOffice DocFlow service, or windows\\start.bat), and the address in Administration > Settings > Document Automation.", true, Map.of());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new OoaException("DOCS.UNAVAILABLE", "Interrupted");
+            throw new OoaException("DOCS.UNAVAILABLE", "Interrupted", "Try again; if it keeps happening, an administrator can look in the server log.");
         }
         if (r.statusCode() == 401) throw new OoaException("DOCS.TOKEN", "The Document Automation service refused the Command Center's token",
                 "Put the same token in DocFlow (DOCAUTO_API_TOKEN) and in the vault credential named by Settings > Document Automation.");
@@ -492,7 +492,7 @@ public final class DocFlowProxy {
         HttpResponse<byte[]> r = send("POST", "df/flows/" + java.net.URLEncoder.encode(processId, StandardCharsets.UTF_8) + "/documents", "source=email&requireLive=true",
                 multipart(boundary, a.name(), a.contentType(), a.data()), Map.of("Content-Type", "multipart/form-data; boundary=" + boundary),
                 "Email from " + String.valueOf(msg.getOrDefault("from", "")).replaceAll("[\\r\\n]", " "));
-        if (r.statusCode() >= 300) throw new OoaException("DOCS.EMAIL", "DocFlow refused " + a.name() + " (HTTP " + r.statusCode() + ")");
+        if (r.statusCode() >= 300) throw new OoaException("DOCS.EMAIL", "DocFlow refused " + a.name() + " (HTTP " + r.statusCode() + ")", "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
     }
 
     /** One file as the multipart form Add documents sends (field "files"). */
@@ -517,10 +517,10 @@ public final class DocFlowProxy {
     @SuppressWarnings("unchecked")
     Map<String, Object> fromBot(HttpExchange ex, Map<String, Object> device, Map<String, String> q) throws IOException {
         Map<String, Object> run = ctx.runOfDevice(device, q.get("run_id"));
-        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can send documents");
+        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can send documents", "Use this from a step of a running agent.");
         String by = (String) (run.get("run_as") != null ? run.get("run_as") : run.get("requested_by"));
         Map<String, Object> user = ctx.db().one("SELECT id, username, role, display_name FROM users WHERE username = ? AND enabled = TRUE", by);
-        if (user == null) throw new OoaException("CR.FORBIDDEN", "The run's user " + by + " is not active");
+        if (user == null) throw new OoaException("CR.FORBIDDEN", "The run's user " + by + " is not active", "Ask an administrator to enable the run's user, or run the agent as another user.");
         ctx.require(new User((String) user.get("id"), by, (String) user.get("role"), (String) user.get("display_name"), false), "docs.view", "send documents to Document Automation");
         String process = String.valueOf(q.getOrDefault("process", "")).trim();
         HttpResponse<byte[]> flows = send("GET", "df/flows", null, null, null, "Command Center");
@@ -537,7 +537,7 @@ public final class DocFlowProxy {
         Object parsed = JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8));
         if (r.statusCode() >= 300) {
             Object msg = parsed instanceof Map<?, ?> m ? (m.get("message") != null ? m.get("message") : m.get("detail")) : null;
-            throw new OoaException("DOCS.REFUSED", "Document Automation refused the document: " + (msg == null ? "HTTP " + r.statusCode() : msg));
+            throw new OoaException("DOCS.REFUSED", "Document Automation refused the document: " + (msg == null ? "HTTP " + r.statusCode() : msg), "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
         }
         List<Object> docs = (List<Object>) ((Map<String, Object>) parsed).get("documents");
         Map<String, Object> d = docs.isEmpty() ? Map.of() : (Map<String, Object>) docs.get(0);
@@ -575,7 +575,7 @@ public final class DocFlowProxy {
     Map<String, Object> resultsForBot(HttpExchange ex, Map<String, Object> device, Map<String, String> q) throws IOException {
         Map<String, Object> b = ctx.jsonBody(ex);
         Map<String, Object> run = ctx.runOfDevice(device, String.valueOf(b.get("run_id")));
-        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can read documents");
+        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can read documents", "Use this from a step of a running agent.");
         User user = runUser(run);
         ctx.require(user, "docs.view", "read Document Automation results");
         String collector = b.get("collector") instanceof String c && !c.isBlank() ? c.strip() : "default";
@@ -605,7 +605,7 @@ public final class DocFlowProxy {
                     taken.add(String.valueOf(r.get("document_id")));
                 HttpResponse<byte[]> r = send("GET", "df/flows/" + java.net.URLEncoder.encode(String.valueOf(flow.get("id")), StandardCharsets.UTF_8) + "/documents",
                         "limit=500", null, null, "Command Center");
-                if (r.statusCode() != 200) throw new OoaException("DOCS.REFUSED", "Document Automation did not list the documents: HTTP " + r.statusCode());
+                if (r.statusCode() != 200) throw new OoaException("DOCS.REFUSED", "Document Automation did not list the documents: HTTP " + r.statusCode(), "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
                 List<Object> rows = new ArrayList<>();
                 for (Object o : (List<Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8))) {
                     Map<String, Object> d = (Map<String, Object>) o;
@@ -652,7 +652,7 @@ public final class DocFlowProxy {
     private User runUser(Map<String, Object> run) {
         String by = (String) (run.get("run_as") != null ? run.get("run_as") : run.get("requested_by"));
         Map<String, Object> user = ctx.db().one("SELECT id, username, role, display_name FROM users WHERE username = ? AND enabled = TRUE", by);
-        if (user == null) throw new OoaException("CR.FORBIDDEN", "The run's user " + by + " is not active");
+        if (user == null) throw new OoaException("CR.FORBIDDEN", "The run's user " + by + " is not active", "Ask an administrator to enable the run's user, or run the agent as another user.");
         return new User((String) user.get("id"), by, (String) user.get("role"), (String) user.get("display_name"), false);
     }
 
@@ -677,7 +677,7 @@ public final class DocFlowProxy {
         HttpResponse<byte[]> r = send("GET", "df/documents/" + id, null, null, null, "Command Center");
         if (r.statusCode() == 404) throw new OoaException("CR.NOT_FOUND", "No document '" + id + "' in Document Automation", "Use the document id that Send document to process gave.");
         if (r.statusCode() != 200 || !(JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8)) instanceof Map<?, ?> m))
-            throw new OoaException("DOCS.REFUSED", "Document Automation did not give the document: HTTP " + r.statusCode());
+            throw new OoaException("DOCS.REFUSED", "Document Automation did not give the document: HTTP " + r.statusCode(), "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.");
         return (Map<String, Object>) m;
     }
 
@@ -834,9 +834,9 @@ public final class DocFlowProxy {
         String auth = ex.getRequestHeaders().getFirst("Authorization");
         String token = token();
         if (token.isEmpty() || auth == null || !MessageDigest.isEqual(auth.getBytes(StandardCharsets.UTF_8), ("Bearer " + token).getBytes(StandardCharsets.UTF_8)))
-            throw new OoaException("CR.UNAUTHENTICATED", "Not the Document Automation service", null);
+            throw new OoaException("CR.UNAUTHENTICATED", "Not the Document Automation service", "Check the Document Automation token in Administration > Settings > Document Automation.");
         String t = ex.getRequestHeaders().getFirst("X-OOA-Tenant");
-        if (t == null || !tenant().equals(java.net.URLDecoder.decode(t, StandardCharsets.UTF_8))) throw new OoaException("CR.FORBIDDEN", "Another tenant's process");
+        if (t == null || !tenant().equals(java.net.URLDecoder.decode(t, StandardCharsets.UTF_8))) throw new OoaException("CR.FORBIDDEN", "Another tenant's process", "Use a process of your own organisation.");
     }
 
     // ------------------------------------------------------------------ document events (triggers "On Document Automation")
@@ -929,7 +929,7 @@ public final class DocFlowProxy {
         Map<String, Object> out = new LinkedHashMap<>();
         for (String k : List.of("process", "doc_type")) {
             String v = str(request, k);
-            if (v != null && v.length() > 200) throw new OoaException("CR.BAD_TRIGGER", k + " has at most 200 characters");
+            if (v != null && v.length() > 200) throw new OoaException("CR.BAD_TRIGGER", k + " has at most 200 characters", "Shorten the value the message names to 200 characters or fewer.");
             if (v != null) out.put(k, v);
         }
         return out;

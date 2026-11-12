@@ -111,7 +111,7 @@ public final class Conversation {
         return List.copyOf(s.history);
     }
 
-    private static OoaException notFound(String sessionId) { return new OoaException("CR.NOT_FOUND", "Chat " + sessionId + " not found"); }
+    private static OoaException notFound(String sessionId) { return new OoaException("CR.NOT_FOUND", "Chat " + sessionId + " not found", "Start a new chat; this one has ended."); }
 
     /** One lock per chat on this node; the stored copy is read fresh under it, so the host's store is the truth. */
     private static Object lock(String id) { return ("ooa.chat:" + id).intern(); }

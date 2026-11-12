@@ -115,7 +115,7 @@ public final class DataStore {
         if (desc != null && desc.length() > 500) throw new OoaException("CR.BAD_INPUT", "The description is up to 500 characters");
         List<Map<String, Object>> fs = fields(b.get("fields"));
         if (db.one("SELECT id FROM entities WHERE LOWER(name) = ? AND id <> ?", n.toLowerCase(Locale.ROOT), id == null ? "" : id) != null)
-            throw new OoaException("CR.CONFLICT", "An entity is already called '" + n + "'");
+            throw new OoaException("CR.CONFLICT", "An entity is already called '" + n + "'", "Choose another name, or open the one that has it.");
         String eid = id == null ? id("ent") : id;
         if (id == null) db.update("INSERT INTO entities (id, name, folder, description, fields, created, created_by, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?)",
             eid, n, f, desc, JsonLite.write(fs), now(), by.username(), now(), by.username());
@@ -145,28 +145,28 @@ public final class DataStore {
         switch ((String) f.get("type")) {
             case "number" -> {
                 if (v instanceof Number x) return new BigDecimal(x.toString());
-                try { return new BigDecimal(String.valueOf(v).trim()); } catch (NumberFormatException e) { throw new OoaException("DATA.BAD_VALUE", n + " is a number, not '" + v + "'"); }
+                try { return new BigDecimal(String.valueOf(v).trim()); } catch (NumberFormatException e) { throw new OoaException("DATA.BAD_VALUE", n + " is a number, not '" + v + "'", "Give a value of the type the message names."); }
             }
             case "boolean" -> {
                 if (v instanceof Boolean x) return x;
                 String s = String.valueOf(v).trim().toLowerCase(Locale.ROOT);
                 if (List.of("true", "yes", "1").contains(s)) return true;
                 if (List.of("false", "no", "0").contains(s)) return false;
-                throw new OoaException("DATA.BAD_VALUE", n + " is yes or no, not '" + v + "'");
+                throw new OoaException("DATA.BAD_VALUE", n + " is yes or no, not '" + v + "'", "Give a value of the type the message names.");
             }
             case "date" -> {
                 String s = String.valueOf(v).trim();
                 try { return LocalDate.parse(s.length() > 10 ? s.substring(0, 10) : s).toString(); }
-                catch (DateTimeParseException e) { throw new OoaException("DATA.BAD_VALUE", n + " is a date (yyyy-MM-dd), not '" + v + "'"); }
+                catch (DateTimeParseException e) { throw new OoaException("DATA.BAD_VALUE", n + " is a date (yyyy-MM-dd), not '" + v + "'", "Give a value of the type the message names."); }
             }
             case "choice" -> {
                 String s = String.valueOf(v).trim();
-                if (!((List<Object>) f.get("choices")).contains(s)) throw new OoaException("DATA.BAD_VALUE", n + " is one of " + f.get("choices") + ", not '" + s + "'");
+                if (!((List<Object>) f.get("choices")).contains(s)) throw new OoaException("DATA.BAD_VALUE", n + " is one of " + f.get("choices") + ", not '" + s + "'", "Give a value of the type the message names.");
                 return s;
             }
             default -> {
                 String s = v instanceof Map || v instanceof List ? JsonLite.write(v) : String.valueOf(v);
-                if (s.length() > 10_000) throw new OoaException("DATA.BAD_VALUE", n + " is up to 10,000 characters");
+                if (s.length() > 10_000) throw new OoaException("DATA.BAD_VALUE", n + " is up to 10,000 characters", "Give a value of the type the message names.");
                 return s;
             }
         }
@@ -187,13 +187,13 @@ public final class DataStore {
         }
         for (Map<String, Object> f : fs) {
             Object v = data.get(f.get("name"));
-            if (Boolean.TRUE.equals(f.get("required")) && v == null) throw new OoaException("DATA.REQUIRED", "The field " + f.get("name") + " is required");
+            if (Boolean.TRUE.equals(f.get("required")) && v == null) throw new OoaException("DATA.REQUIRED", "The field " + f.get("name") + " is required", "Fill in the field the message names.");
             if (Boolean.TRUE.equals(f.get("unique")) && v != null)
                 for (Map<String, Object> other : all(entity))
                     if (!other.get("id").equals(recordId) && String.valueOf(v).equalsIgnoreCase(String.valueOf(((Map<String, Object>) other.get("data")).get(f.get("name")))))
                         throw new OoaException("DATA.DUPLICATE", "Another record already has " + f.get("name") + " " + v, "Record " + other.get("id"));
         }
-        if (JsonLite.write(data).length() > 100_000) throw new OoaException("DATA.TOO_LARGE", "A record is up to 100,000 characters");
+        if (JsonLite.write(data).length() > 100_000) throw new OoaException("DATA.TOO_LARGE", "A record is up to 100,000 characters", "Store less in one record or file, or put large files in a share.");
         return data;
     }
 
@@ -210,7 +210,7 @@ public final class DataStore {
 
     Map<String, Object> create(Map<String, Object> entity, Map<String, Object> given, String who) {
         if (ctx.count("SELECT COUNT(*) AS n FROM entity_records WHERE entity_id = ?", entity.get("id")) >= MAX_RECORDS)
-            throw new OoaException("DATA.FULL", "The entity " + entity.get("name") + " has " + MAX_RECORDS + " records, the most it can hold");
+            throw new OoaException("DATA.FULL", "The entity " + entity.get("name") + " has " + MAX_RECORDS + " records, the most it can hold", "Delete records you no longer need, or use another entity.");
         String id = id("rec");
         Map<String, Object> data = checked(entity, id, given, null);
         db.update("INSERT INTO entity_records (id, entity_id, data, created, created_by, updated, updated_by) VALUES (?,?,?,?,?,?,?)", id, entity.get("id"), JsonLite.write(data), now(), who, now(), who);
@@ -227,7 +227,7 @@ public final class DataStore {
 
     public Map<String, Object> record(Map<String, Object> entity, String id) {
         Map<String, Object> r = db.one("SELECT id, data, created, created_by, updated, updated_by FROM entity_records WHERE id = ? AND entity_id = ?", id, entity.get("id"));
-        if (r == null) throw new OoaException("DATA.NOT_FOUND", "No record " + id + " in " + entity.get("name"));
+        if (r == null) throw new OoaException("DATA.NOT_FOUND", "No record " + id + " in " + entity.get("name"), "Check the record's id or the file's path; it may have been deleted.");
         Map<String, Object> m = new LinkedHashMap<>(r);
         m.put("data", JsonLite.parse((String) r.get("data")));
         return m;
@@ -254,7 +254,7 @@ public final class DataStore {
                 Map<String, Object> flt = (Map<String, Object>) o;
                 String fn = String.valueOf(flt.get("field"));
                 Map<String, Object> f = byName.get(fn.toLowerCase(Locale.ROOT));
-                if (f == null && !fn.equalsIgnoreCase("id")) throw new OoaException("DATA.NO_FIELD", "The entity " + entity.get("name") + " has no field '" + fn + "'");
+                if (f == null && !fn.equalsIgnoreCase("id")) throw new OoaException("DATA.NO_FIELD", "The entity " + entity.get("name") + " has no field '" + fn + "'", "Use a field the entity has, or add it in Build > Apps > Data.");
                 Object have = f == null ? r.get("id") : d.get(f.get("name"));
                 ok = matches(f, have, String.valueOf(flt.getOrDefault("op", "=")), flt.get("value"));
             }
@@ -262,7 +262,7 @@ public final class DataStore {
         }
         if (sort != null && !sort.isBlank()) {
             Map<String, Object> f = byName.get(sort.toLowerCase(Locale.ROOT));
-            if (f == null) throw new OoaException("DATA.NO_FIELD", "Cannot sort by '" + sort + "': no such field");
+            if (f == null) throw new OoaException("DATA.NO_FIELD", "Cannot sort by '" + sort + "': no such field", "Use a field the entity has, or add it in Build > Apps > Data.");
             Comparator<Map<String, Object>> c = (a, b) -> compare(f, ((Map<String, Object>) a.get("data")).get(f.get("name")), ((Map<String, Object>) b.get("data")).get(f.get("name")));
             hits.sort(desc ? c.reversed() : c);
         }
@@ -360,7 +360,7 @@ public final class DataStore {
         int mb = b.get("max_mb") == null || String.valueOf(b.get("max_mb")).isBlank() ? DEFAULT_MB : (int) Double.parseDouble(String.valueOf(b.get("max_mb")));
         if (mb < 1 || mb > MAX_MB) throw new OoaException("CR.BAD_INPUT", "A file is up to between 1 and " + MAX_MB + " MB");
         if (db.one("SELECT id FROM buckets WHERE LOWER(name) = ? AND id <> ?", n.toLowerCase(Locale.ROOT), id == null ? "" : id) != null)
-            throw new OoaException("CR.CONFLICT", "A bucket is already called '" + n + "'");
+            throw new OoaException("CR.CONFLICT", "A bucket is already called '" + n + "'", "Choose another name, or open the one that has it.");
         String bid = id == null ? id("bkt") : id;
         if (id == null) db.update("INSERT INTO buckets (id, name, folder, description, max_mb, created, created_by) VALUES (?,?,?,?,?,?,?)", bid, n, f, desc, mb, now(), by.username());
         else {
@@ -389,7 +389,7 @@ public final class DataStore {
     /** A file's place in its bucket: parts of letters, digits, spaces and _ . ( ) @ + -, separated by /. */
     static String filePath(Object raw) {
         String p = raw == null ? "" : String.valueOf(raw).trim().replace('\\', '/').replaceAll("^/+", "");
-        if (p.isEmpty() || p.length() > 400) throw new OoaException("DATA.BAD_PATH", "Give the file's path in the bucket (up to 400 characters)");
+        if (p.isEmpty() || p.length() > 400) throw new OoaException("DATA.BAD_PATH", "Give the file's path in the bucket (up to 400 characters)", "Give a path inside the bucket, without .. or a leading /.");
         for (String part : p.split("/")) if (!FILE_PART.matcher(part).matches() || part.equals(".") || part.equals(".."))
             throw new OoaException("DATA.BAD_PATH", "The path '" + p + "' is not allowed", "Use letters, digits, spaces and _ . ( ) @ + -, with / between folders.");
         return p;
@@ -397,7 +397,7 @@ public final class DataStore {
 
     private Path file(Map<String, Object> b, String path) {
         Path base = root.resolve((String) b.get("id")).normalize(), p = base.resolve(filePath(path)).normalize();
-        if (!p.startsWith(base)) throw new OoaException("DATA.BAD_PATH", "The path leaves the bucket");
+        if (!p.startsWith(base)) throw new OoaException("DATA.BAD_PATH", "The path leaves the bucket", "Give a path inside the bucket, without .. or a leading /.");
         return p;
     }
 
@@ -418,7 +418,7 @@ public final class DataStore {
 
     Map<String, Object> put(Map<String, Object> b, String path, byte[] content, boolean overwrite) {
         long max = ((Number) b.get("max_mb")).longValue() * 1024 * 1024;
-        if (content.length > max) throw new OoaException("DATA.TOO_LARGE", "Files in the bucket " + b.get("name") + " are up to " + b.get("max_mb") + " MB");
+        if (content.length > max) throw new OoaException("DATA.TOO_LARGE", "Files in the bucket " + b.get("name") + " are up to " + b.get("max_mb") + " MB", "Store less in one record or file, or put large files in a share.");
         Path p = file(b, path);
         if (!overwrite && Files.exists(p)) throw new OoaException("DATA.EXISTS", "The bucket " + b.get("name") + " already has " + filePath(path), "Turn on Replace, or choose another path.");
         try {
@@ -426,18 +426,18 @@ public final class DataStore {
             Path tmp = p.resolveSibling(p.getFileName() + ".part");
             Files.write(tmp, content);
             Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) { throw new OoaException("DATA.IO", "Cannot save the file: " + e.getMessage(), null, true, null); }
+        } catch (IOException e) { throw new OoaException("DATA.IO", "Cannot save the file: " + e.getMessage(), "Check that the server's data folder has space and that the service account may read and write there.", true, null); }
         return Map.of("path", filePath(path), "bytes", content.length);
     }
 
     byte[] get(Map<String, Object> b, String path) {
         Path p = file(b, path);
-        if (!Files.isRegularFile(p)) throw new OoaException("DATA.NOT_FOUND", "The bucket " + b.get("name") + " has no file " + filePath(path));
-        try { return Files.readAllBytes(p); } catch (IOException e) { throw new OoaException("DATA.IO", "Cannot read the file: " + e.getMessage(), null, true, null); }
+        if (!Files.isRegularFile(p)) throw new OoaException("DATA.NOT_FOUND", "The bucket " + b.get("name") + " has no file " + filePath(path), "Check the record's id or the file's path; it may have been deleted.");
+        try { return Files.readAllBytes(p); } catch (IOException e) { throw new OoaException("DATA.IO", "Cannot read the file: " + e.getMessage(), "Check that the server's data folder has space and that the service account may read and write there.", true, null); }
     }
 
     boolean deleteFile(Map<String, Object> b, String path) {
-        try { return Files.deleteIfExists(file(b, path)); } catch (IOException e) { throw new OoaException("DATA.IO", "Cannot delete the file: " + e.getMessage(), null, true, null); }
+        try { return Files.deleteIfExists(file(b, path)); } catch (IOException e) { throw new OoaException("DATA.IO", "Cannot delete the file: " + e.getMessage(), "Check that the server's data folder has space and that the service account may read and write there.", true, null); }
     }
 
     // console: files
@@ -477,7 +477,7 @@ public final class DataStore {
     @SuppressWarnings("unchecked")
     public Map<String, Object> forRun(Map<String, Object> device, Map<String, Object> body) {
         Map<String, Object> run = ctx.runOfDevice(device, (String) body.get("run_id"));
-        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can use the data store");
+        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can use the data store", "Use this from a step of a running agent.");
         String who = "agent:" + run.get("bot_path") + " for " + (run.get("run_as") != null ? run.get("run_as") : run.get("requested_by"));
         Map<String, Object> r = body.get("request") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         String op = String.valueOf(r.get("op"));

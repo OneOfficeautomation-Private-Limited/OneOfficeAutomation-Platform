@@ -151,7 +151,7 @@ public final class Apps {
                 case "create_record" -> { ctx.require(by, "data.edit", "add data store records from apps"); data.entity(str(a.get("entity"))); }
                 case "add_queue_item" -> {
                     ctx.require(by, "queues.work", "add work items from apps");
-                    if (db.one("SELECT id FROM queues WHERE name = ?", str(a.get("queue"))) == null) throw new OoaException("CR.NOT_FOUND", "No work queue '" + a.get("queue") + "'");
+                    if (db.one("SELECT id FROM queues WHERE name = ?", str(a.get("queue"))) == null) throw new OoaException("CR.NOT_FOUND", "No work queue '" + a.get("queue") + "'", "Check the work queue's name in Manage > Work queues.");
                 }
                 default -> { }
             }
@@ -169,7 +169,7 @@ public final class Apps {
 
     Map<String, Object> app(String id) {
         Map<String, Object> r = db.one("SELECT " + COLS + " FROM apps WHERE id = ?", id);
-        if (r == null) throw new OoaException("CR.NOT_FOUND", "App " + id + " not found");
+        if (r == null) throw new OoaException("CR.NOT_FOUND", "App " + id + " not found", "Reload the page and choose it again; it may have been renamed, moved or deleted.");
         return r;
     }
 
@@ -187,7 +187,7 @@ public final class Apps {
 
     public Map<String, Object> get(User by, String id) {
         Map<String, Object> r = app(id);
-        if (!mayUse(by, r)) throw new OoaException("CR.FORBIDDEN", "This app is not shared with you");
+        if (!mayUse(by, r)) throw new OoaException("CR.FORBIDDEN", "This app is not shared with you", "Ask the app's owner to share it with you.");
         Map<String, Object> m = row(r, true);
         m.put("can_edit", ctx.can(by, "apps.manage"));
         return m;
@@ -204,7 +204,7 @@ public final class Apps {
         List<String> aud = new ArrayList<>();
         if (b.get("audience") instanceof List<?> l) for (Object o : l) { String r = str(o); if (!r.isEmpty() && !aud.contains(r)) aud.add(r); }
         if (db.one("SELECT id FROM apps WHERE LOWER(name) = ? AND id <> ?", name.toLowerCase(Locale.ROOT), id == null ? "" : id) != null)
-            throw new OoaException("CR.CONFLICT", "An app is already called '" + name + "'");
+            throw new OoaException("CR.CONFLICT", "An app is already called '" + name + "'", "Choose another name, or open the one that has it.");
         String aid = id == null ? id("app") : id;
         if (id == null) db.update("INSERT INTO apps (id, name, description, definition, audience, published_by, created, created_by, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
             aid, name, desc, JsonLite.write(def), String.join(",", aud), by.username(), now(), by.username(), now(), by.username());
@@ -231,13 +231,13 @@ public final class Apps {
     private static Map<String, Object> component(Map<String, Object> def, String compId) {
         for (Object po : (List<Object>) def.get("pages")) for (Object co : (List<Object>) ((Map<String, Object>) po).get("components"))
             if (compId.equals(((Map<String, Object>) co).get("id"))) return (Map<String, Object>) co;
-        throw new OoaException("CR.NOT_FOUND", "The app has no component " + compId);
+        throw new OoaException("CR.NOT_FOUND", "The app has no component " + compId, "Reload the page and choose it again; it may have been renamed, moved or deleted.");
     }
 
     /** A button was pressed: its saved action is done with the publisher's rights, with the page's field values. */
     public Map<String, Object> act(User by, String id, Map<String, Object> body, String ip) {
         Map<String, Object> app = app(id);
-        if (!mayUse(by, app)) throw new OoaException("CR.FORBIDDEN", "This app is not shared with you");
+        if (!mayUse(by, app)) throw new OoaException("CR.FORBIDDEN", "This app is not shared with you", "Ask the app's owner to share it with you.");
         return actAs(app, by.username(), by.username(), body, ip);
     }
 
@@ -276,7 +276,7 @@ public final class Apps {
             case "add_queue_item" -> {
                 ctx.require(pub, "queues.work", "add work items from apps");
                 Map<String, Object> q = db.one("SELECT id FROM queues WHERE name = ?", str(a.get("queue")));
-                if (q == null) throw new OoaException("CR.NOT_FOUND", "No work queue '" + a.get("queue") + "'");
+                if (q == null) throw new OoaException("CR.NOT_FOUND", "No work queue '" + a.get("queue") + "'", "Check the work queue's name in Manage > Work queues.");
                 Map<String, Object> added = ctx.addWorkItems(pub, actor, (String) q.get("id"), List.of(fill(a.getOrDefault("data", Map.of()), fields)), ip);
                 result.put("item_id", ((List<Object>) added.get("ids")).get(0));
             }
@@ -293,9 +293,9 @@ public final class Apps {
 
     Map<String, Object> runStatusFor(String id, String owner, String runId) {
         if (db.one("SELECT run_id FROM app_runs WHERE run_id = ? AND app_id = ? AND username = ?", runId, id, owner) == null)
-            throw new OoaException("CR.NOT_FOUND", "Run " + runId + " was not started by you from this app");
+            throw new OoaException("CR.NOT_FOUND", "Run " + runId + " was not started by you from this app", "Check the run in the app's run list; you see only runs you started from it.");
         Map<String, Object> r = db.one("SELECT status, outputs, error FROM runs WHERE id = ?", runId);
-        if (r == null) throw new OoaException("CR.NOT_FOUND", "Run " + runId + " not found");
+        if (r == null) throw new OoaException("CR.NOT_FOUND", "Run " + runId + " not found", "Check the run in the app's run list; you see only runs you started from it.");
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("status", r.get("status"));
         m.put("outputs", r.get("outputs") == null ? Map.of() : JsonLite.parse((String) r.get("outputs")));
@@ -307,7 +307,7 @@ public final class Apps {
     @SuppressWarnings("unchecked")
     public Map<String, Object> records(User by, String id, String compId, String search) {
         Map<String, Object> app = app(id);
-        if (!mayUse(by, app)) throw new OoaException("CR.FORBIDDEN", "This app is not shared with you");
+        if (!mayUse(by, app)) throw new OoaException("CR.FORBIDDEN", "This app is not shared with you", "Ask the app's owner to share it with you.");
         return recordsFor(app, compId, search);
     }
 

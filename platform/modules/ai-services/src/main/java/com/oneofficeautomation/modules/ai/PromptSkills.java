@@ -100,7 +100,7 @@ public final class PromptSkills {
             if (k.get("top_k") != null && (!(k.get("top_k") instanceof Number t) || t.intValue() < 1 || t.intValue() > 20)) throw new OoaException("CR.BAD_INPUT", "knowledge top_k is between 1 and 20");
             if (k.get("query") != null && !(k.get("query") instanceof String)) throw new OoaException("CR.BAD_INPUT", "knowledge query is text");
         }
-        if (JsonLite.write(d).length() > MAX_DEFINITION) throw new OoaException("CR.TOO_LARGE", "A skill is at most " + MAX_DEFINITION + " characters");
+        if (JsonLite.write(d).length() > MAX_DEFINITION) throw new OoaException("CR.TOO_LARGE", "A skill is at most " + MAX_DEFINITION + " characters", "Shorten the skill's instructions.");
     }
 
     /** Creates the skill or saves a new version of it. Only the owner (or someone with skills.all) changes a skill. */

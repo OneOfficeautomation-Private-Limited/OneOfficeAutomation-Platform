@@ -79,9 +79,9 @@ public final class VendorLicenseTools {
         String edition = o.getOrDefault("edition", "Enterprise");
         List<String> features = o.containsKey("features") ? Arrays.stream(o.get("features").split("[,\\s]+")).filter(f -> !f.isBlank()).toList()
                 : edition.equals("Enterprise") ? List.of() : License.EDITION_FEATURES.getOrDefault(edition, List.of());
-        for (String f : features) if (!License.FEATURES.contains(f)) throw new OoaException("LICENSE.BAD_INPUT", "Unknown feature " + f + "; features: " + License.FEATURES);
+        for (String f : features) if (!License.FEATURES.contains(f)) throw new OoaException("LICENSE.BAD_INPUT", "Unknown feature " + f + "; features: " + License.FEATURES, "Correct the value the message names and make the license again.");
         LocalDate expires = LocalDate.parse(o.get("expires"));
-        if (expires.isBefore(LocalDate.now())) throw new OoaException("LICENSE.BAD_INPUT", "The expiry date is in the past");
+        if (expires.isBefore(LocalDate.now())) throw new OoaException("LICENSE.BAD_INPUT", "The expiry date is in the past", "Correct the value the message names and make the license again.");
         String id = o.getOrDefault("id", "LIC-" + LocalDate.now().toString().replace("-", "") + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
         License l = new License(id, o.get("customer"), edition, LocalDate.now(), expires,
             Integer.parseInt(o.getOrDefault("grace-days", "14")), seats, o.getOrDefault("notes", ""), installId,

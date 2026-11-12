@@ -104,9 +104,9 @@ public final class ApiTasks {
         String h = token == null ? "" : ModuleContext.sha256(token);
         if (t == null || !ModuleContext.constantEquals(h, (String) t.get("token_hash"))) {
             ctx.audit("api task", "apitask.call", "apitask", id, null, "denied", ip);
-            throw new OoaException("CR.UNAUTHENTICATED", "Unknown API task or wrong token", null);
+            throw new OoaException("CR.UNAUTHENTICATED", "Unknown API task or wrong token", "Check the API task's address and token in Build > Agent APIs.");
         }
-        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("CR.FORBIDDEN", "This API task is switched off");
+        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("CR.FORBIDDEN", "This API task is switched off", "Switch the API task on in Build > Agent APIs.");
         return t;
     }
 
