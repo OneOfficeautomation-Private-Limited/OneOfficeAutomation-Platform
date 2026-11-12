@@ -33,6 +33,17 @@ public final class DocumentAutomationModule implements CommandCenterModule {
     public String name() { return "Document Automation"; }
     public String version() { return VERSION; }
 
+    /**
+     * The module's own tables. Version 1 (command review D1, 12 Nov 2026): docflow_collected, the documents an agent
+     * marked collected, per collector name (agents sharing a name share the marks), with the process, run and person.
+     */
+    public java.util.List<java.util.List<String>> schema() {
+        return java.util.List.of(java.util.List.of(
+                "CREATE TABLE docflow_collected (document_id VARCHAR(80) NOT NULL, collector VARCHAR(120) NOT NULL, process_id VARCHAR(120), run_id VARCHAR(40), "
+                        + "collected_by VARCHAR(80), collected TIMESTAMP NOT NULL, PRIMARY KEY (document_id, collector))",
+                "CREATE INDEX docflow_collected_process ON docflow_collected (process_id, collector)"));
+    }
+
     public void start(ModuleContext ctx) {
         // its permissions (administrators have them all; the built-in roles named here too)
         ctx.permission("docs.view", "viewer", "bot_runner", "bot_creator");
@@ -57,6 +68,7 @@ public final class DocumentAutomationModule implements CommandCenterModule {
         DocFlowProxy docflow = new DocFlowProxy(ctx);
         ctx.route("docflow", (ex, u, method, route, ip) -> docflow.forward(ex, u, method, route));
         ctx.agentRoute("docflow/documents", docflow::fromBot);
+        ctx.agentRoute("docflow/results", docflow::resultsForBot);
         ctx.callbackRoute("docflow-callback/start-bot", docflow::startBot);
         ctx.callbackRoute("docflow-callback/events", docflow::event);
         ctx.every(Duration.ofSeconds(10), Duration.ofSeconds(20), docflow::syncReviews);

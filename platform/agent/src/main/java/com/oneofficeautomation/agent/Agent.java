@@ -440,6 +440,14 @@ public final class Agent {
                     });
                     case "docflow" -> io.submit(() -> {
                         try {
+                            if (msg.get("op") instanceof String) {
+                                // Get document result, List finished documents, Mark collected (D1): JSON to /api/agent/docflow/results
+                                Map<String, Object> body = new LinkedHashMap<>(msg);
+                                body.remove("type"); body.remove("id");
+                                body.put("run_id", w.runId);
+                                w.send(Map.of("type", "docflow", "id", msg.get("id"), "result", client.post("docflow/results", body)));
+                                return;
+                            }
                             Path file = Path.of(String.valueOf(msg.get("file")));
                             String query = "run_id=" + enc(w.runId) + "&process=" + enc(String.valueOf(msg.get("process"))) + "&wait=" + Boolean.TRUE.equals(msg.get("wait"));
                             Map<String, Object> r = client.postFile("docflow/documents?" + query, file.getFileName().toString(), Files.readAllBytes(file));
