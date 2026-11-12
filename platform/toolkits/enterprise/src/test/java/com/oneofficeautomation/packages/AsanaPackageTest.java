@@ -86,6 +86,16 @@ class AsanaPackageTest {
             fails("ASANA.MISSING_LOCATION", () -> as.createTask(ctx, b, TOKEN, "x", null, null, null, null, null, null, null, null, null));
             fails("ASANA.BAD_USER", () -> as.createTask(ctx, b, TOKEN, "x", PRJ, null, null, null, "not a user", null, null, null, null));
 
+            // K5 (batch 10): project and section by name, found through the workspace's typeahead
+            f.on("GET /api/1.0/workspaces", r -> ok("{\"data\":[{\"gid\":\"" + WS + "\",\"name\":\"Acme\"}]}"))
+             .on("GET /api/1.0/workspaces/" + WS + "/typeahead", r -> ok(q(r).contains("query=Month end close")
+                    ? "{\"data\":[{\"gid\":\"" + PRJ + "\",\"name\":\"Month end close\"},{\"gid\":\"9\",\"name\":\"Month end close (old)\"}]}" : "{\"data\":[]}"))
+             .on("GET /api/1.0/projects/" + PRJ + "/sections", r -> ok("{\"data\":[{\"gid\":\"" + SEC + "\",\"name\":\"To do\"}]}"));
+            as.createTask(ctx, b, TOKEN, "Named", "Month end close", "to do", null, null, null, null, null, null, null);
+            assertEquals(List.of(Map.of("project", PRJ, "section", SEC)), json(f.last("POST", "/api/1.0/tasks"), "data.memberships"));
+            fails("ASANA.NOT_FOUND", () -> as.createTask(ctx, b, TOKEN, "x", "No such project", null, null, null, null, null, null, null, null));
+            fails("ASANA.NOT_FOUND", () -> as.createTask(ctx, b, TOKEN, "x", PRJ, "Done", null, null, null, null, null, null, null));
+
             Map<String, Object> got = as.getTask(ctx, b, TOKEN, TASK);
             assertEquals(false, got.get("completed"));
             Map<?, ?> task = (Map<?, ?>) got.get("task");

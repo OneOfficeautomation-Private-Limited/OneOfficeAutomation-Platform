@@ -61,7 +61,7 @@ class DatabricksPackageTest {
             assertEquals("JSON_ARRAY", b.get("format"));
             assertEquals(List.of(Map.of("name", "region", "value", "EMEA"), Map.of("name", "min", "value", "10", "type", "BIGINT")), b.get("parameters"));
             fails("DATABRICKS.NO_SQL", () -> pkg.executeSql(ctx, f.url(), "w1", "", null, null, null, 10, 10, TOKEN));
-            fails("DATABRICKS.BAD_ID", () -> pkg.executeSql(ctx, f.url(), "w/../1", "SELECT 1", null, null, null, 10, 10, TOKEN));
+            fails("DATABRICKS.NOT_FOUND", () -> pkg.executeSql(ctx, f.url(), "w/../1", "SELECT 1", null, null, null, 10, 10, TOKEN));   // K5: looked up as a name, never put in a path
         }
     }
 
@@ -136,7 +136,7 @@ class DatabricksPackageTest {
             pkg.cancelRun(ctx, f.url(), "555", TOKEN);
             assertEquals(Map.of("run_id", new BigDecimal(555)), f.last("POST", "/api/2.1/jobs/runs/cancel").json());
             fails("DATABRICKS.BAD_ID", () -> pkg.getRun(ctx, f.url(), "abc", TOKEN));
-            fails("DATABRICKS.BAD_ID", () -> pkg.runJob(ctx, f.url(), "1; x", null, false, 0, true, TOKEN));
+            fails("DATABRICKS.NOT_FOUND", () -> pkg.runJob(ctx, f.url(), "1; x", null, false, 0, true, TOKEN));   // K5: a name is looked up
         }
     }
 
@@ -175,6 +175,27 @@ class DatabricksPackageTest {
             assertEquals(starts, f.calls.stream().filter(c -> c.path().endsWith("/start")).count(), "a running cluster is not started again");
             pkg.terminateCluster(ctx, f.url(), "0923-a", TOKEN);
             assertEquals(Map.of("cluster_id", "0923-a"), f.last("POST", "/api/2.0/clusters/delete").json());
+        }
+    }
+
+    /** K5 (batch 10): jobs, clusters and SQL warehouses by name. */
+    @Test void jobsClustersAndWarehousesByName() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("GET /api/2.1/jobs/list", c -> ok(q(c).contains("name=Nightly ETL")
+                    ? "{\"jobs\":[{\"job_id\":42,\"settings\":{\"name\":\"Nightly ETL\"}}]}" : "{\"jobs\":[]}"))
+             .on("POST /api/2.1/jobs/run-now", c -> ok("{\"run_id\":5}"))
+             .on("GET /api/2.1/jobs/runs/get", c -> ok("{\"run_id\":5,\"state\":{\"life_cycle_state\":\"PENDING\"}}"))
+             .on("GET /api/2.0/clusters/list", c -> ok("{\"clusters\":[{\"cluster_id\":\"0923-164208-abcd1234\",\"cluster_name\":\"Shared ETL\"}]}"))
+             .on("GET /api/2.0/clusters/get", c -> ok("{\"state\":\"RUNNING\"}"))
+             .on("GET /api/2.0/sql/warehouses", c -> ok("{\"warehouses\":[{\"id\":\"0123456789abcdef\",\"name\":\"Finance BI\"}]}"));
+            ActionContext ctx = ctx(PackagesTest.tmp());
+            pkg.runJob(ctx, f.url(), "Nightly ETL", null, false, 60, true, TOKEN);
+            assertEquals(new BigDecimal(42), f.last("POST", "/api/2.1/jobs/run-now").json().get("job_id"));
+            assertEquals("RUNNING", pkg.startCluster(ctx, f.url(), "shared etl", true, 60, TOKEN).get("state"));
+            assertEquals("cluster_id=0923-164208-abcd1234", f.last("GET", "/api/2.0/clusters/get").query());
+            assertEquals("0123456789abcdef", DatabricksPackage.warehouseId(ctx, f.url(), TOKEN, "Finance BI"));
+            assertEquals("0123456789abcdef", DatabricksPackage.warehouseId(ctx, f.url(), TOKEN, "0123456789abcdef"));
+            fails("DATABRICKS.NOT_FOUND", () -> pkg.runJob(ctx, f.url(), "Weekly", null, false, 60, true, TOKEN));
         }
     }
 

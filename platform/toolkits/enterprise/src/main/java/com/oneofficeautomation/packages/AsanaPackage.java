@@ -20,7 +20,7 @@ public final class AsanaPackage {
     private static final String DEF_BASE = "\"https://app.asana.com/api/1.0\"";
     private static final String D_TOKEN = "Personal access token or OAuth token from the vault.";
     private static final String D_TASK = "Task id: the long number at the end of the task's link, e.g. 1208000000000001.";
-    private static final String D_PROJECT = "Project id: the long number in the project's link, e.g. 1207000000000001.";
+    private static final String D_PROJECT = "The project: its name, or its id (the long number in its link, e.g. 1207000000000001).";
     private static final String D_WS = "Workspace id, from List workspaces.";
     private static final String D_USER = "User id, an email address, or me for the token's own user.";
     private static final String D_MAX = "Most items to return; pages are read until this many are found.";
@@ -36,6 +36,46 @@ public final class AsanaPackage {
             throw new ActionException(P + ".BAD_ID", "Invalid " + what + " id '" + v + "'", "Use the numeric id from the item's link, e.g. 1208000000000001.");
         return v.strip();
     }
+    // ---------- projects, sections and tags by name (K5, batch 10) ----------
+
+    /** A project by id or name. */
+    static String projectGid(ActionContext ctx, String base, Object token, String v) { return named(ctx, base, token, "project", v); }
+
+    /**
+     * An item by id, or by its exact name (any case) through each workspace's typeahead search, so builders can pick a
+     * project or tag by the name they see; a name found in more than one place must be given as an id.
+     */
+    static String named(ActionContext ctx, String base, Object token, String kind, String v) {
+        if (v == null || v.isBlank()) throw new ActionException(P + ".BAD_ID", "Give the " + kind, "Its name or id.");
+        String t = v.strip();
+        if (GID.matcher(t).matches()) return t;
+        List<String> found = new ArrayList<>();
+        for (Map<String, Object> ws : pages(ctx, base, "/workspaces?opt_fields=name", token, 100))
+            for (Map<String, Object> m : HttpJson.maps(send(HttpJson.req(P, "GET", api(base) + "/workspaces/" + HttpJson.enc(Values.text(ws.get("gid")))
+                    + "/typeahead?" + HttpJson.query(Map.of("resource_type", kind, "query", t, "count", 50))).bearer(token), ctx).map().get("data")))
+                if (t.equalsIgnoreCase(String.valueOf(m.get("name"))) && !found.contains(Values.text(m.get("gid")))) found.add(Values.text(m.get("gid")));
+        if (found.isEmpty()) throw new ActionException(P + ".NOT_FOUND", "No " + kind + " named '" + t + "'", "Check the name, or use its id from its link.");
+        if (found.size() > 1) throw new ActionException(P + ".AMBIGUOUS_NAME", found.size() + " " + kind + "s are named '" + t + "'", "Use the id from its link.");
+        return found.get(0);
+    }
+
+    /** A section by id, by name within the project given, or as Project name/Section name. */
+    static String sectionGid(ActionContext ctx, String base, Object token, String projectGid, String v) {
+        if (v == null || v.isBlank()) throw new ActionException(P + ".BAD_ID", "Give the section", "Its id, or Project name/Section name.");
+        String t = v.strip();
+        if (GID.matcher(t).matches()) return t;
+        String project = projectGid, name = t;
+        if (project == null) {
+            int slash = t.lastIndexOf('/');
+            if (slash <= 0) throw new ActionException(P + ".BAD_ID", "Say which project the section '" + t + "' is in", "Write Project name/Section name, or use the section's id.");
+            project = projectGid(ctx, base, token, t.substring(0, slash));
+            name = t.substring(slash + 1).strip();
+        }
+        for (Map<String, Object> m : pages(ctx, base, "/projects/" + HttpJson.enc(project) + "/sections?opt_fields=name", token, 1000))
+            if (name.equalsIgnoreCase(String.valueOf(m.get("name")))) return Values.text(m.get("gid"));
+        throw new ActionException(P + ".NOT_FOUND", "No section named '" + name + "' in the project", "Check the name (see List sections), or use its id.");
+    }
+
     static String user(String v) {
         if (v == null || !USER.matcher(v.strip()).matches())
             throw new ActionException(P + ".BAD_USER", "Invalid user '" + v + "'", "Use a numeric user id, an email address, or me.");
@@ -144,7 +184,7 @@ public final class AsanaPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project) {
-        Map<String, Object> p = data(ctx, "GET", base, "/projects/" + gid("project", project)
+        Map<String, Object> p = data(ctx, "GET", base, "/projects/" + projectGid(ctx, base, token, project)
                 + "?opt_fields=name,notes,archived,owner.name,team.name,workspace.name,due_on,created_at,modified_at,permalink_url", token, null);
         return Out.of("project", Out.of("gid", p.get("gid"), "name", p.get("name"), "notes", p.get("notes"), "archived", p.get("archived"),
                 "owner", HttpJson.path(p, "owner.name"), "team", HttpJson.path(p, "team.name"), "workspace", HttpJson.path(p, "workspace.name"),
@@ -181,7 +221,7 @@ public final class AsanaPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project) {
-        return result(pages(ctx, base, "/projects/" + gid("project", project) + "/sections?opt_fields=name", token, 1000), "gid", "name");
+        return result(pages(ctx, base, "/projects/" + projectGid(ctx, base, token, project) + "/sections?opt_fields=name", token, 1000), "gid", "name");
     }
 
     @Action(id = "create_section", name = "Create section", category = "Projects", capabilities = "network", description = "Add a section (board column) to a project.",
@@ -192,7 +232,7 @@ public final class AsanaPackage {
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project,
             @Input(name = "name", type = OoaType.STRING, example = "Waiting for approval", description = "Section name.") String secName) {
-        return Out.of("section_id", data(ctx, "POST", base, "/projects/" + gid("project", project) + "/sections", token, Map.of("name", secName)).get("gid"));
+        return Out.of("section_id", data(ctx, "POST", base, "/projects/" + projectGid(ctx, base, token, project) + "/sections", token, Map.of("name", secName)).get("gid"));
     }
 
     // ---------------------------------------------------------------- tasks
@@ -213,7 +253,7 @@ public final class AsanaPackage {
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "name", type = OoaType.STRING, example = "Approve invoice INV-2041", description = "Task name.") String taskName,
             @Input(name = "project_id", type = OoaType.STRING, required = false, description = "Project to add the task to. Give this or workspace_id.") String project,
-            @Input(name = "section_id", type = OoaType.STRING, required = false, description = "Section of the project to place the task in.") String section,
+            @Input(name = "section_id", type = OoaType.STRING, required = false, description = "Section of the project to place the task in: its name or id.") String section,
             @Input(name = "workspace_id", type = OoaType.STRING, required = false, description = "Workspace, when the task belongs to no project.") String ws,
             @Input(name = "notes", type = OoaType.STRING, required = false, description = "Task description.") String notes,
             @Input(name = "assignee", type = OoaType.STRING, required = false, example = "ana@contoso.com", description = D_USER) String assignee,
@@ -231,8 +271,8 @@ public final class AsanaPackage {
         if (hasParent) b.put("parent", gid("parent task", parent));
         if (completed) b.put("completed", true);
         if (hasProject && section != null && !section.isBlank())
-            b.put("memberships", List.of(Map.of("project", gid("project", project), "section", gid("section", section))));
-        else if (hasProject) b.put("projects", List.of(gid("project", project)));
+            b.put("memberships", List.of(Map.of("project", projectGid(ctx, base, token, project), "section", sectionGid(ctx, base, token, projectGid(ctx, base, token, project), section))));
+        else if (hasProject) b.put("projects", List.of(projectGid(ctx, base, token, project)));
         if (ws != null && !ws.isBlank()) b.put("workspace", gid("workspace", ws));
         if (notes != null) b.put("notes", notes);
         if (assignee != null && !assignee.isBlank()) b.put("assignee", user(assignee));
@@ -314,7 +354,7 @@ public final class AsanaPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "project_id", type = OoaType.STRING, required = false, description = "List the tasks of this project.") String project,
-            @Input(name = "section_id", type = OoaType.STRING, required = false, description = "Or list the tasks of this section.") String section,
+            @Input(name = "section_id", type = OoaType.STRING, required = false, description = "Or list the tasks of this section: its id, or Project name/Section name.") String section,
             @Input(name = "assignee", type = OoaType.STRING, required = false, description = "Or list tasks assigned to this user (id, email or me); also needs workspace_id.") String assignee,
             @Input(name = "workspace_id", type = OoaType.STRING, required = false, description = "Workspace, used together with assignee.") String ws,
             @Input(name = "only_open", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out completed tasks.") boolean open,
@@ -322,8 +362,8 @@ public final class AsanaPackage {
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max) {
         String path;
         Map<String, Object> q = new LinkedHashMap<>();
-        if (section != null && !section.isBlank()) path = "/sections/" + gid("section", section) + "/tasks";
-        else if (project != null && !project.isBlank()) path = "/projects/" + gid("project", project) + "/tasks";
+        if (section != null && !section.isBlank()) path = "/sections/" + sectionGid(ctx, base, token, null, section) + "/tasks";
+        else if (project != null && !project.isBlank()) path = "/projects/" + projectGid(ctx, base, token, project) + "/tasks";
         else if (assignee != null && !assignee.isBlank() && ws != null && !ws.isBlank()) {
             path = "/tasks";
             q.put("assignee", user(assignee));
@@ -352,7 +392,7 @@ public final class AsanaPackage {
         Map<String, Object> q = new LinkedHashMap<>();
         if (text != null && !text.isBlank()) q.put("text", text);
         if (assignee != null && !assignee.isBlank()) q.put("assignee.any", user(assignee));
-        if (project != null && !project.isBlank()) q.put("projects.any", gid("project", project));
+        if (project != null && !project.isBlank()) q.put("projects.any", projectGid(ctx, base, token, project));
         if (completed != null) q.put("completed", completed);
         q.put("sort_by", "modified_at");
         q.put("limit", Math.max(1, Math.min(100, max)));
@@ -389,9 +429,9 @@ public final class AsanaPackage {
     public Map<String, Object> addToSection(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "section_id", type = OoaType.STRING, description = "Target section id, from List sections.") String section,
+            @Input(name = "section_id", type = OoaType.STRING, description = "Target section: its id, or Project name/Section name.") String section,
             @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task) {
-        data(ctx, "POST", base, "/sections/" + gid("section", section) + "/addTask", token, Map.of("task", gid("task", task)));
+        data(ctx, "POST", base, "/sections/" + sectionGid(ctx, base, token, null, section) + "/addTask", token, Map.of("task", gid("task", task)));
         return Map.of();
     }
 
@@ -403,10 +443,10 @@ public final class AsanaPackage {
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
             @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project,
-            @Input(name = "section_id", type = OoaType.STRING, required = false, description = "Section of that project to place the task in.") String section) {
+            @Input(name = "section_id", type = OoaType.STRING, required = false, description = "Section of that project to place the task in: its name or id.") String section) {
         Map<String, Object> b = new LinkedHashMap<>();
-        b.put("project", gid("project", project));
-        if (section != null && !section.isBlank()) b.put("section", gid("section", section));
+        b.put("project", projectGid(ctx, base, token, project));
+        if (section != null && !section.isBlank()) b.put("section", sectionGid(ctx, base, token, projectGid(ctx, base, token, project), section));
         data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/addProject", token, b);
         return Map.of();
     }
@@ -654,7 +694,7 @@ public final class AsanaPackage {
         if (due != null && !due.isBlank()) body.put("due_on", due);
         if (archived != null) body.put("archived", archived);
         if (body.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in at least one field.");
-        data(ctx, "PUT", base, "/projects/" + gid("project", project), token, body);
+        data(ctx, "PUT", base, "/projects/" + projectGid(ctx, base, token, project), token, body);
         return Map.of();
     }
 
@@ -667,7 +707,7 @@ public final class AsanaPackage {
             @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project,
             @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true: a safeguard against deleting by mistake.") boolean confirm) {
         if (!confirm) throw new ActionException(P + ".CONFIRM_REQUIRED", "The project was not deleted because confirm is false", "Set confirm to true.");
-        data(ctx, "DELETE", base, "/projects/" + gid("project", project), token, null);
+        data(ctx, "DELETE", base, "/projects/" + projectGid(ctx, base, token, project), token, null);
         return Map.of();
     }
 
@@ -773,8 +813,8 @@ public final class AsanaPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
-            @Input(name = "tag_id", type = OoaType.STRING, description = "Tag id, from List tags.") String tag) {
-        data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/addTag", token, Map.of("tag", gid("tag", tag)));
+            @Input(name = "tag_id", type = OoaType.STRING, description = "The tag: its name or id.") String tag) {
+        data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/addTag", token, Map.of("tag", named(ctx, base, token, "tag", tag)));
         return Map.of();
     }
 
@@ -784,8 +824,8 @@ public final class AsanaPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
-            @Input(name = "tag_id", type = OoaType.STRING, description = "Tag id.") String tag) {
-        data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/removeTag", token, Map.of("tag", gid("tag", tag)));
+            @Input(name = "tag_id", type = OoaType.STRING, description = "The tag: its name or id.") String tag) {
+        data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/removeTag", token, Map.of("tag", named(ctx, base, token, "tag", tag)));
         return Map.of();
     }
 

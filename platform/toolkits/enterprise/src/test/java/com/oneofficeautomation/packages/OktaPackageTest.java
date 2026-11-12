@@ -42,6 +42,11 @@ class OktaPackageTest {
             assertEquals("S3cret!pw", ((Map<?, ?>) ((Map<?, ?>) body.get("credentials")).get("password")).get("value"));
             assertEquals(List.of(GID), body.get("groupIds"));
 
+            // K5 (batch 10): groups by name, as Add user to group takes them
+            f.on("GET /api/v1/groups", q -> ok("[{\"id\":\"" + GID + "\",\"profile\":{\"name\":\"Finance\"}}]"));
+            pkg.createUser(ctx, f.url(), "Ann", "Lee", "ann.lee@acme.com", null, null, null, List.of("finance"), true, TOKEN, null);
+            assertEquals(List.of(GID), f.last("POST", "/api/v1/users").json().get("groupIds"));
+
             Map<String, Object> g = pkg.getUser(ctx, f.url(), "ann.lee@acme.com", TOKEN, null);
             Map<?, ?> u = (Map<?, ?>) g.get("user");
             assertEquals("Ann", u.get("first_name"));

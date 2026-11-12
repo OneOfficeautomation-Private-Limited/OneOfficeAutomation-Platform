@@ -86,7 +86,7 @@ public final class OktaPackage {
 
     @Action(id = "create_user", name = "Create user", category = "Users", capabilities = "network",
             description = "Add a new person to Okta, optionally with a starting password and group memberships.",
-            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), login, password, email, first_name, last_name, activate | profile_fields, group_ids")
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), login, password, email, first_name, last_name, activate, groups | profile_fields")
     @Output(name = "user_id", type = OoaType.STRING, description = "Okta id of the new user.")
     @Output(name = "status", type = OoaType.STRING, description = "Account status, e.g. ACTIVE, PROVISIONED or STAGED.")
     public Map<String, Object> createUser(ActionContext ctx,
@@ -97,7 +97,7 @@ public final class OktaPackage {
             @Input(name = "login", type = OoaType.STRING, required = false, description = "Sign-in name. Leave empty to use the email address.") String login,
             @Input(name = "profile_fields", type = OoaType.DICTIONARY, required = false, description = "More profile values, e.g. {\"department\": \"Finance\", \"mobilePhone\": \"+1 555 0100\"}.") Map<String, Object> extra,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Starting password from the vault. Leave empty to let the person set one when they activate.") Object password,
-            @Input(name = "group_ids", type = OoaType.LIST, required = false, description = "Ids of groups the person should join straight away.") List<Object> groups,
+            @Input(name = "groups", type = OoaType.LIST, required = false, formerNames = "group_ids", example = "[\"Finance\", \"VPN users\"]", description = "Groups the person should join straight away, by name or id.") List<Object> groups,
             @Input(name = "activate", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Activate the account now. When off, the account is created in a staged state.") boolean activate,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
@@ -110,7 +110,7 @@ public final class OktaPackage {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("profile", profile);
         if (password instanceof SecureString s) body.put("credentials", Map.of("password", Map.of("value", s.reveal())));
-        if (groups != null && !groups.isEmpty()) { List<String> ids = new ArrayList<>(); for (Object g : groups) ids.add(Values.text(g)); body.put("groupIds", ids); }
+        if (groups != null && !groups.isEmpty()) { List<String> ids = new ArrayList<>(); for (Object g : groups) ids.add(groupId(ctx, org, Values.text(g), apiToken, accessToken)); body.put("groupIds", ids); }
         Map<String, Object> r = req("POST", api(org) + "/users?activate=" + activate, apiToken, accessToken).json(body).send(ctx).map();
         return Out.of("user_id", r.get("id"), "status", r.get("status"));
     }
