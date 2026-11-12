@@ -426,3 +426,63 @@ uses it). What changed:
 - **T3**: 10 terminal samples (54-terminal.json) against an in-process SSH host: connect, screen and position reads,
   fields by label, typing with a key and a wait, key mappings, Ctrl+C, the prompt, the cursor, and VT's clear error.
   The 5250-only and 3270-only field commands stay covered by their unit tests (fake 5250 host, scripted 3270 engine).
+
+
+---
+
+## Batch 7: e-mail (73 commands in 5 toolkits)
+
+Email (IMAP/POP3 and SMTP, 19), Exchange on-premises (EWS, 13), Outlook desktop (10), the Gmail commands of Google
+Workspace (15) and the Outlook mail commands of Microsoft 365 (16). Checked 12 Nov 2026 against AA's Email, Microsoft
+365 Outlook and Gmail packages (Connect, the "For each mail in mailbox" loop, the email dictionary, Send, Reply,
+Forward, attachments, triggers, the Basic-auth and EWS retirements) and Blue Prism's Outlook objects, Graph connector
+and work-queue design. Tried in One AgentStudio: Find emails (Outlook), searching "send email".
+
+### What AA and Blue Prism teach about how these are used
+
+- **One way of working per mailbox**: AA's Email package connects to the Outlook client, an email server (IMAP/POP3)
+  or EWS from one Connect step, and every action then names the session; Microsoft 365 Outlook (Graph) and Gmail are
+  separate packages with the same actions and the same loop. A builder moving from EWS to Graph (which AA and Microsoft
+  now ask for) keeps the same shape of bot.
+- **Sign-in**: OAuth everywhere. Client credentials for unattended runs, PKCE for attended ones, or a connection kept by
+  the Control Room with a shared or per-user token that is renewed for the bot. Basic auth is off in Exchange Online.
+- **The loop is the heart**: "For each mail in mailbox" with Read / Unread / Both, keep the read state or not, newest or
+  oldest first, folder, subject (several values, exact in quotes), senders, a date range, text or HTML; each turn gives
+  the mail's properties (subject, from, to, cc, body, dates, number of attachments, and on Graph the message id).
+  Change status, Move, Delete, Save attachments and Reply act on the current mail.
+- **Bulk actions** (Move all, Delete all, Save all attachments) run outside the loop with the same filters, for big
+  mailboxes. Best practice: move a processed mail to another folder so it is never picked up twice; Blue Prism puts one
+  work-queue item per mail (keyed by its id) and lets workers take them.
+
+### What we have, checked in panels and code
+
+Every AA action has a match, and several go further: Find emails gives a table with ids for any later step, filters
+on "to", body text and attachments, oldest first, Save email as .msg, inline images on Send, read receipts, shared
+mailboxes (IMAP, Exchange, Microsoft 365, Outlook), and Delete all / Move all / Save all attachments on every service.
+Every field has a label and help. Email triggers exist in One CommandCenter (the server signs in to Graph by itself).
+
+### Findings
+
+| # | Finding | Why it matters |
+|---|---|---|
+| A1 | **Microsoft 365, Gmail and IMAP with OAuth take a raw access token from the vault**, and nothing gets or renews it. Such tokens last about an hour. Send request (REST) and the e-mail trigger can sign in with client credentials or a refresh token and renew it; a saved connection only fills in the token field. | An unattended mail agent stops working an hour after someone pastes a token; the AA way (client credentials, or a Control-Room-kept token) has no match. The biggest gap of this batch. |
+| A2 | **Five toolkits, five vocabularies.** The same idea has different field names: id / message_id (Gmail); read yes-no / status; note / comment (Microsoft 365) / body (Outlook) for a forward's text; to_folder / folder (Outlook); max_results / max; since / received_after; target_folder / folder; Find emails gives table / emails (Outlook, a list). The email record differs too: text + html, body + body_type (Microsoft 365), body + html_body (Outlook); received / date (Gmail); attachments / attachment_names / has_attachments. | Moving an agent from IMAP or Exchange to Microsoft 365 means filling every step again; a child agent written to handle "an email" works for one service only. |
+| A3 | **"Each email" loop only for IMAP and Exchange**; Microsoft 365, Gmail and Outlook desktop need Find emails and a loop over its table. The loop gives a summary (id, from, subject, received, unread, attachments); the body needs a Read email step. | AA's loop works the same on every service and gives the body. |
+| A4 | **Unread only and Read only are two tick boxes** that can contradict each other (IMAP, Exchange, Microsoft 365 find and loop); Gmail and Microsoft 365 Change status use a "status" choice instead. | AA has one choice: Read, Unread or Both. |
+| A5 | **AA map**: AA's Email/Connect goes to our IMAP Connect whatever server type the AA bot used (Outlook client and EWS included); AA's *Microsoft 365 Outlook/Save email* points at Save attachments instead of Save email as EML/MSG. | Wrong suggestions in search and in migration. |
+| A6 | **Exchange (EWS) lacks what the others have**: Reply and Forward have no attachments, no "include original", no forward-as-attachment, no "leave out the sender"; no Save as .eml; its loop has no to / body / before filters. EWS is being retired in Exchange Online; the toolkit says "on-premises", but nothing points Exchange Online users to Microsoft 365. | Uneven; and a builder on Exchange Online may pick the toolkit that is going away. |
+| A7 | **Samples**: Gmail 0 of 15, Microsoft 365 mail 2 of 16, Outlook desktop 0 of 10, Exchange 9 of 13 (all have unit tests against stand-in servers). | Chains like find, read, save attachments, move are not checked end to end on those services. |
+| A8 | **Gmail's names differ**: "Send Gmail", "List Gmail messages", "Change Gmail message status"; searching "send email" in Studio finds four toolkits but not Gmail. | Harder to find. |
+
+### Proposals (choose; nothing built)
+
+| # | Proposal | Size |
+|---|---|---|
+| **A1** | **Mail sign-in that renews itself**: a connection kind for Microsoft 365 (client credentials, or a refresh token for one user) and Google (refresh token), kept in the vault; the runner gets the token and renews it before it runs out (the token cache Send request already uses). The IMAP Connect takes the same connection for OAuth. Steps that pass an access token keep working. | Medium |
+| **A2** | **One email record for every service**: Read email, Find emails and the loop also give the same keys everywhere (id, from, to, cc, subject, received, text, html, attachments as names, unread, message_id), next to today's keys, so old agents keep working; Studio labels the same fields the same way. Then a Studio tool **"Switch mail service"** that turns the mail steps of an agent from one service into another (IMAP or Exchange to Microsoft 365, and back), mapping the fields and listing what has no match. | Large |
+| **A3** | "Each email" loop for Microsoft 365, Gmail and Outlook desktop with the same filters; every loop can give the body too ("With the text and HTML"). | Medium |
+| **A4** | Read state as one choice (All, Unread, Read) in Studio, stored as the two ticks are today. | Small |
+| **A5** | Fix the AA map (Microsoft 365 Save email; Email/Connect noted per AA server type: Outlook client to Outlook desktop, EWS to Exchange, email server to Email) and regenerate the search names. | Small |
+| **A6** | Exchange catches up: Reply and Forward attachments, include original, forward as attachment, leave out the sender, Save as .eml, loop filters; its help says Exchange Online should use Microsoft 365. | Small |
+| **A7** | Command samples for Gmail, Microsoft 365 mail and the Exchange gaps against stand-in servers ({mock}); Outlook desktop samples marked "desktop", tried once here if Outlook is set up. | Medium |
+| **A8** | Gmail names in the common words ("Send email (Gmail)", "Find emails (Gmail)", ...); the old names stay searchable. | Small |
