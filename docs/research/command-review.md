@@ -518,3 +518,56 @@ Every field has a label and help. Email triggers exist in One CommandCenter (the
   screen or an administrator window in front); not from these changes. The CLI test JVM ran out of memory with the new
   mail samples: every sample now shares one toolkit registry (the cause of MERGE-1), and all 1,563 CLI tests pass.
   Tried in One AgentStudio: the old Gmail name finds the new one, Read state, Switch mail service and Undo, the sign-in form.
+
+
+---
+
+## Batch 8: integration (79 commands in 11 toolkits)
+
+Database (12), REST (3), SOAP (2), FTP / SFTP (15), PGP (6), Hash, encryption and encoding (14), Custom connectors (5),
+Network / SNMP (7), Kafka (6), MCP tools (2), SAP BAPI (7). JSON and XML were batch 2. Checked 12 Nov 2026 against AA's
+Database, REST Web Services, SOAP Web Service, FTP/SFTP, PGP, Kafka, SNMP packages and Connector Builder, and Blue
+Prism's Web API services, Credential Manager and SOAP wizard. Tried in One AgentStudio: Send request.
+
+### What AA and Blue Prism teach about how these are used
+
+- **An API is defined once** (Blue Prism Web API services, AA Connector Builder): base address, sign-in, common headers
+  and parameters, then one action per endpoint with typed inputs and outputs; import from OpenAPI.
+- **Sign-in is kept centrally**: AA's Control-Room-managed OAuth connections (shared or per-user token, renewed for the
+  bot); Blue Prism's Credential Manager types (Basic, Bearer, OAuth 2.0 client credentials, JWT). Secrets go anywhere:
+  `{{name}}` from the vault in connection strings, addresses, headers, bodies and SOAP XML.
+- **Same sign-in on every REST method** (AA: none, Basic, NTLM, logged-in AD user, OAuth from a connection, user token).
+- **Database**: Connect, then Read / Export to data table / Insert-Update-Delete / stored procedure (In, Out, InOut,
+  outputs by name) / transactions / bulk insert, row loop; AA warns it does no escaping (no parameters).
+- **FTP / SFTP**: FTP, FTPS explicit or implicit, SFTP with a key; reconnect attempts; wildcards and date filters; AA
+  always overwrites on upload.
+- **PGP** (AA): create keys, encrypt and decrypt with a passphrase or key files, built into the package.
+
+### What we have, checked in panels and code
+
+Everything AA and Blue Prism document is here, and several things go further: parameterised SQL (AA has none),
+Rollback (AA has none), describe table and list tables, query to a file, stored-procedure outputs by name; FTP with an
+overwrite choice, folder sync with a dry run, only-newer and date filters, retries; REST with OAuth 1.0a and 2.0
+(refresh tokens), NTLM and the Windows user, client certificates, cookies, multipart, fail-on-error off to keep the
+failure's body; SOAP with a WSDL picker and XPath; custom connectors from OpenAPI, Swagger or Postman with OAuth and AWS
+SigV4; PGP signing and verifying (AA has neither); Kafka with manual commit; MCP tools. Every field has a label and help.
+
+### Findings
+
+| # | Finding | Why it matters |
+|---|---|---|
+| R1 | **A secret from the vault is sent as `****`** when it is a header, a query value, a form field or a value in a JSON body of Send request (also Upload file, Download file, SOAP headers and custom connectors' headers): those values are turned into text, and a vault secret's text is its mask. Checked: `headers: {X-Api-Key: $key}` sent `X-Api-Key: ****`, and the step reported success. Multipart parts already send the secret. | Any API that takes a key in a header (most do) fails with "unauthorized" when the key comes from the vault, the safe way; the step does not say why. |
+| R2 | **Sign-in differs between the web steps**: Send request has six ways (none, user name, bearer, OAuth 2.0, OAuth 1.0a, Windows/NTLM), Upload file three, Download file its own set, SOAP only a user name. REST and SOAP cannot use saved connections (they are left out of the list), so the address, headers and sign-in are repeated on every step; the batch 7 sign-in that renews itself cannot be used for them. | AA gives every REST method the same sign-in and keeps OAuth in Control Room connections; Blue Prism defines the API once. |
+| R3 | **A new Send request step opens with "OAuth 2.0" chosen** although nothing is set: when no field of a choice is filled, Studio picks the first option with a default value (OAuth's "client sign-in" has one) before the option with no fields ("No sign-in"). | Confusing on the most used integration step; other choices with an empty option can do the same. |
+| P1 | **PGP needs GnuPG (Gpg4win) installed on every runner**; it is not here, so the PGP tests skip and its commands have never run on this machine. AA's PGP is built in. | A first PGP step fails on a fresh runner; nothing checks the real path in the test suite. |
+| S1 | **No command samples** for FTP / SFTP (13 of 15), PGP, custom connectors, Kafka, MCP, SNMP and SAP BAPI. Unit tests exist for all (FTP against a stand-in FTP server; SAP BAPI needs SAP's JCo). | Chains such as connect, upload, list, download are not checked end to end. |
+
+### Proposals (choose; nothing built)
+
+| # | Proposal | Size |
+|---|---|---|
+| **R1** | Secrets reach the server: headers, query values, form fields and JSON values from the vault are sent as the secret (one shared helper for Send request, Upload file, Download file, SOAP and custom connectors), and stay masked in logs and run output. | Small |
+| **R2** | One sign-in for every web step: Upload file, Download file and SOAP get Send request's choice (none, user name, bearer, OAuth 2.0, OAuth 1.0a, Windows). REST and SOAP can use saved connections: an address prefix, headers and sign-in kept once (the renewing sign-in of batch 7 included, as a bearer token); a step's address can then be a path such as /invoices/42. Old steps unchanged. | Medium |
+| **R3** | A choice with nothing filled in shows its empty option ("No sign-in", "None") before an option that only has a default. | Small |
+| **P1** | PGP built in (Bouncy Castle, the Java OpenPGP library): create keys, encrypt, decrypt, sign, verify and import work without GnuPG, with key files and passphrases from the vault; GnuPG is used when a step names a GnuPG home (its keyring). The PGP tests then always run. | Medium |
+| **S1** | Command samples for FTP and SFTP (stand-in servers), PGP (after P1), custom connectors (a local OpenAPI file and a stand-in API), Kafka (stand-in REST proxy) and MCP (stand-in server). SNMP and SAP BAPI stay with their unit tests. | Medium |
