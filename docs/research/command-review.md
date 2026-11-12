@@ -739,3 +739,51 @@ by name in Post message.
 | **K7** | The missing commands above (Databricks output, Azure DevOps test management, Salesforce collections and Describe, SharePoint labels and attachments, Okta sessions and unlock). | Medium |
 | **K8** | Align names (old names kept as aliases); help shows names, not codes. | Small |
 | **S3** | Samples against stand-in servers for every toolkit, one chain per family first (Okta, Snowflake, Databricks, EC2, Box, Drive, DocuSign, Workday, GitHub). | Large |
+
+**Built 12 Nov 2026 (all)** on ui/usage-review. What changed:
+- **K1**: a renewing sign-in for every connector. A toolkit marks the input that takes the token (new signInToken on
+  @Input), so a connection's sign-in now fills Slack's bot token, Zendesk's OAuth token, Asana's and GitHub's token,
+  Snowflake's token (and tells the step the token's kind), Jira Data Center's and Azure DevOps' access token (Azure
+  DevOps sends a Microsoft Entra ID token as Bearer). New sign-in kinds: a JWT grant (a Google service account from its
+  key file, optionally acting as a person; DocuSign), a private key instead of a client secret (Okta service apps), a
+  GitHub App (PKCS#1 keys as GitHub gives them), a Snowflake key pair (the signed JWT is the token) and extra token
+  fields (Box's box_subject_type and box_subject_id). The connection form in Studio and One CommandCenter offers them;
+  each toolkit's token help says a connection can sign in instead. Not checked against the real services.
+- **K2**: 72 AA map entries now point at the right step; AWS EC2, ServiceNow's actions and AA's Teams and Slack
+  iterators are mapped, and the new commands below too.
+- **K3**: downloads from Microsoft 365, Google Drive, Box and DocuSign go straight to the file (one shared helper);
+  Box uploads over 50 MB go up in parts with their SHA-1s; Google Drive uploads over 5 MB are resumable and streamed
+  from disk, and every Drive call works in shared drives; Excel online writes large tables in blocks of rows inside
+  one workbook session.
+- **K4**: Microsoft 365 calendar lists page through (max_results); Active Directory searches read page by page and
+  say exactly where they stopped; EC2 Wait for state may wait an hour and Start, Stop and Terminate can wait; Databricks
+  Run job and Start cluster fail with WAIT_TIMEOUT when the wait runs out and Stop cluster can wait (wait and
+  timeout_seconds everywhere, old names kept).
+- **K5**: every Slack channel input takes #name and history takes dates; Zendesk assignee by email or name, group by
+  name, custom fields by title; Asana projects, sections and tags by name; Okta Create user joins groups by name;
+  Databricks jobs, clusters and SQL warehouses by name; EC2 instances by Name tag; Google Drive id inputs also take a
+  path starting with /; Microsoft 365 drives by person, SharePoint site or library name; an app sign-in that meets "me"
+  says what to write instead.
+- **K6**: Jira Cloud search on /rest/api/3/search/jql (Data Center keeps the old search; a site without the new one is
+  asked the old way); Salesforce Find records and SOQL parameters with values quoted and escaped, and the object field
+  labelled Object (API name); Jira, Asana, Azure DevOps and GitHub send a sign-in over plain http only to this computer
+  or a host the administrator lists in OOA_ALLOW_PLAIN_HTTP; Active Directory trusts the Windows certificate store and
+  a CA file, offers StartTLS and accepts AA's LDAP://host/DC=... address; DocuSign works out its address from the
+  account.
+- **K7**: Databricks Get job run output; Okta Clear user sessions, Unlock user, Expire password; Salesforce Create,
+  update or upsert many records (200 a call, a result per row) and Describe object; Azure DevOps List test suites,
+  cases and runs, Update test results, Complete test run; SharePoint list items with columns named as people see them.
+  Not built: SharePoint list attachments, which Microsoft Graph does not offer (they need SharePoint's own API and a
+  token for it).
+- **K8**: an input can keep its former names (runs, validation and saved connections accept them; Studio moves the
+  value when the step is opened). Google's endpoint_override is now base_url, calendar_id is calendar, Microsoft 365
+  calendar periods are start and end; count on every list step of the office family; help names choices as the list
+  shows them (Client credentials, not client_credentials) in every toolkit.
+- **S3**: 12 connector samples (58-cloud-connectors.json): Okta on- and offboarding, Snowflake, Databricks, EC2, Box,
+  Google Drive, DocuSign, Workday, GitHub, Salesforce, Zendesk, Slack. Asana, Azure DevOps, Jira, ServiceNow, Azure VMs
+  and the rest of Microsoft 365 keep their unit tests with stand-in servers.
+- Tests: full suite with --continue (public-site samples off): 2,748 fresh results; two live tests failed on timing
+  (a browser lazy-loading table and the desktop character map) and passed when run again. LDAPS and StartTLS were
+  checked against an in-memory directory with its own certificate. Tried in One AgentStudio: Slack history shows the
+  channel name and date help, Drive upload the path help, a Google step's old endpoint_override value moved to its
+  base_url field when opened, and a new Slack connection offers every sign-in kind with the right fields.
