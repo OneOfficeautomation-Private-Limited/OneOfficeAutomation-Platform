@@ -17,9 +17,16 @@ describe("which option of a choice a step shows (R3)", () => {
   it("shows the empty option on a new step, not one that only has a default", () => {
     expect(chosenOption(signIn, step({}), props)).toBe(0);
   });
-  it("otherwise shows the first option, whatever defaults the others have (I1, batch 9)", () => {
+  it("a new AI step shows the saved connection, whatever defaults the other option has (I1, batch 9)", () => {
     const g = { choice: "Model to use", options: [{ label: "A saved connection", fields: ["connection"] }, { label: "Set up here", fields: ["provider", "model"] }] } as unknown as Extract<PanelGroup, { choice: string }>;
-    expect(chosenOption(g, step({}), { provider: { default: "openai" } } as unknown as Record<string, FieldSpec>)).toBe(0);
-    expect(chosenOption(g, step({ model: "gpt-4o" }), {} as Record<string, FieldSpec>)).toBe(1);
+    const ai = (args: Record<string, unknown>) => ({ id: "s", action: "ooa.genai/prompt", args }) as FlowStep;
+    const provider = { provider: { default: "openai" } } as unknown as Record<string, FieldSpec>;
+    expect(chosenOption(g, ai({}), provider)).toBe(0);
+    expect(chosenOption(g, ai({ model: "gpt-4o" }), provider)).toBe(1);
+  });
+  it("other steps still show the option whose field has a default", () => {
+    const rows = { choice: "Rows from", options: [{ label: "A Data Table", fields: ["table"] }, { label: "A delimited file", fields: ["file", "delimiter"] }] } as unknown as Extract<PanelGroup, { choice: string }>;
+    const delimiter = { delimiter: { default: "," } } as unknown as Record<string, FieldSpec>;
+    expect(chosenOption(rows, { id: "s", action: "ooa.database/bulk_insert", args: {} } as FlowStep, delimiter)).toBe(1);
   });
 });

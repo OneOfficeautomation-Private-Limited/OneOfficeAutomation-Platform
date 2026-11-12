@@ -295,14 +295,16 @@ export function StepForm({ step, packages, onArg, onNote }:
 }
 
 /** Which option of a choice is on: the one with a value set, else one with a default, else the first. */
-export function chosenOption(g: Extract<PanelGroup, { choice: string }>, step: FlowStep, _props?: Record<string, FieldSpec>): number {
+export function chosenOption(g: Extract<PanelGroup, { choice: string }>, step: FlowStep, props: Record<string, FieldSpec>): number {
   const set = (f: string) => step.args?.[f] !== undefined && step.args[f] !== "";
   let i = g.options.findIndex((o) => o.fields.some(set));
   // R3 (batch 8): nothing filled in shows the option with no fields ("No sign-in", "None") before one that only has a
   // default (OAuth's client sign-in has one, and a new Send request opened on OAuth 2.0)
   if (i < 0) i = g.options.findIndex((o) => !o.fields.length);
-  // otherwise the first option, which the panel lists as the usual one (I1, batch 9: "A saved connection" for AI steps;
-  // a field's default value, such as a delimiter or a provider, no longer pulls the choice to its option)
+  // I1 (batch 9): an AI step with nothing set uses the default model connection, so it opens on "A saved connection"
+  // (its first option), although the provider field has a default
+  if (i < 0 && MODEL_STEPS.test(step.action)) i = 0;
+  if (i < 0) i = g.options.findIndex((o) => o.fields.some((f) => props[f]?.default !== undefined));
   return Math.max(0, i);
 }
 
