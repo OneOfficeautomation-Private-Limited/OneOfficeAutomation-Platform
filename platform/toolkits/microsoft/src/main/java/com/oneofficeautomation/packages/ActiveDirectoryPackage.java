@@ -134,7 +134,7 @@ public final class ActiveDirectoryPackage {
         if (e instanceof CommunicationException) return new ActionException("AD.UNREACHABLE", "Cannot reach the directory: " + m, "Check the server name, port and network.", true);
         if (e instanceof NameAlreadyBoundException) return new ActionException("AD.ALREADY_EXISTS", "An object with that name already exists: " + m, "Pick another name or container.");
         if (e instanceof ContextNotEmptyException) return new ActionException("AD.NOT_EMPTY", "The object still contains other objects: " + m, "Move or delete what is inside first, or use the recursive option.");
-        return new ActionException("AD.ERROR", m, null);
+        return new ActionException("AD.ERROR", m, "Check the connection (server, port, user and password) and that the runner can reach the domain controller.");
     }
 
     private static AdSession s(ActionContext ctx, String name) { return ctx.session(name, AdSession.class); }
@@ -157,7 +157,7 @@ public final class ActiveDirectoryPackage {
             @Input(name = "ca_file", type = OoaType.FILE, required = false,
                     description = "Certificate of the company CA that issued the domain controller's certificate (PEM or DER), when it is not in the Windows certificate store.") String caFile) {
         if (connectTimeout < 1 || connectTimeout > 600 || readTimeout < 1 || readTimeout > 3600)
-            throw new ActionException("AD.BAD_TIMEOUT", "Timeouts must be 1-600 s (connect) and 1-3600 s (read)");
+            throw new ActionException("AD.BAD_TIMEOUT", "Timeouts must be 1-600 s (connect) and 1-3600 s (read)", "Set the connect timeout between 1 and 600 seconds and the read timeout between 1 and 3600 seconds.");
         String[] addr = address(url, baseDn);
         boolean ldaps = addr[0].startsWith("ldaps://");
         if (startTls && ldaps) throw new ActionException("AD.BAD_OPTION", "StartTLS is for ldap:// addresses; ldaps:// is already encrypted", "Turn StartTLS off, or use ldap://.");
@@ -322,7 +322,7 @@ public final class ActiveDirectoryPackage {
                 String[] names = new String[extra.size()];
                 for (int i = 0; i < names.length; i++) {
                     names[i] = Values.text(extra.get(i));
-                    if (!names[i].matches("^[A-Za-z][A-Za-z0-9-]{0,63}$")) throw new ActionException("AD.BAD_ATTRIBUTE", "Invalid attribute name '" + names[i] + "'");
+                    if (!names[i].matches("^[A-Za-z][A-Za-z0-9-]{0,63}$")) throw new ActionException("AD.BAD_ATTRIBUTE", "Invalid attribute name '" + names[i] + "'", "Use the attribute's LDAP name, for example mail or telephoneNumber.");
                 }
                 Attributes more = s.dir.read(r.dn(), names);
                 for (String n : names) u.put(n, attrValue(more.get(n)));
@@ -490,15 +490,15 @@ public final class ActiveDirectoryPackage {
     }
 
     private static String name(String n, String what) {
-        if (n == null || n.isBlank()) throw new ActionException("AD.BAD_NAME", "The " + what + " name is empty");
-        if (n.length() > 64) throw new ActionException("AD.BAD_NAME", "The " + what + " name is longer than 64 characters");
+        if (n == null || n.isBlank()) throw new ActionException("AD.BAD_NAME", "The " + what + " name is empty", "Fill in the name.");
+        if (n.length() > 64) throw new ActionException("AD.BAD_NAME", "The " + what + " name is longer than 64 characters", "Shorten the name to 64 characters or fewer.");
         return n.strip();
     }
 
     /** Resolves a DN or a name to one DN, failing when nothing or more than one object matches. */
     private static String resolve(AdSession s, String idOrDn, String filter, String what) throws NamingException {
         if (isDn(idOrDn)) return idOrDn;
-        if (idOrDn == null || idOrDn.isBlank()) throw new ActionException("AD.BAD_NAME", "No " + what + " given");
+        if (idOrDn == null || idOrDn.isBlank()) throw new ActionException("AD.BAD_NAME", "No " + what + " given", "Fill in the name.");
         SearchControls sc = new SearchControls();
         sc.setSearchScope(SearchControls.SUBTREE_SCOPE);
         sc.setCountLimit(2);
@@ -529,14 +529,14 @@ public final class ActiveDirectoryPackage {
         if (m.equals("replace")) return setItem(attr, value);
         if (!m.equals("add") && !m.equals("remove")) throw new ActionException("AD.BAD_MODE", "Unknown mode '" + mode + "'", "Use replace, add or remove.");
         ModificationItem base = setItem(attr, value);
-        if (base.getModificationOp() == DirContext.REMOVE_ATTRIBUTE) throw new ActionException("AD.NO_VALUE", "Give the value to " + m);
+        if (base.getModificationOp() == DirContext.REMOVE_ATTRIBUTE) throw new ActionException("AD.NO_VALUE", "Give the value to " + m, "Fill in Value.");
         return new ModificationItem(m.equals("add") ? DirContext.ADD_ATTRIBUTE : DirContext.REMOVE_ATTRIBUTE, base.getAttribute());
     }
 
     static ModificationItem setItem(String attr, Object value) {
         if (attr == null || !attr.matches("^[A-Za-z][A-Za-z0-9-]{0,63}$")) throw new ActionException("AD.BAD_ATTRIBUTE", "Invalid attribute name '" + attr + "'", "Example: description, telephoneNumber or managedBy.");
         if (attr.equalsIgnoreCase("unicodePwd") || attr.equalsIgnoreCase("userPassword"))
-            throw new ActionException("AD.USE_RESET_PASSWORD", "Use Reset password to change passwords");
+            throw new ActionException("AD.USE_RESET_PASSWORD", "Use Reset password to change passwords", "Use the Reset password step instead.");
         if (value == null || (value instanceof String str && str.isEmpty()) || (value instanceof List<?> l && l.isEmpty()))
             return new ModificationItem(DirContext.REMOVE_ATTRIBUTE, new BasicAttribute(attr));
         BasicAttribute a = new BasicAttribute(attr);
@@ -621,7 +621,7 @@ public final class ActiveDirectoryPackage {
             @Input(name = "email", type = OoaType.STRING, required = false, example = "jdoe@corp.example.com", description = "Email address (stored in mail).") String email,
             @Input(name = "department", type = OoaType.STRING, required = false, description = "Department.") String department,
             @Input(name = "title", type = OoaType.STRING, required = false, description = "Job title.") String title) {
-        if (initials != null && initials.strip().length() > 6) throw new ActionException("AD.BAD_NAME", "Initials can have at most 6 characters");
+        if (initials != null && initials.strip().length() > 6) throw new ActionException("AD.BAD_NAME", "Initials can have at most 6 characters", "Shorten the initials to 6 characters or fewer.");
         if (email != null && !email.isBlank() && !email.strip().matches("^[^@\\s]+@[^@\\s]+$"))
             throw new ActionException("AD.BAD_EMAIL", "Not an email address: '" + email + "'", "Example: jdoe@corp.example.com.");
         if (username == null || !username.matches("^[^\"/\\\\\\[\\]:;|=,+*?<>@]{1,20}$"))
@@ -1280,9 +1280,9 @@ public final class ActiveDirectoryPackage {
         List<String> rdns = new ArrayList<>();
         String n = name == null ? "" : name.strip();
         String kind = nameKind == null || nameKind.isBlank() ? "CN" : nameKind.strip().toUpperCase(Locale.ROOT);
-        if (!Set.of("CN", "OU").contains(kind)) throw new ActionException("AD.BAD_OPTION", "name_kind is CN or OU, not '" + nameKind + "'", null);
+        if (!Set.of("CN", "OU").contains(kind)) throw new ActionException("AD.BAD_OPTION", "name_kind is CN or OU, not '" + nameKind + "'", "Set name_kind to CN or OU.");
         String parts = partKind == null || partKind.isBlank() ? "auto" : partKind.strip().toLowerCase(Locale.ROOT);
-        if (!Set.of("auto", "ou", "cn").contains(parts)) throw new ActionException("AD.BAD_OPTION", "path_kind is auto, ou or cn, not '" + partKind + "'", null);
+        if (!Set.of("auto", "ou", "cn").contains(parts)) throw new ActionException("AD.BAD_OPTION", "path_kind is auto, ou or cn, not '" + partKind + "'", "Set path_kind to auto, ou or cn.");
         if (!n.isEmpty()) rdns.add(kind + "=" + Rdn.escapeValue(n));
         List<String> segs = new ArrayList<>();
         String p = path == null ? "" : path.strip().replace('\\', '/');
@@ -1300,7 +1300,7 @@ public final class ActiveDirectoryPackage {
         if (!dom.matches("(?i)^[a-z0-9-]+(\\.[a-z0-9-]+)*$")) throw new ActionException("AD.BAD_DN", "'" + dom + "' is not a domain name", "Use the DNS name, e.g. corp.example.com.");
         for (String dc : dom.split("\\.")) rdns.add("DC=" + dc);
         String dn = String.join(",", rdns);
-        if (!isDn(dn)) throw new ActionException("AD.BAD_DN", "Cannot build a distinguished name from '" + path + "'", null);
+        if (!isDn(dn)) throw new ActionException("AD.BAD_DN", "Cannot build a distinguished name from '" + path + "'", "Give the path as OU names separated by / (for example Sales/Europe) or as a distinguished name (OU=Europe,OU=Sales,DC=example,DC=com).");
         return dn;
     }
 

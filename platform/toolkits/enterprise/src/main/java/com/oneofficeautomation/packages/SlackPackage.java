@@ -83,7 +83,7 @@ public final class SlackPackage {
 
     private static Object parseJson(String text) {
         try { return JsonLite.parse(text); }
-        catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_BLOCKS", "blocks is not valid JSON: " + e.getMessage(), null); }
+        catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_BLOCKS", "blocks is not valid JSON: " + e.getMessage(), "Correct the blocks JSON; Slack's Block Kit Builder shows valid blocks you can copy."); }
     }
 
     /** Shares local files in a conversation with Slack's external upload flow: get an upload address, send the bytes, then complete. */
@@ -118,7 +118,7 @@ public final class SlackPackage {
             @Input(name = "comment", type = OoaType.STRING, required = false, description = "Message posted with the files.") String comment,
             @Input(name = "thread_ts", type = OoaType.STRING, required = false, description = "Share in the thread of this message.") String thread,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
-        if (files == null || files.isEmpty()) throw new ActionException(P + ".NO_FILES", "Give at least one file to upload", null);
+        if (files == null || files.isEmpty()) throw new ActionException(P + ".NO_FILES", "Give at least one file to upload", "Fill in at least one file to upload.");
         return Map.of("file_ids", upload(ctx, base, token, channel(ctx, token, channel, base), files, comment, thread));
     }
 

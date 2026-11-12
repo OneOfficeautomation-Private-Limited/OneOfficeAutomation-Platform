@@ -334,7 +334,7 @@ public final class ExchangePackage {
                 Files.write(out, Base64.getMimeDecoder().decode(content));
                 saved.add(out.toString());
             }
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of("files", saved);
     }
 
@@ -578,14 +578,14 @@ public final class ExchangePackage {
         Element it = item(ctx, s, id, "<t:BaseShape>IdOnly</t:BaseShape><t:IncludeMimeContent>true</t:IncludeMimeContent>"
                 + "<t:AdditionalProperties><t:FieldURI FieldURI=\"item:Subject\"/></t:AdditionalProperties>");
         String mime = text(it, "MimeContent");
-        if (mime.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "Exchange did not give the email's content", null);
+        if (mime.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "Exchange did not give the email's content", "The service answered in an unexpected way; try again, and if it keeps happening check the service's status page.");
         Path p = ctx.resolvePath(localPath);
         if (Files.isDirectory(p)) p = p.resolve(emlName(text(it, "Subject")));
         if (!overwrite && Files.exists(p)) throw new ActionException("FILE.EXISTS", "File already exists: " + p, "Set overwrite to true or choose another name.");
         try {
             if (p.getParent() != null) Files.createDirectories(p.getParent());
             Files.write(p, Base64.getMimeDecoder().decode(mime));
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of("path", p.toString());
     }
 
@@ -665,7 +665,7 @@ public final class ExchangePackage {
     }
 
     private static String itemId(Element id) {
-        if (id == null) throw new ActionException(P + ".BAD_RESPONSE", "Exchange did not return the item's id", null);
+        if (id == null) throw new ActionException(P + ".BAD_RESPONSE", "Exchange did not return the item's id", "The service answered in an unexpected way; try again, and if it keeps happening check the service's status page.");
         String ck = id.getAttribute("ChangeKey");
         return "<t:ItemId Id=\"" + x(id.getAttribute("Id")) + "\"" + (ck.isEmpty() ? "" : " ChangeKey=\"" + x(ck) + "\"") + "/>";
     }
@@ -724,7 +724,7 @@ public final class ExchangePackage {
                 b.append("<t:FileAttachment><t:Name>").append(x(p.getFileName().toString())).append("</t:Name><t:Content>")
                         .append(Base64.getEncoder().encodeToString(Files.readAllBytes(p))).append("</t:Content></t:FileAttachment>");
             } catch (NoSuchFileException e) { throw new ActionException("FILE.NOT_FOUND", "Attachment not found: " + p, "Check the path.");
-            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         }
         return b.append("</t:Attachments>").toString();
     }
@@ -891,7 +891,7 @@ public final class ExchangePackage {
         }
         Element response = first(bodyEl);
         Element msg = first(child(response, "ResponseMessages"));
-        if (msg == null) throw new ActionException(P + ".BAD_RESPONSE", "Exchange's answer to " + operation + " has no response message", null);
+        if (msg == null) throw new ActionException(P + ".BAD_RESPONSE", "Exchange's answer to " + operation + " has no response message", "The service answered in an unexpected way; try again, and if it keeps happening check the service's status page.");
         String cls = msg.getAttribute("ResponseClass");
         if ("Error".equals(cls)) throw error(text(msg, "ResponseCode"), text(msg, "MessageText"), operation);
         if ("Warning".equals(cls)) ctx.warn("Exchange warned about " + operation + ": " + text(msg, "ResponseCode") + " " + text(msg, "MessageText"));
@@ -937,7 +937,7 @@ public final class ExchangePackage {
             }}, null);
             return c.getSocketFactory();
         } catch (java.security.GeneralSecurityException e) {
-            throw new ActionException(P + ".TLS_SETUP_FAILED", "Cannot set up TLS: " + e.getMessage(), null);
+            throw new ActionException(P + ".TLS_SETUP_FAILED", "Cannot set up TLS: " + e.getMessage(), "Check the runner's Java security settings and the server's certificate; ask IT whether TLS inspection is in the way.");
         }
     }
 }

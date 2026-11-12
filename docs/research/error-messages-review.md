@@ -26,7 +26,7 @@ Every message is `What happened. What to do.` (both in our own words), with the 
 | Page | Console pages showed `e.message` only; the server's suggested fix was dropped | 42 pages | **Fixed**: the message now carries the fix (`withFix`), once |
 | Page | Studio screens showed `e.error.message` and dropped the fix (or showed "Error: ..." from `String(e)`) | 14 places, plus 6 run and check results | **Fixed** (E1): one helper, `errorText` / `runErrorText` |
 | Page | Loads that failed silently (`.catch(() => {})`), so a list or panel stayed empty with no reason | 47 found; 35 were real loads | **Fixed** (E2): a minor notice says what could not be loaded and why; the other 12 stay quiet on purpose (browser storage, clipboard, full screen, sign-out, polling every 0.8 s while recording, the alerts badge, a runner file that may not exist yet) |
-| Command | Toolkit commands raising `ActionException` without a suggested fix | ~42 of 574 | Batch E3 |
+| Command | Command errors (`ActionException`) without a suggested fix | 383 found when counted properly (toolkits 87, plus 40 that passed `null`; core packages, browser, e-mail, office, PDF, transfer and Windows 296) | **Fixed** (E3): every command error now carries a fix. The 127 in toolkits have their own; the rest get the fix for their code (`CommandFixes`), until E3b writes their own |
 | Usage / server | Server errors (`OoaException`) without a suggested fix | 909 of 1,412 (control-room 444, cli 99, runner 73, low-code 59, agent 34, document automation 33, others) | Batches E4 to E7, by module |
 | Usage / server | Plain `RuntimeException` / `IllegalStateException` / `IllegalArgumentException` thrown | 160 | Batch E8: give each a code and a fix, or show it as an internal error with the log reference |
 | All | No single place that lists every error code with its meaning and fix | — | Batch E9: an error catalogue, generated from the code, in the help |
@@ -36,7 +36,8 @@ Every message is `What happened. What to do.` (both in our own words), with the 
 - **E1** Studio: show the fix everywhere (one helper, as the console now does). **Done 13 Nov 2026**: `errorText(e)` for any failure and `runErrorText(err)` for a run's or check's error, in Studio (agent editor, AI agent editor, create, connections, conditions, pickers, triggers, object repository, variables, run panel, check-in) and Phone notifications.
 - **E2** Silent failures: every empty panel says why (minor notice). **Done 13 Nov 2026**: `reportMinor(what, e)` and `<MinorNotices />` (amber line, closes after 8 s, held under the pointer, the same text once) in the console and in Studio; 35 loads in 19 files.
 - **E2b** Every page-level failure as major with Retry (pages today show the red bar without Retry).
-- **E3** Commands: the 42 toolkit errors without a fix.
+- **E3** Commands. **Done 13 Nov 2026**: `CommandFixes` in the SDK gives any command error without a fix the one for its code (CANCELLED, IO_ERROR, NOT_FOUND, WINDOWS_ONLY, BAD_*, NO_*, *_FAILED and others); the 127 toolkit errors have their own fix; `CommandFixesTest` fails when a toolkit error leaves its fix out.
+- **E3b** Their own fix for the 296 errors in the core packages (browser 31+7+7, LLM client 19, data store 12, generative AI 11, workload 10, terminal 10 and the rest), then extend `CommandFixesTest` to them.
 - **E4** control-room: 444 errors without a fix (largest; split by area: users and roles, agents and repository, runs, schedules and triggers, settings).
 - **E5** cli and runner: 172.
 - **E6** low-code, document automation, insights, governance: 133.

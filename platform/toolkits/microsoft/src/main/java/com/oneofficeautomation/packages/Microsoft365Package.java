@@ -66,7 +66,7 @@ public final class Microsoft365Package {
                     atts.add(Map.of("@odata.type", "#microsoft.graph.fileAttachment", "name", p.getFileName().toString(),
                             "contentBytes", Base64.getEncoder().encodeToString(Files.readAllBytes(p))));
                 } catch (NoSuchFileException e) { throw new ActionException("FILE.NOT_FOUND", "Attachment not found: " + p, "Check the path.");
-                } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+                } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
             }
             msg.put("attachments", atts);
         }
@@ -223,7 +223,7 @@ public final class Microsoft365Package {
                 Files.write(out, Base64.getDecoder().decode(String.valueOf(a.get("contentBytes"))));
                 saved.add(out.toString());
             }
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return saved;
     }
 
@@ -325,7 +325,7 @@ public final class Microsoft365Package {
             end = end.toLocalDate().atStartOfDay();
             if (!end.isAfter(start)) end = start.plusDays(1);
         }
-        if (!end.isAfter(start)) throw new ActionException(P + ".BAD_TIMES", "The end must be after the start");
+        if (!end.isAfter(start)) throw new ActionException(P + ".BAD_TIMES", "The end must be after the start", "Set the end later than the start.");
         Map<String, Object> ev = new LinkedHashMap<>();
         ev.put("subject", subject);
         ev.put("start", Map.of("dateTime", start.toString(), "timeZone", tz));
@@ -616,7 +616,7 @@ public final class Microsoft365Package {
                 }
             }
         } catch (IOException e) {
-            throw new ActionException("FILE.IO_ERROR", "Cannot read " + file + ": " + e.getMessage(), null, true);
+            throw new ActionException("FILE.IO_ERROR", "Cannot read " + file + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally {
             if (!done) try { HttpJson.req(P, "DELETE", uploadUrl).timeout(30).send(ctx); } catch (RuntimeException ignored) { }
         }
@@ -954,13 +954,13 @@ public final class Microsoft365Package {
             return Map.of("@odata.type", "#microsoft.graph.fileAttachment", "name", p.getFileName().toString(),
                     "contentBytes", Base64.getEncoder().encodeToString(Files.readAllBytes(p)));
         } catch (NoSuchFileException e) { throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     private static Path writeLocal(ActionContext ctx, String local, byte[] data) {
         Path p = ctx.resolvePath(local);
         try { if (p.getParent() != null) Files.createDirectories(p.getParent()); Files.write(p, data); }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return p;
     }
 
@@ -1411,7 +1411,7 @@ public final class Microsoft365Package {
             if (status.equals("completed")) return Out.of("item_id", st.get("resourceId"), "status", status, "monitor_url", monitor);
             if (status.equals("failed")) throw new ActionException(P + ".COPY_FAILED", "The copy failed: " + s(at(st, "error", "message")), "Check the destination and that the name is free.");
             if (System.currentTimeMillis() > deadline) return Out.of("item_id", null, "status", status.isEmpty() ? "inProgress" : status, "monitor_url", monitor);
-            try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 
@@ -2351,7 +2351,7 @@ public final class Microsoft365Package {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "search_by", type = OoaType.STRING, required = false, defaultValue = "\"rows\"", enumValues = {"rows", "columns"},
                     description = "Order of the results: rows goes across each row first, columns goes down each column first.") String searchBy) {
-        if (text == null || text.isEmpty()) throw new ActionException(P + ".BAD_INPUT", "Give the text to find");
+        if (text == null || text.isEmpty()) throw new ActionException(P + ".BAD_INPUT", "Give the text to find", "Fill in the text to find.");
         boolean byColumns = "columns".equals(choice(searchBy, "search_by", new LinkedHashSet<>(List.of("rows", "columns"))));
         String addr = range == null || range.isBlank() ? used(ctx, token, drive, base, remote, sheet) : range.trim();
         if (addr == null) return Map.of("cells", List.of(), "count", num(0));
@@ -2430,7 +2430,7 @@ public final class Microsoft365Package {
             @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "rename", "replace"}, description = "When a file of that name exists: fail, rename (add a number) or replace it.") String ifExists,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        if (!remote.toLowerCase(Locale.ROOT).endsWith(".xlsx")) throw new ActionException(P + ".BAD_INPUT", "The workbook name must end in .xlsx", null);
+        if (!remote.toLowerCase(Locale.ROOT).endsWith(".xlsx")) throw new ActionException(P + ".BAD_INPUT", "The workbook name must end in .xlsx", "Give the workbook's name with .xlsx at the end.");
         List<String> sheets = new ArrayList<>();
         if (names != null) for (Object n : names) if (!Values.text(n).isBlank()) sheets.add(Values.text(n).trim());
         if (sheets.isEmpty()) sheets.add("Sheet1");
@@ -2540,7 +2540,7 @@ public final class Microsoft365Package {
             @Input(name = "row", type = OoaType.NUMBER, description = "Row number, starting at 1.") int row,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        if (row < 1) throw new ActionException(P + ".BAD_RANGE", "Row numbers start at 1", null);
+        if (row < 1) throw new ActionException(P + ".BAD_RANGE", "Row numbers start at 1", "Give row numbers from 1 (the first row).");
         String a = used(ctx, token, drive, base, remote, sheet);
         if (a == null) return Map.of("values", List.of());
         String addr = "A" + row + ":" + colName(bounds(a)[1][0]) + row;
@@ -2783,7 +2783,7 @@ public final class Microsoft365Package {
                     description = "Weekdays the series repeats on. For weekly repeats, instead of the start's weekday; for monthly or yearly repeats, used with recurrence_week_of_month (e.g. the second Tuesday).") List<Object> days,
             @Input(name = "recurrence_week_of_month", type = OoaType.STRING, required = false, enumValues = {"first", "second", "third", "fourth", "last"},
                     description = "For monthly or yearly repeats: which week of the month, with recurrence_days_of_week (or the start's weekday).") String weekOfMonth) {
-        if (start != null && end != null && !end.isAfter(start) && !Boolean.TRUE.equals(allDay)) throw new ActionException(P + ".BAD_TIMES", "The end must be after the start");
+        if (start != null && end != null && !end.isAfter(start) && !Boolean.TRUE.equals(allDay)) throw new ActionException(P + ".BAD_TIMES", "The end must be after the start", "Set the end later than the start.");
         boolean repeat = recurrence != null && !recurrence.isBlank();
         if (!repeat && ((days != null && !days.isEmpty()) || (weekOfMonth != null && !weekOfMonth.isBlank())))
             throw new ActionException(P + ".BAD_OPTION", "Repeat days were given without a recurrence", "Set recurrence to weekly, monthly or yearly as well.");
@@ -3000,7 +3000,7 @@ public final class Microsoft365Package {
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "include_outside_working_hours", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also suggest times outside the attendees' working hours.") boolean anyTime) {
-        if (!to.isAfter(from)) throw new ActionException(P + ".BAD_TIMES", "The end of the period must be after its start");
+        if (!to.isAfter(from)) throw new ActionException(P + ".BAD_TIMES", "The end of the period must be after its start", "Set the end of the period later than its start.");
         List<Object> at = new ArrayList<>();
         for (String a : HttpJson.addressList(attendees)) at.add(Map.of("emailAddress", Map.of("address", a), "type", "required"));
         Map<String, Object> body = new LinkedHashMap<>();
@@ -3384,7 +3384,7 @@ public final class Microsoft365Package {
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Only posts created at or after this time (UTC); all posts when empty.") LocalDateTime since,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Most posts to return.") int max,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        if (max < 1) throw new ActionException(P + ".BAD_INPUT", "max_results must be at least 1", null);
+        if (max < 1) throw new ActionException(P + ".BAD_INPUT", "max_results must be at least 1", "Set max_results to 1 or more.");
         String first = channelUrl(base, team, channel) + "/messages?$top=" + Math.min(50, max);
         String cutoff = since == null ? null : UTC.format(since);
         List<Object> rows = new ArrayList<>();
@@ -3527,7 +3527,7 @@ public final class Microsoft365Package {
             @Input(name = "due_date", type = OoaType.DATETIME, required = false, description = "New due date (UTC).") LocalDateTime due,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         String url = g(base) + "/planner/tasks/" + HttpJson.enc(need(task, "task_id"));
-        if (percent != null && (percent < 0 || percent > 100)) throw new ActionException(P + ".BAD_INPUT", "percent_complete must be from 0 to 100", null);
+        if (percent != null && (percent < 0 || percent > 100)) throw new ActionException(P + ".BAD_INPUT", "percent_complete must be from 0 to 100", "Set percent_complete between 0 and 100.");
         Map<String, Object> body = new LinkedHashMap<>();
         if (title != null && !title.isBlank()) body.put("title", title.trim());
         if (percent != null) body.put("percentComplete", percent);
@@ -3536,7 +3536,7 @@ public final class Microsoft365Package {
         // Planner only accepts a change that names the task's current version (its ETag); when someone changed the task in between, read it again once
         for (int attempt = 0; ; attempt++) {
             String tag = etag(HttpJson.req(P, "GET", url).bearer(token).send(ctx));
-            if (tag.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "Planner did not return the task's version (ETag)", null);
+            if (tag.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "Planner did not return the task's version (ETag)", "The service answered in an unexpected way; try again, and if it keeps happening check the service's status page.");
             try {
                 HttpJson.req(P, "PATCH", url).bearer(token).header("If-Match", tag).json(body).send(ctx);
                 return Map.of();

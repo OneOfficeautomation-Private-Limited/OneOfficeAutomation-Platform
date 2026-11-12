@@ -259,7 +259,7 @@ public final class AiAgentPackage {
                                          String model, Object key, String base, int maxSteps, int maxTotal, boolean mask, Object awsKeyId, String awsRegion,
                                          String role, String plan, Map<String, Object> outputFields, boolean allowCancel, int maxSeconds, double temperature,
                                          List<Object> formPaths, double formTimeout, Toxicity.Setting toxic, Extras extras) {
-        if (maxSeconds < 0) throw new ActionException("AGENT.BAD_OPTION", "max_duration_seconds cannot be negative");
+        if (maxSeconds < 0) throw new ActionException("AGENT.BAD_OPTION", "max_duration_seconds cannot be negative", "Set max_duration_seconds to 0 (no limit) or a positive number of seconds.");
         long deadline = maxSeconds > 0 ? System.nanoTime() + maxSeconds * 1_000_000_000L : Long.MAX_VALUE;
         boolean structured = outputFields != null && !outputFields.isEmpty();
         StringBuilder extra = new StringBuilder();
@@ -278,7 +278,7 @@ public final class AiAgentPackage {
         Map<String, Tool> tools = new LinkedHashMap<>();
         if (toolIds != null) for (Object o : toolIds) { Tool t = tool(repo, Values.text(o), sensitive.contains(Values.text(o))); tools.put(t.name(), t); }
         Map<String, FormTool> forms = new LinkedHashMap<>();
-        if (formPaths != null) for (Object o : formPaths) { FormTool ft = formTool(ctx, Values.text(o)); if (tools.containsKey(ft.name())) throw new ActionException("AGENT.BAD_OPTION", "A tool and a form are both named " + ft.name()); forms.put(ft.name(), ft); }
+        if (formPaths != null) for (Object o : formPaths) { FormTool ft = formTool(ctx, Values.text(o)); if (tools.containsKey(ft.name())) throw new ActionException("AGENT.BAD_OPTION", "A tool and a form are both named " + ft.name(), "Give the tool or the form another name; the agent tells them apart by name."); forms.put(ft.name(), ft); }
         List<Path> indexes = new ArrayList<>();
         if (extras.knowledge() != null) for (Object o : extras.knowledge()) {
             Path ip = ctx.resolvePath(Values.text(o));
@@ -297,13 +297,13 @@ public final class AiAgentPackage {
                 if (!allowed.isEmpty() && !allowed.contains(n)) continue;
                 String local = ("mcp_" + n.replaceAll("[^A-Za-z0-9_-]", "_"));
                 if (local.length() > 64) local = local.substring(0, 64);
-                if (tools.containsKey(local) || forms.containsKey(local)) throw new ActionException("AGENT.BAD_OPTION", "Two tools are both named " + local);
+                if (tools.containsKey(local) || forms.containsKey(local)) throw new ActionException("AGENT.BAD_OPTION", "Two tools are both named " + local, "Give one of the two tools another name; the agent tells them apart by name.");
                 mcpTools.put(local, mt);
             }
             if (!allowed.isEmpty() && mcpTools.size() < allowed.size()) ctx.warn("The MCP server does not offer every tool named in mcp_tools");
         }
         if (tools.isEmpty() && forms.isEmpty() && indexes.isEmpty() && mcpTools.isEmpty())
-            throw new ActionException("AGENT.NO_TOOLS", "Give the agent at least one agent, form, knowledge index or MCP tool to use");
+            throw new ActionException("AGENT.NO_TOOLS", "Give the agent at least one agent, form, knowledge index or MCP tool to use", "Add at least one tool in the step: an agent it may run, a form, a knowledge index or an MCP server.");
         List<Map<String, Object>> toolSpecs = new ArrayList<>();
         for (Tool t : tools.values())
             toolSpecs.add(Map.of("name", t.name(), "description", t.flow().get("description") + (t.sensitive() ? " (Needs human approval; may be denied.)" : ""), "input_schema", t.schema()));

@@ -272,7 +272,7 @@ public final class Ec2Package {
             @Input(name = "security_group_ids", type = OoaType.LIST, required = false, description = "Security group ids. Leave empty for the default group.") List<Object> groups,
             @Input(name = "tags", type = OoaType.DICTIONARY, required = false, description = "More tags, e.g. {\"Team\": \"Finance\", \"CostCenter\": \"4711\"}.") Map<String, Object> tags,
             @Input(name = "user_data", type = OoaType.STRING, required = false, description = "Start-up script or cloud-init text, run when the instance first starts.") String userData) {
-        if (count < 1 || count > 100) throw new ActionException(P + ".BAD_COUNT", "Count must be 1-100, not " + count);
+        if (count < 1 || count > 100) throw new ActionException(P + ".BAD_COUNT", "Count must be 1-100, not " + count, "Set Count between 1 and 100.");
         if (type == null || type.isBlank()) throw new ActionException(P + ".BAD_TYPE", "An instance type is required", "For example t3.micro.");
         Map<String, String> p = new LinkedHashMap<>();
         p.put("ImageId", image.strip());
@@ -337,7 +337,7 @@ public final class Ec2Package {
                 throw new ActionException(P + ".WAIT_TIMEOUT", "Not all instances were " + state + " after " + timeout + " s: " + states,
                         "Raise timeout_seconds, or check the instances in the AWS console.", false, Map.of("states", states));
             try { Thread.sleep((long) (Math.max(0.05, every) * 1000)); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 
@@ -599,7 +599,7 @@ public final class Ec2Package {
             try { r = HttpJson.CLIENT.send(b.build(), HttpResponse.BodyHandlers.ofByteArray()); }
             catch (HttpTimeoutException e) { throw new ActionException(P + ".TIMEOUT", "No answer from EC2 within 60 s", "Try again later.", true); }
             catch (IOException e) { throw new ActionException(P + ".UNREACHABLE", "Cannot reach " + uri.getHost() + ": " + NetErrors.reason(e, null), "Check the region, proxy and network access.", true); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             long wait = r.statusCode() == 429 && attempt < HttpJson.MAX_RATE_RETRIES ? HttpJson.retryAfterMillis(r.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
             if (wait < 0) break;
             ctx.warn("EC2 is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s");

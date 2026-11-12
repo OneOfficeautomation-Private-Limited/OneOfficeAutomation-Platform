@@ -248,7 +248,7 @@ public final class AzureVmPackage {
                 throw new ActionException(P + ".NOT_MANAGED_DISK", "The OS disk of '" + vm.strip() + "' is not a managed disk", "Only managed disks can be snapshotted this way.");
             diskId = d;
         } else diskId = "/subscriptions/" + s.subscription + "/resourceGroups/" + g + "/providers/Microsoft.Compute/disks/" + name(disk, "disk");
-        if (!diskId.startsWith("/subscriptions/")) throw new ActionException(P + ".BAD_RESPONSE", "Unexpected disk id '" + diskId + "'");
+        if (!diskId.startsWith("/subscriptions/")) throw new ActionException(P + ".BAD_RESPONSE", "Unexpected disk id '" + diskId + "'", "Check the disk id: copy it from the disk's Properties in the Azure portal (it starts with /subscriptions/).");
         Map<String, Object> d = send(ctx, s, "GET", s.arm + diskId + "?api-version=" + DISK_API, null).json();
         Map<String, Object> creation = new LinkedHashMap<>();
         creation.put("createOption", "Copy");
@@ -353,7 +353,7 @@ public final class AzureVmPackage {
             try { r = HttpJson.CLIENT.send(req, HttpResponse.BodyHandlers.ofByteArray()); }
             catch (HttpTimeoutException e) { throw new ActionException(P + ".TIMEOUT", "No answer from " + HttpJson.host(url) + " within 60 s", "Try again later.", true); }
             catch (IOException e) { throw new ActionException(P + ".UNREACHABLE", "Cannot reach " + HttpJson.host(url) + ": " + NetErrors.reason(e, null), "Check the network, proxy and the Azure addresses.", true); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             long wait = r.statusCode() == 429 && attempt < HttpJson.MAX_RATE_RETRIES ? HttpJson.retryAfterMillis(r.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
             if (wait < 0) break;
             ctx.warn("Azure is limiting requests (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s");

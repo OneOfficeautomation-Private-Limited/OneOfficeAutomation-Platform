@@ -38,13 +38,13 @@ public final class SalesforcePackage {
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (password grant only).") Object password,
             @Input(name = "security_token", type = OoaType.CREDENTIAL, required = false, description = "Security token, added after the password, when the user's IP is not trusted (password grant only).") Object securityToken) {
         String g = grant == null || grant.isBlank() ? "client_credentials" : grant;
-        if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id (consumer key) is required");
+        if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id (consumer key) is required", "Fill in the connected app's consumer key in the connection.");
         Map<String, Object> form = new LinkedHashMap<>();
         form.put("grant_type", g);
         form.put("client_id", clientId.strip());
         form.put("client_secret", clientSecret);
         if (g.equals("password")) {
-            if (user == null || user.isBlank()) throw new ActionException(P + ".NO_USER", "The password grant needs a user name and password");
+            if (user == null || user.isBlank()) throw new ActionException(P + ".NO_USER", "The password grant needs a user name and password", "Fill in User name and Password in the connection, or choose another way to sign in.");
             form.put("username", user.strip());
             form.put("password", new SecureString(EnterpriseAuth.secret(password, P, "password") + (securityToken instanceof SecureString t ? t.reveal() : ""), "salesforce/password"));
         } else if (!g.equals("client_credentials")) throw new ActionException(P + ".BAD_GRANT", "Unknown grant type '" + grant + "'", "Use client_credentials or password.");
@@ -81,7 +81,7 @@ public final class SalesforcePackage {
             @Input(name = "batch_size", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Records per page (200-2000); Salesforce's default when 0.") int batch,
             @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, example = "{\"name\": \"O'Brien\", \"since\": \"2026-01-01\"}",
                     description = "Values for :name in the SOQL, quoted and escaped for you, e.g. WHERE LastName = :name. A list becomes (a, b) for IN. Safer than putting values into the text.") Map<String, Object> params) {
-        if (batch != 0 && (batch < 200 || batch > 2000)) throw new ActionException(P + ".BAD_BATCH", "The batch size must be between 200 and 2000");
+        if (batch != 0 && (batch < 200 || batch > 2000)) throw new ActionException(P + ".BAD_BATCH", "The batch size must be between 200 and 2000", "Set the batch size between 200 and 2000.");
         soql = bind(soql, params);
         String root = instance.replaceAll("/+$", "");
         String url = base(instance, version) + (deleted ? "/queryAll?q=" : "/query?q=") + HttpJson.enc(soql);

@@ -31,7 +31,7 @@ public final class ServiceNowPackage {
 
     private static String displayValue(String v) {
         String d = v == null || v.isBlank() ? "true" : v;
-        if (!Set.of("true", "false", "all").contains(d)) throw new ActionException(P + ".BAD_OPTION", "display_value must be true, false or all");
+        if (!Set.of("true", "false", "all").contains(d)) throw new ActionException(P + ".BAD_OPTION", "display_value must be true, false or all", "Set display_value to true, false or all.");
         return d;
     }
 
@@ -49,7 +49,7 @@ public final class ServiceNowPackage {
     private static String fieldList(List<Object> fields) {
         if (fields == null || fields.isEmpty()) return null;
         StringJoiner j = new StringJoiner(",");
-        for (Object f : fields) { String n = Values.text(f).strip(); if (!n.matches("^[A-Za-z0-9_.]{1,80}$")) throw new ActionException(P + ".BAD_FIELD", "Invalid field name '" + n + "'"); j.add(n); }
+        for (Object f : fields) { String n = Values.text(f).strip(); if (!n.matches("^[A-Za-z0-9_.]{1,80}$")) throw new ActionException(P + ".BAD_FIELD", "Invalid field name '" + n + "'", "Use the field's column name as ServiceNow shows it (for example short_description)."); j.add(n); }
         return j.toString();
     }
 
@@ -67,15 +67,15 @@ public final class ServiceNowPackage {
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name (password grant).") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (password grant).") Object password) {
         String g = grant == null || grant.isBlank() ? "password" : grant;
-        if (!Set.of("password", "client_credentials").contains(g)) throw new ActionException(P + ".BAD_GRANT", "Unknown grant type '" + grant + "'");
-        if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id is required");
+        if (!Set.of("password", "client_credentials").contains(g)) throw new ActionException(P + ".BAD_GRANT", "Unknown grant type '" + grant + "'", "Use one of the sign-in kinds the connection offers: password, client_credentials or refresh_token.");
+        if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id is required", "Fill in the OAuth client id in the connection (System OAuth > Application Registry in ServiceNow).");
         EnterpriseAuth.secret(clientSecret, P, "client secret");
         Map<String, Object> form = new LinkedHashMap<>();
         form.put("grant_type", g);
         form.put("client_id", clientId.strip());
         form.put("client_secret", clientSecret);
         if (g.equals("password")) {
-            if (user == null || user.isBlank()) throw new ActionException(P + ".NO_USER", "The password grant needs a user and password");
+            if (user == null || user.isBlank()) throw new ActionException(P + ".NO_USER", "The password grant needs a user and password", "Fill in User and Password in the connection, or choose another way to sign in.");
             EnterpriseAuth.secret(password, P, "password");
             form.put("username", user.strip());
             form.put("password", password);
@@ -148,7 +148,7 @@ public final class ServiceNowPackage {
         if (orderBy != null && !orderBy.isBlank()) {
             String f = orderBy.strip(); boolean desc = f.startsWith("-");
             if (desc) f = f.substring(1);
-            if (!f.matches("^[A-Za-z0-9_.]{1,80}$")) throw new ActionException(P + ".BAD_FIELD", "Invalid order_by field '" + orderBy + "'");
+            if (!f.matches("^[A-Za-z0-9_.]{1,80}$")) throw new ActionException(P + ".BAD_FIELD", "Invalid order_by field '" + orderBy + "'", "Use a column name as ServiceNow shows it (for example sys_created_on); add DESC to sort the other way.");
             query = (query == null || query.isBlank() ? "" : query + "^") + (desc ? "ORDERBYDESC" : "ORDERBY") + f;
         }
         String fl = fieldList(fields);
@@ -280,7 +280,7 @@ public final class ServiceNowPackage {
         try { data = Files.readAllBytes(p); type = Optional.ofNullable(Files.probeContentType(p)).orElse("application/octet-stream"); }
         catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
         if (contentType != null && !contentType.isBlank()) {
-            if (!contentType.matches("^[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+$")) throw new ActionException(P + ".BAD_CONTENT_TYPE", "Invalid content type '" + contentType + "'");
+            if (!contentType.matches("^[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+$")) throw new ActionException(P + ".BAD_CONTENT_TYPE", "Invalid content type '" + contentType + "'", "Use a content type such as application/pdf or image/png.");
             type = contentType;
         }
         String name = fileName == null || fileName.isBlank() ? p.getFileName().toString() : HttpJson.safeName(fileName);

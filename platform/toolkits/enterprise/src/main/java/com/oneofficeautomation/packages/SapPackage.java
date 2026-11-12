@@ -46,11 +46,11 @@ public final class SapPackage {
             String out = r.stdout().strip();
             String last = out.isEmpty() ? "{}" : out.substring(out.lastIndexOf('\n') + 1);
             Object parsed;
-            try { parsed = JsonLite.parse(last); } catch (IllegalArgumentException e) { throw new ActionException("SAP.FAILED", "Unexpected SAP script output: " + ApplicationPackage.tail(out + r.stderr()), null); }
+            try { parsed = JsonLite.parse(last); } catch (IllegalArgumentException e) { throw new ActionException("SAP.FAILED", "Unexpected SAP script output: " + ApplicationPackage.tail(out + r.stderr()), "Check that SAP GUI scripting is allowed on the server and on the runner (RZ11 sapgui/user_scripting = TRUE, and Options > Scripting in SAP GUI)."); }
             @SuppressWarnings("unchecked") Map<String, Object> m = parsed instanceof Map ? (Map<String, Object>) parsed : Map.of();
             if (m.get("error") != null) throw scriptError(String.valueOf(m.get("error")));
             return m;
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally { if (script != null) try { Files.deleteIfExists(script); } catch (IOException ignored) { } }
     }
 
@@ -101,7 +101,7 @@ public final class SapPackage {
             @Input(name = "start_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "Seconds to wait for SAP Logon to start.") int startTimeout) {
         String mode = "connection_string".equals(systemType) ? "string" : "description";
         String ml = multiLogon == null || multiLogon.isBlank() ? "ignore" : multiLogon;
-        if (!Set.of("ignore", "continue", "end_other_sessions", "fail").contains(ml)) throw new ActionException("SAP.BAD_OPTION", "Unknown multiple_logon value '" + multiLogon + "'");
+        if (!Set.of("ignore", "continue", "end_other_sessions", "fail").contains(ml)) throw new ActionException("SAP.BAD_OPTION", "Unknown multiple_logon value '" + multiLogon + "'", "Use one of: continue, close_others, or fail.");
         if (lang != null && !lang.isBlank() && !lang.matches("^[A-Za-z0-9]{1,2}$")) throw new ActionException("SAP.BAD_LANGUAGE", "Invalid logon language '" + lang + "'", "Use a two-letter code such as EN or DE.");
         if (logonPath != null && !logonPath.isBlank()) startLogon(ctx, logonPath, startTimeout);
         String body = String.join("\r\n",
@@ -145,15 +145,15 @@ public final class SapPackage {
         if (!exe.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".exe")) throw new ActionException("SAP.BAD_LOGON_PATH", "The SAP Logon path must point to an .exe file", "Example: saplogon.exe in the SAP GUI folder.");
         java.util.function.Consumer<Path> hook = testLogonStarter;
         if (hook != null) { hook.accept(exe); return; }
-        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "SAP GUI automation needs Windows with SAP GUI installed");
+        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "SAP GUI automation needs Windows with SAP GUI installed", "Run this agent on a Windows runner that has SAP GUI installed and scripting allowed.");
         String name = exe.getFileName().toString().toLowerCase(Locale.ROOT);
         java.util.function.BooleanSupplier running = () -> ProcessHandle.allProcesses().anyMatch(p -> p.info().command().map(cmd -> cmd.toLowerCase(Locale.ROOT).endsWith(name)).orElse(false));
         if (running.getAsBoolean()) return;
         if (!Files.isRegularFile(exe)) throw new ActionException("SAP.BAD_LOGON_PATH", "SAP Logon was not found at " + exe, "Check the SAP GUI installation folder.");
-        try { new ProcessBuilder(exe.toString()).start(); } catch (IOException e) { throw new ActionException("SAP.START_FAILED", "Cannot start SAP Logon: " + e.getMessage()); }
+        try { new ProcessBuilder(exe.toString()).start(); } catch (IOException e) { throw new ActionException("SAP.START_FAILED", "Cannot start SAP Logon: " + e.getMessage(), "Check that SAP GUI is installed on the runner (saplogon.exe) and that the runner's account may start it."); }
         long end = System.nanoTime() + Math.max(1, timeout) * 1_000_000_000L;
         while (!running.getAsBoolean()) {
-            if (System.nanoTime() > end) throw new ActionException("SAP.START_FAILED", "SAP Logon did not start within " + timeout + " s", null, true);
+            if (System.nanoTime() > end) throw new ActionException("SAP.START_FAILED", "SAP Logon did not start within " + timeout + " s", "Check that SAP Logon can start on the runner, or raise the time limit if the computer is slow.", true);
             HttpJson.pause(ctx, 500);
         }
         HttpJson.pause(ctx, 2000);  // the scripting engine registers a moment after the window appears
@@ -168,7 +168,7 @@ public final class SapPackage {
             @Input(name = "system_type", type = OoaType.STRING, required = false, defaultValue = "\"description\"", enumValues = {"description", "connection_string"}, description = "Whether system is the SAP Logon description or a connection string.") String systemType,
             @Input(name = "logon_path", type = OoaType.FILE, required = false, description = "SAP Logon program to start first when it is not running.") String logonPath,
             @Input(name = "start_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "Seconds to wait for SAP Logon to start.") int startTimeout) {
-        if (system == null || system.isBlank()) throw new ActionException("SAP.BAD_SYSTEM", "The system is empty");
+        if (system == null || system.isBlank()) throw new ActionException("SAP.BAD_SYSTEM", "The system is empty", "Fill in the system as it is named in SAP Logon.");
         if (logonPath != null && !logonPath.isBlank()) startLogon(ctx, logonPath, startTimeout);
         String body = String.join("\r\n",
                 "If a(1) = \"string\" Then",
@@ -195,7 +195,7 @@ public final class SapPackage {
             @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s,
             @Input(name = "new_window", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Open the transaction in a new SAP window (session) instead of the current one.") boolean newWindow,
             @Input(name = "fail_on_error_message", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Stop with an error when the status bar then shows an error message.") boolean failOnError) {
-        if (!tcode.matches("^/?[A-Za-z0-9_/]{1,30}$")) throw new ActionException("SAP.BAD_TCODE", "Invalid transaction code '" + tcode + "'");
+        if (!tcode.matches("^/?[A-Za-z0-9_/]{1,30}$")) throw new ActionException("SAP.BAD_TCODE", "Invalid transaction code '" + tcode + "'", "Use a transaction code such as VA01 or /nSE16 (letters, digits, / and _ only).");
         String body = newWindow
                 ? "Attach a(0), a(1)\r\nsess.findById(\"wnd[0]/tbar[0]/okcd\").Text = \"/o\" & Replace(Replace(a(2), \"/n\", \"\"), \"/N\", \"\")\r\nsess.findById(\"wnd[0]\").sendVKey 0: Check \"Transaction \" & a(2)"
                 : "Attach a(0), a(1)\r\nsess.StartTransaction Replace(Replace(a(2), \"/n\", \"\"), \"/N\", \"\"): Check \"Transaction \" & a(2)";
@@ -271,8 +271,8 @@ public final class SapPackage {
             @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s,
             @Input(name = "window", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Window to send the key to (0 = main window, 1 = the first pop-up).") int window,
             @Input(name = "fail_on_error_message", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Stop with an error when the status bar then shows an error message.") boolean failOnError) {
-        if (vkey < 0 || vkey > 99) throw new ActionException("SAP.BAD_KEY", "Invalid virtual key " + vkey);
-        if (window < 0 || window > 9) throw new ActionException("SAP.BAD_WINDOW", "Invalid window number " + window);
+        if (vkey < 0 || vkey > 99) throw new ActionException("SAP.BAD_KEY", "Invalid virtual key " + vkey, "Use a virtual key number from 0 to 99 (for example 0 is Enter, 3 is F3 Back, 11 is Ctrl+S Save).");
+        if (window < 0 || window > 9) throw new ActionException("SAP.BAD_WINDOW", "Invalid window number " + window, "Use a window number from 0 to 9; the main window is 0.");
         run(ctx, "Attach a(0), a(1)\r\nsess.findById(\"wnd[\" & a(3) & \"]\").sendVKey CInt(a(2)): Check \"Key\"" + STATUS_CHECK + "\r\nWScript.StdOut.WriteLine \"{}\"",
                 List.of(String.valueOf(c), String.valueOf(s), String.valueOf(vkey), String.valueOf(window), failOnError ? "1" : "0"), null);
         return Map.of();
@@ -293,7 +293,7 @@ public final class SapPackage {
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
             @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s,
             @Input(name = "window", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Window whose status bar to read (0 = main window).") int window) {
-        if (window < 0 || window > 9) throw new ActionException("SAP.BAD_WINDOW", "Invalid window number " + window);
+        if (window < 0 || window > 9) throw new ActionException("SAP.BAD_WINDOW", "Invalid window number " + window, "Use a window number from 0 to 9; the main window is 0.");
         Map<String, Object> r = run(ctx, String.join("\r\n",
                 "Attach a(0), a(1)",
                 "Dim b: Set b = sess.findById(\"wnd[\" & a(2) & \"]/sbar\"): Check \"Status bar\"",
@@ -558,7 +558,7 @@ public final class SapPackage {
         if (path.trim().startsWith("wnd[")) id(path.trim());
         boolean byIndex = "index".equals(matchBy);
         if (byIndex && !path.trim().startsWith("wnd[") && !path.matches("^\\s*\\d{1,3}(\\s*[>/]\\s*\\d{1,3})*\\s*$"))
-            throw new ActionException("SAP.BAD_MENU", "With match_by index, the menu path must be positions such as 5 > 1 > 0");
+            throw new ActionException("SAP.BAD_MENU", "With match_by index, the menu path must be positions such as 5 > 1 > 0", "Give positions separated by >, for example 5 > 1 > 0, or set match_by to text.");
         run(ctx, CLICK_MENU, args(c, s, String.valueOf(window), byIndex ? "index" : "text"), line(path));
         return Map.of();
     }
@@ -660,7 +660,7 @@ public final class SapPackage {
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
             @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s) {
         String mode = "key".equals(by) || "index".equals(by) ? by : "text";
-        if (mode.equals("index") && (value == null || !value.trim().matches("^\\d{1,6}$"))) throw new ActionException("SAP.BAD_INDEX", "With match_by index, value must be a 0-based number");
+        if (mode.equals("index") && (value == null || !value.trim().matches("^\\d{1,6}$"))) throw new ActionException("SAP.BAD_INDEX", "With match_by index, value must be a 0-based number", "Give a number from 0 (the first item), or set match_by to text.");
         run(ctx, TREE_LIB + SELECT_ITEM, args(c, s, id(elementId), mode), line(value));
         return Map.of();
     }
@@ -682,7 +682,7 @@ public final class SapPackage {
             @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s,
             @Input(name = "match_by", type = OoaType.STRING, required = false, defaultValue = "\"key\"", enumValues = {"key", "text", "index"}, description = "Whether node_key is the node key, its displayed text, or its 0-based position among all nodes.") String by) {
         String mode = "text".equals(by) || "index".equals(by) ? by : "key";
-        if (mode.equals("index") && (key == null || !key.trim().matches("^\\d{1,6}$"))) throw new ActionException("SAP.BAD_INDEX", "With match_by index, node_key must be a 0-based number");
+        if (mode.equals("index") && (key == null || !key.trim().matches("^\\d{1,6}$"))) throw new ActionException("SAP.BAD_INDEX", "With match_by index, node_key must be a 0-based number", "Give a number from 0 (the first node), or set match_by to text.");
         run(ctx, TREE_LIB + EXPAND_NODE, args(c, s, id(elementId), select ? "1" : "0", mode), line(key));
         return Map.of();
     }
@@ -750,7 +750,7 @@ public final class SapPackage {
             @Input(name = "menu_item", type = OoaType.STRING, required = false, example = "&PC", description = "Function code of the drop-down entry to choose; none when empty.") String menuItem,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
             @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s) {
-        if (button == null || !button.matches("^[A-Za-z0-9&%_.:-]{1,60}$")) throw new ActionException("SAP.BAD_BUTTON", "Invalid toolbar button id '" + button + "'");
+        if (button == null || !button.matches("^[A-Za-z0-9&%_.:-]{1,60}$")) throw new ActionException("SAP.BAD_BUTTON", "Invalid toolbar button id '" + button + "'", "Use the button id as SAP's scripting recorder shows it, for example &MB_EXPORT.");
         run(ctx, TOOLBAR, args(c, s, id(elementId)), line(button) + line(menuItem));
         return Map.of();
     }
@@ -854,7 +854,7 @@ public final class SapPackage {
             @Input(name = "column", type = OoaType.STRING, description = "Column: 0-based position, title, or technical field name.") String column,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
             @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s) {
-        if (row < 0) throw new ActionException("SAP.BAD_ROW", "Rows start at 0");
+        if (row < 0) throw new ActionException("SAP.BAD_ROW", "Rows start at 0", "Give a row number from 0 (the first row).");
         return Map.of("text", String.valueOf(run(ctx, TABLE_LIB + GET_CELL, args(c, s, id(elementId), String.valueOf(row)), line(column)).getOrDefault("text", "")));
     }
 
@@ -899,8 +899,8 @@ public final class SapPackage {
             r = Values.toNumber(hit.get("row")).intValue();
             col = String.valueOf(hit.get("column"));
         } else {
-            if (row == null) throw new ActionException("SAP.BAD_ROW", "Give the row of the cell, or find_text to find the cell by its text");
-            if (row < 0) throw new ActionException("SAP.BAD_ROW", "Rows start at 0");
+            if (row == null) throw new ActionException("SAP.BAD_ROW", "Give the row of the cell, or find_text to find the cell by its text", "Fill in Row, or Find text to find the cell by its text.");
+            if (row < 0) throw new ActionException("SAP.BAD_ROW", "Rows start at 0", "Give a row number from 0 (the first row).");
             if (column == null || column.isBlank()) throw new ActionException("SAP.BAD_COLUMN", "Give the column of the cell", "Use a 0-based position, the column title or the technical field name.");
             r = row;
             col = column;
@@ -1052,7 +1052,7 @@ public final class SapPackage {
     static Path writeCsv(Path p, List<String> cols, List<Object> rows, String encoding, boolean header, boolean append, String delimiter) {
         java.nio.charset.Charset cs;
         try { cs = java.nio.charset.Charset.forName(encoding == null || encoding.isBlank() ? "UTF-8" : encoding); }
-        catch (RuntimeException e) { throw new ActionException("SAP.BAD_ENCODING", "Unknown encoding '" + encoding + "'"); }
+        catch (RuntimeException e) { throw new ActionException("SAP.BAD_ENCODING", "Unknown encoding '" + encoding + "'", "Use an encoding name such as UTF-8, UTF-16LE or windows-1252."); }
         String d = CsvPackage.delimiterText(delimiter);
         StringBuilder sb = new StringBuilder();
         boolean existing = append && Files.isRegularFile(p) && p.toFile().length() > 0;
