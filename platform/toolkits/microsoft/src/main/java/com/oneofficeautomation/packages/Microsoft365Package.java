@@ -3236,8 +3236,8 @@ public final class Microsoft365Package {
 
     @Action(id = "get_list_items", name = "Get SharePoint list items", category = "SharePoint", idempotent = true, capabilities = "network",
             description = "Read the items of a SharePoint list as a Data Table, optionally filtered and limited to some columns.",
-            panel = "access_token, site, list, [Filter the items: filter], columns | max_results, base_url")
-    @Output(name = "table", type = OoaType.TABLE, description = "Column id, then one column per list field.")
+            panel = "access_token, site, list, [Filter the items: filter], columns, use_display_names | max_results, base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Column id, then one column per list field (named as people see them when use_display_names is on).")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of items.")
     public Map<String, Object> getListItems(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -3246,7 +3246,21 @@ public final class Microsoft365Package {
             @Input(name = "filter", type = OoaType.STRING, required = false, example = "fields/Status eq 'Open'", description = "OData filter on fields, e.g. fields/Status eq 'Open'.") String filter,
             @Input(name = "columns", type = OoaType.LIST, required = false, description = "Field names to return; all when empty.") List<Object> columns,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Maximum items.") int max,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "use_display_names", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Name the table's columns as people see them in SharePoint (Status, not Status0 or field_1); columns may then be given that way too.") boolean display) {
+        // K7 (batch 10): SharePoint's internal column names (field_1, Status0) as people see them, and back
+        Map<String, String> label = new LinkedHashMap<>(), internal = new HashMap<>();
+        if (display)
+            for (Map<String, Object> c : pages(ctx, token, spList(base, site, list) + "/columns?$select=name,displayName", 5000, null)) {
+                label.put(Values.text(c.get("name")), Values.text(c.get("displayName")));
+                internal.put(Values.text(c.get("displayName")).toLowerCase(Locale.ROOT), Values.text(c.get("name")));
+            }
+        if (display && columns != null) {
+            List<Object> named = new ArrayList<>();
+            for (Object c : columns) named.add(internal.getOrDefault(Values.text(c).toLowerCase(Locale.ROOT), Values.text(c)));
+            columns = named;
+        }
         Map<String, Object> q = new LinkedHashMap<>();
         boolean pick = columns != null && !columns.isEmpty();
         q.put("$expand", pick ? "fields($select=" + String.join(",", columns.stream().map(Values::text).toList()) + ")" : "fields");
@@ -3265,7 +3279,14 @@ public final class Microsoft365Package {
             for (String c : cols) row.add(c.equals("id") ? it.get("id") : f.get(c));
             rows.add(row);
         }
-        return Map.of("table", Values.table(new ArrayList<>(cols), rows), "count", num(rows.size()));
+        List<String> names = new ArrayList<>();
+        for (String c : cols) names.add(display && !c.equals("id") ? label.getOrDefault(c, c) : c);
+        return Map.of("table", Values.table(names, rows), "count", num(rows.size()));
+    }
+
+    /** Earlier signature, kept for callers written before use_display_names (K7, batch 10). */
+    public Map<String, Object> getListItems(ActionContext ctx, Object token, String site, String list, String filter, List<Object> columns, int max, String base) {
+        return getListItems(ctx, token, site, list, filter, columns, max, base, false);
     }
 
     @Action(id = "create_list_item", name = "Create SharePoint list item", category = "SharePoint", capabilities = "network",

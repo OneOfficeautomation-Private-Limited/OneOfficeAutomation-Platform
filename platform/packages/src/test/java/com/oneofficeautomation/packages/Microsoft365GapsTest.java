@@ -537,6 +537,12 @@ class Microsoft365GapsTest {
             assertTrue(f.last("GET", items).q().contains("$expand=fields($select=Title)"));
             assertNull(f.last("GET", items).header("Prefer"));
 
+            // K7 (batch 10): columns named as people see them, and given that way
+            f.at("GET", site + "/lists/Assets/columns", c -> ok("{\"value\":[{\"name\":\"Title\",\"displayName\":\"Asset\"},{\"name\":\"Status\",\"displayName\":\"State\"}]}"));
+            Map<String, Object> shown = pkg.getListItems(ctx, tok, s, "Assets", null, List.of("asset", "State"), 2, b, true);
+            assertEquals(List.of("id", "Asset", "State"), tbl(shown.get("table")).get("columns"));
+            assertTrue(f.last("GET", items).q().contains("$expand=fields($select=Title,Status)"), "display names asked for by their internal names");
+
             assertEquals("7", pkg.createListItem(ctx, tok, s, "Assets", Map.of("Title", "Monitor"), b).get("item_id"));
             assertEquals(Map.of("fields", Map.of("Title", "Monitor")), f.last("POST", items).json());
             pkg.updateListItem(ctx, tok, s, "Assets", "7", Map.of("Status", "Closed"), b);

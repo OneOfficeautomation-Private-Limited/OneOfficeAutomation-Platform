@@ -931,7 +931,7 @@
     "Databricks/Cancel SQL statement": "ooa.databricks/cancel_statement",
     "Databricks/Download file": "ooa.databricks/download_file",
     "Databricks/Execute SQL statement": "ooa.databricks/execute_sql",
-    "Databricks/Get job run output": "ooa.databricks/get_run",
+    "Databricks/Get job run output": "ooa.databricks/get_run_output",
     "Databricks/Get job run status": "ooa.databricks/get_run",
     "Databricks/Get SQL statement result": "ooa.databricks/fetch_results",
     "Databricks/List jobs": "ooa.databricks/list_jobs",
@@ -1069,7 +1069,14 @@
     "AWS EC2/Get instance status": "ooa.aws_ec2/get_instance_status",
     "AWS EC2/Enable monitoring": "ooa.aws_ec2/enable_monitoring",
     "AWS EC2/Disable monitoring": "ooa.aws_ec2/disable_monitoring",
-    "AWS EC2/Disconnect": "ooa.aws_ec2/disconnect"
+    "AWS EC2/Disconnect": "ooa.aws_ec2/disconnect",
+    "Azure DevOps/List test suites": "ooa.azure_devops/list_test_suites",
+    "Azure DevOps/List test cases": "ooa.azure_devops/list_test_cases",
+    "Azure DevOps/List test runs": "ooa.azure_devops/list_test_runs",
+    "Azure DevOps/Update test result": "ooa.azure_devops/update_test_results",
+    "Azure DevOps/Get test run statistics": "ooa.azure_devops/get_test_run",
+    "Okta/Clear user sessions": "ooa.okta/clear_sessions",
+    "Okta/Unlock user": "ooa.okta/unlock_user"
   },
   "packages": {
     "core": {
