@@ -41,6 +41,25 @@ class SlackMoreOptionsTest {
         }
     }
 
+    /** K5 (batch 10): every channel input takes #name; history takes dates as well as timestamp ids. */
+    @Test void everyChannelInputTakesANameAndHistoryTakesDates() throws Exception {
+        try (Fake f = slack()) {
+            f.on("POST /api/conversations.history", c -> ok("{\"ok\":true,\"messages\":[{\"ts\":\"1762000000.1\",\"text\":\"hi\"}]}"))
+             .on("POST /api/conversations.info", c -> ok("{\"ok\":true,\"channel\":{\"id\":\"C2\",\"name\":\"ops-alerts\"}}"))
+             .on("POST /api/chat.update", c -> ok("{\"ok\":true}"));
+            Path w = tmp();
+            sl(f, w, "get_conversation_history", Map.of("channel", "#ops-alerts", "oldest", "2026-11-01", "latest", "2026-11-01T12:00"), "count");
+            String h = form(f.last("POST", "/api/conversations.history"));
+            assertTrue(h.contains("channel=C2"), h);
+            assertTrue(h.contains("oldest=1793491200") && h.contains("latest=1793534400"), h);
+            sl(f, w, "get_channel_details", Map.of("channel", "#ops-alerts"), "channel");
+            assertTrue(form(f.last("POST", "/api/conversations.info")).contains("channel=C2"));
+            assertEquals("1700000000.000100", SlackPackage.ts("1700000000.000100"));
+            assertEquals("1793534400", SlackPackage.ts("2026-11-01T12:00:00Z"));
+            RestToolkitTestSupport.fails("SLACK.BAD_TIME", () -> SlackPackage.ts("yesterday"));
+        }
+    }
+
     @Test void postMessageUnknownOrEmptyChannelName() throws Exception {
         try (Fake f = slack()) {
             SlackPackage pkg = new SlackPackage();

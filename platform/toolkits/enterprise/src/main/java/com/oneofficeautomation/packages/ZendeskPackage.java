@@ -79,6 +79,48 @@ public final class ZendeskPackage {
         return out;
     }
 
+    // ---------- people, groups and fields by name (K5, batch 10) ----------
+
+    /** Custom fields by id or by their title as agents see it (looked up once per call). */
+    static List<Map<String, Object>> customFields(ActionContext ctx, String site, Map<String, Object> custom, String email, Object apiToken, Object oauth) {
+        Map<String, Object> byId = new LinkedHashMap<>();
+        List<Map<String, Object>> fields = null;
+        for (Map.Entry<String, Object> e : custom.entrySet()) {
+            String k = e.getKey().strip();
+            if (ID.matcher(k).matches()) { byId.put(k, e.getValue()); continue; }
+            if (fields == null) fields = pages(ctx, site, "/ticket_fields", "ticket_fields", 5000, email, apiToken, oauth, false);
+            Object found = null;
+            for (Map<String, Object> f : fields) if (k.equalsIgnoreCase(String.valueOf(f.get("title"))) || k.equalsIgnoreCase(String.valueOf(f.get("title_in_portal")))) { found = f.get("id"); break; }
+            if (found == null) throw new ActionException(P + ".FIELD_NOT_FOUND", "There is no ticket field named '" + k + "'", "Use the field's title as agents see it, or its id (see List ticket fields).");
+            byId.put(Values.text(found), e.getValue());
+        }
+        return customFields(byId);
+    }
+
+    /** An agent by id, email or name. */
+    static BigDecimal userId(ActionContext ctx, String site, String who, String email, Object apiToken, Object oauth) {
+        String w = who.strip();
+        if (ID.matcher(w).matches()) return new BigDecimal(w);
+        List<Map<String, Object>> found = pages(ctx, site, "/users/search?" + HttpJson.query(Map.of("query", w.contains("@") ? "email:" + w : "\"" + w.replace("\"", "") + "\"")), "users", 50, email, apiToken, oauth, false);
+        List<Map<String, Object>> exact = new ArrayList<>();
+        for (Map<String, Object> u : found)
+            if (w.equalsIgnoreCase(String.valueOf(u.get("email"))) || w.equalsIgnoreCase(String.valueOf(u.get("name")))) exact.add(u);
+        exact.sort(Comparator.comparing(u -> "end-user".equals(u.get("role")) ? 1 : 0));   // agents and admins first
+        if (exact.isEmpty()) throw new ActionException(P + ".USER_NOT_FOUND", "No Zendesk user '" + w + "'", "Use the agent's email, full name or user id.");
+        if (exact.size() > 1 && !w.contains("@") && !"end-user".equals(exact.get(1).get("role")))
+            throw new ActionException(P + ".AMBIGUOUS_USER", "More than one agent is named '" + w + "'", "Use the agent's email or user id.");
+        return Values.toNumber(exact.get(0).get("id"));
+    }
+
+    /** A group by id or name. */
+    static BigDecimal groupId(ActionContext ctx, String site, String group, String email, Object apiToken, Object oauth) {
+        String g = group.strip();
+        if (ID.matcher(g).matches()) return new BigDecimal(g);
+        for (Map<String, Object> m : pages(ctx, site, "/groups", "groups", 5000, email, apiToken, oauth, true))
+            if (g.equalsIgnoreCase(String.valueOf(m.get("name")))) return Values.toNumber(m.get("id"));
+        throw new ActionException(P + ".GROUP_NOT_FOUND", "No Zendesk group named '" + g + "'", "Use the group's name or id (see List groups).");
+    }
+
     static Map<String, Object> ticket(String site, Map<?, ?> t) {
         Map<String, Object> custom = new LinkedHashMap<>();
         for (Map<String, Object> cf : HttpJson.maps(t.get("custom_fields"))) custom.put(Values.text(cf.get("id")), cf.get("value"));
@@ -92,7 +134,7 @@ public final class ZendeskPackage {
 
     @Action(id = "create_ticket", name = "Create ticket", category = "Tickets", capabilities = "network",
             description = "Open a ticket with a first comment, requester, priority, tags and custom fields.",
-            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), subject, description, priority, requester_email, custom_fields | requester_name, type, status, assignee_id, group_id, tags, public, upload_tokens")
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), subject, description, priority, requester_email, custom_fields | requester_name, type, status, assignee, group, tags, public, upload_tokens")
     @Output(name = "ticket_id", type = OoaType.NUMBER, description = "Number of the new ticket.")
     @Output(name = "url", type = OoaType.STRING, description = "Agent web address of the ticket.")
     public Map<String, Object> createTicket(ActionContext ctx,
@@ -107,10 +149,10 @@ public final class ZendeskPackage {
             @Input(name = "priority", type = OoaType.STRING, required = false, enumValues = {"low", "normal", "high", "urgent"}, description = "low, normal, high or urgent.") String priority,
             @Input(name = "type", type = OoaType.STRING, required = false, enumValues = {"problem", "incident", "question", "task"}, description = "problem, incident, question or task.") String type,
             @Input(name = "status", type = OoaType.STRING, required = false, enumValues = {"new", "open", "pending", "hold", "solved"}, description = "Starting status, e.g. new or open.") String status,
-            @Input(name = "assignee_id", type = OoaType.NUMBER, required = false, description = "Agent user id to assign.") String assignee,
-            @Input(name = "group_id", type = OoaType.NUMBER, required = false, description = "Group id to assign, from List groups.") String group,
+            @Input(name = "assignee", type = OoaType.ANY, required = false, formerNames = "assignee_id", example = "sam@acme.com", description = "Agent to assign: an email, a name, or a user id.") String assignee,
+            @Input(name = "group", type = OoaType.ANY, required = false, formerNames = "group_id", example = "Billing", description = "Group to assign: its name or id (see List groups).") String group,
             @Input(name = "tags", type = OoaType.LIST, required = false, description = "Tags, e.g. [\"refund\", \"agent\"].") Object tags,
-            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field id to value, e.g. {\"360012345678\": \"order_88123\"}. Ids come from List ticket fields.") Map<String, Object> custom,
+            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field (its title as agents see it, or its id) to value, e.g. {\"Order number\": \"order_88123\"}. Ids come from List ticket fields.") Map<String, Object> custom,
             @Input(name = "public", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Whether the first comment is visible to the requester.") boolean isPublic,
             @Input(name = "upload_tokens", type = OoaType.LIST, required = false, description = "Tokens from Upload attachment, to attach files to the first comment.") Object uploads) {
         Map<String, Object> comment = new LinkedHashMap<>();
@@ -129,10 +171,10 @@ public final class ZendeskPackage {
         if (priority != null) t.put("priority", priority);
         if (type != null) t.put("type", type);
         if (status != null) t.put("status", status);
-        if (assignee != null && !assignee.isBlank()) t.put("assignee_id", new BigDecimal(id("assignee", assignee)));
-        if (group != null && !group.isBlank()) t.put("group_id", new BigDecimal(id("group", group)));
+        if (assignee != null && !assignee.isBlank()) t.put("assignee_id", userId(ctx, site, assignee, email, apiToken, oauth));
+        if (group != null && !group.isBlank()) t.put("group_id", groupId(ctx, site, group, email, apiToken, oauth));
         if (tags != null) t.put("tags", HttpJson.addressList(tags));
-        if (custom != null && !custom.isEmpty()) t.put("custom_fields", customFields(custom));
+        if (custom != null && !custom.isEmpty()) t.put("custom_fields", customFields(ctx, site, custom, email, apiToken, oauth));
         Map<String, Object> r = call(ctx, "POST", api(site) + "/tickets", email, apiToken, oauth, Map.of("ticket", t));
         Object tid = HttpJson.path(r, "ticket.id");
         return Out.of("ticket_id", tid, "url", site(site) + "/agent/tickets/" + Values.text(tid));
@@ -155,7 +197,7 @@ public final class ZendeskPackage {
 
     @Action(id = "update_ticket", name = "Update ticket", category = "Tickets", capabilities = "network",
             description = "Change a ticket's status, priority, assignee, group, tags or custom fields. Only the inputs you fill in are changed.",
-            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), ticket_id, status, priority, assignee_id, custom_fields | type, subject, group_id, tags")
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), ticket_id, status, priority, assignee, custom_fields | type, subject, group, tags")
     public Map<String, Object> updateTicket(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
@@ -166,19 +208,19 @@ public final class ZendeskPackage {
             @Input(name = "priority", type = OoaType.STRING, required = false, enumValues = {"low", "normal", "high", "urgent"}, description = "New priority.") String priority,
             @Input(name = "type", type = OoaType.STRING, required = false, enumValues = {"problem", "incident", "question", "task"}, description = "New type.") String type,
             @Input(name = "subject", type = OoaType.STRING, required = false, description = "New subject.") String subject,
-            @Input(name = "assignee_id", type = OoaType.NUMBER, required = false, description = "Agent user id to assign.") String assignee,
-            @Input(name = "group_id", type = OoaType.NUMBER, required = false, description = "Group id to assign.") String group,
+            @Input(name = "assignee", type = OoaType.ANY, required = false, formerNames = "assignee_id", example = "sam@acme.com", description = "Agent to assign: an email, a name, or a user id.") String assignee,
+            @Input(name = "group", type = OoaType.ANY, required = false, formerNames = "group_id", example = "Billing", description = "Group to assign: its name or id (see List groups).") String group,
             @Input(name = "tags", type = OoaType.LIST, required = false, description = "Replace all tags with these. To add tags without removing others use Add tags.") Object tags,
-            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field id to new value.") Map<String, Object> custom) {
+            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field (its title as agents see it, or its id) to new value.") Map<String, Object> custom) {
         Map<String, Object> t = new LinkedHashMap<>();
         if (status != null) t.put("status", status);
         if (priority != null) t.put("priority", priority);
         if (type != null) t.put("type", type);
         if (subject != null) t.put("subject", subject);
-        if (assignee != null && !assignee.isBlank()) t.put("assignee_id", new BigDecimal(id("assignee", assignee)));
-        if (group != null && !group.isBlank()) t.put("group_id", new BigDecimal(id("group", group)));
+        if (assignee != null && !assignee.isBlank()) t.put("assignee_id", userId(ctx, site, assignee, email, apiToken, oauth));
+        if (group != null && !group.isBlank()) t.put("group_id", groupId(ctx, site, group, email, apiToken, oauth));
         if (tags != null) t.put("tags", HttpJson.addressList(tags));
-        if (custom != null && !custom.isEmpty()) t.put("custom_fields", customFields(custom));
+        if (custom != null && !custom.isEmpty()) t.put("custom_fields", customFields(ctx, site, custom, email, apiToken, oauth));
         if (t.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "No changes were given", "Fill in at least one field to change.");
         call(ctx, "PUT", api(site) + "/tickets/" + id("ticket", ticket), email, apiToken, oauth, Map.of("ticket", t));
         return Map.of();

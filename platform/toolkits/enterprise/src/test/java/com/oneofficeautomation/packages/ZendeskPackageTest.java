@@ -73,6 +73,22 @@ class ZendeskPackageTest {
 
             zd.updateTicket(ctx, s, AGENT, TOKEN, null, "35436", "pending", null, null, null, null, null, null, null);
             assertEquals(Map.of("ticket", Map.of("status", "pending")), json(f.last("PUT", "/api/v2/tickets/35436")));
+
+            // K5 (batch 10): assignee by email or name, group by name, custom fields by title
+            f.on("GET /api/v2/users/search", r -> ok(q(r).contains("sam@acme.com") || q(r).contains("Sam Lee")
+                    ? "{\"users\":[{\"id\":501,\"name\":\"Sam Lee\",\"email\":\"sam@acme.com\",\"role\":\"agent\"}]}" : "{\"users\":[]}"))
+             .on("GET /api/v2/groups", r -> ok("{\"groups\":[{\"id\":601,\"name\":\"Billing\"}],\"meta\":{\"has_more\":false}}"))
+             .on("GET /api/v2/ticket_fields", r -> ok("{\"ticket_fields\":[{\"id\":360099,\"title\":\"Order number\"}]}"));
+            zd.updateTicket(ctx, s, AGENT, TOKEN, null, "35436", null, null, null, null, "sam@acme.com", "billing", null, Map.of("Order number", "o-9"));
+            Map<String, Object> named = json(f.last("PUT", "/api/v2/tickets/35436"));
+            assertEquals(new BigDecimal(501), HttpJson.path(named, "ticket.assignee_id"));
+            assertEquals(new BigDecimal(601), HttpJson.path(named, "ticket.group_id"));
+            assertEquals(List.of(Map.of("id", new BigDecimal(360099), "value", "o-9")), HttpJson.path(named, "ticket.custom_fields"));
+            zd.updateTicket(ctx, s, AGENT, TOKEN, null, "35436", null, null, null, null, "Sam Lee", null, null, null);
+            assertEquals(new BigDecimal(501), HttpJson.path(json(f.last("PUT", "/api/v2/tickets/35436")), "ticket.assignee_id"));
+            fails("ZENDESK.USER_NOT_FOUND", () -> zd.updateTicket(ctx, s, AGENT, TOKEN, null, "35436", null, null, null, null, "nobody@acme.com", null, null, null));
+            fails("ZENDESK.GROUP_NOT_FOUND", () -> zd.updateTicket(ctx, s, AGENT, TOKEN, null, "35436", null, null, null, null, null, "Legal", null, null));
+            fails("ZENDESK.FIELD_NOT_FOUND", () -> zd.updateTicket(ctx, s, AGENT, TOKEN, null, "35436", null, null, null, null, null, null, null, Map.of("Colour", "red")));
             fails("ZENDESK.NOTHING_TO_UPDATE", () -> zd.updateTicket(ctx, s, AGENT, TOKEN, null, "35436", null, null, null, null, null, null, null, null));
 
             zd.addComment(ctx, s, AGENT, TOKEN, null, "35436", "<p>Refund sent</p>", true, true, "solved", "a, b");
@@ -198,7 +214,7 @@ class ZendeskPackageTest {
             fails("ZENDESK.BAD_ID", () -> zd.getTicket(ctx, s, AGENT, TOKEN, null, "12/../../users"));
             fails("ZENDESK.NO_EMAIL", () -> zd.getTicket(ctx, s, null, TOKEN, null, "5"));
             fails("ZENDESK.NO_PASSWORD", () -> zd.getTicket(ctx, s, AGENT, null, null, "5"));
-            fails("ZENDESK.BAD_ID", () -> zd.createTicket(ctx, s, AGENT, TOKEN, null, "x", "y", null, null, null, null, null, "bob", null, null, null, true, null));
+            fails("ZENDESK.NOT_FOUND", () -> zd.createTicket(ctx, s, AGENT, TOKEN, null, "x", "y", null, null, null, null, null, "bob", null, null, null, true, null));   // K5: a name is looked up (this stand-in has no user search)
             noSecretInLog(log);
         }
     }
