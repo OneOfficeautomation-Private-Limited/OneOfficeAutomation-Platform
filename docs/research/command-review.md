@@ -677,3 +677,65 @@ process with validation and review. Every field has a label and help.
   connection" showing "Default (company)"; Chat shows Response format, Top k and Seed; Wait for document offers Read and
   Reviewed; Bulk insert still opens on "A delimited file". Not checked here: Document Automation against a running
   DocFlow, and the runner passing these requests on to the Command Center (only the Command Center side has a test).
+
+---
+
+## Batch 10: cloud connectors (about 600 commands in 25 toolkits)
+
+Microsoft 365 (files, Excel online, Teams, SharePoint, Planner, Calendar; mail was batch 7), Google Workspace (Drive,
+Sheets, Docs, Calendar; Gmail was batch 7), Box, DocuSign, Salesforce, ServiceNow, Jira, Zendesk, Workday, Slack, Asana,
+Azure DevOps, GitHub, Okta, Active Directory, AWS EC2, Azure VMs, Snowflake, Databricks. Checked 12 Nov 2026 against
+AA's packages for each and Blue Prism's WorkHQ connectors, in three parts (A: office and files, B: business apps, C:
+identity, cloud and data), each finding checked in our code. Tried in One AgentStudio: Salesforce Authenticate and
+Query, ServiceNow Create record, Microsoft 365 Upload file, Google Sheets Append rows, Slack Post message.
+
+### What AA and Blue Prism teach about how these are used
+
+- **Sign in once, centrally.** AA: a Connect step picks a Control Room OAuth connection (one shared token or one per
+  user), renewed for the bot; Jira, Slack, Zendesk, Asana, Azure DevOps, GitHub, Okta, Snowflake and Databricks all
+  offer it. Blue Prism WorkHQ keeps one connection per app: client credentials (Salesforce, ServiceNow, Microsoft),
+  API tokens (Jira, Okta), GitHub App sign-in, Google service accounts.
+- **Pick by name, loop over results.** Builders choose a SharePoint site and list, a Slack channel, a group or a team
+  by its name; then Find or List and loop over the table (AA's iterators for meetings, teams, channels and chats).
+- **Long operations: start, wait, check.** Start or stop a VM, run a Databricks job, then wait for its state and read
+  its output; AA has no wait command for EC2, so builders loop on the status.
+- **On- and offboarding chains** (Okta and Active Directory): create the user, add to groups by name, later disable,
+  move, clear sessions, delete.
+- **Records**: Salesforce SOQL then a record loop, insert, update, upsert by external id; Blue Prism adds Find or
+  create, Describe object and bulk upsert. ServiceNow filters by field values; Jira by JQL with transitions.
+
+### What we have, checked in panels and code
+
+Every toolkit uses the saved connections of batch 7, and most share the web client: HTTP 429 and Retry-After are
+retried for all, and paging is followed in Salesforce, ServiceNow, Zendesk, Asana, Azure DevOps, GitHub, Okta, EC2,
+Databricks, Box, DocuSign and most Graph lists. OneDrive uploads any size in parts. Active Directory escapes filter
+values. We go further than AA in places: Jira search and transitions, ServiceNow changed-record lists, Slack channels
+by name in Post message.
+
+### Findings
+
+| # | Finding | Why it matters |
+|---|---|---|
+| K1 | **The renewing sign-in reaches three toolkits of nineteen.** The runner fills only inputs named access_token or bearer_token (Runner.java:424): Jira (api_token), Zendesk (oauth_token), Slack (bot_token), Asana and GitHub (token), Azure DevOps (personal_access_token) and Snowflake (token) never get it. Grants are client credentials or refresh token only: no JWT bearer (Google service accounts, DocuSign, Okta service apps, Snowflake key pair), no GitHub App, no extra form fields (Box). | Unattended agents keep long-lived personal tokens in steps, or a person refreshes the vault by hand; AA offers OAuth connections for all of them. |
+| K2 | **About 70 AA map entries point at the wrong step** (the right one exists), e.g. AD Delete user → remove from group, Salesforce Get record → query, Slack Send channel message → send direct message, DocuSign Send envelope from files → send draft, Google Drive Delete folder → delete permission. AWS EC2 and ServiceNow's actions are not mapped; nor are AA's iterators. | A migrated "Delete user" would quietly remove a group membership. |
+| K3 | **Large files.** Every download (Microsoft 365, Google, Box, DocuSign) is held in memory whole; Box uploads in one post (Box refuses over 50 MB); Google Drive uploads in one multipart post, and new files leave out supportsAllDrives (uploads into a shared drive fail); Excel online writes a whole Data Table in one request. | Files of hundreds of MB fail or exhaust the runner's memory; shared drives are Blue Prism's documented Google set-up. |
+| K4 | **Paging and waiting cut short.** Microsoft 365 calendar lists read one page of 500; Active Directory searches stop at 1,000 entries (no paged search) and the warning quotes the wrong number; EC2 Wait for state is cut off at 60 s by the step's default time limit; Databricks Run job and Start cluster return quietly still running when their wait ends (Fail if run fails is then skipped). Wait inputs are named differently in each toolkit. | Results are silently incomplete; an agent carries on believing a job finished. |
+| K5 | **Ids where builders pick by name.** Slack channel by name only in Post message; Zendesk assignee and group, Asana project, section and tag, custom fields, Okta groups in Create user, Databricks job, cluster and warehouse, EC2 instances by Name tag all need ids. Google Drive upload, download, list and share need ids while copy and move take paths. SharePoint libraries only by site or drive id; app sign-in breaks the "me/drive" and joined-teams defaults without saying why. | Each step needs a lookup step first; AA picks by name. |
+| K6 | **Correctness and safety.** Jira search calls the endpoint Atlassian retired on Jira Cloud (/rest/api/2/search; Data Center keeps it); not checked on a real Cloud site. Salesforce's object field is labelled "Captured object". SOQL takes values only as typed text (O'Brien breaks it; a variable can change the query). Jira, Asana, Azure DevOps and GitHub accept plain http to any host. Active Directory: LDAPS with a company CA fails (Java's own certificate list only), the address check rejects AA's LDAP://host/DC=... form, no StartTLS. DocuSign needs its address typed although the account gives it. | Search may fail on every Jira Cloud site; tokens can travel unencrypted; AD set-ups as AA documents them do not connect. |
+| K7 | **Missing commands people use**: Databricks job run output; Azure DevOps List test suites, cases and runs and Update test results; Salesforce many-record writes (sObject Collections) and Describe object; SharePoint list items by display labels, list attachments; Okta Clear sessions, Unlock user, Expire password. | Error handling after a failed job; test management; loading thousands of rows; offboarding. |
+| K8 | **Same idea, different names**: base_url vs endpoint_override, calendar vs calendar_id, from/to vs start/end, count on some lists and not others; Salesforce Authenticate help shows grant codes. | Builders relearn each toolkit. |
+| S3 | **Few samples**: about 60 of 600 commands have one; none for Okta, Snowflake, Workday, Box, Google Drive; one or two for GitHub, DocuSign, Sheets, Jira, Zendesk. Unit tests with stand-in servers exist for each toolkit. | Chains (upload, list, download; create user, add to group; start, wait, stop) are not checked end to end. |
+
+### Proposals (choose; nothing built)
+
+| # | Proposal | Size |
+|---|---|---|
+| **K1** | Renewing sign-in for every connector: each toolkit declares its token input so a connection fills it; new grants JWT bearer (Google service account, DocuSign, Okta, Snowflake key pair), GitHub App and extra form fields (Box); help on each toolkit names the connection option. | Large |
+| **K2** | Fix the wrong AA map entries, add EC2, ServiceNow and the AA iterators; regenerate the names. | Small |
+| **K3** | Downloads straight to disk (one shared helper); Box upload sessions over 50 MB; Google resumable upload and shared drives on every Drive call; Excel online writes in row blocks. | Medium |
+| **K4** | Calendar lists page through to a max_results; AD paged search; EC2 waits up to an hour and Start, Stop and Terminate can wait; one wait pattern (wait + timeout_seconds, WAIT_TIMEOUT when time runs out) for EC2, Azure and Databricks, old names kept. | Small |
+| **K5** | Pick by name: Slack channel everywhere, Zendesk and Asana by name or email, Okta groups by name, Databricks and EC2 by name; Drive path option on every Drive step; SharePoint library by site path and name; clear message when an app sign-in meets a "me" default. | Medium |
+| **K6** | Jira Cloud search on the new endpoint (Data Center unchanged); Salesforce field label; Salesforce Find records with a filter dictionary (values escaped) and parameters in SOQL; https only unless "Allow plain http" is ticked; AD trusts the Windows certificate store, accepts AA's address form, StartTLS; DocuSign address looked up when empty. | Medium |
+| **K7** | The missing commands above (Databricks output, Azure DevOps test management, Salesforce collections and Describe, SharePoint labels and attachments, Okta sessions and unlock). | Medium |
+| **K8** | Align names (old names kept as aliases); help shows names, not codes. | Small |
+| **S3** | Samples against stand-in servers for every toolkit, one chain per family first (Okta, Snowflake, Databricks, EC2, Box, Drive, DocuSign, Workday, GitHub). | Large |
