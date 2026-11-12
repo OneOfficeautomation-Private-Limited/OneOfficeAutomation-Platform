@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { AppComponent, AppDefinition, AppEmbed, AppInfo } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 
 /**
@@ -50,7 +50,7 @@ export function Apps({ api, user, onNotice }: { api: CrApi; user: CrUser; onNoti
         <span className="ov-fill" />
         {maker && <Button kind="primary" onClick={() => setEditing("new")}>New app</Button>}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools"><div className="cc-list-filters" /><div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div></div>
       <div className="cc-list-panel">
         {deleting && <div className="cc-list-bulk" role="alert"><span>Delete the app {deleting.name}? Its users can no longer open it.</span>

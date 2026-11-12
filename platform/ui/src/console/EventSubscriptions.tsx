@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, EventSubscription, EventSubscriptionList } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
@@ -90,7 +90,7 @@ export function EventSubscriptions({ api, onNotice }: { api: CrApi; onNotice: (t
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setEditing("new")}>New subscription</Button>
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {shown && <div className="cc-list-bulk" role="status">
         <span>{shown.what}, shown this once: copy it now.</span>
         <TextInput readOnly mono aria-label={shown.what} value={shown.value} onFocus={(e) => e.currentTarget.select()} />

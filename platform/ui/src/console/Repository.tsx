@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import type { FlowStep } from "../api/client";
-import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic, reportMinor } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
@@ -203,7 +203,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
           : <span className="ov-tab is-off" role="tab" aria-selected={false} aria-disabled title={!user.permissions.includes("repo.checkin")
             ? "Private workspaces are for people who build agents" : "Private workspaces are not set up on this One CommandCenter"}>Private</span>}
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-explorer-body">
         <nav className="cc-tree-pane" aria-label="Folders">
           <div className="cc-pane-head"><h2>Folders</h2><span className="ov-fill" />

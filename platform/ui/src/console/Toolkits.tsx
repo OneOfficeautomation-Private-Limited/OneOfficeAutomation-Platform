@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Toolkit } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RowMenu, rowClick, when, CloseView } from "./ListParts";
 
 /**
@@ -88,7 +88,7 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
           <Button kind="secondary" onClick={() => setDialog({ kind: "versions" })}>Your toolkit versions</Button>
           <Button kind="primary" onClick={() => setDialog({ kind: "upload" })}>Upload toolkit</Button></>}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-list-search"><TextInput type="search" aria-label="Search toolkits" placeholder="Search toolkits" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
@@ -158,7 +158,7 @@ function ToolkitView({ api, t, canUpdate, onSwitch, onClose, onNotice }: { api: 
         {onSwitch && <Button kind="secondary" onClick={onSwitch}>{t.enabled ? "Switch off…" : "Switch on"}</Button>}
         {close}
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="ov-tabs cc-list-tabs cc-agent-tabs" role="tablist" aria-label="About this toolkit">
         {([["agents", "Agents that use it (" + t.used_by + ")"], ["details", "Details"]] as const).map(([k, l]) =>
           <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}

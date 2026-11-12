@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, ScimToken } from "../api/cr";
-import { Button, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor } from "../components";
+import { Button, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { SETTING_HELP } from "./settingsHelp";
 import { ROLE_NAMES } from "./roleNames";
 
@@ -297,7 +297,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
         <span className="ov-fill" />
         <span className="cc-list-search"><TextInput type="search" aria-label="Search settings" placeholder="Find a setting" value={q} onChange={(e) => setQ(e.target.value)} /></span>
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!saved && !error && <p className="cc-none" role="status">Loading…</p>}
       {saved && (text ? <div className="cc-set cc-set-full">
         <div className="cc-set-form" role="region" aria-label="Settings found">

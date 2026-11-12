@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { AuditRecord, CrApi, CrUser } from "../../api/cr";
 import type { AuditFigures } from "./consoleApi";
-import { Button, HelpButton, Select, usePersistent, type HelpTopic } from "../../components";
+import { Button, HelpButton, Select, usePersistent, type HelpTopic, PageError } from "../../components";
 import { AREAS, wordsOf } from "../../console/Audit";
 import { BusinessAgents } from "./BusinessAgents";
 import { Capacity } from "./Capacity";
@@ -134,7 +134,7 @@ function AuditFiguresTab({ api, title, tabs }: { api: CrApi; title: string; tabs
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!a && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {a?.capped && <p className="st-alert">Only the latest {a.entries.toLocaleString()} entries of the period are counted: choose a shorter period or a filter.</p>}
       {a && <>

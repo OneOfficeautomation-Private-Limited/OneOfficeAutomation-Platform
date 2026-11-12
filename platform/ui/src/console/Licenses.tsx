@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrUser, LicenseInfo, LicenseUsage, Runner } from "../api/cr";
-import { Button, HelpButton, TextArea, TextInput, type HelpTopic } from "../components";
+import { Button, HelpButton, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton } from "./ListParts";
 
 /**
@@ -120,7 +120,7 @@ export function Licenses({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         {([["overview", "Overview"], ["allocation", "Allocation"], ["usage", "Usage"]] as const).map(([t, l]) =>
           <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => setTab(t)}>{l}</button>)}
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {askBar}
       {!lic && !error && <p className="cc-none" role="status">Loading…</p>}
 

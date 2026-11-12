@@ -1,7 +1,7 @@
 import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FolderIcon } from "../../console/Repository";
 
@@ -86,7 +86,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create Agent API</Button>}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-explorer-body">
         <nav className="cc-tree-pane" aria-label="Folders">
           <div className="cc-pane-head"><h2>Folders</h2></div>

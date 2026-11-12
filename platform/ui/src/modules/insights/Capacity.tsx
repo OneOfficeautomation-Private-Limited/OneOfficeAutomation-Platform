@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
 import type { Capacity as CapacityData } from "./consoleApi";
-import { HelpButton, Select, usePersistent, type HelpTopic, reportMinor } from "../../components";
+import { HelpButton, Select, usePersistent, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 
 /**
@@ -96,7 +96,7 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!c && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {c && <>
         <div className="cc-sums" role="group" aria-label="Figures">

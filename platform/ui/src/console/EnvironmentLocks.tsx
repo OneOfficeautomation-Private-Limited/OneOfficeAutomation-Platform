@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, EnvironmentLock } from "../api/cr";
-import { Button, HelpButton, TextInput, type HelpTopic } from "../components";
+import { Button, HelpButton, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, when } from "./ListParts";
 
 /**
@@ -49,7 +49,7 @@ export function EnvironmentLocks({ api, user, onNotice }: { api: CrApi; user: Cr
         {list && <span className="cc-list-count">{list.length} held</span>}
         <span className="ov-fill" />
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search locks" placeholder="Search locks" value={q} onChange={(e) => setQ(e.target.value)} /></span>

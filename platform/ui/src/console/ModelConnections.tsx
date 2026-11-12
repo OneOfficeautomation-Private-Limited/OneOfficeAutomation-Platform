@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ModelConnection } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
@@ -76,7 +76,7 @@ export function ModelConnections({ api, user, onNotice }: { api: CrApi; user: Cr
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ c: null })}>Create connection</Button>}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-list-search"><TextInput type="search" aria-label="Search model connections" placeholder="Search connections and models" value={q} onChange={(e) => setQ(e.target.value)} /></span>

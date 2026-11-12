@@ -175,3 +175,8 @@ body.ui-resizing * { cursor: inherit !important; }
   border-bottom: 1px solid #e8c27a; font-size: 12.5px; font-weight: 600; }
 .ui-minor > span { flex: 1; }
 .ui-minor > svg { flex: none; }
+
+/* A page that could not load (error batch E2b): the red bar with Retry beside it. */
+.ui-page-error { display: flex; align-items: stretch; gap: 0; }
+.ui-page-error > .st-alert { flex: 1; margin: 0; }
+.ui-page-error > .ui-page-retry { flex: none; height: auto; border-radius: 0; border-left: 0; }

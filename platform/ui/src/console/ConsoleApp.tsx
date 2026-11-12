@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { CrApi, CrFailure, type CrUser, type Environment } from "../api/cr";
-import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, Notice, ShortcutsDialog, TextInput, usePersistent, MinorNotices } from "../components";
+import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, Notice, ShortcutsDialog, TextInput, usePersistent, MinorNotices, PageRetry } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { canSee, groupOf, MENU_GROUPS, MENU_SECTIONS } from "../shell/menu";
 import { MODULE_PAGES } from "../modules/pages";
@@ -59,6 +59,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); };
   useEffect(() => { const on = () => setPageState(pageOf(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const [notice, setNotice] = useState<string | null>(null);
+  const [reloads, setReloads] = useState(0);   // Retry on a page that could not load mounts it again (E2b)
   const [showKeys, setShowKeys] = useState(false);   // ? or Help > Keyboard shortcuts
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -125,6 +126,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
         <main className="st-main cc-main" onKeyDown={listKeys}>
           <Breadcrumb user={user} page={page} onPage={setPage} />
           <GroupTabs page={page} user={user} onPage={setPage} hrefFor={hrefFor} />
+          <PageRetry.Provider value={() => setReloads((n) => n + 1)}><Fragment key={page + ":" + reloads}>
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
           {MODULE_PAGES[page]?.({ api, user, onNotice: setNotice, setPage, studio })}
           {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}
@@ -148,6 +150,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "connections" && <ModelConnections api={api} user={user} onNotice={setNotice} />}
           {page === "automation" && <Repository api={api} user={user} onNotice={setNotice} studio={studio} />}
           {page === "templates" && <Templates api={api} user={user} onNotice={setNotice} />}
+          </Fragment></PageRetry.Provider>
         </main>
         <HelpPanel page={page} />
       </div></HelpProvider>

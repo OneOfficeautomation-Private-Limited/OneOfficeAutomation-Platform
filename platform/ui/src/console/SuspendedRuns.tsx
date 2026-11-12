@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, RunWait } from "../api/cr";
-import { Button, TextInput } from "../components";
+import { Button, TextInput, PageError } from "../components";
 import { RefreshButton, rowClick, when } from "./ListParts";
 
 /**
@@ -44,7 +44,7 @@ export function SuspendedRuns({ api, user, onNotice, onOpen }: { api: CrApi; use
 
   return (
     <>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search suspended runs" placeholder="Search agent, run id or user" value={q} onChange={(e) => setQ(e.target.value)} /></span>

@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { AgentStats, BusinessAgent, DashWidget, VariableProfile } from "./consoleApi";
-import { Button, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../../components";
+import { Button, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
 
 /**
@@ -69,7 +69,7 @@ export function BusinessAgents({ api, user, onNotice, title, tabs }: { api: CrAp
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!list && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {list && <div className="cc-list-panel"><div className="cc-list-scroll"><table className="cc-list-table" aria-label="Agents that record values">
         <thead><tr><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col">Values it records</th><th scope="col" className="cc-num">Runs</th>
@@ -129,7 +129,7 @@ function AgentBusiness({ api, user, path, agents, days: initialDays, onClose, on
       <div className="ov-tabs cc-agent-tabs" role="tablist" aria-label="Business figures">
         {tabs.map(([k, l]) => <button key={k} type="button" role="tab" className="ov-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {(!stats || !prof) && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {stats && prof && tab === "dashboard" && <Dashboard stats={stats} prof={prof} />}
       {stats && prof && tab === "profile" && <Profile prof={prof} />}
@@ -224,7 +224,7 @@ function Compare({ api, path, agents, days, stats, prof }: { api: CrApi; path: s
       <Select aria-label="Other agent" value={other} onChange={(e) => setOther(e.target.value)} options={[...new Set([path, ...agents])].map((a) => ({ value: a, label: a === path ? "This agent" : name(a) }))} />
       <Select aria-label="Its period" value={when2} onChange={(e) => setWhen2(e.target.value as "same" | "before")} options={[{ value: "same", label: "The same period" }, { value: "before", label: "The period before" }]} />
     </div>
-    {error && <p className="st-alert" role="alert">{error}</p>}
+    {error && <PageError text={error} />}
     {!b && !error && <p className="st-muted" role="status">Loading…</p>}
     {b && <div className="cc-list-panel"><div className="cc-list-scroll"><table className="cc-list-table" aria-label="Compare">
       <thead><tr><th scope="col">Figure</th><th scope="col" className="cc-num">{sideA}</th><th scope="col" className="cc-num">{sideB}</th><th scope="col" className="cc-num">Difference</th></tr></thead>

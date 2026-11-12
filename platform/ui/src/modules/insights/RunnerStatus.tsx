@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CrApi, Runner } from "../../api/cr";
-import { HelpButton, TextInput, type HelpTopic } from "../../components";
+import { HelpButton, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton } from "../../console/ListParts";
 import { time, trouble } from "./Overview";
 
@@ -40,7 +40,7 @@ export function RunnerStatus({ api }: { api: CrApi }) {
         <span className="ov-fill" />
         <a className="ui-btn ui-btn-secondary" href="#/devices">Runner Machines</a>
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search runners" placeholder="Search runners" value={q} onChange={(e) => setQ(e.target.value)} /></span>

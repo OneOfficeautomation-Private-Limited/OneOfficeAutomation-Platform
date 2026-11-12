@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useEffect, useState } from "react";
 import type { ConsolePlugin, CrApi } from "../../api/cr";
 import type { DocFlowVersion } from "./consoleApi";
-import { HelpButton, type HelpTopic } from "../../components";
+import { HelpButton, type HelpTopic, PageError } from "../../components";
 
 /**
  * AI > Document Automation, as in AA's Control Room: a plug-in page. An optional module fills it (it lists itself as a
@@ -65,7 +65,7 @@ export function DocumentAutomation({ api }: { api: CrApi }) {
         <HelpButton topic={HELP} />
         {plugin !== undefined && <span className={"cc-pill is-" + (plugin ? "active" : "disabled")}><span className="cc-pill-dot" />{plugin ? "Installed" : "Not installed"}</span>}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {plugin === undefined && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {plugin && <>
         <div className="df-start-lead">

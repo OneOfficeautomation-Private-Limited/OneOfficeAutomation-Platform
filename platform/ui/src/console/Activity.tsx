@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AiCall, CrApi, CrUser, Run, RunEvent, Schedule } from "../api/cr";
-import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic, reportMinor } from "../components";
+import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { repeats } from "./Schedules";
 import { logFields } from "../studio/flowEdit";
@@ -342,7 +342,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
             <label className="cc-date">To <TextInput type="date" aria-label="To" value={f.to ?? ""} onChange={(e) => setFilter("to", e.target.value)} /></label>
           </>}
         </div>}
-        {error && <p className="st-alert" role="alert">{error}</p>}
+        {error && <PageError text={error} />}
         <div className="cc-list-panel">
           {chosen.length > 0 && <div className="cc-list-bulk" role="toolbar" aria-label="Runs actions">
             <strong>{chosen.length} selected</strong>
@@ -444,7 +444,7 @@ function Upcoming({ api, user, agents, onNotice, onStarted }: { api: CrApi; user
       <Button kind="plain" onClick={load}>Refresh</Button>
       <a className="ui-btn ui-btn-plain" href="#/schedules">Make or change schedules</a>
     </div>
-    {error && <p className="st-alert" role="alert">{error}</p>}
+    {error && <PageError text={error} />}
     <div className="cc-list-panel"><div className="cc-list-scroll">
       <table className="cc-list-table" aria-label="Scheduled runs">
         <thead><tr>
@@ -587,7 +587,7 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged, n
         <CloseView onClick={onClose} />
       </div>
       <div className="cc-run-body">
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!run && !error && <p className="cc-none" role="status">Loading…</p>}
       {run && <>
         {err && <div className="cc-errbox" role="note" aria-label="Why it ended">

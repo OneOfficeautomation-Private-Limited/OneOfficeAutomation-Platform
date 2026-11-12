@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, HumanTask, TaskFormField } from "../api/cr";
-import { Button, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
+import { Button, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 
 /**
@@ -87,7 +87,7 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
         {(["open", "completed"] as const).map((t) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => { setTab(t); setTasks(null); setOpen(null); }}>
           {t === "open" ? "To do" : "Done"}{tab === t && tasks && <span className="ov-cnt">{tasks.length}</span>}</button>)}
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search tasks" placeholder="Search tasks" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>

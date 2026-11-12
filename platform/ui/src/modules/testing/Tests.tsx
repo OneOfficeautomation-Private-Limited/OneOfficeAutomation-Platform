@@ -1,7 +1,7 @@
 import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool, TestRunSummary, TestSet } from "../../api/cr";
-import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, reportMinor } from "../../components";
+import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FolderIcon } from "../../console/Repository";
 
@@ -183,7 +183,7 @@ export function Tests({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
         {can("repo.checkin") && <Menu label="Create" align="end" items={[{ key: "set", label: "New test set", onSelect: () => setDialog({ kind: "edit", t: null }) }]}
           trigger={<button type="button" className="ui-btn ui-btn-primary" aria-label="Create">Create ▾</button>} />}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-explorer-body">
         <nav className="cc-tree-pane" aria-label="Folders">
           <div className="cc-pane-head"><h2>Folders</h2><span className="ov-fill" />

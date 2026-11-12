@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AuditRecord, CrApi } from "../api/cr";
-import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
+import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 
 /**
@@ -233,7 +233,7 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
         <span className="ov-fill" />
         <Button kind="secondary" onClick={verify}>Check history</Button>
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="ov-seg" role="group" aria-label="Time">

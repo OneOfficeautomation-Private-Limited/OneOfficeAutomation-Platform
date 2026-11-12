@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { ValueReport, ValueRow } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
 
 /**
@@ -110,7 +110,7 @@ export function Value({ api, user, onNotice , title, tabs }: { api: CrApi; user:
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!v && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {v && <>
         {(!v.hourly_cost || (unvalued > 0 && !v.default_minutes_saved)) && <ul className="cc-advice cc-pad-x cc-advice-list" aria-label="Advice">
