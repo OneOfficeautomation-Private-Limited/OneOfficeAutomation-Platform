@@ -676,4 +676,4 @@ process with validation and review. Every field has a label and help.
   expected no table) fixed and its tests rerun. Tried in One AgentStudio: a new Prompt and Chat open on "A saved
   connection" showing "Default (company)"; Chat shows Response format, Top k and Seed; Wait for document offers Read and
   Reviewed; Bulk insert still opens on "A delimited file". Not checked here: Document Automation against a running
-  DocFlow (the agent-to-Command-Center hop is covered only by the server test).
+  DocFlow, and the runner passing these requests on to the Command Center (only the Command Center side has a test).
