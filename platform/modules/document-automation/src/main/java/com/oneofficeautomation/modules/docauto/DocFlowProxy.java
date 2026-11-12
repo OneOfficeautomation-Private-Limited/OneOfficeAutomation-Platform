@@ -261,7 +261,12 @@ public final class DocFlowProxy {
         HttpResponse<byte[]> r;
         try { r = http.send(rq.build(), HttpResponse.BodyHandlers.ofByteArray()); }
         catch (IOException e) {
-            throw new OoaException("DOCS.UNAVAILABLE", "The Document Automation service is not reachable", "Start DocFlow, or check Settings > Document Automation (" + baseUrl() + ").");
+            // improvement list 12 Nov 2026 (item 10): say whether it was never set up or set up and not answering
+            if (!configured())
+                throw new OoaException("DOCS.NOT_SET_UP", "Document Automation is not set up yet: no address for its DocFlow service has been entered",
+                        "An administrator starts DocFlow and enters its address (" + DEFAULT_URL + " when it runs on this server) and token in Administration > Settings > Document Automation.");
+            throw new OoaException("DOCS.UNAVAILABLE", "The Document Automation service at " + baseUrl() + " is not answering",
+                    "Check that DocFlow is running (on Windows: the OneOffice DocFlow service, or windows\\start.bat), and the address in Administration > Settings > Document Automation.", true, Map.of());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new OoaException("DOCS.UNAVAILABLE", "Interrupted");

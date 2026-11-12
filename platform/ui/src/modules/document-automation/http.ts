@@ -162,7 +162,10 @@ export class HttpDocFlowApi implements DocFlowApi {
     const data = t ? JSON.parse(t) : null;
     if (!r.ok) {
       const e = data?.error ?? data;
-      throw new HttpError(r.status, (typeof e?.message === "string" && e.message) || (typeof e?.detail === "string" && e.detail) || `DocFlow answered ${r.status}`);
+      const said = (typeof e?.message === "string" && e.message) || (typeof e?.detail === "string" && e.detail) || `DocFlow answered ${r.status}`;
+      // the Command Center's errors carry what to do about them (improvement list item 10)
+      const fix = typeof e?.suggestedFix === "string" && e.suggestedFix ? " " + e.suggestedFix : typeof e?.fix === "string" && e.fix ? " " + e.fix : "";
+      throw new HttpError(r.status, said + (said.endsWith(".") ? "" : ".") + fix);
     }
     return data as T;
   }

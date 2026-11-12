@@ -456,9 +456,9 @@ describe("rebuilt One CommandCenter console", () => {
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     // option B (8 Nov 2026): every section open, one entry per group of pages
-    expect(within(menu).getAllByRole("button").filter((b) => b.classList.contains("st-menu-entry")).map((b) => b.textContent)).toEqual(["Automation", "Ideas and apps",
-      "Activity", "Runners", "Scheduling", "Work queues", "Shared data", "Credentials", "Overview", "Alerts", "Operations and business",
-      "People and roles", "Settings and audit", "One Chat", "AI setup", "Document Automation"]);
+    expect(within(menu).getAllByRole("button").filter((b) => b.classList.contains("st-menu-entry")).map((b) => b.textContent)).toEqual(["Automation", "Ideas", "Apps",
+      "Activity", "Runners", "Scheduling", "Work queues", "Shared data", "Credentials", "Overview", "Alerts", "Operations", "Business",
+      "Users", "Roles", "Teams", "Settings", "Policies", "Audit trail", "Licenses", "One Chat", "AI setup", "Document Automation"]);   // improvement list 12 Nov 2026, items 4, 7, 9
     // item 16: a section folds from its heading and unfolds again (the choice is remembered)
     fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
     expect(within(menu).queryByRole("button", { name: "Runners" })).toBeNull();
@@ -1144,14 +1144,24 @@ describe("rebuilt One CommandCenter console", () => {
     await go("Users");
     await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Administration›Users"));
     const menu = screen.getByRole("navigation", { name: "One CommandCenter" });
-    // option B: the group's entry is current on any of its pages, and its pages are tabs above the page
-    expect(within(menu).getByRole("button", { name: "People and roles" }).getAttribute("aria-current")).toBe("page");
-    const people = screen.getByRole("navigation", { name: "People and roles" });
-    expect(within(people).getAllByRole("button").map((b) => b.textContent)).toEqual(["Users", "Roles", "Teams"]);
-    fireEvent.click(within(people).getByRole("button", { name: "Roles" }));
+    // improvement list item 9: each Administration page is an entry of its own, with no tabs above it
+    expect(within(menu).getByRole("button", { name: "Users" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.queryByRole("navigation", { name: "Users" })).toBeNull();
+    fireEvent.click(within(menu).getByRole("button", { name: "Roles" }));
     await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Administration›Roles"));
-    expect(within(menu).getByRole("button", { name: "People and roles" }).getAttribute("aria-current")).toBe("page");
-    expect(within(menu).queryByRole("button", { name: "Roles" })).toBeNull();   // pages are tabs, not menu entries
+    // item 2: the section of the page on screen folds from its heading like the others, and opens again when a page in it is chosen
+    const adminHead = within(menu).getByRole("button", { name: "ADMINISTRATION" });
+    fireEvent.click(adminHead);
+    expect(adminHead.getAttribute("aria-expanded")).toBe("false");
+    expect(within(menu).queryByRole("button", { name: "Roles" })).toBeNull();
+    fireEvent.click(adminHead);
+    expect(adminHead.getAttribute("aria-expanded")).toBe("true");
+    // option B still holds in Manage: a group's entry is current on any of its pages, and its pages are tabs above the page
+    await go("Schedules");
+    const scheduling = screen.getByRole("navigation", { name: "Scheduling" });
+    expect(within(scheduling).getAllByRole("button").map((b) => b.textContent)).toEqual(["Schedules", "Triggers", "Upcoming runs"]);
+    expect(within(menu).getByRole("button", { name: "Scheduling" }).getAttribute("aria-current")).toBe("page");
+    expect(within(menu).queryByRole("button", { name: "Triggers" })).toBeNull();   // pages are tabs, not menu entries
     expect(within(menu).queryByText("Favourites")).toBeNull();   // taken out on 1 Nov 2026
     expect(within(within(menu).getByRole("group", { name: "Menu width" }).parentElement!).getByRole("button", { name: "Collapse menu" })).toBeTruthy();   // at the bottom
     expect(menu.style.width).toBe("232px");
