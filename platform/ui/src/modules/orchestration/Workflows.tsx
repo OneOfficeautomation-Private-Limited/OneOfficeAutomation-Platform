@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, TaskFormField } from "../../api/cr";
 import type { WorkflowRun } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "../../console/ListParts";
 import { FormField } from "../../console/Inbox";
 
@@ -137,7 +137,7 @@ function StartWorkflow({ api, onClose, onStarted }: { api: CrApi; onClose: () =>
   useEffect(() => { api.liveWorkflows().then((b) => { setFlows(b.map((x) => x.path)); setPath(b[0]?.path ?? ""); }, (e) => setError(message(e))); }, [api]);
   useEffect(() => {
     setFields([]); setAnswers({});
-    if (path) api.workflowForm(path).then((f) => setFields((f.form?.fields ?? []).filter((x) => x.id && x.type !== "heading" && x.type !== "paragraph")), () => {});
+    if (path) api.workflowForm(path).then((f) => setFields((f.form?.fields ?? []).filter((x) => x.id && x.type !== "heading" && x.type !== "paragraph")), (e) => reportMinor("the workflow's form", e));
   }, [api, path]);
   const start = () => {
     let data: Record<string, unknown> = answers;

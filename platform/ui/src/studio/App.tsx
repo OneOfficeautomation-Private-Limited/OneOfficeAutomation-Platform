@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
-import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem } from "../components";
+import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, reportMinor, MinorNotices } from "../components";
 import { Automation, find as findNode } from "./Automation";
 import { CheckInDialog, CopyToPrivate, PublicRepository, type CheckInDep, type RepoRequest } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
@@ -361,7 +361,7 @@ export function App({ api: given }: { api?: StudioApi }) {
     const one = checkingIn?.length === 1 ? checkingIn[0] : null;
     if (!one?.endsWith(".flow.json")) return;
     api.deps(one).then((d) => setCheckInDeps(d.bots.filter((b) => b.path).map((b) => ({ path: b.path!,
-      name: displayName({ name: b.path!.split("/").pop()!, path: b.path!, type: "bot" }), status: repoStates[b.path!]?.status ?? "new" }))), () => {});
+      name: displayName({ name: b.path!.split("/").pop()!, path: b.path!, type: "bot" }), status: repoStates[b.path!]?.status ?? "new" }))), (e) => reportMinor("the state of the agents in One CommandCenter", e));
   }, [api, checkingIn]);   // eslint-disable-line react-hooks/exhaustive-deps
   /** Check in one item or several (up to 10, from the Private list), the agents ticked in the review first; each is saved first when it has unsaved changes. */
   const checkIn = async (comment: string, live: boolean, withDeps: string[] = []) => {
@@ -507,6 +507,7 @@ export function App({ api: given }: { api?: StudioApi }) {
 
       {error && <Notice kind="error" text={error} onClose={() => setError(null)} />}
       {notice && !error && <Notice text={notice} onClose={() => setNotice(null)} />}
+      <MinorNotices />
 
       <HelpProvider><div className="st-body">
         <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />

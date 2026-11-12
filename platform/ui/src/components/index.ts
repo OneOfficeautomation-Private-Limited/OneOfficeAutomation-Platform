@@ -14,3 +14,4 @@ export { Tree, type TreeNode } from "./Tree";
 export { usePersistent } from "./usePersistent";
 export { SHORTCUTS, inTextField, is, keyOf, shortcutsFor, singleKeysOn, withKey, type Shortcut } from "./shortcuts";
 export { ShortcutsDialog } from "./ShortcutsDialog";
+export { MinorNotices, reportMinor } from "./MinorNotices";

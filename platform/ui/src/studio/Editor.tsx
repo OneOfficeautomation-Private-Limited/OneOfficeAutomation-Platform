@@ -8,7 +8,7 @@ import { AgentRepoFiles } from "./RepoFiles";
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
-import { Button, Dialog, Field, HelpButton, Icon, IconButton, IconTile, is, keyOf, Menu, Select, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, usePanelSize, usePersistent, withKey, type MenuItem } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconButton, IconTile, is, keyOf, Menu, Select, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, usePanelSize, usePersistent, withKey, type MenuItem, reportMinor } from "../components";
 import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor } from "./ConditionEditor";
 import {
@@ -295,8 +295,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const [builtins, setBuiltins] = useState<Builtins>({ sys: {}, global: {} });
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [newVar, setNewVar] = useState<NewVariable | null>(null);
-  const loadBuiltins = () => { api.builtins().then(setBuiltins, () => {}); };
-  useEffect(() => { loadBuiltins(); api.agents().then(setAgents, () => {}); }, [api]);
+  const loadBuiltins = () => { api.builtins().then(setBuiltins, (e) => reportMinor("the built-in values", e)); };
+  useEffect(() => { loadBuiltins(); api.agents().then(setAgents, (e) => reportMinor("the list of agents", e)); }, [api]);
   const last = useMemo(() => lastValues(run?.events), [run?.events]);
   // Capture and Record: which window (an open browser tab, a new page, a desktop application), then the work itself
   const [whereAsk, setWhereAsk] = useState<{ mode: "capture" | "record"; tabs: OpenWindow[]; url?: string; resolve: (c: WhereChoice | null) => void } | null>(null);
@@ -425,7 +425,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
       const p = pasteSteps(flow, clip, spotFor(flow, selected, false));
       onEdit(p.flow, p.ids);
     },
-    share: () => { const clip = copySteps(flow, chosen); if (clip) api.putSharedClipboard(clip.steps, clip.variables).catch(() => {}); },
+    share: () => { const clip = copySteps(flow, chosen); if (clip) api.putSharedClipboard(clip.steps, clip.variables).catch((e) => reportMinor("the steps into the shared clipboard (they are copied here only)", e)); },
     fromShared: async () => {
       try { const c = await api.sharedClipboard(); act.paste({ steps: c.steps ?? [], variables: c.variables ?? [] }); } catch { /* nothing shared */ }
     },

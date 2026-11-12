@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrTeam, CrUser } from "../api/cr";
-import { Button, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
+import { Button, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 
 /**
@@ -55,7 +55,7 @@ export function Teams({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
 
   const load = useCallback(async () => {
     try { setTeams(await api.teams()); setError(null); } catch (e) { setError(message(e)); }
-    if (user.permissions.includes("users.manage")) api.users().then(setPeople, () => {});
+    if (user.permissions.includes("users.manage")) api.users().then(setPeople, (e) => reportMinor("the list of users", e));
   }, [api, user.permissions]);
   useEffect(() => { load(); }, [load]);
 

@@ -1,7 +1,7 @@
 import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool, TestRunSummary, TestSet } from "../../api/cr";
-import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, reportMinor } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FolderIcon } from "../../console/Repository";
 
@@ -252,7 +252,7 @@ function TestSetForm({ api, t, onClose, onSaved }: { api: CrApi; t: TestSet | nu
   const [agents, setAgents] = useState<string[]>([]);
   const [v, setV] = useState({ name: t?.name ?? "", description: t?.description ?? "", bot: t?.bot_path ?? "", cases: JSON.stringify(t ? t.cases : EXAMPLE, null, 2) });
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api.liveAgents().then((b) => { const a = b.map((x) => x.path); if (t && !a.includes(t.bot_path)) a.push(t.bot_path); setAgents(a); setV((o) => ({ ...o, bot: o.bot || a[0] || "" })); }, () => {}); }, [api, t]);
+  useEffect(() => { api.liveAgents().then((b) => { const a = b.map((x) => x.path); if (t && !a.includes(t.bot_path)) a.push(t.bot_path); setAgents(a); setV((o) => ({ ...o, bot: o.bot || a[0] || "" })); }, (e) => reportMinor("the list of agents", e)); }, [api, t]);
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
   const save = () => {
     let cases: unknown[];

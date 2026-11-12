@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import type { FlowStep } from "../api/client";
-import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic } from "../components";
+import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic, reportMinor } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
@@ -115,7 +115,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
 
   const [opened, setOpened] = usePersistent<string[]>("repo.opened", []);
   const [apis, setApis] = useState<Set<string>>(new Set());
-  useEffect(() => { if (can("apitasks.manage")) api.agentApis().then((l) => setApis(new Set(l.map((t) => t.bot_path))), () => {}); }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (can("apitasks.manage")) api.agentApis().then((l) => setApis(new Set(l.map((t) => t.bot_path))), (e) => reportMinor("which agents have an API", e)); }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [withSub, setWithSub] = usePersistent<boolean>("repo.withSubfolders", true);
   // the same columns, and the same choice of them, as the Private workspace's Public tab
   const [hiddenCols, setHiddenCols] = usePersistent<string[]>(PUBLIC_HIDDEN_KEY, PUBLIC_HIDDEN);
@@ -289,7 +289,7 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [picked, setPicked] = useState<string | null>(null);
   const [find, setFind] = useState("");
-  useEffect(() => { api.actionNames().then(setNames, () => {}); }, [api]);
+  useEffect(() => { api.actionNames().then(setNames, (e) => reportMinor("the command names", e)); }, [api]);
   useEffect(() => {
     setFlow(null);
     api.agentFlow(a.path, shownVersion === "latest" || shownVersion === "production" ? shownVersion : Number(shownVersion))
@@ -318,8 +318,8 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
     api.agentFlow(a.path, ioVersion).then((r) => setVars(r.flow.variables ?? []), () => setVars([]));
   }, [api, a.path, ioVersion]);
   useEffect(() => {
-    api.dependencies(a.path).then(setDeps, () => {});
-    if (can("runs.view")) api.runs({ limit: "8", bot: a.path }).then((r) => setRuns(r.runs), () => {});
+    api.dependencies(a.path).then(setDeps, (e) => reportMinor("the agent's dependencies", e));
+    if (can("runs.view")) api.runs({ limit: "8", bot: a.path }).then((r) => setRuns(r.runs), (e) => reportMinor("the agent's recent runs", e));
     loadVersions();
   }, [api, a.path]);   // eslint-disable-line react-hooks/exhaustive-deps
   const fail = (e: unknown) => setError(message(e));
@@ -554,7 +554,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
     Promise.all([api.devices().catch(() => []), api.pools().catch(() => [])]).then(([d, p]) => {
       setRunners(d); setPools(p); const first = d.find((r) => r.enabled && r.status === "online") ?? d.find((r) => r.enabled); setWhere(first ? "d:" + first.id : p[0] ? "p:" + p[0].id : "");
     });
-    api.agentFlow(a.path, "production").then((r) => setVars((r.flow.variables ?? []).filter((v) => v.direction === "input" || v.direction === "in_out")), () => {});
+    api.agentFlow(a.path, "production").then((r) => setVars((r.flow.variables ?? []).filter((v) => v.direction === "input" || v.direction === "in_out")), (e) => reportMinor("the agent's inputs", e));
   }, [api, a.path]);
   const run = () => {
     const inputs: Record<string, unknown> = {};
@@ -620,7 +620,7 @@ function FolderPermissions({ api, folder, onClose, onDone }: { api: CrApi; folde
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     api.folderPermissions(folder).then(setRows, (e) => setError(message(e)));
-    api.roles().then((r) => setRoles(r.map((x) => x.name)), () => {});
+    api.roles().then((r) => setRoles(r.map((x) => x.name)), (e) => reportMinor("the list of roles", e));
   }, [api, folder]);
   const label = (p: string) => p === "role:*" ? "Everyone" : p.startsWith("role:") ? "Role " + p.slice(5) : p.startsWith("team:") ? "Team " + p.slice(5) : "User " + p.slice(5);
   const plus = () => { const pr = add.user.trim() ? "user:" + add.user.trim() : add.who; if (!rows!.some((r) => r.principal === pr)) setRows([...rows!, { principal: pr, access: add.access }]); setAdd({ ...add, user: "" }); };

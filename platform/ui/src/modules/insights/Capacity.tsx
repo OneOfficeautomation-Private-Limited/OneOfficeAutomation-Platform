@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
 import type { Capacity as CapacityData } from "./consoleApi";
-import { HelpButton, Select, usePersistent, type HelpTopic } from "../../components";
+import { HelpButton, Select, usePersistent, type HelpTopic, reportMinor } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 
 /**
@@ -73,7 +73,7 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
 
   const load = useCallback(() => {
     api.capacity({ days, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }).then((r) => { setC(r); setError(null); }, (e) => setError(message(e)));
-    if (can("devices.view")) { api.devices().then(setDevices, () => {}); api.pools().then(setPools, () => {}); }
+    if (can("devices.view")) { api.devices().then(setDevices, (e) => reportMinor("the devices", e)); api.pools().then(setPools, (e) => reportMinor("the runner pools", e)); }
   }, [api, days]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
 

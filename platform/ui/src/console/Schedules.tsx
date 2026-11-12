@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type CrApi, type CrUser, type HolidayCalendar, type Runner, type RunnerPool, type Schedule, type SchedulePreview } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
@@ -253,9 +253,9 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
     inputs: from?.inputs ? (typeof from.inputs === "string" ? from.inputs : JSON.stringify(from.inputs)) : "" });
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); if (!v.bot && b.length) setV((o) => ({ ...o, bot: o.bot || b[0].path })); }, () => {});
-    api.defaultRunners().then(setPeople, () => {});
-    api.calendars().then((c) => setCals(c.map((x) => x.name)), () => {});
+    api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); if (!v.bot && b.length) setV((o) => ({ ...o, bot: o.bot || b[0].path })); }, (e) => reportMinor("the list of agents", e));
+    api.defaultRunners().then(setPeople, (e) => reportMinor("the default runners", e));
+    api.calendars().then((c) => setCals(c.map((x) => x.name)), (e) => reportMinor("the business calendars", e));
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   // functional updates: the agent list fills in the agent when it arrives, and a change made before React re-renders
   // must not put back the empty agent of an older render (that left Create disabled)
@@ -373,7 +373,7 @@ function EditSchedule({ api, s, manage, runsOn, onClose, onCopy, onSaved }: { ap
   const [v, setV] = useState({ name: s.name, cal: s.holiday_calendar ?? "", owner: s.created_by ?? "", runAs: s.run_as ?? "", missed: s.missed_runs ?? "once", overlap: s.overlap ?? "allow" });
   const [cals, setCals] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api.calendars().then((c) => setCals(c.map((x) => x.name)), () => {}); }, [api]);
+  useEffect(() => { api.calendars().then((c) => setCals(c.map((x) => x.name)), (e) => reportMinor("the business calendars", e)); }, [api]);
   const save = () => {
     const b: Record<string, unknown> = { name: v.name.trim(), holiday_calendar: v.cal || null, run_as: v.runAs.trim() || null, missed_runs: v.missed, overlap: v.overlap };
     if (v.owner.trim() && v.owner.trim() !== s.created_by) b.owner = v.owner.trim();

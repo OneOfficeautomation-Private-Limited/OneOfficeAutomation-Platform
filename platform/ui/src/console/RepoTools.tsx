@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentBundle, CodePolicy, CodeReport, CrApi, CrUser, ImportResult, RepoAgent, RepoFile } from "../api/cr";
-import { Button, Dialog, Field, Icon, Select, TextInput, Tree, type TreeNode } from "../components";
+import { Button, Dialog, Field, Icon, Select, TextInput, Tree, type TreeNode, reportMinor } from "../components";
 import { when } from "./ListParts";
 
 /**
@@ -171,7 +171,7 @@ export function ExportAgents({ api, onClose, onNotice }: { api: CrApi; onClose: 
 /** Import a bundle: what it holds first (Blue Prism's conflict check), then each agent's result; nothing is imported unless all pass. */
 export function ImportAgents({ api, folder, onClose, onDone }: { api: CrApi; folder: string; onClose: () => void; onDone: (m: string) => void }) {
   const [existing, setExisting] = useState<Set<string>>(new Set());
-  useEffect(() => { api.repo().then((a) => setExisting(new Set(a.map((x) => x.path))), () => {}); }, [api]);
+  useEffect(() => { api.repo().then((a) => setExisting(new Set(a.map((x) => x.path))), (e) => reportMinor("the agents already in the repository", e)); }, [api]);
   const [bundle, setBundle] = useState<AgentBundle | null>(null);
   const [v, setV] = useState({ folder, conflict: "skip" as "skip" | "overwrite", live: false });
   const [choosing, setChoosing] = useState(false);

@@ -25,7 +25,7 @@ Every message is `What happened. What to do.` (both in our own words), with the 
 | Tool | Document Automation said only "not reachable" | 1 | **Fixed** (item 10): "not set up" apart from "not answering", each with where to fix it |
 | Page | Console pages showed `e.message` only; the server's suggested fix was dropped | 42 pages | **Fixed**: the message now carries the fix (`withFix`), once |
 | Page | Studio screens showed `e.error.message` and dropped the fix (or showed "Error: ..." from `String(e)`) | 14 places, plus 6 run and check results | **Fixed** (E1): one helper, `errorText` / `runErrorText` |
-| Page | Loads that fail silently (`.catch(() => {})`), so a panel stays empty with no reason | 47 | Batch E2: each says why it is empty (minor) |
+| Page | Loads that failed silently (`.catch(() => {})`), so a list or panel stayed empty with no reason | 47 found; 35 were real loads | **Fixed** (E2): a minor notice says what could not be loaded and why; the other 12 stay quiet on purpose (browser storage, clipboard, full screen, sign-out, polling every 0.8 s while recording, the alerts badge, a runner file that may not exist yet) |
 | Command | Toolkit commands raising `ActionException` without a suggested fix | ~42 of 574 | Batch E3 |
 | Usage / server | Server errors (`OoaException`) without a suggested fix | 909 of 1,412 (control-room 444, cli 99, runner 73, low-code 59, agent 34, document automation 33, others) | Batches E4 to E7, by module |
 | Usage / server | Plain `RuntimeException` / `IllegalStateException` / `IllegalArgumentException` thrown | 160 | Batch E8: give each a code and a fix, or show it as an internal error with the log reference |
@@ -34,7 +34,8 @@ Every message is `What happened. What to do.` (both in our own words), with the 
 ## Batches
 
 - **E1** Studio: show the fix everywhere (one helper, as the console now does). **Done 13 Nov 2026**: `errorText(e)` for any failure and `runErrorText(err)` for a run's or check's error, in Studio (agent editor, AI agent editor, create, connections, conditions, pickers, triggers, object repository, variables, run panel, check-in) and Phone notifications.
-- **E2** Silent failures: every empty panel says why (minor notice), every page-level failure is major with Retry.
+- **E2** Silent failures: every empty panel says why (minor notice). **Done 13 Nov 2026**: `reportMinor(what, e)` and `<MinorNotices />` (amber line, closes after 8 s, held under the pointer, the same text once) in the console and in Studio; 35 loads in 19 files.
+- **E2b** Every page-level failure as major with Retry (pages today show the red bar without Retry).
 - **E3** Commands: the 42 toolkit errors without a fix.
 - **E4** control-room: 444 errors without a fix (largest; split by area: users and roles, agents and repository, runs, schedules and triggers, settings).
 - **E5** cli and runner: 172.

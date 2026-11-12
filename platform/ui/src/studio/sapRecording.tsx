@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FlowStep } from "../api/client";
-import { Button, Dialog, TextArea } from "../components";
+import { Button, Dialog, TextArea, reportMinor } from "../components";
 
 /**
  * Recording in SAP GUI (gap G60): SAP GUI's own Script Recording and Playback (Customize Local Layout > Script
@@ -59,7 +59,7 @@ export function sapRecordingToSteps(vbs: string): SapImport {
 export function SapImportDialog({ onInsert, onClose }: { onInsert: (steps: FlowStep[], note: string) => void; onClose: () => void }) {
   const [text, setText] = useState("");
   const r = sapRecordingToSteps(text);
-  const open = (f: File | undefined) => { if (f) f.text().then(setText, () => {}); };
+  const open = (f: File | undefined) => { if (f) f.text().then(setText, (e) => reportMinor("the file", e)); };
   return (
     <Dialog open title="Import SAP GUI recording" width={620} onClose={onClose} footer={<>
       <Button kind="secondary" onClick={onClose}>Cancel</Button><span className="st-bar-fill" />

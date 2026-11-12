@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { CustomDashboard, DashMail, DashWidget, WidgetData } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor } from "../../components";
 import { RefreshButton, RowMenu } from "../../console/ListParts";
 
 /**
@@ -80,7 +80,7 @@ export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; 
     setCurrent((c) => { const want = pick ?? c; return l.some((d) => d.id === want) ? want! : l[0]?.id ?? null; });
   }, (e) => setError(message(e))), [api]);
   // the dashboard named in the address (#/business?tab=dashboards&dashboard=ID) opens first, so a link to it works
-  useEffect(() => { load(new URLSearchParams(location.hash.split("?")[1] ?? "").get("dashboard") ?? undefined); api.dashboardKpis().then(setKpis, () => {}); if (user.permissions.includes("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path)), () => {}); }, [load]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(new URLSearchParams(location.hash.split("?")[1] ?? "").get("dashboard") ?? undefined); api.dashboardKpis().then(setKpis, (e) => reportMinor("the KPIs", e)); if (user.permissions.includes("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path)), (e) => reportMinor("the list of agents", e)); }, [load]);   // eslint-disable-line react-hooks/exhaustive-deps
   const refresh = useCallback(() => {
     if (!current) { setData(null); return; }
     api.dashboardData(current, Intl.DateTimeFormat().resolvedOptions().timeZone).then((r) => setData(r.widgets), (e) => setError(message(e)));

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { Operations as OpsData } from "./consoleApi";
 import type { AgentStats, RunStats, VariableProfile } from "./consoleApi";
-import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic } from "../../components";
+import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic, reportMinor } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { howStarted } from "../../console/Activity";
 
@@ -79,8 +79,8 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
     .then((r) => { setO(r); setError(null); }, (e) => setError(message(e))), [api, params]);
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
   useEffect(() => {
-    if (can("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path).filter((p) => p.endsWith(".flow.json"))), () => {});
-    if (can("devices.view")) api.runners().then(setRunners, () => {});
+    if (can("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path).filter((p) => p.endsWith(".flow.json"))), (e) => reportMinor("the list of agents", e));
+    if (can("devices.view")) api.runners().then(setRunners, (e) => reportMinor("the list of runners", e));
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const csv = (report: string) => api.operationsCsv(report, params()).then((t) => save("operations-" + report + ".csv", t), (e) => setError(message(e)));

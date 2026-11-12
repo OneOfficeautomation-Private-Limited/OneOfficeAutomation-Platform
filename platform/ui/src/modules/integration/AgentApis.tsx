@@ -1,7 +1,7 @@
 import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FolderIcon } from "../../console/Repository";
 
@@ -166,7 +166,7 @@ function NewApi({ api, runners, pools, preset, onClose, onCreated }: { api: CrAp
   const [v, setV] = useState({ name: preset ? agentName(preset) : "", bot: preset ?? "", where: "runner", device: runners[0]?.id ?? "", pool: "", timeout: "60" });
   useEffect(() => { if (!v.device && runners[0]) setV((o) => ({ ...o, device: runners[0].id })); }, [runners]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); setV((o) => ({ ...o, bot: o.bot || b[0]?.path || "" })); }, () => {}); }, [api]);
+  useEffect(() => { api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); setV((o) => ({ ...o, bot: o.bot || b[0]?.path || "" })); }, (e) => reportMinor("the list of agents", e)); }, [api]);
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
   const create = () => api.createAgentApi(v.where === "serverless" ? { name: v.name.trim(), bot_path: v.bot, serverless: true, timeout_seconds: Number(v.timeout) }
     : { name: v.name.trim(), bot_path: v.bot, device_id: v.where === "runner" ? v.device : null, pool_id: v.where === "pool" ? v.pool : null, timeout_seconds: Number(v.timeout) })

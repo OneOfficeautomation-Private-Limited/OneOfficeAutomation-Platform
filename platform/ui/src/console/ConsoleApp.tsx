@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CrApi, CrFailure, type CrUser, type Environment } from "../api/cr";
-import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, Notice, ShortcutsDialog, TextInput, usePersistent } from "../components";
+import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, Notice, ShortcutsDialog, TextInput, usePersistent, MinorNotices } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { canSee, groupOf, MENU_GROUPS, MENU_SECTIONS } from "../shell/menu";
 import { MODULE_PAGES } from "../modules/pages";
@@ -118,6 +118,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
         <span>Your password must be changed {user.password_expires_in_days === 0 ? "today" : "within " + user.password_expires_in_days + " day" + (user.password_expires_in_days === 1 ? "" : "s")}.</span>
         <Button kind="secondary" onClick={() => setChanging(true)}>Change it now</Button></div>}
       {notice && <Notice text={notice} onClose={() => setNotice(null)} />}
+      <MinorNotices />
       <HelpProvider><div className="st-body">
         <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
           home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }} console groups={MENU_GROUPS} />

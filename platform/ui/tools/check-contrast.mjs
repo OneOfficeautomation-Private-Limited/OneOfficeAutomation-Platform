@@ -26,7 +26,7 @@ const TEXT = ["--ui-text", "--ui-text-2", "--ui-text-3", "--ui-accent-text", "--
 const PAIRS = [
   ...TEXT.flatMap((t) => SURFACES.map((s) => [t, s, 4.5])),
   ["--ui-pill-text", "--ui-selected", 4.5], ["--ui-error-text", "--ui-error-bg", 4.5], ["--ui-ok-text", "--ui-ok-bg", 4.5],
-  ["--ui-ai-text", "--ui-ai-bg", 4.5], ["--ui-text", "--ui-offer-bg", 4.5], ["--ui-text", "--ui-running-bg", 4.5], ["--ui-text", "--ui-tint", 4.5],
+  ["--ui-ai-text", "--ui-ai-bg", 4.5], ["--ui-text", "--ui-offer-bg", 4.5], ["--ui-text", "--ui-running-bg", 4.5], ["--ui-warning-text", "--ui-running-bg", 4.5], ["--ui-text", "--ui-tint", 4.5],
   ["--ui-field", "--ui-bg", 3], ["--ui-accent", "--ui-bg", 3],
 ];
 let failed = 0;
