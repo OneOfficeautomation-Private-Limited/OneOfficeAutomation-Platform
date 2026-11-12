@@ -22,6 +22,7 @@ export function pickerFor(step: FlowStep, name: string, props: Record<string, un
   if (step.action.startsWith("ooa.active_directory/") && DN_FIELDS.has(name)) return <DirectoryPicker key={"dir:" + name} step={step} field={name} />;
   if (step.action === "ooa.pdf/extract_area_text" && name === "x") return <PdfAreaPicker key="area" step={step} />;
   if (isHtmlBody(step, name, props)) return <HtmlBodyEditor key={"html:" + name} step={step} field={name} />;
+  if (POINT_STEPS.test(step.action) && name === "x") return <PointPicker key="point" step={step} />;
   const keys = keyKind(step.action, name);
   if (keys) return <KeyPicker key={"keys:" + name} step={step} name={name} kind={keys} />;
   return null;
@@ -46,6 +47,46 @@ async function check(api: StudioApi, action: string, args: Args, out: Record<str
   const r = await runOnce(api, oneStep(action, args, out), {}, 120_000);
   if (r.status !== "success") throw new Error(r.error?.message ?? "The check did not finish (" + r.status + ")");
   return r.outputs ?? {};
+}
+
+// ------------------------------------------------------------------ M1: a point on the screen
+
+/** Steps with a point (x, y) that can be picked on the screen; the mouse steps also keep the window's size (M2). */
+const POINT_STEPS = /^ooa\.desktop\/(mouse_click|mouse_move|mouse_scroll|show_callout)$/;
+
+export type PickedPoint = { x: number; y: number; screen_x: number; screen_y: number; window: string; window_width?: number; window_height?: number };
+
+/**
+ * What a picked point fills in: the window under the pointer, the point measured from its top-left corner, and for
+ * mouse steps the window's size so it is given that size again first. Over no window, the point on the screen.
+ */
+export function pointArgs(action: string, p: PickedPoint): Args {
+  const sized = action !== "ooa.desktop/show_callout";
+  if (!p.window) return { x: p.screen_x, y: p.screen_y, relative_to: "screen", window: undefined, ...(sized ? { window_width: undefined, window_height: undefined } : {}) };
+  return { x: p.x, y: p.y, relative_to: "window", window: p.window, ...(sized ? { window_width: p.window_width, window_height: p.window_height } : {}) };
+}
+
+function PointPicker({ step }: { step: FlowStep }) {
+  const vars = useVars();
+  const set = useArgSetter(step);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!vars) return null;
+  const pick = async () => {
+    setBusy(true); setError(null);
+    try {
+      const p = await vars.api.pickPoint({ timeout_seconds: 60 });
+      set(pointArgs(step.action, p));
+      vars.notice?.(p.window ? "Point " + p.x + ", " + p.y + " in “" + p.window + "”" + (p.window_width ? ", a window of " + p.window_width + " x " + p.window_height : "") + "."
+        : "Point " + p.screen_x + ", " + p.screen_y + " on the screen (no window there).");
+    } catch (e) { setError(String((e as Error).message ?? e)); }
+    finally { setBusy(false); }
+  };
+  return <PickerRow><span className="st-row-tight">
+    {busy && <span className="st-muted st-source-note">Point at the place and press Ctrl+Shift+C</span>}
+    {error && <span className="st-alert" role="alert">{error}</span>}
+    <Button kind="secondary" disabled={busy} onClick={pick} title="Point at a place in any window and press Ctrl+Shift+C">{busy ? "Waiting…" : "Pick on screen"}</Button>
+  </span></PickerRow>;
 }
 
 // ------------------------------------------------------------------ SOAP: operation from the WSDL

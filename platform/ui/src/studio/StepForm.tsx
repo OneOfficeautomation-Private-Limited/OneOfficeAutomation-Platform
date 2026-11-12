@@ -25,6 +25,9 @@ const typedText = (step: FlowStep, name: string) => (step.action === "ooa.browse
   || (step.action === "ooa.browser/element_action" && name === "value" && /^(set_text|append_text)$/.test(String(step.args?.action ?? "")))
   || (step.action === "ooa.desktop_ui/object_action" && name === "text");
 
+/** Mouse steps whose point can be measured from a window (M2). */
+export const MOUSE_IN_WINDOW = /^ooa\.desktop\/(mouse_click|mouse_move|mouse_scroll)$/;
+
 // the Basic / Advanced choice of the time-out box is kept while Studio is open, as in Classic
 let timeoutAdvanced = false;
 // steps whose element is found by a selector the person asked for, instead of a captured object
@@ -166,8 +169,14 @@ export function StepForm({ step, packages, onArg, onNote }:
       label="Window" info="The browser tab or application window the action works in.">{() => <WindowEditor step={step} />}</Field>;
     if (typedText(step, name)) return <Field key={step.id + ":" + name} label={labelOf(name) + (req(name) ? " *" : "")}
       info="A credential from the vault for passwords (never shown or logged), a variable, plain text or a calculation.">{() => <TextSource step={step} name={name} />}</Field>;
+    // M2: a window chosen for a mouse step that has no "relative to" yet measures its point from that window
+    const commit = (v: unknown) => {
+      if (vars && name === "window" && MOUSE_IN_WINDOW.test(step.action) && step.args?.relative_to === undefined && typeof v === "string" && v.trim() && !v.trim().startsWith("$"))
+        vars.edit(setArg(setArg(vars.flow, step.id, "window", v), step.id, "relative_to", "window"));
+      else onArg(name, v);
+    };
     const input = <InputField key={step.id + ":" + name} action={step.action} name={name} label={labelOf(name)} spec={props[name] ?? {}} required={req(name)}
-      value={step.args?.[name]} onCommit={(v) => onArg(name, v)} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
+      value={step.args?.[name]} onCommit={commit} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
     // a picker beside the field: SOAP operation from the WSDL, directory browser, PDF area, formatted email body
     const picker = pickerFor(step, name, props as Record<string, unknown>);
     return picker ? <div key={step.id + ":" + name + ":with-picker"} className="st-field-with-picker">{input}{picker}</div> : input;

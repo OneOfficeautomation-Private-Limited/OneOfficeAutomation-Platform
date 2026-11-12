@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { keyKind, keyWord, splitCombo, withKey } from "./KeyPicker";
+import { pointArgs } from "./Pickers";
 
 describe("key picker (K1)", () => {
   it("finds every field that takes a key", () => {
@@ -38,5 +39,19 @@ describe("key picker (K1)", () => {
     expect(keyWord("ESC")).toBe("Esc");
     expect(keyWord("F5")).toBe("F5");
     expect(keyWord("A")).toBe("A");
+  });
+});
+
+describe("pick on screen (M1, M2)", () => {
+  const inWindow = { x: 40, y: 12, screen_x: 140, screen_y: 112, window: "Untitled - Notepad", window_width: 800, window_height: 600 };
+  it("measures the point from the window and keeps its size for mouse steps", () => {
+    expect(pointArgs("ooa.desktop/mouse_click", inWindow)).toEqual({ x: 40, y: 12, relative_to: "window", window: "Untitled - Notepad", window_width: 800, window_height: 600 });
+  });
+  it("gives a callout the point without a size", () => {
+    expect(pointArgs("ooa.desktop/show_callout", inWindow)).toEqual({ x: 40, y: 12, relative_to: "window", window: "Untitled - Notepad" });
+  });
+  it("uses the screen when no window is under the pointer, and clears what a window left", () => {
+    expect(pointArgs("ooa.desktop/mouse_move", { x: 5, y: 6, screen_x: 5, screen_y: 6, window: "" }))
+      .toEqual({ x: 5, y: 6, relative_to: "screen", window: undefined, window_width: undefined, window_height: undefined });
   });
 });

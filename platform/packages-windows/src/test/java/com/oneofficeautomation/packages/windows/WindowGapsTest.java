@@ -32,6 +32,14 @@ class WindowGapsTest {
         assertEquals("WINDOW.PATTERN_TOO_BROAD", assertThrows(ActionException.class, () -> WindowPackage.matcher("**", false)).code());
     }
 
+    @Test void aPickedPointOverNoWindowIsMeasuredFromTheScreen() {
+        Map<String, Object> p = WindowPackage.pointIn(120, 45, List.of());
+        assertEquals("", p.get("window"));
+        assertEquals(0, new java.math.BigDecimal(120).compareTo((java.math.BigDecimal) p.get("x")));
+        assertEquals(0, new java.math.BigDecimal(45).compareTo((java.math.BigDecimal) p.get("screen_y")));
+        assertFalse(p.containsKey("window_width"));
+    }
+
     @Test void titlesMatchTheSameWayAsWindowFieldsElsewhere() {
         // contained text, as before
         assertTrue(WindowPackage.titleRule("notepad").test("Untitled - Notepad"));

@@ -468,6 +468,8 @@ public final class StudioServer {
             else sendJson(ex, 200, r.outputs());
         } else if (method.equals("POST") && route.equals("capture-desktop")) {
             captureDesktop(ex);
+        } else if (method.equals("POST") && route.equals("pick-point")) {
+            pickPoint(ex);
         } else if (method.equals("GET") && route.equals("windows")) {
             listWindows(ex);
         } else if (method.equals("GET") && route.equals("fs/list")) {
@@ -551,6 +553,29 @@ public final class StudioServer {
             if (secret == null) secret = query(ex).get("secret");
             sendJson(ex, 202, triggers.webhook(route.substring(6), secret, body(ex)));
         } else send(ex, 404, "text/plain", "Unknown API route");
+    }
+
+    /**
+     * POST pick-point {timeout_seconds?: 60}: runs ooa.window/pick_point, where a person points at a place in any window and
+     * presses Ctrl+Shift+C (M1). 200 {x, y, screen_x, screen_y, window, window_width, window_height}; 400 {error} on timeout.
+     */
+    @SuppressWarnings("unchecked")
+    private void pickPoint(HttpExchange ex) throws IOException {
+        Map<String, Object> req = body(ex) instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+        if (registry.allManifests().stream().noneMatch(man -> "ooa.window".equals(man.get("id"))))
+            throw new OoaException("STUDIO.NO_DESKTOP_MODULE", "The Window toolkit is not installed", "Add packages-windows to ooa.optionalModules in gradle.properties and run Studio on Windows.");
+        Map<String, Object> args = new LinkedHashMap<>();
+        if (req.get("timeout_seconds") != null) args.put("timeout_seconds", req.get("timeout_seconds"));
+        List<String> outs = List.of("x", "y", "screen_x", "screen_y", "window", "window_width", "window_height");
+        Map<String, Object> flow = new LinkedHashMap<>();
+        flow.put("kind", "TaskBot"); flow.put("id", "studio_pick_point"); flow.put("name", "One AgentStudio pick a point");
+        flow.put("variables", outs.stream().map(o -> (Object) Map.of("name", o, "type", o.equals("window") ? "String" : "Number", "direction", "output")).toList());
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (String o : outs) out.put(o, o);
+        flow.put("steps", List.of(Map.of("id", "pick", "action", "ooa.window/pick_point", "args", args, "out", out)));
+        RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(900));
+        if (!r.ok()) sendJson(ex, 400, Map.of("error", r.error()));
+        else sendJson(ex, 200, r.outputs());
     }
 
     /**

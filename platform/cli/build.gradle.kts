@@ -50,6 +50,7 @@ dependencies {
     testRuntimeOnly(project(":adapters-jackson"))
     // in-memory SMTP/IMAP server for the email sample tasks (CommandSamplesTest)
     testImplementation("com.icegreen:greenmail:2.1.2")
+    testImplementation("org.apache.sshd:sshd-core:2.14.0")   // in-process SSH host for the terminal command samples (T3)
     // in-memory LDAP directory for the Active Directory sample tasks
     testImplementation("com.unboundid:unboundid-ldapsdk:7.0.1")
     // in-memory database for the database sample tasks

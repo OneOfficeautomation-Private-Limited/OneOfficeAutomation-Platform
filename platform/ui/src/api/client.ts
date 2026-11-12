@@ -247,6 +247,10 @@ export class StudioApi {
   /** Opens the page and outlines every element the captured object matches; gives how many match. */
   captureTest(url: string, object: unknown) { return this.call<{ count?: number }>("POST", "capture/test", { url, object, browser: "edge" }); }
   /** A control in a Windows application: the person hovers it and presses Ctrl+Shift+C. */
+  /** A point in a window: the person points and presses Ctrl+Shift+C (M1); x and y are measured from the window's corner. */
+  pickPoint(req: { timeout_seconds?: number } = {}) {
+    return this.call<{ x: number; y: number; screen_x: number; screen_y: number; window: string; window_width?: number; window_height?: number }>("POST", "pick-point", req);
+  }
   captureDesktop(req: { timeout_seconds?: number; screenshot?: boolean; highlight?: boolean } = {}) {
     return this.call<{ object?: Record<string, unknown> } & Record<string, unknown>>("POST", "capture-desktop", req);
   }

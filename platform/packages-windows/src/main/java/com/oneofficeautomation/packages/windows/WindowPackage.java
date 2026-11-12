@@ -185,6 +185,56 @@ public final class WindowPackage {
     private static final String D_WAIT = "Wait up to this many seconds for the window to appear; 0 looks once.";
     private static final String D_ALT = "Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged.";
 
+    @Action(id = "pick_point", name = "Pick a point on screen", category = "Capture", timeoutSeconds = 900, capabilities = "desktop",
+            description = "Design time: point at a place in any window and press Ctrl+Shift+C. Gives the point on the screen and measured from the "
+                    + "window's top-left corner, with the window's title and size, for mouse steps (AA's Capture coordinate).",
+            panel = "timeout_seconds")
+    @Output(name = "x", type = OoaType.NUMBER, description = "Horizontal position from the window's left edge.")
+    @Output(name = "y", type = OoaType.NUMBER, description = "Vertical position from the window's top edge.")
+    @Output(name = "screen_x", type = OoaType.NUMBER, description = "Horizontal position from the screen's left edge.")
+    @Output(name = "screen_y", type = OoaType.NUMBER, description = "Vertical position from the screen's top edge.")
+    @Output(name = "window", type = OoaType.STRING, description = "Title of the window under the pointer; empty over the desktop.")
+    @Output(name = "window_width", type = OoaType.NUMBER, description = "The window's outer width.")
+    @Output(name = "window_height", type = OoaType.NUMBER, description = "The window's outer height.")
+    public Map<String, Object> pickPoint(ActionContext ctx,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "How long to wait for the Ctrl+Shift+C press, in seconds.") double timeout) {
+        windows();
+        ctx.info("Point at the place and press Ctrl+Shift+C");
+        long end = System.nanoTime() + (long) (Math.max(1, timeout) * 1e9);
+        boolean wasDown = true;   // the keys must be let go first, so a press still held from Studio does not count
+        while (true) {
+            boolean down = (User32.INSTANCE.GetAsyncKeyState(0x11) & 0x8000) != 0 && (User32.INSTANCE.GetAsyncKeyState(0x10) & 0x8000) != 0
+                    && (User32.INSTANCE.GetAsyncKeyState(0x43) & 0x8000) != 0;
+            if (down && !wasDown) break;
+            wasDown = down;
+            if (System.nanoTime() >= end) throw new ActionException("WINDOW.PICK_TIMEOUT", "No Ctrl+Shift+C within " + (int) Math.max(1, timeout) + " s", "Try again, and press Ctrl+Shift+C over the place.", true);
+            ctx.checkCancelled();
+            try { Thread.sleep(30); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+        }
+        WinDef.POINT p = new WinDef.POINT();
+        User32.INSTANCE.GetCursorPos(p);
+        return pointIn(p.x, p.y, all());
+    }
+
+    /** The point measured from the first window (front to back) that holds it, or from the screen when none does. */
+    static Map<String, Object> pointIn(int x, int y, List<Win> frontToBack) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("screen_x", java.math.BigDecimal.valueOf(x));
+        out.put("screen_y", java.math.BigDecimal.valueOf(y));
+        for (Win w : frontToBack) {
+            WinDef.RECT r = new WinDef.RECT();
+            if (!User32.INSTANCE.GetWindowRect(w.hwnd(), r) || x < r.left || x >= r.right || y < r.top || y >= r.bottom) continue;
+            out.put("x", java.math.BigDecimal.valueOf(x - r.left));
+            out.put("y", java.math.BigDecimal.valueOf(y - r.top));
+            out.put("window", w.title());
+            out.put("window_width", java.math.BigDecimal.valueOf(r.right - r.left));
+            out.put("window_height", java.math.BigDecimal.valueOf(r.bottom - r.top));
+            return out;
+        }
+        out.put("x", java.math.BigDecimal.valueOf(x)); out.put("y", java.math.BigDecimal.valueOf(y)); out.put("window", "");
+        return out;
+    }
+
     @Action(id = "list", name = "List windows", category = "Window", idempotent = true, capabilities = "desktop", description = "List the titles of all visible windows.")
     @Output(name = "titles", type = OoaType.LIST, description = "Window titles.")
     public Map<String, Object> list(ActionContext ctx) {

@@ -22,6 +22,11 @@ public interface DesktopEvents {
      * that work relative to a window. Empty when no window matches or the implementation cannot tell.
      */
     default Optional<int[]> windowBounds(String titlePattern) { return Optional.empty(); }
+    /**
+     * Gives the first matching window this outer size, keeping its top-left corner (a maximised window is restored
+     * first), so points taken in it land where they were taken (M2). False when no window matches or it cannot be resized.
+     */
+    default boolean resizeWindow(String titlePattern, int width, int height) { return false; }
 
     /**
      * Calls back on every press of a global hotkey such as "CTRL+ALT+F9" while the returned handle is open.

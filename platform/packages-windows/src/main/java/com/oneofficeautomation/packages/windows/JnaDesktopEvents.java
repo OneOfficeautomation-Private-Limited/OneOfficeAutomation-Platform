@@ -42,6 +42,20 @@ public final class JnaDesktopEvents implements DesktopEvents {
         return first(pattern).map(w -> { WinDef.RECT r = new WinDef.RECT(); User32.INSTANCE.GetWindowRect(w.hwnd(), r); return new int[]{r.left, r.top, r.right - r.left, r.bottom - r.top}; });
     }
 
+    @Override public boolean resizeWindow(String pattern, int width, int height) {
+        if (width < 50 || height < 50) return false;
+        return first(pattern).map(w -> {
+            WinUser.WINDOWPLACEMENT pl = new WinUser.WINDOWPLACEMENT();
+            User32.INSTANCE.GetWindowPlacement(w.hwnd(), pl);
+            if (!"normal".equals(WindowPackage.state(pl.showCmd))) User32.INSTANCE.ShowWindow(w.hwnd(), WinUser.SW_RESTORE);
+            WinDef.RECT r = new WinDef.RECT();
+            User32.INSTANCE.GetWindowRect(w.hwnd(), r);
+            if (r.right - r.left == width && r.bottom - r.top == height) return true;
+            // SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE: only the size changes
+            return User32.INSTANCE.SetWindowPos(w.hwnd(), null, 0, 0, width, height, 0x0002 | 0x0004 | 0x0010);
+        }).orElse(false);
+    }
+
     private final JnaInputHooks input = new JnaInputHooks();
 
     /** Low-level keyboard and mouse hooks for key-press and click triggers. */

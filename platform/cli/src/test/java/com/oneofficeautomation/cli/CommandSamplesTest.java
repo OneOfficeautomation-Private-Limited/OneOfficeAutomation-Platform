@@ -182,7 +182,9 @@ class CommandSamplesTest {
         String json = JsonLite.write(raw).replace("{mock}", mockBase).replace("{ldap}", ldapUrl).replace("{tmp}", tmp.toString().replace('\\', '/'))
                 .replace("{web}", JsonLite.write(raw).contains("{web}") ? webBase() + "/" + tmp.getFileName() : "")
                 .replace("\"{smtp_port}\"", mail == null ? "0" : String.valueOf(mail.getSmtp().getPort()))
-                .replace("\"{imap_port}\"", mail == null ? "0" : String.valueOf(mail.getImap().getPort()));
+                .replace("\"{imap_port}\"", mail == null ? "0" : String.valueOf(mail.getImap().getPort()))
+                // requires "ssh": the in-process VT host of the terminal samples (user agent, password test/mail/password)
+                .replace("\"{ssh_port}\"", requires.equals("ssh") ? String.valueOf(SampleSshHost.port()) : "0");
         try {
             if (requires.equals("internet")) { runOnOutsideSite(runner, raw, json, label, tmp); return; }
             runCase(runner, (Map<String, Object>) JsonLite.parse(json), label, tmp);
