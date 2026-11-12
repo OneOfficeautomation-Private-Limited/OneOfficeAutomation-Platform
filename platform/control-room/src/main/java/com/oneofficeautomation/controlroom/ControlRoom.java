@@ -3162,6 +3162,8 @@ public final class ControlRoom {
             for (Map<String, Object> a : actions) {
                 Map<String, Object> props = (Map<String, Object>) ((Map<String, Object>) a.getOrDefault("inputs", Map.of())).getOrDefault("properties", Map.of());
                 if (props.get("access_token") instanceof Map<?, ?> t && "Credential".equals(t.get("x-ooa-type"))) signIn = true;
+                // K1 (batch 10): any toolkit that marks the input taking a sign-in's token
+                for (Object p : props.values()) if (p instanceof Map<?, ?> pm && Boolean.TRUE.equals(pm.get("x-ooa-sign-in-token"))) signIn = true;
                 if (!secret && "connect".equals(a.get("id")) && props.get("access_token") instanceof Map<?, ?> t && "Credential".equals(t.get("x-ooa-type"))) {
                     inputs.clear();
                     for (var e : props.entrySet()) {

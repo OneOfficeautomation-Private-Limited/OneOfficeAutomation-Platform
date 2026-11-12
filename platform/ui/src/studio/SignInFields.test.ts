@@ -38,3 +38,14 @@ describe("web connections (R2, batch 8)", () => {
     expect(takesAccessToken(rest.actions)).toBe(true);
   });
 });
+
+describe("sign-in for every connector (K1, batch 10)", () => {
+  it("is offered for a toolkit that marks the input taking the token", async () => {
+    const { takesAccessToken: takes, defaultGrant } = await import("./SignInFields");
+    expect(takes([{ inputs: { properties: { bot_token: { "x-ooa-type": "Credential", "x-ooa-sign-in-token": true } } } }])).toBe(true);
+    expect(takes([{ inputs: { properties: { password: { "x-ooa-type": "Credential" } } } }])).toBe(false);
+    expect(defaultGrant("github")).toBe("github_app");
+    expect(defaultGrant("snowflake")).toBe("snowflake_key_pair");
+    expect(defaultGrant("other")).toBe("client_credentials");
+  });
+});

@@ -90,11 +90,21 @@ public record ActionSpec(String kind, String id, String name, String description
 
     public record InputSpec(String name, OoaType type, String description, String label, boolean required,
                             Object defaultValue, String pattern, List<String> enumValues, String example,
-                            String visibleWhen, double min, double max, List<String> formerNames) {
+                            String visibleWhen, double min, double max, List<String> formerNames, boolean signInToken) {
         public InputSpec(String name, OoaType type, String description, String label, boolean required,
                          Object defaultValue, String pattern, List<String> enumValues, String example,
                          String visibleWhen, double min, double max) {
-            this(name, type, description, label, required, defaultValue, pattern, enumValues, example, visibleWhen, min, max, List.of());
+            this(name, type, description, label, required, defaultValue, pattern, enumValues, example, visibleWhen, min, max, List.of(), false);
+        }
+        public InputSpec(String name, OoaType type, String description, String label, boolean required,
+                         Object defaultValue, String pattern, List<String> enumValues, String example,
+                         String visibleWhen, double min, double max, List<String> formerNames) {
+            this(name, type, description, label, required, defaultValue, pattern, enumValues, example, visibleWhen, min, max, formerNames, false);
+        }
+
+        /** K1 (batch 10): the input a connection's renewing sign-in fills (access_token and bearer_token always are). */
+        public boolean takesSignInToken() {
+            return type == OoaType.CREDENTIAL && (signInToken || name.equals("access_token") || name.equals("bearer_token"));
         }
         public InputSpec(String name, OoaType type, String description, String label, boolean required,
                          Object defaultValue, String pattern, List<String> enumValues, String example) {
@@ -149,6 +159,7 @@ public record ActionSpec(String kind, String id, String name, String description
             s.put("x-ooa-type", type.flowName());
             s.put("x-ooa-label", label.isEmpty() ? FieldLabels.of(name) : label);
             if (formerNames != null && !formerNames.isEmpty()) s.put("x-ooa-former-names", formerNames);
+            if (takesSignInToken()) s.put("x-ooa-sign-in-token", true);
             return s;
         }
     }

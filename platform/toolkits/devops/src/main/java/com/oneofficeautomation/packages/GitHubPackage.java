@@ -20,7 +20,7 @@ public final class GitHubPackage {
     private static final Pattern NEXT = Pattern.compile("<([^>]+)>\\s*;\\s*rel=\"next\"");
     private static final String D_BASE = "API address. Keep the default for github.com; for GitHub Enterprise Server use https://github.yourcompany.com/api/v3.";
     private static final String DEF_BASE = "\"https://api.github.com\"";
-    private static final String D_TOKEN = "Personal access token or app token from the vault, with access to the repository.";
+    private static final String D_TOKEN = "Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_OWNER = "User or organization that owns the repository, e.g. acme-corp.";
     private static final String D_REPO = "Repository name without the owner, e.g. billing-service.";
     private static final String D_MAX = "Most items to return; pages are read until this many are found.";
@@ -105,7 +105,7 @@ public final class GitHubPackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of repositories returned.")
     public Map<String, Object> listRepositories(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "organization", type = OoaType.STRING, required = false, example = "acme-corp", description = "Organization name, or a user's login when owner_type is user. Leave empty for the repositories of the token's user.") String org,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = D_MAX) int max,
             @Input(name = "owner_type", type = OoaType.STRING, required = false, defaultValue = "\"organization\"", enumValues = {"organization", "user"},
@@ -128,7 +128,7 @@ public final class GitHubPackage {
     @Output(name = "default_branch", type = OoaType.STRING, description = "Default branch, e.g. main.")
     public Map<String, Object> getRepository(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo) {
         Map<String, Object> r = send(req("GET", base, repo(owner, repo), token), ctx).map();
@@ -146,7 +146,7 @@ public final class GitHubPackage {
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the issue.")
     public Map<String, Object> createIssue(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "title", type = OoaType.STRING, example = "Invoice upload fails for PDF over 10 MB", description = "Short title of the issue.") String title,
@@ -170,7 +170,7 @@ public final class GitHubPackage {
     @Output(name = "state", type = OoaType.STRING, description = "open or closed.")
     public Map<String, Object> getIssue(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "number", type = OoaType.NUMBER, example = "42", description = "Issue number.") int number) {
@@ -183,7 +183,7 @@ public final class GitHubPackage {
             panel = "token, owner, repo, number, state, title, body, labels, assignees | base_url")
     public Map<String, Object> updateIssue(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "number", type = OoaType.NUMBER, description = "Issue number.") int number,
@@ -207,7 +207,7 @@ public final class GitHubPackage {
             panel = "token, owner, repo, number, reason | base_url")
     public Map<String, Object> closeIssue(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "number", type = OoaType.NUMBER, description = "Issue number.") int number,
@@ -223,7 +223,7 @@ public final class GitHubPackage {
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the comment.")
     public Map<String, Object> addIssueComment(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "number", type = OoaType.NUMBER, description = "Issue or pull request number.") int number,
@@ -239,7 +239,7 @@ public final class GitHubPackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of issues returned.")
     public Map<String, Object> listIssues(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"open\"", enumValues = {"open", "closed", "all"}, description = "open, closed or all.") String state,
@@ -265,7 +265,7 @@ public final class GitHubPackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of pull requests returned.")
     public Map<String, Object> listPullRequests(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"open\"", enumValues = {"open", "closed", "all"}, description = "open, closed or all.") String state,
@@ -284,7 +284,7 @@ public final class GitHubPackage {
     @Output(name = "merged", type = OoaType.BOOLEAN, description = "True when already merged.")
     public Map<String, Object> getPullRequest(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "number", type = OoaType.NUMBER, description = "Pull request number.") int number) {
@@ -299,7 +299,7 @@ public final class GitHubPackage {
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the pull request.")
     public Map<String, Object> createPullRequest(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "title", type = OoaType.STRING, description = "Title of the pull request.") String title,
@@ -324,7 +324,7 @@ public final class GitHubPackage {
     @Output(name = "merged", type = OoaType.BOOLEAN, description = "True when merged.")
     public Map<String, Object> mergePullRequest(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "number", type = OoaType.NUMBER, description = "Pull request number.") int number,
@@ -352,7 +352,7 @@ public final class GitHubPackage {
     @Condition(id = "pull_request_is_merged", capabilities = "network", name = "Pull request is merged", description = "True when the pull request has been merged.")
     public boolean isMerged(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "number", type = OoaType.NUMBER, description = "Pull request number.") int number) {
@@ -368,7 +368,7 @@ public final class GitHubPackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of branches returned.")
     public Map<String, Object> listBranches(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = D_MAX) int max) {
@@ -381,7 +381,7 @@ public final class GitHubPackage {
     @Output(name = "sha", type = OoaType.STRING, description = "Commit id the new branch points to.")
     public Map<String, Object> createBranch(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "branch", type = OoaType.STRING, example = "agent/update-rates", description = "Name of the new branch.") String branch,
@@ -401,7 +401,7 @@ public final class GitHubPackage {
     @Output(name = "size", type = OoaType.NUMBER, description = "Size in bytes.")
     public Map<String, Object> getFile(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "path", type = OoaType.STRING, example = "config/rates.json", description = "Path of the file inside the repository.") String path,
@@ -431,7 +431,7 @@ public final class GitHubPackage {
     @Output(name = "sha", type = OoaType.STRING, description = "New version id of the file.")
     public Map<String, Object> putFile(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "path", type = OoaType.STRING, example = "reports/2026-10.csv", description = "Path of the file inside the repository.") String path,
@@ -470,7 +470,7 @@ public final class GitHubPackage {
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the release.")
     public Map<String, Object> createRelease(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "tag", type = OoaType.STRING, example = "v2.4.0", description = "Tag name of the release.") String tag,
@@ -497,7 +497,7 @@ public final class GitHubPackage {
     @Output(name = "tag", type = OoaType.STRING, description = "Tag of the release, e.g. v2.4.0.")
     public Map<String, Object> latestRelease(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo) {
         Map<String, Object> r = send(req("GET", base, repo(owner, repo) + "/releases/latest", token), ctx).map();
@@ -513,7 +513,7 @@ public final class GitHubPackage {
             panel = "token, owner, repo, workflow, ref, inputs | base_url")
     public Map<String, Object> runWorkflow(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "workflow", type = OoaType.STRING, example = "deploy.yml", description = "Workflow file name (e.g. deploy.yml) or numeric workflow id.") String workflow,
@@ -533,7 +533,7 @@ public final class GitHubPackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of runs returned.")
     public Map<String, Object> listRuns(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "workflow", type = OoaType.STRING, required = false, description = "Workflow file name or id. Empty lists runs of all workflows.") String workflow,
@@ -557,7 +557,7 @@ public final class GitHubPackage {
     @Output(name = "run", type = OoaType.DICTIONARY, description = "id, name, status, conclusion, branch, sha, event, created_at, updated_at, url.")
     public Map<String, Object> getRun(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "owner", type = OoaType.STRING, description = D_OWNER) String owner,
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "run_id", type = OoaType.NUMBER, description = "Run id, from List workflow runs.") long runId) {

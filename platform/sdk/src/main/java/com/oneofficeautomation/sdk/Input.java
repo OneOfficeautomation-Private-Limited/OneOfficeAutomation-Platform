@@ -30,4 +30,9 @@ public @interface Input {
      * before, the validator accepts it, and One AgentStudio moves its value to the new name when the step is opened.
      */
     String[] formerNames() default {};
+    /**
+     * K1 (command review, batch 10): this credential input takes the token of a saved connection's renewing sign-in
+     * (the runner fills it when the step leaves it empty). access_token and bearer_token are such inputs anyway.
+     */
+    boolean signInToken() default false;
 }

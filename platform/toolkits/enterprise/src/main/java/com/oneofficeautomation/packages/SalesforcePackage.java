@@ -16,7 +16,7 @@ public final class SalesforcePackage {
     private static final Pattern NAME = Pattern.compile("^[A-Za-z][A-Za-z0-9_]{0,79}$");
     private static final Pattern ID = Pattern.compile("^[A-Za-z0-9]{15,18}$");
     private static final String D_URL = "Instance URL, e.g. https://yourcompany.my.salesforce.com.";
-    private static final String D_TOKEN = "OAuth access token from the vault.";
+    private static final String D_TOKEN = "OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
 
     private static String base(String instance, String version) { return instance.replaceAll("/+$", "") + "/services/data/" + version; }
     private static String object(String o) { if (!NAME.matcher(o).matches()) throw new ActionException(P + ".BAD_OBJECT", "Invalid object name '" + o + "'", "Example: Account, Contact, Case or My_Object__c."); return o; }

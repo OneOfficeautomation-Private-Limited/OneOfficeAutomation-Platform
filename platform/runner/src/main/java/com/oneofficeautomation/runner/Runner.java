@@ -422,7 +422,9 @@ public final class Runner {
             // A1: a connection that signs in by itself gives a fresh access token to a step that takes one and has none
             Map<String, Object> vals = conn.get("values") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
             // R2 (batch 8): web steps (REST, SOAP) take it as their bearer token
-            String tokenInput = spec.input("access_token").isPresent() ? "access_token" : spec.input("bearer_token").isPresent() ? "bearer_token" : null;
+            // K1 (batch 10): or the input the toolkit marks as taking the sign-in's token (Slack's bot token, Asana's token...)
+            String tokenInput = spec.inputs().stream().filter(i -> i.signInToken() && i.takesSignInToken()).map(ActionSpec.InputSpec::name).findFirst()
+                    .orElse(spec.input("access_token").isPresent() ? "access_token" : spec.input("bearer_token").isPresent() ? "bearer_token" : null);
             if (OAuthSignIn.configured(vals) && tokenInput != null && empty.test(tokenInput)) {
                 CredentialVault vault = (CredentialVault) services.get("vault");
                 Map<String, Object> creds = conn.get("credentials") instanceof Map<?, ?> c ? (Map<String, Object>) c : Map.of();
@@ -434,6 +436,9 @@ public final class Runner {
                 });
                 secrets.add(t.reveal()); secureValues.add(t);
                 out.put(tokenInput, t);
+                // K1 (batch 10): a step that says what kind of token it gets (Snowflake) is told the sign-in's kind
+                if (spec.input("token_type").isPresent() && empty.test("token_type"))
+                    out.put("token_type", "snowflake_key_pair".equals(OAuthSignIn.grant(vals)) ? "KEYPAIR_JWT" : "OAUTH");
             }
             return out;
         }

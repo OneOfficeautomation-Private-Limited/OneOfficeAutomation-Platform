@@ -17,7 +17,7 @@ public final class BoxPackage {
     private static final Pattern ID = Pattern.compile("^\\d{1,30}$");
     private static final String D_URL = "Box API address. Leave the default unless your administrator gives you another.";
     private static final String D_UPLOAD = "Box upload address. Leave the default unless your administrator gives you another.";
-    private static final String D_TOKEN = "Box access token from the vault.";
+    private static final String D_TOKEN = "Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_AS_USER = "Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself.";
     private static final String DEF_API = "\"https://api.box.com\"";
     private static final String DEF_UPLOAD = "\"https://upload.box.com\"";

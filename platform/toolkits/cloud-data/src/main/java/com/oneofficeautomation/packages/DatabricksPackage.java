@@ -20,7 +20,7 @@ public final class DatabricksPackage {
     private static final Pattern TEXT_ID = Pattern.compile("^[0-9A-Za-z._-]{1,100}$");
     private static final int DBFS_BLOCK = 1024 * 1024;
     private static final String D_URL = "Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com.";
-    private static final String D_TOKEN = "Databricks personal access token or OAuth token from the vault.";
+    private static final String D_TOKEN = "Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final Set<String> NUMERIC = Set.of("BYTE", "SHORT", "INT", "LONG", "TINYINT", "SMALLINT", "BIGINT", "INTEGER", "FLOAT", "DOUBLE", "DECIMAL");
 
     private static String ws(String url) { return url.replaceAll("/+$", ""); }

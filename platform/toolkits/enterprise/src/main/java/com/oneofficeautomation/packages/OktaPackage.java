@@ -15,7 +15,7 @@ public final class OktaPackage {
     private static final Pattern OKTA_ID = Pattern.compile("^[0-9A-Za-z]{20}$");
     private static final String D_URL = "Your Okta address, e.g. https://yourcompany.okta.com.";
     private static final String D_TOKEN = "Okta API token from the vault. Leave empty when you use an access token instead.";
-    private static final String D_ACCESS = "OAuth access token from the vault, used instead of an API token.";
+    private static final String D_ACCESS = "OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_USER = "The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com.";
     private static final List<String> USER_COLS = List.of("id", "status", "login", "email", "first_name", "last_name", "created", "last_login");
     private static final List<String> GROUP_COLS = List.of("id", "name", "description", "type");

@@ -19,7 +19,7 @@ public final class DocuSignPackage {
     private static final String D_URL = "Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. "
             + "Leave empty to look it up from the account (production first, then the demo environment).";
     private static final String D_ACCOUNT = "DocuSign account id (a GUID or number shown under Apps and Keys).";
-    private static final String D_TOKEN = "DocuSign OAuth access token from the vault.";
+    private static final String D_TOKEN = "DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_ENV = "Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59.";
     private static final List<String> RECIPIENT_TYPES = List.of("signers", "carbonCopies", "certifiedDeliveries", "agents", "editors", "intermediaries", "inPersonSigners", "witnesses");
 
