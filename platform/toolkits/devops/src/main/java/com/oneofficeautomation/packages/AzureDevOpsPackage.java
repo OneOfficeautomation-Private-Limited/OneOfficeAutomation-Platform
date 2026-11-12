@@ -973,6 +973,141 @@ public final class AzureDevOpsPackage {
                 "started", r.get("startedDate"), "completed", r.get("completedDate"), "url", r.get("webAccessUrl")));
     }
 
+    // ---------------------------------------------------------------- test management (K7, command review batch 10)
+
+    @Action(id = "list_test_suites", name = "List test suites", category = "Test plans", idempotent = true, capabilities = "network", description = "List the suites of a test plan.",
+            panel = "organization_url, personal_access_token, project, plan_id | max_results")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, suite_type, parent_suite_id, test_case_count.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of suites.")
+    public Map<String, Object> listTestSuites(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = "Test plan id (see List test plans).") int planId,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "5000", min = 1, description = D_MAX) int max) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> s : pages(ctx, proj(org, project) + "/_apis/testplan/Plans/" + planId + "/suites", pat, Math.max(1, max)))
+            rows.add(Out.of("id", s.get("id"), "name", s.get("name"), "suite_type", s.get("suiteType"), "parent_suite_id", HttpJson.path(s, "parentSuite.id"), "test_case_count", s.get("testCaseCount")));
+        return Out.of("table", HttpJson.table(rows, "id", "name", "suite_type", "parent_suite_id", "test_case_count"), "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    @Action(id = "list_test_cases", name = "List test cases", category = "Test plans", idempotent = true, capabilities = "network", description = "List the test cases of a suite, with their test points.",
+            panel = "organization_url, personal_access_token, project, plan_id, suite_id | max_results")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, state, assigned_to, point_ids.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of test cases.")
+    public Map<String, Object> listTestCases(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = "Test plan id.") int planId,
+            @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = "Test suite id (see List test suites).") int suiteId,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "5000", min = 1, description = D_MAX) int max) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> c : pages(ctx, proj(org, project) + "/_apis/testplan/Plans/" + planId + "/Suites/" + suiteId + "/TestCase", pat, Math.max(1, max))) {
+            List<Object> points = new ArrayList<>();
+            for (Map<String, Object> p : HttpJson.maps(c.get("pointAssignments"))) points.add(p.get("id"));
+            rows.add(Out.of("id", HttpJson.path(c, "workItem.id"), "name", HttpJson.path(c, "workItem.name"), "state", fieldOf(c, "System.State"),
+                    "assigned_to", fieldOf(c, "System.AssignedTo"), "point_ids", points));
+        }
+        return Out.of("table", HttpJson.table(rows, "id", "name", "state", "assigned_to", "point_ids"), "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    /** A field of a test case's work item, as the test plan API gives them: a list of {name: value}. */
+    private static Object fieldOf(Map<String, Object> testCase, String name) {
+        for (Map<String, Object> f : HttpJson.maps(HttpJson.path(testCase, "workItem.workItemFields"))) if (f.containsKey(name)) {
+            Object v = f.get(name);
+            return v instanceof Map<?, ?> m && m.get("displayName") != null ? m.get("displayName") : v;
+        }
+        return null;
+    }
+
+    @Action(id = "list_test_runs", name = "List test runs", category = "Test plans", idempotent = true, capabilities = "network",
+            description = "List the test runs of a project, newest first; optionally only those of one plan or in one state.",
+            panel = "organization_url, personal_access_token, project, plan_id, state | max_results")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, state, total_tests, passed_tests, started, completed.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of runs.")
+    public Map<String, Object> listTestRuns(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Only runs of this plan; 0 for all.") int planId,
+            @Input(name = "state", type = OoaType.STRING, required = false, enumValues = {"", "NotStarted", "InProgress", "Completed", "Aborted", "Waiting"},
+                    description = "Only runs in this state; any when empty.") String state,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 1, description = D_MAX) int max) {
+        List<String> q = new ArrayList<>(List.of("includeRunDetails=true"));
+        if (planId > 0) q.add("planId=" + planId);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> r : pages(ctx, proj(org, project) + "/_apis/test/runs?" + String.join("&", q), pat, 5000)) {
+            if (state != null && !state.isBlank() && !state.equalsIgnoreCase(String.valueOf(r.get("state")))) continue;
+            rows.add(Out.of("id", r.get("id"), "name", r.get("name"), "state", r.get("state"), "total_tests", r.get("totalTests"), "passed_tests", r.get("passedTests"),
+                    "started", r.get("startedDate"), "completed", r.get("completedDate")));
+        }
+        rows.sort((a, b) -> String.valueOf(b.get("started")).compareTo(String.valueOf(a.get("started"))));
+        if (rows.size() > max) rows = rows.subList(0, max);
+        return Out.of("table", HttpJson.table(rows, "id", "name", "state", "total_tests", "passed_tests", "started", "completed"), "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    @Action(id = "update_test_results", name = "Update test results", category = "Test plans", capabilities = "network",
+            description = "Record the outcome of tests in a run: one row per result, with its outcome and, if you like, a comment, how long it took and an error.",
+            panel = "organization_url, personal_access_token, project, run_id, results")
+    @Output(name = "updated", type = OoaType.NUMBER, description = "How many results were recorded.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> updateTestResults(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "run_id", type = OoaType.NUMBER, min = 1, description = "Test run id.") int runId,
+            @Input(name = "results", type = OoaType.TABLE,
+                    description = "Columns: result_id (or test_point_id), outcome (Passed, Failed, Blocked, NotApplicable...), and optionally comment, duration_seconds, error_message.") Map<String, Object> table) {
+        List<String> cols = new ArrayList<>();
+        for (Object c : (List<?>) table.getOrDefault("columns", List.of())) cols.add(Values.text(c).strip().toLowerCase(Locale.ROOT));
+        if (!cols.contains("outcome") || (!cols.contains("result_id") && !cols.contains("test_point_id")))
+            throw new ActionException(P + ".BAD_RESULTS", "The results need an outcome column and a result_id or test_point_id column", "Columns: result_id, outcome, comment, duration_seconds, error_message.");
+        Map<String, Object> byPoint = null;
+        List<Object> body = new ArrayList<>();
+        for (Object r : (List<Object>) table.getOrDefault("rows", List.of())) {
+            List<?> cells = (List<?>) r;
+            java.util.function.Function<String, Object> cell = n -> { int i = cols.indexOf(n); return i < 0 || i >= cells.size() ? null : cells.get(i); };
+            Object id = cell.apply("result_id");
+            if (id == null || "".equals(id)) {
+                if (byPoint == null) {
+                    byPoint = new HashMap<>();
+                    for (Map<String, Object> res : pages(ctx, proj(org, project) + "/_apis/test/Runs/" + runId + "/results", pat, 100_000))
+                        if (HttpJson.path(res, "testPoint.id") != null) byPoint.put(Values.text(HttpJson.path(res, "testPoint.id")), res.get("id"));
+                }
+                id = byPoint.get(Values.text(cell.apply("test_point_id")));
+                if (id == null) throw new ActionException(P + ".NOT_FOUND", "Run " + runId + " has no result for test point " + cell.apply("test_point_id"), "Check the test point id.");
+            }
+            Map<String, Object> one = new LinkedHashMap<>();
+            one.put("id", Values.toNumber(id));
+            one.put("outcome", Values.text(cell.apply("outcome")));
+            one.put("state", "Completed");
+            if (cell.apply("comment") != null && !"".equals(cell.apply("comment"))) one.put("comment", Values.text(cell.apply("comment")));
+            if (cell.apply("duration_seconds") != null && !"".equals(cell.apply("duration_seconds")))
+                one.put("durationInMs", Values.toNumber(cell.apply("duration_seconds")).multiply(BigDecimal.valueOf(1000)));
+            if (cell.apply("error_message") != null && !"".equals(cell.apply("error_message"))) one.put("errorMessage", Values.text(cell.apply("error_message")));
+            body.add(one);
+        }
+        for (int from = 0; from < body.size(); from += 1000)
+            send(req("PATCH", withVersion(proj(org, project) + "/_apis/test/Runs/" + runId + "/results", V), pat).json(body.subList(from, Math.min(body.size(), from + 1000))), ctx);
+        return Out.of("updated", BigDecimal.valueOf(body.size()));
+    }
+
+    @Action(id = "complete_test_run", name = "Complete test run", category = "Test plans", capabilities = "network",
+            description = "Mark a test run as completed, after its results are recorded, optionally with a comment.",
+            panel = "organization_url, personal_access_token, project, run_id | comment")
+    public Map<String, Object> completeTestRun(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "run_id", type = OoaType.NUMBER, min = 1, description = "Test run id.") int runId,
+            @Input(name = "comment", type = OoaType.STRING, required = false, description = "Comment stored with the run.") String comment) {
+        Map<String, Object> body = new LinkedHashMap<>(Map.of("state", "Completed"));
+        if (comment != null && !comment.isBlank()) body.put("comment", comment);
+        call(ctx, "PATCH", proj(org, project) + "/_apis/test/runs/" + runId, pat, body);
+        return Map.of();
+    }
+
     // ---------------------------------------------------------------- pipeline definitions
 
     @Action(id = "get_pipeline", name = "Get pipeline details", category = "Pipelines", idempotent = true, capabilities = "network",
