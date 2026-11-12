@@ -194,6 +194,30 @@ export function CredentialField({ id, name, value, onCommit, apply }: FieldProps
 
 // ------------------------------------------------------------------ windows
 
+/** AI steps whose "connection" names a model connection (I1, batch 9). */
+export const MODEL_STEPS = /^ooa\.(genai|ai_skills|ai_agent|idp|ai_screen|web_agent|knowledge)\//;
+
+/**
+ * I1 (batch 9): the model connection of an AI step, picked from the saved ones. Empty means the organisation's default
+ * (shown with its name), which the runner uses when the step sets no model of its own; a name or a variable can still
+ * be typed.
+ */
+export function ModelConnectionField({ id, name, value, onCommit, apply }: FieldProps) {
+  const vars = useVars();
+  const [conns, setConns] = useState<{ default: string; names: string[] } | null>(null);
+  useEffect(() => {
+    if (!vars) return;
+    vars.api.modelConnections().then((c) => setConns({ default: c.default, names: c.connections.map((x) => x.name) }), () => setConns({ default: "", names: [] }));
+  }, [vars]);
+  const text = typeof value === "string" ? value : value === undefined ? "" : showValue(value);
+  const known = conns?.names ?? [];
+  if (text.startsWith("$") || (text && conns && !known.includes(text) && text !== "default"))
+    return <CommitInput key={"mc" + text} id={id} initial={text} want="String" nameHint={name} onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />;
+  return <Select id={id} value={text === "default" ? "" : text} onChange={(e) => onCommit(e.target.value === "" ? undefined : e.target.value)}
+    options={[{ value: "", label: conns === null ? "Reading the model connections…" : conns.default ? "Default (" + conns.default + ")" : "No default: choose one or set up here" },
+      ...known.map((n) => ({ value: n, label: n }))]} />;
+}
+
 /** The fallbacks a window lookup understands (WindowPackage.WINDOW_ORDER), in the order they are tried. */
 const WINDOW_ALTERNATIVES: { key: string; label: string; hint: string; number?: boolean }[] = [
   { key: "title_pattern", label: "Title pattern", hint: "Invoice*- Excel" },

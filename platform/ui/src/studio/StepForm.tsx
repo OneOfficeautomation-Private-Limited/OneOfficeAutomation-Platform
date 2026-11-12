@@ -15,7 +15,7 @@ import {
 } from "./stepKinds";
 import { AssignmentsEditor, AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
-import { BoolField, CollectionField, CredentialField, DateField, FileField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
+import { BoolField, CollectionField, CredentialField, DateField, FileField, MODEL_STEPS, ModelConnectionField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
 import { pickerFor } from "./Pickers";
 import { hasReadState, readState, readStateArgs, READ_STATES, type ReadState } from "./mailFields";
 
@@ -295,13 +295,14 @@ export function StepForm({ step, packages, onArg, onNote }:
 }
 
 /** Which option of a choice is on: the one with a value set, else one with a default, else the first. */
-export function chosenOption(g: Extract<PanelGroup, { choice: string }>, step: FlowStep, props: Record<string, FieldSpec>): number {
+export function chosenOption(g: Extract<PanelGroup, { choice: string }>, step: FlowStep, _props?: Record<string, FieldSpec>): number {
   const set = (f: string) => step.args?.[f] !== undefined && step.args[f] !== "";
   let i = g.options.findIndex((o) => o.fields.some(set));
   // R3 (batch 8): nothing filled in shows the option with no fields ("No sign-in", "None") before one that only has a
   // default (OAuth's client sign-in has one, and a new Send request opened on OAuth 2.0)
   if (i < 0) i = g.options.findIndex((o) => !o.fields.length);
-  if (i < 0) i = g.options.findIndex((o) => o.fields.some((f) => props[f]?.default !== undefined));
+  // otherwise the first option, which the panel lists as the usual one (I1, batch 9: "A saved connection" for AI steps;
+  // a field's default value, such as a delimiter or a provider, no longer pulls the choice to its option)
   return Math.max(0, i);
 }
 
@@ -389,6 +390,7 @@ function InputField({ action, name, label, spec, required, value, onCommit, appl
       if (ooaType === "Credential") return <CredentialField {...kind} />;
       if (ooaType === "File") return <FileField {...kind} folder={FOLDER_FIELD.test(name) || folderAction} />;
       if (isWindowTitle(action, name, spec) && (ooaType === "String" || ooaType === undefined)) return <WindowField {...kind} />;
+      if (name === "connection" && MODEL_STEPS.test(action) && (ooaType === "String" || ooaType === undefined)) return <ModelConnectionField {...kind} />;
       const text = isNumber(spec) ? showNumber(value) : showValue(value);
       return <CommitInput key={text} id={id} initial={text} placeholder={fallback} mono={typeof value === "string" && value.startsWith("$")}
         onCommit={(t) => onCommit(parseValue(t, spec))} want={spec["x-ooa-type"] ?? "Any"} apply={apply} nameHint={name} />;

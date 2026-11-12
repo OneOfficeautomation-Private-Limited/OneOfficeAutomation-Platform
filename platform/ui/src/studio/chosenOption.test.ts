@@ -17,8 +17,9 @@ describe("which option of a choice a step shows (R3)", () => {
   it("shows the empty option on a new step, not one that only has a default", () => {
     expect(chosenOption(signIn, step({}), props)).toBe(0);
   });
-  it("falls back to an option with a default when there is no empty one", () => {
-    const g = { choice: "Connect using", options: [{ label: "Details", fields: ["server"] }, { label: "Address", fields: ["url"] }] } as unknown as Extract<PanelGroup, { choice: string }>;
-    expect(chosenOption(g, step({}), { url: { default: "x" } } as unknown as Record<string, FieldSpec>)).toBe(1);
+  it("otherwise shows the first option, whatever defaults the others have (I1, batch 9)", () => {
+    const g = { choice: "Model to use", options: [{ label: "A saved connection", fields: ["connection"] }, { label: "Set up here", fields: ["provider", "model"] }] } as unknown as Extract<PanelGroup, { choice: string }>;
+    expect(chosenOption(g, step({}), { provider: { default: "openai" } } as unknown as Record<string, FieldSpec>)).toBe(0);
+    expect(chosenOption(g, step({ model: "gpt-4o" }), {} as Record<string, FieldSpec>)).toBe(1);
   });
 });
