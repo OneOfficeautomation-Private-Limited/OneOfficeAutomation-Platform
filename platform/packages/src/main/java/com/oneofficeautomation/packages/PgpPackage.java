@@ -9,8 +9,34 @@ import java.util.*;
  * OpenPGP encryption and signing with GnuPG (install Gpg4win on Windows). Passphrases go to gpg through standard
  * input, never on the command line. Use gnupg_home to keep a bot's keys separate from the user's keyring.
  */
-@OoaPackage(id = "ooa.pgp", name = "PGP", version = "1.0.0", description = "Import keys, encrypt, decrypt, sign and verify files with OpenPGP (GnuPG).")
+@OoaPackage(id = "ooa.pgp", name = "PGP", version = "1.1.0",
+        description = "Import keys, encrypt, decrypt, sign and verify files with OpenPGP: with GnuPG when it is installed on the runner, otherwise built in.")
 public final class PgpPackage {
+
+    private static volatile Boolean gnupg;
+
+    /**
+     * P1 (command review, batch 8): true when GnuPG really runs on this runner; otherwise every step uses the built-in
+     * OpenPGP engine (PgpBuiltIn). OOA_PGP_ENGINE (or ooa.pgp.engine) = builtin or gnupg chooses one.
+     */
+    static boolean gnupgInstalled() {
+        String forced = System.getProperty("ooa.pgp.engine", System.getenv().getOrDefault("OOA_PGP_ENGINE", ""));
+        if (forced.equalsIgnoreCase("builtin")) return false;
+        if (forced.equalsIgnoreCase("gnupg")) return true;
+        Boolean g = gnupg;
+        if (g == null) {
+            boolean ok;
+            try {
+                Process proc = new ProcessBuilder(exe(), "--version").redirectErrorStream(true).start();
+                proc.getInputStream().readAllBytes();
+                ok = proc.waitFor() == 0;
+            } catch (Exception e) { ok = false; }
+            gnupg = g = ok;
+        }
+        return g;
+    }
+
+    private static SecureString secret(Object v) { return v instanceof SecureString s ? s : null; }
 
     /** Is there a gpg this runner can use (for tests and checks; actions report why not)? */
     static boolean usable() {
@@ -82,7 +108,7 @@ public final class PgpPackage {
         return f.toString();
     }
 
-    private static final String D_HOME = "Separate GnuPG key folder for this agent; the runner user's keyring when empty.";
+    private static final String D_HOME = "Separate key folder for this agent; the runner user's keyring when empty (GnuPG's, or the built-in one when GnuPG is not installed).";
 
     @Action(id = "import_key", name = "Import key", category = "Keys", capabilities = "filesystem", description = "Import a public or private key file (.asc or .gpg).",
             panel = "path, [The key has a passphrase: passphrase] | gnupg_home")
@@ -91,6 +117,7 @@ public final class PgpPackage {
             @Input(name = "path", type = OoaType.FILE, description = "Key file.") String path,
             @Input(name = "passphrase", type = OoaType.CREDENTIAL, required = false, description = "Passphrase, when importing a protected private key.") Object pass,
             @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home) {
+        if (!gnupgInstalled()) return PgpBuiltIn.importKey(ctx, Path.of(file(ctx, path)), secret(pass), home);
         List<String> args = new ArrayList<>();
         String stdin = null;
         if (pass instanceof SecureString s) { args.addAll(List.of("--pinentry-mode", "loopback", "--passphrase-fd", "0")); stdin = s.reveal() + "\n"; }
@@ -158,6 +185,11 @@ public final class PgpPackage {
             throw new ActionException("PGP.EMPTY_PASSPHRASE", "The passphrase is empty", "Store a non-empty passphrase in the vault.");
         String to = encryptTarget(path, target, armor);
         if (!overwrite && Files.exists(ctx.resolvePath(to))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(to), "Set overwrite to true or choose another name.");
+        if (!gnupgInstalled()) {
+            PgpBuiltIn.encrypt(ctx, Path.of(file(ctx, path)), ctx.resolvePath(to), recipients == null ? List.of() : HttpJson.addressList(recipients), publicKeyFile, home, armor,
+                    cipherName, compressName, (SecureString) passphrase);
+            return Out.of("target", ctx.resolvePath(to).toString());
+        }
         KeyHome kh = keyHome(ctx, home, publicKeyFile, null);
         try {
             encryptWith(ctx, path, to, recipients, armor, kh, cipherName, compressName, (SecureString) passphrase);
@@ -262,6 +294,10 @@ public final class PgpPackage {
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing target file.") boolean overwrite) {
         String to = decryptTarget(path, target);
         if (!overwrite && Files.exists(ctx.resolvePath(to))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(to), "Set overwrite to true or choose another name.");
+        if (!gnupgInstalled()) {
+            PgpBuiltIn.decrypt(ctx, Path.of(file(ctx, path)), ctx.resolvePath(to), secret(pass), privateKeyFile, home);
+            return Out.of("target", ctx.resolvePath(to).toString());
+        }
         KeyHome kh = keyHome(ctx, home, privateKeyFile, pass);
         try {
             decryptWith(ctx, path, to, pass, kh.home());
@@ -288,6 +324,7 @@ public final class PgpPackage {
             @Input(name = "key", type = OoaType.STRING, required = false, description = "Signing key id or email; the default key when empty.") String key,
             @Input(name = "passphrase", type = OoaType.CREDENTIAL, required = false, description = "Private key passphrase from the vault.") Object pass,
             @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home) {
+        if (!gnupgInstalled()) { PgpBuiltIn.sign(ctx, Path.of(file(ctx, path)), ctx.resolvePath(sig), key, secret(pass), home); return Map.of(); }
         List<String> args = new ArrayList<>(List.of("--pinentry-mode", "loopback", "--passphrase-fd", "0"));
         if (key != null && !key.isBlank()) { if (key.startsWith("-")) throw new ActionException("PGP.BAD_KEY", "Invalid key '" + key + "'"); args.addAll(List.of("-u", key)); }
         args.addAll(List.of("-o", out(ctx, sig), "--detach-sign", file(ctx, path)));
@@ -306,6 +343,7 @@ public final class PgpPackage {
             @Input(name = "path", type = OoaType.FILE, description = "Signed file.") String path,
             @Input(name = "signature", type = OoaType.FILE, description = "Signature file.") String sig,
             @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home) {
+        if (!gnupgInstalled()) return PgpBuiltIn.verify(ctx, Path.of(file(ctx, path)), Path.of(file(ctx, sig)), home);
         ProcessRunner.Result r = gpg(ctx, home, List.of("--verify", file(ctx, sig), file(ctx, path)), null);
         String signer = null, fpr = null;
         for (String line : r.stdout().split("\n")) {
@@ -370,8 +408,9 @@ public final class PgpPackage {
         if (!overwrite) for (String f : new String[]{publicFile, privateFile})
             if (f != null && !f.isBlank() && Files.exists(ctx.resolvePath(f)))
                 throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(f), "Set overwrite to true or choose another name.");
-        String stdin = (pass instanceof SecureString s ? s.reveal() : "") + "\n";
         if (!(pass instanceof SecureString)) ctx.warn("Creating a PGP key without a passphrase; anyone who gets the key file can use it.");
+        if (!gnupgInstalled()) return PgpBuiltIn.createKeys(ctx, uid, algorithm, exp, secret(pass), publicFile, privateFile, home);
+        String stdin = (pass instanceof SecureString s ? s.reveal() : "") + "\n";
         List<String> loop = List.of("--pinentry-mode", "loopback", "--passphrase-fd", "0");
         List<String> gen = new ArrayList<>(loop);
         gen.addAll(List.of("--quick-gen-key", uid, algo[0], "sign,cert", exp));
