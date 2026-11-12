@@ -303,6 +303,16 @@ class CommunityEditionGapsTest {
         List<Map<String, Object>> kinds = cr.connectionKinds(admin);
         Map<String, Object> m365 = kinds.stream().filter(k -> "ooa.microsoft365".equals(k.get("package"))).findFirst().orElseThrow();
         assertEquals(true, m365.get("sign_in"));
+        cr.saveConnection(admin, "Orders API", json("{\"package\":\"ooa.rest\",\"values\":{\"base_url\":\"https://api.acme.test/v2\",\"headers\":{\"X-Team\":\"ap\"}},"
+                + "\"credentials\":{\"bearer_token\":\"apps/orders/token\"}}"), null);
+        cr.deleteConnection(admin, "Orders API", null);
+        // R2 (batch 8): REST and SOAP have web connections: base address, headers and sign-in, not each call's address
+        for (String web : List.of("ooa.rest", "ooa.soap")) {
+            Map<String, Object> k = kinds.stream().filter(x -> web.equals(x.get("package"))).findFirst().orElseThrow();
+            List<Object> names = ((List<Map<String, Object>>) k.get("inputs")).stream().map(x -> x.get("name")).map(Object.class::cast).toList();
+            assertTrue(names.containsAll(List.of("base_url", "headers", "bearer_token")) && !names.contains("url"), web + ": " + names);
+            assertEquals(true, k.get("sign_in"));
+        }
         // Email is an optional module, not loaded in these tests: when it is, it is offered with its Connect step's settings
         kinds.stream().filter(k -> "ooa.email".equals(k.get("package"))).findFirst().ifPresent(email -> {
             List<Object> emailInputs = ((List<Map<String, Object>>) email.get("inputs")).stream().map(x -> x.get("name")).map(Object.class::cast).toList();

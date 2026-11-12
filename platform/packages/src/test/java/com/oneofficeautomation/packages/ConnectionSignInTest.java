@@ -47,6 +47,22 @@ class ConnectionSignInTest {
         }
     }
 
+    /** R2 (batch 8): a web connection keeps the base address and the sign-in; the step gives only the path. */
+    @Test void restStepsUseAConnectionsAddressAndRenewingSignIn() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("POST /oauth/token", c -> ok("{\"access_token\":\"api-token\",\"expires_in\":3600}"))
+             .on("GET /v2/invoices/42", c -> ok("{\"id\":42}"));
+            String conn = "{\"orders\":{\"package\":\"ooa.rest\",\"values\":{\"base_url\":\"" + f.url() + "/v2\",\"headers\":{\"X-Team\":\"ap\"},"
+                    + "\"sign_in_provider\":\"other\",\"sign_in_grant\":\"client_credentials\",\"sign_in_client_id\":\"app\",\"sign_in_token_url\":\"" + f.url() + "/oauth/token\"},"
+                    + "\"credentials\":{\"sign_in_client_secret\":\"apps/mail/secret\"}}}";
+            RunResult r = run(tmp(), conn, "[{\"id\":\"r\",\"action\":\"ooa.rest/request\",\"connection\":\"orders\",\"args\":{\"url\":\"/invoices/42\"},\"out\":{\"status\":\"n\"}}]");
+            assertTrue(r.ok(), String.valueOf(r.error()));
+            Call get = f.last("GET", "/v2/invoices/42");
+            assertEquals("Bearer api-token", get.header("Authorization"));
+            assertEquals("ap", get.header("X-Team"));
+        }
+    }
+
     @Test void onePersonsSignInKeepsTheNewestRefreshTokenAndFailuresAreClear() throws Exception {
         try (Fake f = new Fake()) {
             List<String> forms = Collections.synchronizedList(new ArrayList<>());

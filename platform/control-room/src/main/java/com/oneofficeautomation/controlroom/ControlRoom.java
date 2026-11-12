@@ -3111,13 +3111,36 @@ public final class ControlRoom {
      * action and that include a secret, such as its address and sign-in (Studio applies the same rule).
      */
     @SuppressWarnings("unchecked")
+    /** R2 (batch 8): what a web connection keeps for REST and SOAP: base address, headers, sign-in, proxy, client certificate. */
+    static final List<String> WEB_CONNECTION_INPUTS = List.of("base_url", "headers", "basic_user", "basic_password", "bearer_token", "windows_auth",
+            "oauth_token_url", "oauth_client_id", "oauth_client_secret", "oauth_refresh_token", "oauth_scope", "oauth_audience", "oauth_resource", "oauth_client_auth",
+            "oauth1_consumer_key", "oauth1_consumer_secret", "oauth1_token", "oauth1_token_secret", "oauth1_signature_method",
+            "ntlm_user", "ntlm_domain", "ntlm_password", "proxy", "proxy_user", "proxy_password", "client_certificate", "client_certificate_password", "insecure_tls");
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> webConnectionKind(String id, String name, List<Map<String, Object>> actions) {
+        Map<String, Map<String, Object>> prop = new HashMap<>();
+        for (Map<String, Object> a : actions)
+            for (var e : ((Map<String, Object>) ((Map<String, Object>) a.getOrDefault("inputs", Map.of())).getOrDefault("properties", Map.of())).entrySet())
+                prop.putIfAbsent(e.getKey(), (Map<String, Object>) e.getValue());
+        List<Map<String, Object>> inputs = new ArrayList<>();
+        for (String n : WEB_CONNECTION_INPUTS) {
+            Map<String, Object> p = prop.get(n);
+            if (p == null) continue;
+            inputs.add(Map.of("name", n, "type", String.valueOf(p.getOrDefault("x-ooa-type", "String")), "credential", "Credential".equals(p.get("x-ooa-type")),
+                    "description", String.valueOf(p.getOrDefault("description", ""))));
+        }
+        return Map.of("package", id, "name", name, "inputs", inputs, "sign_in", true);
+    }
+
     public List<Map<String, Object>> connectionKinds(User by) {
         require(by, "globals.view", "view saved connections");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> m : registry.allManifests()) {
             String id = String.valueOf(m.get("id"));
             List<Map<String, Object>> actions = m.get("actions") instanceof List<?> l ? (List<Map<String, Object>>) l : List.of();
-            if (actions.size() < 3 || Set.of("ooa.excel_desktop", "ooa.powerpoint_desktop", "ooa.pdf", "ooa.rest", "ooa.genai").contains(id)) continue;
+            if (id.equals("ooa.rest") || id.equals("ooa.soap")) { out.add(webConnectionKind(id, String.valueOf(m.getOrDefault("name", id)), actions)); continue; }
+            if (actions.size() < 3 || Set.of("ooa.excel_desktop", "ooa.powerpoint_desktop", "ooa.pdf", "ooa.genai").contains(id)) continue;
             Map<String, Integer> count = new LinkedHashMap<>();
             Map<String, Map<String, Object>> prop = new HashMap<>();
             for (Map<String, Object> a : actions) {
@@ -3166,8 +3189,11 @@ public final class ControlRoom {
         if (!pkg.matches("^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$")) throw new OoaException("CR.BAD_INPUT", "Choose the toolkit the connection is for", "Example: ooa.servicenow.");
         Map<String, Object> values = body.get("values") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
         Map<String, Object> creds = body.get("credentials") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
-        for (var e : values.entrySet())
+        for (var e : values.entrySet()) {
+            // R2 (batch 8): a web connection's headers are name to text
+            if (e.getKey().equals("headers") && e.getValue() instanceof Map<?, ?> h && h.values().stream().allMatch(x -> x instanceof String || x instanceof Number || x instanceof Boolean)) continue;
             if (e.getValue() instanceof Map || e.getValue() instanceof List) throw new OoaException("CR.BAD_INPUT", "Setting '" + e.getKey() + "' must be text, a number or true/false");
+        }
         for (var e : creds.entrySet())
             if (!(e.getValue() instanceof String ref) || !ref.matches("^[^/]{1,120}/[^/]{1,120}/[^/]{1,120}$"))
                 throw new OoaException("CR.BAD_INPUT", "Credential '" + e.getKey() + "' must be a vault reference folder/credential/attribute", "Pick it from Credential vault.");

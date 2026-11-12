@@ -13,7 +13,8 @@ export const SIGN_IN_SECRET_KEYS = ["sign_in_client_secret", "sign_in_refresh_to
 
 /** True for toolkits whose steps take an access token from the vault. */
 export function takesAccessToken(actions: { inputs?: { properties?: Record<string, { "x-ooa-type"?: string }> } }[]) {
-  return actions.some((a) => a.inputs?.properties?.access_token?.["x-ooa-type"] === "Credential");
+  // R2 (batch 8): web steps take the token as their bearer token
+  return actions.some((a) => a.inputs?.properties?.access_token?.["x-ooa-type"] === "Credential" || a.inputs?.properties?.bearer_token?.["x-ooa-type"] === "Credential");
 }
 
 /** The bags with one sign-in key set (empty text removes it); choosing no sign-in clears all of them. */

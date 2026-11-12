@@ -17,13 +17,13 @@ public final class SoapPackage {
 
     @Action(id = "send", name = "Send SOAP request", category = "SOAP", timeoutSeconds = 120, capabilities = "network",
             description = "Send a SOAP envelope (or just the body, which is wrapped for you) and return the response.",
-            panel = "url, version, soap_action, body, [Sign in with a user name: basic_user, basic_password], headers, timeout_seconds, [Use a client certificate: client_certificate, client_certificate_password], output_file, xpath | fail_on_error, insecure_tls, [Use a proxy server: proxy, proxy_user, proxy_password]")
+            panel = "url, version, soap_action, body, (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token / OAuth 2.0 = oauth_token_url, oauth_client_id, oauth_client_secret, oauth_refresh_token, oauth_scope, oauth_audience, oauth_resource, oauth_client_auth / OAuth 1.0a = oauth1_consumer_key, oauth1_consumer_secret, oauth1_token, oauth1_token_secret, oauth1_signature_method / Windows user name and password, NTLM = ntlm_user, ntlm_domain, ntlm_password), headers, timeout_seconds, [Use a client certificate: client_certificate, client_certificate_password], output_file, xpath | fail_on_error, insecure_tls, [Use a proxy server: proxy, proxy_user, proxy_password], windows_auth, base_url")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "response", type = OoaType.STRING, description = "Response XML.")
     @Output(name = "body", description = "The first element inside the SOAP Body, as a dictionary.")
     @Output(name = "values", type = OoaType.LIST, description = "Text of the nodes selected by xpath; empty without xpath.")
     public Map<String, Object> send(ActionContext ctx,
-            @Input(name = "url", type = OoaType.STRING, pattern = "^https?://", description = "Service endpoint URL.") String url,
+            @Input(name = "url", type = OoaType.STRING, pattern = "^(https?://|/|\\?|\\$)", description = "Service endpoint URL, or a path when base_url (or a connection) gives the address.") String url,
             @Input(name = "body", type = OoaType.STRING, description = "Full SOAP envelope, or only the body XML (it is wrapped automatically).") String body,
             @Input(name = "soap_action", type = OoaType.STRING, required = false, description = "SOAPAction header (from the WSDL).") String action,
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"1.1\"", enumValues = {"1.1", "1.2"}, description = "SOAP version.") String version,
@@ -39,7 +39,37 @@ public final class SoapPackage {
             @Input(name = "client_certificate_password", type = OoaType.CREDENTIAL, required = false, description = "Password of the client certificate file.") Object clientCertPassword,
             @Input(name = "xpath", type = OoaType.STRING, required = false, example = "//*[local-name()='Price']", description = "Also return the text of the response nodes this XPath selects, in values.") String xpath,
             @Input(name = "output_file", type = OoaType.FILE, required = false, description = "Also save the response XML to this file.") String outputFile,
-            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step on a SOAP fault or HTTP error; when false the status and response are returned.") boolean failOnError) {
+            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step on a SOAP fault or HTTP error; when false the status and response are returned.") boolean failOnError,
+            @Input(name = "bearer_token", type = OoaType.CREDENTIAL, required = false, description = "Bearer token from the vault.") Object bearer,
+            @Input(name = "windows_auth", type = OoaType.STRING, required = false, enumValues = {"current_user", "user_password"},
+                    description = "Windows sign-in (NTLM or Kerberos) for intranet sites, SharePoint on premises, IIS and Exchange: current_user signs in as the runner's Windows account (Windows runners); user_password uses basic_user (DOMAIN\\user) and basic_password.") String windowsAuth,
+            @Input(name = "oauth_token_url", type = OoaType.STRING, required = false, pattern = "^https?://", example = "https://login.example.com/oauth2/token",
+                    description = "OAuth 2.0 token endpoint; the request is sent with a token fetched there (kept for the run and renewed before it expires).") String oauthTokenUrl,
+            @Input(name = "oauth_client_id", type = OoaType.STRING, required = false, description = "OAuth 2.0 client (application) id.") String oauthClientId,
+            @Input(name = "oauth_client_secret", type = OoaType.CREDENTIAL, required = false,
+                    description = "OAuth 2.0 client secret from the vault; needed for client credentials, optional with a refresh token.") Object oauthClientSecret,
+            @Input(name = "oauth_refresh_token", type = OoaType.CREDENTIAL, required = false,
+                    description = "Refresh token from the vault: signs in with the refresh-token grant instead of client credentials. A new refresh token from the server is used for the rest of the run and returned as refresh_token.") Object oauthRefreshToken,
+            @Input(name = "oauth_scope", type = OoaType.STRING, required = false, example = "api://orders/.default", description = "Scopes to ask for, separated by spaces.") String oauthScope,
+            @Input(name = "oauth_audience", type = OoaType.STRING, required = false, description = "Audience sent to the token endpoint (some providers, e.g. Auth0, need it).") String oauthAudience,
+            @Input(name = "oauth_resource", type = OoaType.STRING, required = false, description = "Resource sent to the token endpoint (e.g. Microsoft Entra v1 and AD FS).") String oauthResource,
+            @Input(name = "oauth_client_auth", type = OoaType.STRING, required = false, defaultValue = "\"basic\"", enumValues = {"basic", "body"},
+                    description = "How the client id and secret reach the token endpoint: basic (HTTP Basic header, the OAuth standard) or body (form fields client_id and client_secret).") String oauthClientAuth,
+            @Input(name = "oauth1_consumer_key", label = "OAuth 1.0a consumer key", type = OoaType.STRING, required = false, description = "OAuth 1.0a consumer key: the request is signed (RFC 5849).") String oauth1ConsumerKey,
+            @Input(name = "oauth1_consumer_secret", label = "OAuth 1.0a consumer secret", type = OoaType.CREDENTIAL, required = false, description = "OAuth 1.0a consumer secret from the vault.") Object oauth1ConsumerSecret,
+            @Input(name = "oauth1_token", label = "OAuth 1.0a token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 1.0a access token from the vault; empty for a consumer-only (two-legged) request.") Object oauth1Token,
+            @Input(name = "oauth1_token_secret", label = "OAuth 1.0a token secret", type = OoaType.CREDENTIAL, required = false, description = "OAuth 1.0a token secret from the vault.") Object oauth1TokenSecret,
+            @Input(name = "oauth1_signature_method", label = "OAuth 1.0a signature method", type = OoaType.STRING, required = false, defaultValue = "\"HMAC-SHA1\"", enumValues = {"HMAC-SHA1", "HMAC-SHA256"},
+                    description = "OAuth 1.0a signature method.") String oauth1Method,
+            @Input(name = "ntlm_user", label = "Windows user name", type = OoaType.STRING, required = false, description = "Windows (NTLM) user name for intranet sites, IIS, SharePoint on premises and Exchange.") String ntlmUser,
+            @Input(name = "ntlm_domain", label = "Windows domain", type = OoaType.STRING, required = false, example = "CONTOSO", description = "Windows domain of the NTLM user; empty when the user name already has it (DOMAIN\\user or user@domain).") String ntlmDomain,
+            @Input(name = "ntlm_password", label = "Windows password", type = OoaType.CREDENTIAL, required = false, description = "Windows password of the NTLM user, from the vault.") Object ntlmPassword,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, example = "https://api.example.com/v2",
+                    description = "Address the URL is relative to, so the URL can be a path such as /invoices/42; a saved connection usually gives it.") String baseUrl) {
+        url = WebSignIn.address("SOAP", baseUrl, url);
+        WebSignIn signIn = WebSignIn.of("SOAP", user, password, bearer, windowsAuth, oauthTokenUrl, oauthClientId, oauthClientSecret, oauthRefreshToken,
+                oauthScope, oauthAudience, oauthResource, oauthClientAuth, oauth1ConsumerKey, oauth1ConsumerSecret, oauth1Token, oauth1TokenSecret, oauth1Method,
+                ntlmUser, ntlmDomain, ntlmPassword);
         HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, false, true);
         boolean v12 = "1.2".equals(version);
         String ns = v12 ? "http://www.w3.org/2003/05/soap-envelope" : "http://schemas.xmlsoap.org/soap/envelope/";
@@ -53,10 +83,34 @@ public final class SoapPackage {
         b.header("Content-Type", ct);
         if (!v12 && action != null) b.header("SOAPAction", "\"" + action + "\"");
         if (headers != null) headers.forEach((k, v) -> b.header(k, HttpJson.sendable(v)));
-        if (user != null && password instanceof SecureString pw)
-            b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((user + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
+        signIn.apply(b);
+        int status;
+        String text;
+        if (signIn.windows()) {
+            // Windows sign-in (NTLM or Kerberos) sends the envelope itself
+            Map<String, String> hs = new LinkedHashMap<>();
+            b.copy().build().headers().map().forEach((k, v) -> hs.put(k, String.join(", ", v)));
+            IntegratedAuthHttp.Response r = IntegratedAuthHttp.send(ctx, signIn.windowsAuth, "POST", url, hs, envelope.getBytes(StandardCharsets.UTF_8),
+                    signIn.basicUser, signIn.basicPassword, timeout, true, null);
+            status = r.status(); text = r.text();
+        } else if (signIn.o2 != null || signIn.o1 != null) {
+            HttpResponse<String> r = signIn.send(ctx, opts.client(ctx, CLIENT), b, HttpResponse.BodyHandlers.ofString(), "POST", url, null, url, timeout);
+            status = r.statusCode(); text = r.body();
+        } else {
+            HttpResponse<String> r = plainSend(ctx, opts, b.build(), url);
+            status = r.statusCode(); text = r.body();
+        }
+        return answer(ctx, url, status, text, failOnError, xpath, outputFile);
+    }
+
+    /** Earlier signature, kept for callers written before the other sign-ins and base_url (R2). */
+    public Map<String, Object> send(ActionContext ctx, String url, String body, String action, String version, Map<String, Object> headers, String user, Object password, int timeout, boolean insecure, String proxy, String proxyUser, Object proxyPassword, String clientCert, Object clientCertPassword, String xpath, String outputFile, boolean failOnError) {
+        return send(ctx, url, body, action, version, headers, user, password, timeout, insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, xpath, outputFile, failOnError, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    /** Sends as before (honouring HTTP 429 with Retry-After), for every sign-in but Windows and OAuth. */
+    private static HttpResponse<String> plainSend(ActionContext ctx, HttpOptions opts, HttpRequest request, String url) {
         HttpResponse<String> resp;
-        HttpRequest request = b.build();
         for (int attempt = 0; ; attempt++) {
             try { resp = opts.client(ctx, CLIENT).send(request, HttpResponse.BodyHandlers.ofString()); }
             catch (IOException e) { throw new ActionException("SOAP.UNREACHABLE", "Cannot reach " + url + ": " + NetErrors.reason(e, null), "Check the URL and network access.", true); }
@@ -66,28 +120,33 @@ public final class SoapPackage {
             ctx.warn(HttpJson.host(url) + " is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s");
             HttpJson.pause(ctx, wait);
         }
-        if (resp.statusCode() >= 400 && failOnError && !resp.body().stripLeading().startsWith("<"))
-            throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + resp.statusCode() + (resp.body().isBlank() ? "" : ": " + HttpJson.snippet(resp.body())), null, resp.statusCode() >= 500 || resp.statusCode() == 429);
+        return resp;
+    }
+
+    /** The answer, the same whichever way it was sent: errors, faults, the body, the XPath values and the saved file. */
+    private static Map<String, Object> answer(ActionContext ctx, String url, int status, String text, boolean failOnError, String xpath, String outputFile) {
+        if (status >= 400 && failOnError && !text.stripLeading().startsWith("<"))
+            throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + status + (text.isBlank() ? "" : ": " + HttpJson.snippet(text)), null, status >= 500 || status == 429);
         Object bodyValue = null;
         List<Object> values = new ArrayList<>();
         if (outputFile != null && !outputFile.isBlank()) {
             java.nio.file.Path out = ctx.resolvePath(outputFile);
             try {
                 if (out.getParent() != null) java.nio.file.Files.createDirectories(out.getParent());
-                java.nio.file.Files.writeString(out, resp.body(), StandardCharsets.UTF_8);
+                java.nio.file.Files.writeString(out, text, StandardCharsets.UTF_8);
             } catch (IOException e) { throw new ActionException("SOAP.FILE_ERROR", "Cannot save the response to " + out + ": " + e.getMessage(), "Check the folder is writable.", true); }
         }
-        if (!resp.body().isBlank()) {
+        if (!text.isBlank()) {
             Document doc;
-            try { doc = XmlSupport.parse(resp.body(), true); }
+            try { doc = XmlSupport.parse(text, true); }
             catch (ActionException e) {
-                if (resp.statusCode() >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + resp.statusCode() + ": " + HttpJson.snippet(resp.body()), null, resp.statusCode() >= 500 || resp.statusCode() == 429);
+                if (status >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + status + ": " + HttpJson.snippet(text), null, status >= 500 || status == 429);
                 throw e;
             }
             // a SOAP answer is an Envelope; an HTML proxy or sign-in page used to "succeed" with an empty body
             if (!"Envelope".equals(doc.getDocumentElement().getLocalName()) && failOnError)
-                throw new ActionException("SOAP.BAD_RESPONSE", "The answer is not a SOAP envelope (a <" + doc.getDocumentElement().getNodeName() + "> document, often a proxy or sign-in page): " + HttpJson.snippet(resp.body()),
-                        "Check the endpoint URL and the proxy between the runner and the service.", false, Map.of("status", BigDecimal.valueOf(resp.statusCode())));
+                throw new ActionException("SOAP.BAD_RESPONSE", "The answer is not a SOAP envelope (a <" + doc.getDocumentElement().getNodeName() + "> document, often a proxy or sign-in page): " + HttpJson.snippet(text),
+                        "Check the endpoint URL and the proxy between the runner and the service.", false, Map.of("status", BigDecimal.valueOf(status)));
             if (xpath != null && !xpath.isBlank()) values.addAll(xpathTexts(doc, xpath));
             Element bodyEl = firstChild(doc.getDocumentElement(), "Body");
             Element first = bodyEl == null ? null : firstElement(bodyEl);
@@ -95,12 +154,12 @@ public final class SoapPackage {
                 Element fs = firstChild(first, "faultstring");
                 if (fs == null) { Element reason = firstChild(first, "Reason"); fs = reason == null ? null : firstChild(reason, "Text"); }
                 throw new ActionException("SOAP.FAULT", "SOAP fault: " + (fs != null ? fs.getTextContent().trim() : "unknown"),
-                        "Check the request against the service's WSDL.", false, Map.of("status", BigDecimal.valueOf(resp.statusCode())));
+                        "Check the request against the service's WSDL.", false, Map.of("status", BigDecimal.valueOf(status)));
             }
             if (first != null) bodyValue = XmlSupport.toValue(first);
         }
-        if (resp.statusCode() >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + resp.statusCode(), null, resp.statusCode() >= 500);
-        return Out.of("status", BigDecimal.valueOf(resp.statusCode()), "response", resp.body(), "body", bodyValue, "values", values);
+        if (status >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + status, null, status >= 500);
+        return Out.of("status", BigDecimal.valueOf(status), "response", text, "body", bodyValue, "values", values);
     }
 
     @Action(id = "read_wsdl", name = "Read WSDL", category = "SOAP", idempotent = true, timeoutSeconds = 120, capabilities = "network",

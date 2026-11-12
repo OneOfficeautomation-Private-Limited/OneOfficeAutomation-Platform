@@ -171,8 +171,21 @@ export const loopIsMore = (name: string) => LOOP_MORE.has(name);
  * The inputs a connector repeats on (nearly) every action, such as its address and sign-in: what a saved connection
  * supplies. Toolkits whose shared inputs are a file or a request (Excel, PDF, REST, Generative AI) have none.
  */
+/**
+ * R2 (batch 8): what a web connection keeps for REST and SOAP steps: the address the steps' paths are relative to,
+ * headers, the sign-in, proxy and client certificate. The address of each call stays on the step.
+ */
+export const WEB_CONNECTION_INPUTS = ["base_url", "headers", "basic_user", "basic_password", "bearer_token", "windows_auth",
+  "oauth_token_url", "oauth_client_id", "oauth_client_secret", "oauth_refresh_token", "oauth_scope", "oauth_audience", "oauth_resource", "oauth_client_auth",
+  "oauth1_consumer_key", "oauth1_consumer_secret", "oauth1_token", "oauth1_token_secret", "oauth1_signature_method",
+  "ntlm_user", "ntlm_domain", "ntlm_password", "proxy", "proxy_user", "proxy_password", "client_certificate", "client_certificate_password", "insecure_tls"];
+
 export function connectionInputs(pkg: PackageManifest | undefined): Set<string> {
-  if (!pkg || pkg.actions.length < 3 || ["ooa.excel_desktop", "ooa.powerpoint_desktop", "ooa.pdf", "ooa.rest", "ooa.genai"].includes(pkg.id)) return new Set();
+  if (pkg && (pkg.id === "ooa.rest" || pkg.id === "ooa.soap")) {
+    const has = new Set(pkg.actions.flatMap((a) => Object.keys(a.inputs?.properties ?? {})));
+    return new Set(WEB_CONNECTION_INPUTS.filter((n) => has.has(n)));
+  }
+  if (!pkg || pkg.actions.length < 3 || ["ooa.excel_desktop", "ooa.powerpoint_desktop", "ooa.pdf", "ooa.genai"].includes(pkg.id)) return new Set();
   const count = new Map<string, number>(), types = new Map<string, string | undefined>();
   for (const a of pkg.actions) for (const [k, v] of Object.entries(a.inputs?.properties ?? {})) { count.set(k, (count.get(k) ?? 0) + 1); types.set(k, v["x-ooa-type"]); }
   const common = [...count].filter(([, n]) => n >= 0.8 * pkg.actions.length).map(([k]) => k);

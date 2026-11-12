@@ -29,3 +29,12 @@ describe("connection sign-in (A1)", () => {
     expect([...connectionInputs(email)].sort()).toEqual(["access_token", "imap_host", "password", "user"]);
   });
 });
+
+describe("web connections (R2, batch 8)", () => {
+  it("keep the base address, headers and sign-in of REST and SOAP steps, not the address of each call", () => {
+    const p = (...names: string[]) => ({ inputs: { properties: Object.fromEntries(names.map((n) => [n, n.endsWith("token") || n.endsWith("password") ? { "x-ooa-type": "Credential" } : {}])) } });
+    const rest = { id: "ooa.rest", name: "REST", actions: [{ id: "request", ...p("url", "method", "base_url", "headers", "bearer_token", "basic_user", "basic_password", "timeout_seconds") }] } as unknown as PackageManifest;
+    expect([...connectionInputs(rest)]).toEqual(["base_url", "headers", "basic_user", "basic_password", "bearer_token"]);
+    expect(takesAccessToken(rest.actions)).toBe(true);
+  });
+});

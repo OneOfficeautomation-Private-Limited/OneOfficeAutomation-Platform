@@ -420,7 +420,9 @@ public final class Runner {
                 }
             // A1: a connection that signs in by itself gives a fresh access token to a step that takes one and has none
             Map<String, Object> vals = conn.get("values") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
-            if (OAuthSignIn.configured(vals) && spec.input("access_token").isPresent() && empty.test("access_token")) {
+            // R2 (batch 8): web steps (REST, SOAP) take it as their bearer token
+            String tokenInput = spec.input("access_token").isPresent() ? "access_token" : spec.input("bearer_token").isPresent() ? "bearer_token" : null;
+            if (OAuthSignIn.configured(vals) && tokenInput != null && empty.test(tokenInput)) {
                 CredentialVault vault = (CredentialVault) services.get("vault");
                 Map<String, Object> creds = conn.get("credentials") instanceof Map<?, ?> c ? (Map<String, Object>) c : Map.of();
                 SecureString t = OAuthSignIn.token(name, vals, creds, ref -> {
@@ -430,7 +432,7 @@ public final class Runner {
                     return s;
                 });
                 secrets.add(t.reveal()); secureValues.add(t);
-                out.put("access_token", t);
+                out.put(tokenInput, t);
             }
             return out;
         }
