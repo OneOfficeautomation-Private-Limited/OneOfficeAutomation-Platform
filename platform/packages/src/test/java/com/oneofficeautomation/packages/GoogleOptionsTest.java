@@ -66,6 +66,14 @@ class GoogleOptionsTest {
             assertEquals("https://www.googleapis.com/drive/v3/files?q=x&supportsAllDrives=true&includeItemsFromAllDrives=true",
                     GooglePackage.sharedDrives("https://www.googleapis.com/drive/v3/files?q=x"));
             assertEquals("https://www.googleapis.com/drive/v3/files/F1/export?mimeType=a", GooglePackage.sharedDrives("https://www.googleapis.com/drive/v3/files/F1/export?mimeType=a"));
+
+            // K5 (batch 10): an id input takes a path under My Drive starting with /
+            f.on("GET /drive/v3/files", c -> ok(q(c).contains("name = 'Reports'") ? "{\"files\":[{\"id\":\"FOLDER-R\",\"name\":\"Reports\"}]}"
+                    : q(c).contains("name = 'a.pdf'") && q(c).contains("'FOLDER-R' in parents") ? "{\"files\":[{\"id\":\"F1\",\"name\":\"a.pdf\"}]}" : "{\"files\":[]}"));
+            Map<String, Object> d = p.driveDownload(ctx, tok, "/Reports/a.pdf", "out/a.pdf", true, f.url());
+            assertEquals("%PDF streamed", Files.readString(Path.of((String) d.get("path"))));
+            assertEquals("F1", p.driveUpload(ctx, tok, "big.bin", "/Reports", null, false, null, f.url()).get("file_id"));
+            assertEquals(List.of("FOLDER-R"), f.last("POST", "/upload/drive/v3/files").json().get("parents"));
         } finally { GooglePackage.resumableFrom = from; }
     }
 

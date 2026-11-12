@@ -136,7 +136,6 @@ class Ec2PackageTest {
             assertEquals("Finance", run.get("TagSpecification.1.Tag.2.Value"));
             assertEquals("#!/bin/bash\necho hi", new String(Base64.getDecoder().decode(run.get("UserData")), StandardCharsets.UTF_8));
 
-            fails("EC2.BAD_INSTANCE_ID", () -> pkg.startInstances(ctx, "ec2", List.of("web-1")));
             fails("EC2.NO_INSTANCES", () -> pkg.stopInstances(ctx, "ec2", List.of(), false, false));
             fails("EC2.BAD_COUNT", () -> pkg.launchInstances(ctx, "ec2", "ami-0123456789abcdef0", "t3.micro", 0, null, null, null, null, null, null));
             fails("EC2.NO_TAGS", () -> pkg.setTags(ctx, "ec2", List.of(A), Map.of()));
@@ -170,6 +169,10 @@ class Ec2PackageTest {
                 assertEquals(Map.of(A, "running"), started.get("states"));
                 assertTrue(String.valueOf(started.get("changes")).contains("stopped"));
                 assertEquals(3, looks.get());
+                // K5 (batch 10): instances by Name tag
+                pkg.startInstances(ctx, "ec2", List.of("x"), false, 30);
+                assertEquals(A, form(f.last("POST", "/")).get("InstanceId.1"));
+                fails("EC2.INSTANCE_NOT_FOUND", () -> pkg.startInstances(ctx, "ec2", List.of("web-1"), false, 30));
             } finally { Ec2Package.waitEverySeconds = every; }
             assertTrue(java.util.Arrays.stream(Ec2Package.class.getMethods()).map(m -> m.getAnnotation(com.oneofficeautomation.sdk.Action.class))
                     .filter(a -> a != null && a.id().equals("wait_for_state")).findFirst().orElseThrow().timeoutSeconds() >= 3600,

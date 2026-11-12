@@ -29,7 +29,7 @@ public final class Ec2Package {
     private static final Pattern REGION = Pattern.compile("^[a-z]{2}(-[a-z]+)+-\\d{1,2}$");
     private static final Pattern INSTANCE_ID = Pattern.compile("^i-[0-9a-f]{8,17}$");
     private static final String D_SESSION = "Name of the session opened by Connect.";
-    private static final String D_IDS = "Instance ids, e.g. [\"i-0abc1234def567890\"].";
+    private static final String D_IDS = "Instances by id or by Name tag, e.g. [\"i-0abc1234def567890\"] or [\"Invoice bot\"].";
     private static final List<String> INSTANCE_COLS = List.of("instance_id", "name", "state", "instance_type", "image_id", "private_ip", "public_ip",
             "availability_zone", "launch_time", "monitoring", "tags");
     private static final List<String> CHANGE_COLS = List.of("instance_id", "previous_state", "current_state");
@@ -101,7 +101,7 @@ public final class Ec2Package {
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Stop after this many instances.") int max) {
         Ec2Session s = ctx.session(session, Ec2Session.class);
         Map<String, String> p = new LinkedHashMap<>();
-        List<String> idList = ids(ids, false);
+        List<String> idList = ids(ctx, session, ids, false);
         list(p, "InstanceId", idList);
         filters(p, filters);
         List<Object> rows = new ArrayList<>();
@@ -134,7 +134,7 @@ public final class Ec2Package {
             @Input(name = "include_stopped", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also list instances that are not running (AWS leaves them out otherwise).") boolean all) {
         Ec2Session s = ctx.session(session, Ec2Session.class);
         Map<String, String> p = new LinkedHashMap<>();
-        List<String> idList = ids(ids, false);
+        List<String> idList = ids(ctx, session, ids, false);
         list(p, "InstanceId", idList);
         if (all) p.put("IncludeAllInstances", "true");
         List<Object> rows = new ArrayList<>();
@@ -167,7 +167,7 @@ public final class Ec2Package {
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until every instance is running before going on.") boolean wait,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", min = 1, max = 3600, visibleWhen = "wait=true",
                     description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int timeout) {
-        return waited(ctx, session, ids, changes(call(ctx, ctx.session(session, Ec2Session.class), "StartInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ids, true)))),
+        return waited(ctx, session, ids, changes(call(ctx, ctx.session(session, Ec2Session.class), "StartInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ctx, session, ids, true)))),
                 wait, "running", timeout);
     }
 
@@ -198,7 +198,7 @@ public final class Ec2Package {
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until every instance is stopped before going on.") boolean wait,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", min = 1, max = 3600, visibleWhen = "wait=true",
                     description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int timeout) {
-        Map<String, String> p = list(new LinkedHashMap<>(), "InstanceId", ids(ids, true));
+        Map<String, String> p = list(new LinkedHashMap<>(), "InstanceId", ids(ctx, session, ids, true));
         if (hibernate) p.put("Hibernate", "true");
         if (force) p.put("Force", "true");
         return waited(ctx, session, ids, changes(call(ctx, ctx.session(session, Ec2Session.class), "StopInstances", p)), wait, "stopped", timeout);
@@ -214,7 +214,7 @@ public final class Ec2Package {
     public Map<String, Object> rebootInstances(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
             @Input(name = "instance_ids", type = OoaType.LIST, description = D_IDS) List<Object> ids) {
-        call(ctx, ctx.session(session, Ec2Session.class), "RebootInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ids, true)));
+        call(ctx, ctx.session(session, Ec2Session.class), "RebootInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ctx, session, ids, true)));
         return Map.of();
     }
 
@@ -229,7 +229,7 @@ public final class Ec2Package {
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until every instance is terminated before going on.") boolean wait,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", min = 1, max = 3600, visibleWhen = "wait=true",
                     description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int timeout) {
-        return waited(ctx, session, ids, changes(call(ctx, ctx.session(session, Ec2Session.class), "TerminateInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ids, true)))),
+        return waited(ctx, session, ids, changes(call(ctx, ctx.session(session, Ec2Session.class), "TerminateInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ctx, session, ids, true)))),
                 wait, "terminated", timeout);
     }
 
@@ -242,7 +242,7 @@ public final class Ec2Package {
     public Map<String, Object> enableMonitoring(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
             @Input(name = "instance_ids", type = OoaType.LIST, description = D_IDS) List<Object> ids) {
-        return monitoring(call(ctx, ctx.session(session, Ec2Session.class), "MonitorInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ids, true))));
+        return monitoring(call(ctx, ctx.session(session, Ec2Session.class), "MonitorInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ctx, session, ids, true))));
     }
 
     @Action(id = "disable_monitoring", name = "Disable monitoring", category = "Monitoring", capabilities = "network",
@@ -251,7 +251,7 @@ public final class Ec2Package {
     public Map<String, Object> disableMonitoring(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
             @Input(name = "instance_ids", type = OoaType.LIST, description = D_IDS) List<Object> ids) {
-        return monitoring(call(ctx, ctx.session(session, Ec2Session.class), "UnmonitorInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ids, true))));
+        return monitoring(call(ctx, ctx.session(session, Ec2Session.class), "UnmonitorInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ctx, session, ids, true))));
     }
 
     // ----- launching, tags, waiting -----
@@ -303,7 +303,7 @@ public final class Ec2Package {
             @Input(name = "instance_ids", type = OoaType.LIST, description = D_IDS) List<Object> ids,
             @Input(name = "tags", type = OoaType.DICTIONARY, description = "Tag name to value, e.g. {\"Name\": \"Invoice bot\", \"Team\": \"Finance\"}.") Map<String, Object> tags) {
         if (tags == null || tags.isEmpty()) throw new ActionException(P + ".NO_TAGS", "No tags given", "Give at least one tag name and value.");
-        Map<String, String> p = list(new LinkedHashMap<>(), "ResourceId", ids(ids, true));
+        Map<String, String> p = list(new LinkedHashMap<>(), "ResourceId", ids(ctx, session, ids, true));
         tagParams(p, "Tag", tags);
         call(ctx, ctx.session(session, Ec2Session.class), "CreateTags", p);
         return Map.of();
@@ -322,7 +322,7 @@ public final class Ec2Package {
             @Input(name = "check_every_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "Seconds between checks.") double every) {
         if (!STATES.contains(state)) throw new ActionException(P + ".BAD_STATE", "Unknown state '" + state + "'", "Use one of " + String.join(", ", STATES) + ".");
         Ec2Session s = ctx.session(session, Ec2Session.class);
-        List<String> idList = ids(ids, true);
+        List<String> idList = ids(ctx, session, ids, true);
         long deadline = System.nanoTime() + Math.max(1, timeout) * 1_000_000_000L;
         Map<String, Object> states;
         while (true) {
@@ -498,6 +498,48 @@ public final class Ec2Package {
         Map<String, String> m = new LinkedHashMap<>();
         for (int i = 0; i < kv.length; i += 2) m.put(kv[i], kv[i + 1]);
         return m;
+    }
+
+    /**
+     * K5 (batch 10): instances by id or by their Name tag (as the EC2 console shows them); a name finds every instance
+     * with that Name that is not terminated. Ids are used as given.
+     */
+    static List<String> ids(ActionContext ctx, String session, List<Object> ids, boolean required) {
+        List<Object> plain = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        if (ids != null) for (Object o : ids) {
+            String v = Values.text(o).strip();
+            if (v.isEmpty()) continue;
+            if (INSTANCE_ID.matcher(v).matches()) plain.add(v); else if (!names.contains(v)) names.add(v);
+        }
+        List<String> out = ids(plain, required && names.isEmpty());
+        if (names.isEmpty()) return out;
+        Map<String, String> p = new LinkedHashMap<>();
+        p.put("Filter.1.Name", "tag:Name");
+        for (int i = 0; i < names.size(); i++) p.put("Filter.1.Value." + (i + 1), names.get(i));
+        p.put("Filter.2.Name", "instance-state-name");
+        int k = 1;
+        for (String st : List.of("pending", "running", "stopping", "stopped", "shutting-down")) p.put("Filter.2.Value." + k++, st);
+        Map<String, List<String>> byName = new LinkedHashMap<>();
+        String next = null;
+        do {
+            Map<String, String> page = new LinkedHashMap<>(p);
+            if (next != null) page.put("NextToken", next);
+            Element root = call(ctx, ctx.session(session, Ec2Session.class), "DescribeInstances", page);
+            for (Element res : items(child(root, "reservationSet")))
+                for (Element in : items(child(res, "instancesSet"))) {
+                    String nameTag = null;
+                    for (Element t : items(child(in, "tagSet"))) if ("Name".equals(text(t, "key"))) nameTag = text(t, "value");
+                    if (nameTag != null) byName.computeIfAbsent(nameTag, x -> new ArrayList<>()).add(text(in, "instanceId"));
+                }
+            next = text(root, "nextToken");
+        } while (next != null && !next.isBlank());
+        for (String nm : names) {
+            List<String> found = byName.get(nm);
+            if (found == null) throw new ActionException(P + ".INSTANCE_NOT_FOUND", "No instance is named '" + nm + "'", "Check the Name tag, or use the instance id.");
+            for (String id : found) if (!out.contains(id)) out.add(id);
+        }
+        return out;
     }
 
     static List<String> ids(List<Object> ids, boolean required) {

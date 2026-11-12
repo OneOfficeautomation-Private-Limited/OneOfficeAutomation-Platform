@@ -129,9 +129,10 @@ public final class GooglePackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> driveList(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Folder id; all files when empty.") String folder,
+            @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Folder id; all files when empty. A path under My Drive starting with / also works, e.g. /Reports/2026.") String folder,
             @Input(name = "name_contains", type = OoaType.STRING, required = false, description = "Only names containing this text.") String nameContains,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        folder = drivePath(ctx, token, folder, true, ep);   // K5 (batch 10): an id, or a path starting with /
         List<String> q = new ArrayList<>(List.of("trashed = false"));
         if (folder != null && !folder.isBlank()) q.add("'" + folder.replace("\\", "\\\\").replace("'", "\\'") + "' in parents");
         if (nameContains != null && !nameContains.isBlank()) q.add("name contains '" + nameContains.replace("\\", "\\\\").replace("'", "\\'") + "'");
@@ -156,11 +157,12 @@ public final class GooglePackage {
     public Map<String, Object> driveUpload(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "local_path", type = OoaType.FILE, description = "File to upload.") String local,
-            @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Target folder id; My Drive root when empty.") String folder,
+            @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Target folder id; My Drive root when empty. A path under My Drive starting with / also works, e.g. /Reports/2026.") String folder,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "Name in Drive; the local name when empty.") String name,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the content of a file with the same name in the folder (keeping its id and links) instead of adding a second file.") boolean overwrite,
             @Input(name = "description", type = OoaType.STRING, required = false, description = "Description stored with the file.") String description,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        folder = drivePath(ctx, token, folder, true, ep);   // K5 (batch 10): an id, or a path starting with /
         Path p = ctx.resolvePath(local);
         long size;
         try { size = Files.size(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
@@ -199,10 +201,11 @@ public final class GooglePackage {
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
     public Map<String, Object> driveDownload(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "file_id", type = OoaType.STRING, description = "File id.") String id,
+            @Input(name = "file_id", type = OoaType.STRING, description = "File id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
             @Input(name = "local_path", type = OoaType.FILE, description = "Where to save it.") String local,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
         Map<String, Object> meta = HttpJson.req(P, "GET", url("https://www.googleapis.com/drive/v3/files/" + HttpJson.enc(id) + "?fields=mimeType,name", ep)).bearer(token).send(ctx).map();
         String mime = String.valueOf(meta.get("mimeType"));
         String export = switch (mime) {
@@ -1231,6 +1234,12 @@ public final class GooglePackage {
         return parent;
     }
 
+    /** K5 (batch 10): an id input that holds a path starting with / (or "/" for My Drive) is looked up; anything else is an id. */
+    static String drivePath(ActionContext ctx, Object token, String v, boolean folderOnly, String ep) {
+        if (v == null || !v.strip().startsWith("/")) return v;
+        return idByPath(ctx, token, v.strip(), folderOnly, ep);
+    }
+
     /** The item id given directly, or looked up from item_path; exactly one of the two must be given. */
     private static String itemId(ActionContext ctx, Object token, String id, String path, String ep) {
         if (!blank(path)) {
@@ -1255,8 +1264,9 @@ public final class GooglePackage {
     public Map<String, Object> driveCreateFolder(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "name", type = OoaType.STRING, description = "Folder name.") String name,
-            @Input(name = "parent_id", type = OoaType.STRING, required = false, description = "Parent folder id; My Drive root when empty.") String parent,
+            @Input(name = "parent_id", type = OoaType.STRING, required = false, description = "Parent folder id; My Drive root when empty. A path under My Drive starting with / also works, e.g. /Reports/2026.") String parent,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        parent = drivePath(ctx, token, parent, true, ep);   // K5 (batch 10): an id, or a path starting with /
         if (blank(name)) throw bad("Give the folder a name", null);
         Map<String, Object> meta = new LinkedHashMap<>(Map.of("name", name, "mimeType", FOLDER_MIME));
         if (!blank(parent)) meta.put("parents", List.of(parent));
@@ -1440,8 +1450,9 @@ public final class GooglePackage {
     @Output(name = "info", type = OoaType.DICTIONARY, description = "id, name, mime_type, is_folder, size, created, modified, parents, web_link, owners, trashed.")
     public Map<String, Object> driveInfo(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id.") String id,
+            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
         return Map.of("info", fileRow(call(ctx, token, "GET", DRIVE + "/" + HttpJson.enc(id) + "?fields=" + HttpJson.enc(FILE_FIELDS) + "&supportsAllDrives=true", ep, null)));
     }
 
@@ -1452,8 +1463,9 @@ public final class GooglePackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> drivePermissions(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id.") String id,
+            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
         List<Object> rows = new ArrayList<>();
         String page = null;
         do {
@@ -1475,7 +1487,7 @@ public final class GooglePackage {
     @Output(name = "permission_id", type = OoaType.STRING, description = "Id of the new permission.")
     public Map<String, Object> driveShare(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id.") String id,
+            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
             @Input(name = "share_with", type = OoaType.STRING, required = false, defaultValue = "\"user\"", enumValues = {"user", "group", "domain", "anyone"}, description = "Who receives access.") String type,
             @Input(name = "role", type = OoaType.STRING, required = false, defaultValue = "\"reader\"", enumValues = {"reader", "commenter", "writer", "fileOrganizer", "organizer"}, description = "Access level.") String role,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "User or group address (for user and group).") String email,
@@ -1484,6 +1496,7 @@ public final class GooglePackage {
             @Input(name = "message", type = OoaType.STRING, required = false, description = "Text added to the notification email.") String message,
             @Input(name = "expires", type = OoaType.DATETIME, required = false, description = "When the access ends (UTC; users and groups only, Google Workspace accounts).") LocalDateTime expires,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
         String t = blank(type) ? "user" : type.toLowerCase(Locale.ROOT);
         Map<String, Object> perm = new LinkedHashMap<>(Map.of("type", t, "role", blank(role) ? "reader" : role));
         if (expires != null) perm.put("expirationTime", expires.toString() + (expires.getSecond() == 0 && expires.getNano() == 0 ? ":00" : "") + "Z");
@@ -1509,9 +1522,10 @@ public final class GooglePackage {
             panel = "access_token, item_id, permission_id | base_url")
     public Map<String, Object> driveUnshare(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id.") String id,
+            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
             @Input(name = "permission_id", type = OoaType.STRING, description = "Permission id from List Drive permissions.") String perm,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
         call(ctx, token, "DELETE", DRIVE + "/" + HttpJson.enc(id) + "/permissions/" + HttpJson.enc(perm) + "?supportsAllDrives=true", ep, null);
         return Map.of();
     }
@@ -1587,10 +1601,11 @@ public final class GooglePackage {
     @Output(name = "role", type = OoaType.STRING, description = "The highest role found, empty when none.")
     public Map<String, Object> driveCheckPermission(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id.") String id,
+            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
             @Input(name = "email", type = OoaType.STRING, description = "The person's email address.") String email,
             @Input(name = "access", type = OoaType.STRING, required = false, defaultValue = "\"read\"", enumValues = {"read", "comment", "write"}, description = "The access to check.") String access,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
         String need = switch (blank(access) ? "read" : access.trim().toLowerCase(Locale.ROOT)) {
             case "read" -> "reader"; case "comment" -> "commenter"; case "write" -> "writer";
             default -> throw bad("access must be read, comment or write", null);
@@ -1618,10 +1633,11 @@ public final class GooglePackage {
             panel = "access_token, item_id, permission_id, role | base_url")
     public Map<String, Object> driveUpdatePermission(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id.") String id,
+            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
             @Input(name = "permission_id", type = OoaType.STRING, description = "Permission id from List Drive permissions or Share Drive item.") String perm,
             @Input(name = "role", type = OoaType.STRING, enumValues = {"reader", "commenter", "writer", "fileOrganizer", "organizer"}, description = "New access level.") String role,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
         call(ctx, token, "PATCH", DRIVE + "/" + HttpJson.enc(id) + "/permissions/" + HttpJson.enc(perm) + "?supportsAllDrives=true", ep, Map.of("role", role));
         return Map.of();
     }
@@ -1647,13 +1663,14 @@ public final class GooglePackage {
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
     public Map<String, Object> driveExport(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "file_id", type = OoaType.STRING, description = "Id of the Google Doc, Sheet or Slides file.") String id,
+            @Input(name = "file_id", type = OoaType.STRING, description = "Id of the Google Doc, Sheet or Slides file. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"pdf\"", enumValues = {"pdf", "xlsx", "docx", "pptx", "csv", "txt", "html", "odt", "ods"}, description = "Output format.") String format,
             @Input(name = "local_path", type = OoaType.FILE, description = "Where to save it; the folder to save into when file_name is given.") String local,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "file_name", type = OoaType.STRING, required = false, example = "Q4 report",
                     description = "Name for the saved file inside the local_path folder; the format's extension is added when the name has none.") String fileName) {
+        id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
         String fmt = blank(format) ? "pdf" : format.trim().toLowerCase(Locale.ROOT);
         String mime = exportMime(fmt);
         byte[] data = fetchBytes(ctx, token, DRIVE + "/" + HttpJson.enc(id) + "/export?mimeType=" + HttpJson.enc(mime), ep);
