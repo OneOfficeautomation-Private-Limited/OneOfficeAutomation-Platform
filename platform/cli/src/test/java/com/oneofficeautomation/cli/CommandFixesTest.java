@@ -62,6 +62,24 @@ class CommandFixesTest {
         assertTrue(missing.isEmpty(), "Errors without a suggested fix (give each a third argument saying what to do):\n" + String.join("\n", missing));
     }
 
+    /** E9: the error catalogue (docs/reference/error-codes.md) lists every code the code raises. */
+    @Test
+    void theErrorCatalogueListsEveryCode() throws IOException {
+        Path page = ROOT.resolve("../docs/reference/error-codes.md");
+        assertTrue(Files.exists(page), "Make the error catalogue: python -I docs/research/tools/make-error-catalogue.py");
+        String catalogue = Files.readString(page);
+        Pattern literal = Pattern.compile("new (?:ActionException|OoaException)\\(\\s*\"([A-Z][A-Z0-9_]*\\.[A-Z0-9_.]+)\"");
+        java.util.TreeSet<String> missing = new java.util.TreeSet<>();
+        try (Stream<Path> files = Files.walk(ROOT)) {
+            for (Path p : files.filter(f -> f.toString().endsWith(".java") && f.toString().replace('\\', '/').contains("/src/main/")
+                    && !f.toString().replace('\\', '/').contains("/build/") && !f.toString().contains("node_modules")).toList()) {
+                Matcher m = literal.matcher(Files.readString(p));
+                while (m.find()) if (!catalogue.contains("`" + m.group(1) + "`")) missing.add(m.group(1));
+            }
+        }
+        assertTrue(missing.isEmpty(), "Codes missing from docs/reference/error-codes.md; run python -I docs/research/tools/make-error-catalogue.py:\n" + String.join("\n", missing));
+    }
+
     @Test
     void anyOtherCommandErrorGetsTheFixForItsCode() {
         assertEquals(CommandFixes.forCode("EXCEL.IO_ERROR"), new ActionException("EXCEL.IO_ERROR", "Cannot read a.xlsx").suggestedFix());

@@ -131,3 +131,4 @@ recorded in the **Audit Trail**.
 - [06 Administrator's guide](06-administrators-guide.md)
 - [07 Runner guide](07-runner-guide.md)
 - [08 Browser connector guide](08-browser-connector-guide.md)
+- [Error codes](../reference/error-codes.md): every error code, what it means and what to do
