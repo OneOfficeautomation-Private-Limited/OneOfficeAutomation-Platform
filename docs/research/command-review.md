@@ -594,3 +594,60 @@ SigV4; PGP signing and verifying (AA has neither); Kafka with manual commit; MCP
   its path. SNMP and SAP BAPI stay with their unit tests.
 - Tests: full suite with --continue (public-site samples off): 2,908 fresh results, none failed. Tried in One AgentStudio:
   a new Send request opens on No sign-in; Upload file offers the same six sign-ins; REST steps offer a saved connection.
+
+
+---
+
+## Batch 9: AI and documents (53 commands in 11 toolkits)
+
+Generative AI (14), Prompt Skills (2), AI Agents (1), AWS AI services (10), Azure AI services (8), Google Cloud AI (7),
+Document processing (4), Document Automation (1), Communications mining (2), Fuzzy Match (3), Business rules (1). AI
+screen and the web goal agent were batch 5; PDF and OCR batches 3 and 5. Checked 12 Nov 2026 against AA's Generative AI
+packages, AI Skills, model connections, AI guardrails and governance, AI Agent Studio, Document Automation and Document
+Extraction, AWS Comprehend NLP and Fuzzy Match, and Blue Prism's Decipher IDP, Document Automation, Intelligent
+Automation Skills and WorkHQ agents. Tried in One AgentStudio: Prompt (Generative AI).
+
+### What AA and Blue Prism teach about how these are used
+
+- **Models are set up once, centrally**: an admin makes model connections (vendor, model, keys from the vault, grounding),
+  tests them before saving, and limits who may use them; builders pick one by name. Steps rarely hold keys.
+- **Prompt templates are reusable** (AA AI Skills): a system prompt, a user prompt with inputs, files, a test pane,
+  references, and one Execute step with Response, Error and Success outputs.
+- **Guardrails apply to folders**: masking of personal, payment and health data (reversible or not), toxicity blocking
+  on prompts and answers, and a prompt log per run; AI usage is a code-analysis rule.
+- **Agents** have a role, a goal, a plan, end states, at most ten described tools, typed outputs and human review.
+- **Documents**: a document type with fields and tables, a confidence threshold per field, validation rules and lookup
+  lists, straight-through when confident, a review queue otherwise. An agent sends a document and gets a document id
+  and status, and can later read, correct, download or mark as collected the result by that id (AA Get, Update and
+  Download document data; Blue Prism Decipher polls batches and marks them complete; its Document Automation marks
+  cases exported so none is processed twice).
+
+### What we have, checked in panels and code
+
+Most of this is here: model connections with a default (Settings > Model connections), Prompt Skills with values,
+files and a knowledge index, AI agents with tools, approvers, forms, guardrails, MCP tools and output fields, and AI
+guardrail policies per folder (masking by kind, the models allowed, harmful-content check and blocked terms, all AI
+calls in the governance log). Generative AI goes further than AA's packages: classify, extract, summarise, translate,
+PII detection with masking styles, sentiment, entities, key phrases, image generation and pictures in prompts, on
+eight providers. Document processing extracts by rules and by examples, and Document Automation sends a document to a
+process with validation and review. Every field has a label and help.
+
+### Findings
+
+| # | Finding | Why it matters |
+|---|---|---|
+| I1 | **The default model connection is not used unless a step names it.** A new AI step opens on "Set up here" with OpenAI and an API key field; with nothing filled in it fails for want of a key, although the organisation has a default connection. Tried: a new Prompt opens on "Set up here". | Builders end up typing keys into steps, the thing model connections exist to avoid (AA: pick a connection; keys stay central). |
+| I2 | **Options differ between the model steps**: Prompt has a response format (JSON) and a seed, Chat has neither; Prompt with pictures has no top P or stop sequences. The help texts name providers by their codes (aws_bedrock_sagemaker, aws_bedrock) instead of the names the list shows. | Switching a step from Prompt to Chat loses JSON answers; codes in help are the kind of text batch 2 removed elsewhere. |
+| I3 | **AA map**: AA's AWS Comprehend commands (language, key phrases, entities, sentiment) point at the Generative AI steps, which ask a language model, not AWS Comprehend; our AWS AI toolkit has Comprehend for language, entities, sentiment and PII but not key phrases. AA's Document Extraction (Extract data), Google Document AI (Extract) and IQ Bot commands are not in the map. | A migrated AA bot would quietly change provider (and what is sent where); AA document bots find no match. |
+| D1 | **Document Automation stops at sending**: Send document to process gives the document id and, when waiting, the status and fields; nothing reads the result later by id (after a reviewer has checked it), waits for review, gives the tables and confidence, or lists finished documents not yet collected and marks them collected. | The usual pattern, send now and pick up the reviewed result later (AA Get document data; Blue Prism mark exported), needs a person or a workaround. |
+| S2 | **No command samples** for document processing (4), Prompt Skills (2), AI agents, communications mining (2), Document Automation, image generation and pictures in prompts, and AWS detect language and text. Unit tests exist for them. | AI chains (OCR, extract, check, decide) are not checked end to end. |
+
+### Proposals (choose; nothing built)
+
+| # | Proposal | Size |
+|---|---|---|
+| **I1** | A model step with no connection and no sign-in of its own uses the organisation's default model connection (steps that set a provider or key keep it). New AI steps open on "A saved connection", showing which one is the default. | Small |
+| **I2** | The same options on Prompt, Chat and Prompt with pictures (response format, seed, top P, stop sequences); provider names instead of codes in the help. | Small |
+| **I3** | AA map: Comprehend to the AWS AI toolkit (and a Key phrases command there); AA Document Extraction, Google Document AI and IQ Bot commands to Document Automation and Google Document AI. | Small |
+| **D1** | Document Automation commands: Get document result (status, fields, tables, confidence per field, by document id), Wait for document (until read, or until reviewed), and List finished documents with Mark collected, so an agent can pick up reviewed documents later and none twice. | Medium |
+| **S2** | Command samples for document processing, Prompt Skills, an AI agent with a tool, communications mining, image generation and pictures in prompts, against a stand-in model server; Document Automation against One CommandCenter in the test. | Medium |
