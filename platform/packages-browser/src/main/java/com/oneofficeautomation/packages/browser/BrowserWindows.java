@@ -299,6 +299,13 @@ final class BrowserWindows {
     }
 
     /** Connects to a running Edge or Chrome over the DevTools protocol and registers it as a session. */
+    /** The browser's own pages: DevTools, edge:// and chrome:// pages (welcome, sync, settings), about: pages. */
+    static boolean browserOwnPage(String url) {
+        String u = url == null ? "" : url.toLowerCase(Locale.ROOT);
+        return u.isEmpty() || u.startsWith("devtools://") || u.startsWith("edge://") || u.startsWith("chrome://") || u.startsWith("about:")
+                || u.startsWith("chrome-extension://") || u.startsWith("chrome-search://");
+    }
+
     static BrowserPackage.BrowserSession attach(ActionContext ctx, String endpoint, String kind, String session, double timeoutMs) {
         String ep = endpoint(endpoint);
         Map<String, Object> version = ep.toLowerCase(Locale.ROOT).startsWith("ws") ? null : version(ep);
@@ -311,7 +318,10 @@ final class BrowserWindows {
             com.microsoft.playwright.Browser b = pw.chromium().connectOverCDP(ep, new BrowserType.ConnectOverCDPOptions().setTimeout(Math.max(1000, timeoutMs)));
             BrowserContext c = b.contexts().isEmpty() ? b.newContext() : b.contexts().get(0);
             Page page = null;
-            for (Page p : c.pages()) { if (!p.url().startsWith("devtools://")) { page = p; break; } }
+            // a web page first: the browser's own pages (a new profile's welcome or sync notice, settings) are not what
+            // the agent came for; one of them, or about:blank, only when nothing else is open
+            for (Page p : c.pages()) { if (!browserOwnPage(p.url())) { page = p; break; } }
+            if (page == null) for (Page p : c.pages()) { if (!p.url().startsWith("devtools://")) { page = p; break; } }
             if (page == null) page = c.newPage();
             String k = kind == null || kind.isBlank() ? kindOf(version) : kind;
             BrowserPackage.BrowserSession bs = new BrowserPackage.BrowserSession(pw, b, c, page, k, ep, true);

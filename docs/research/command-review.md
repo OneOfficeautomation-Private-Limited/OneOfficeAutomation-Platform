@@ -402,3 +402,27 @@ dangerous system commands (restart, shut down, screen resolution) need a Confirm
 | **T2** | Connect's help and the toolkit page say 3270 needs wc3270 on the runner; Studio's Problems check warns when a flow uses 3270 and the runner has no engine. | Small |
 | **T3** | Command samples for the terminal against the in-process SSH host and fake 5250 host (connect, fields, keys, waits, key mappings, disconnect). | Medium |
 | **T4** | Press key and Type text get "Then wait for text" (text, timeout), the same as a following Wait for text step. | Small |
+
+**Built 11 to 12 Nov 2026 (all)** on ui/usage-review. Two corrections to the findings above: T4 was mostly there
+already (Type text and Press key on the terminal have "Wait for text afterwards"; only Set field lacked it, now added),
+and the Excel advanced/Get multiple cells mapping is right (it points at the loop type "Each row in a worksheet", as AA
+uses it). What changed:
+- **T1**: AA *Get field* now finds *Get field*, AA *Get text* finds *Get screen text*; the field-number help says AA counts from 0.
+- **W1, W2**: the Window commands' and conditions' Title has the "Open windows" picker, and takes `*`/`?` wildcards and
+  `re:` like every other window field (one rule, `WindowPackage.titleRule`); a title is still also found by the text it
+  contains, so older agents with a `*` or `?` in a title keep working. Close all matching windows keeps its tick.
+- **W3**: Alternatives drawn as Title pattern, Window class, Program name and Index; stored as before.
+- **U1**: the window box has the whole width, with the picker under it.
+- **T2**: the toolkit page and Connect's help say 3270 needs wc3270 on the runner; Check now notes a 3270 Connect step when
+  this computer has no engine (it never stops a save).
+- **K1**: a key picker under every key field (Press keys with Ctrl/Alt/Shift/Win ticks, Wait for mouse or key, Type
+  text inserts `[KEY]` and turns on Special keys, background typing inserts `{KEY}`, the terminal's keys grouped by
+  host). The runner accepts other spellings everywhere (Page Up, PgUp, Del, Return, Control, AA's KEY_ENTER, F5 for PF5
+  on 3270); no stored step changes.
+- **M1, M2**: "Pick on screen" under X for Mouse click, move, scroll and Show callout: point and press Ctrl+Shift+C; the
+  step gets the window, the point measured from its corner, and (mouse steps) the window's size, which is given back to
+  the window first ("Put the window back to this size first"). Choosing a window for a mouse step that has no
+  "Relative to" yet measures from the window; Relative to now sits next to X and Y. Old steps keep what they had.
+- **T3**: 10 terminal samples (54-terminal.json) against an in-process SSH host: connect, screen and position reads,
+  fields by label, typing with a key and a wait, key mappings, Ctrl+C, the prompt, the cursor, and VT's clear error.
+  The 5250-only and 3270-only field commands stay covered by their unit tests (fake 5250 host, scripted 3270 engine).
