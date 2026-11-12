@@ -38,6 +38,44 @@ public final class MailRecord {
         return out;
     }
 
+    /** Help of the loops' "with the text and HTML" tick, the same on every mail service. */
+    public static final String D_WITH_BODY = "Give each email whole: text, HTML, recipients and attachment names (one more request per email); "
+            + "the email stays unread. Without it each email has id, from, subject, received, unread and has_attachments.";
+
+    /** The rows of a Find emails table as records (column name to value). */
+    @SuppressWarnings("unchecked")
+    public static List<Map<String, Object>> rows(Object table) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (!(table instanceof Map<?, ?> t) || !(t.get("columns") instanceof List<?> cols) || !(t.get("rows") instanceof List<?> rows)) return out;
+        for (Object r : rows) {
+            if (!(r instanceof List<?> cells)) continue;
+            Map<String, Object> m = new LinkedHashMap<>();
+            for (int i = 0; i < cols.size() && i < cells.size(); i++) m.put(String.valueOf(cols.get(i)), cells.get(i));
+            out.add(m);
+        }
+        return out;
+    }
+
+    /**
+     * What an "each email" loop gives (A3): the emails found before the loop starts (so they can be moved or deleted
+     * inside it), each read whole, one at a time as the loop reaches it, when withBody is set.
+     */
+    public static Iterable<Object> each(List<? extends Map<String, Object>> found, boolean withBody, java.util.function.Function<Map<String, Object>, Map<String, Object>> read) {
+        List<Map<String, Object>> list = new ArrayList<>(found);
+        return () -> new Iterator<>() {
+            int i;
+            @Override public boolean hasNext() { return i < list.size(); }
+            @Override public Object next() {
+                if (i >= list.size()) throw new NoSuchElementException();
+                Map<String, Object> row = list.get(i++);
+                if (!withBody) return row;
+                Map<String, Object> whole = new LinkedHashMap<>(row);
+                whole.putAll(read.apply(row));
+                return withCommonKeys(whole);
+            }
+        };
+    }
+
     /** A Date header (RFC 5322, e.g. "Tue, 3 Nov 2026 10:15:00 +0100") as UTC; null when it cannot be read. */
     public static LocalDateTime headerDate(String header) {
         if (header == null || header.isBlank()) return null;

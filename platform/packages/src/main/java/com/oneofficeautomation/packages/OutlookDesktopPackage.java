@@ -226,9 +226,35 @@ public final class OutlookDesktopPackage {
             description = "Read one email: sender, recipients, subject, text and HTML body and attachment names.", panel = "id")
     @Output(name = "email", type = OoaType.DICTIONARY, description = "id, subject, from, from_name, to, cc, received, unread, body, html_body, categories, attachment_names, folder. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> get(ActionContext ctx, @Input(name = "id", type = OoaType.STRING, description = D_ID) String id) {
+        return Map.of("email", read(ctx, id));
+    }
+
+    @LoopIterator(id = "emails", name = "Each email in an Outlook folder",
+            description = "Go through the emails matching the Find emails filters, one per turn: id, subject, from, from_name, to, received, unread, attachments, folder, or the whole email.")
+    public Iterable<Object> emails(ActionContext ctx,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"Inbox\"", example = "Inbox/Invoices", description = "Folder path: Inbox, Sent Items, Drafts, or a folder below them, e.g. Inbox/Invoices.") String folder,
+            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unreadOnly,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Only emails whose subject contains this text.") String subject,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Only emails whose sender address or name contains this text.") String from,
+            @Input(name = "received_after", type = OoaType.DATETIME, required = false, description = "Only emails received after this date and time.") Object after,
+            @Input(name = "max", type = OoaType.NUMBER, required = false, defaultValue = "50", min = 1, max = 5000, description = "At most this many emails.") int max,
+            @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = MailRecord.D_WITH_BODY) boolean withBody,
+            @Input(name = "mailbox", type = OoaType.STRING, required = false, description = D_MAILBOX) String mailbox) {
+        List<Map<String, Object>> found = new ArrayList<>();
+        Object emails = list(ctx, folder, unreadOnly, subject, from, after, max, mailbox, 120).get("emails");
+        if (emails instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> m) {
+            @SuppressWarnings("unchecked") Map<String, Object> row = new LinkedHashMap<>((Map<String, Object>) m);
+            row.put("has_attachments", m.get("attachments") instanceof Number n && n.intValue() > 0);
+            found.add(row);
+        }
+        return MailRecord.each(found, withBody, row -> read(ctx, String.valueOf(row.get("id"))));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> read(ActionContext ctx, String id) {
         Object raw = outlook(ctx, getScript(id), 120);
         @SuppressWarnings("unchecked") Map<String, Object> e = raw instanceof Map<?, ?> m ? (Map<String, Object>) m : new LinkedHashMap<>();
-        return Map.of("email", MailRecord.withCommonKeys(e));
+        return MailRecord.withCommonKeys(e);
     }
 
     static Script sendScript(String to, String cc, String bcc, String subject, String body, boolean html, List<String> attachments, String account, boolean draft) {

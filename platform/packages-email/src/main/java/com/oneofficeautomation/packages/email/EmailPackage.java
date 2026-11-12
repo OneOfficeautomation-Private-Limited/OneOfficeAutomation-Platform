@@ -337,9 +337,18 @@ public final class EmailPackage {
             @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "The body contains this text (searched by the server).") String bodyText,
             @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
             @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Give the oldest emails first instead of the newest.") boolean oldestFirst,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
+            @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = com.oneofficeautomation.packages.MailRecord.D_WITH_BODY) boolean withBody) {
         // the list is taken before the loop starts, so emails can be moved or deleted inside it
-        return new ArrayList<>(find(ms(ctx, session), folder, unread, readOnly, from, subject, since, before, to, bodyText, withAtts, oldestFirst, max));
+        List<Map<String, Object>> found = new ArrayList<>(find(ms(ctx, session), folder, unread, readOnly, from, subject, since, before, to, bodyText, withAtts, oldestFirst, max));
+        return com.oneofficeautomation.packages.MailRecord.each(found, withBody,
+                row -> (Map<String, Object>) get(ctx, ((Number) row.get("id")).longValue(), folder, false, session).get("email"));
+    }
+
+    /** Earlier signature, kept for callers written before with_body. */
+    public Iterable<Object> emails(ActionContext ctx, String folder, boolean unread, String from, String subject, LocalDateTime since, int max, LocalDateTime before,
+                                   boolean readOnly, String to, String bodyText, boolean withAtts, boolean oldestFirst, String session) {
+        return emails(ctx, folder, unread, from, subject, since, max, before, readOnly, to, bodyText, withAtts, oldestFirst, session, false);
     }
 
     private static void collect(Part p, StringBuilder text, StringBuilder html, List<Part> attachments) throws MessagingException, IOException {

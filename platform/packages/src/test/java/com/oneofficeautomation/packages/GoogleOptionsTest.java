@@ -44,6 +44,27 @@ class GoogleOptionsTest {
         assertEquals("GOOGLE.BAD_INPUT", assertThrows(ActionException.class, () -> GooglePackage.rrule("fortnightly")).code());
     }
 
+    /** A3 (command review, batch 7): an each-email loop on Gmail, as on the other mail services. */
+    @Test void eachGmailMessageLoop() throws Exception {
+        try (Fake f = new Fake()) {
+            String gm = "/gmail/v1/users/me/";
+            f.on("GET " + gm + "messages", c -> ok("{\"messages\":[{\"id\":\"G1\"},{\"id\":\"G2\"}]}"))
+             .on("GET " + gm + "messages/G[12]", c -> ok(MSG));
+            var p = new GooglePackage();
+            var ctx = PackagesTestSupport.ctx(tmp(), Map.of());
+            var tok = new com.oneofficeautomation.sdk.SecureString("tok", "t");
+            List<Object> whole = new ArrayList<>();
+            p.gmailMessages(ctx, tok, null, "INBOX", "unread", null, null, null, null, false, 100, true, f.url()).forEach(whole::add);
+            assertEquals(2, whole.size());
+            @SuppressWarnings("unchecked") Map<String, Object> e = (Map<String, Object>) whole.get(0);
+            assertEquals("Hello", e.get("text"));
+            assertEquals(List.of("INV-7.pdf"), e.get("attachments"));
+            assertEquals(true, e.get("has_attachments"));
+            assertTrue(q(f.last("GET", gm + "messages")).contains("is:unread"), "the filters reach Gmail's search");
+            assertNull(f.last("POST", gm + "messages/G1/modify"), "nothing marked read");
+        }
+    }
+
     @Test void gmailSendListMoveDeleteForwardReplyAndAttachments() throws Exception {
         try (Fake f = new Fake()) {
             String gm = "/gmail/v1/users/me/";

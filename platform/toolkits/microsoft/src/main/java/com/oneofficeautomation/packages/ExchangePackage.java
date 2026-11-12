@@ -182,9 +182,11 @@ public final class ExchangePackage {
             @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
             @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
             @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The oldest emails first instead of the newest.") boolean oldestFirst,
-            @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "Body contains this text (searched by the server); separate several with ; to match any of them.") String bodyContains) {
+            @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "Body contains this text (searched by the server); separate several with ; to match any of them.") String bodyContains,
+            @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = MailRecord.D_WITH_BODY) boolean withBody) {
         // the list is taken before the loop starts, so emails can be moved or deleted inside it
-        return new ArrayList<>(find(ctx, es(ctx, session), folder, unread, readOnly, from, subject, since, before, withAtts, oldestFirst, max, bodyContains));
+        List<Map<String, Object>> found = find(ctx, es(ctx, session), folder, unread, readOnly, from, subject, since, before, withAtts, oldestFirst, max, bodyContains);
+        return MailRecord.each(found, withBody, row -> (Map<String, Object>) get(ctx, String.valueOf(row.get("id")), false, session).get("email"));
     }
 
     /** Earlier signatures, kept for callers written before body_contains and the loop's extra filters (A6). */
@@ -194,7 +196,7 @@ public final class ExchangePackage {
     }
 
     public Iterable<Object> emails(ActionContext ctx, String folder, boolean unread, String from, String subject, LocalDateTime since, int max, String session) {
-        return emails(ctx, folder, unread, from, subject, since, max, session, null, false, false, false, null);
+        return emails(ctx, folder, unread, from, subject, since, max, session, null, false, false, false, null, false);
     }
 
     /** The emails matching the filters, each keyed by SUMMARY_COLUMNS. Subject, dates and flags are filtered by the server; the sender here. */

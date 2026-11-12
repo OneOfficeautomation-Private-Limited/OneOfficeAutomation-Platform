@@ -118,6 +118,29 @@ public final class Microsoft365Package {
         return Map.of("table", Values.table(List.of("id", "from", "subject", "received", "unread", "has_attachments"), rows), "count", BigDecimal.valueOf(rows.size()));
     }
 
+    @LoopIterator(id = "emails", name = "Each email in a mailbox (Outlook)",
+            description = "Go through the emails matching the Find emails filters, one per turn: id, from, subject, received, unread, has_attachments, or the whole email.")
+    @SuppressWarnings("unchecked")
+    public Iterable<Object> emails(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = "Folder id or well-known name: inbox, archive, sentitems, deleteditems.") String folder,
+            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = D_FROM) String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
+            @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The oldest emails first instead of the newest.") boolean oldestFirst,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Stop after this many emails.") int max,
+            @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = MailRecord.D_WITH_BODY) boolean withBody,
+            @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        Object table = listMail(ctx, token, folder, unread, from, subject, max, readOnly, since, before, withAtts, oldestFirst, mailbox, base).get("table");
+        return MailRecord.each(MailRecord.rows(table), withBody,
+                row -> (Map<String, Object>) getMail(ctx, token, String.valueOf(row.get("id")), false, false, mailbox, base).get("email"));
+    }
+
     @Action(id = "get_mail", name = "Read email (Outlook)", category = "Mail", capabilities = "network", description = "Read one email's details and body; optionally mark it read.",
             panel = "access_token, id, mark_read, body_as_text | mailbox, base_url")
     @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")

@@ -1858,6 +1858,26 @@ public final class GooglePackage {
         return Map.of("table", Values.table(List.of("id", "thread_id", "from", "to", "subject", "date", "snippet", "unread", "labels", "received"), rows), "count", num(rows.size()));
     }
 
+    @LoopIterator(id = "gmail_messages", name = "Each email in Gmail",
+            description = "Go through the messages matching the Find emails (Gmail) filters, one per turn: id, thread_id, from, to, subject, date, snippet, unread, labels, received, or the whole email.")
+    @SuppressWarnings("unchecked")
+    public Iterable<Object> gmailMessages(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "query", type = OoaType.STRING, required = false, example = "from:billing@acme.com has:attachment newer_than:7d", description = "Gmail search text; all messages when empty.") String query,
+            @Input(name = "label", type = OoaType.STRING, required = false, description = "Only messages with this label, e.g. INBOX or Invoices.") String label,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Only unread or only read messages.") String status,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains these words; separate several with ; to match any of them.") String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only messages with attachments.") boolean withAtts,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Stop after this many messages.") int max,
+            @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = MailRecord.D_WITH_BODY) boolean withBody,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        Object table = gmailList(ctx, token, query, max, false, from, subject, since, before, status, label, withAtts, ep).get("table");
+        return MailRecord.each(MailRecord.rows(table), withBody, row -> (Map<String, Object>) gmailGet(ctx, token, String.valueOf(row.get("id")), false, ep).get("email"));
+    }
+
     @Action(id = "gmail_get_message", name = "Read email (Gmail)", category = "Gmail", idempotent = true, capabilities = "network",
             description = "Read one Gmail message: headers, text and HTML body, labels and attachment names.",
             panel = "access_token, message_id, mark_read | endpoint_override")
