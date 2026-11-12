@@ -27,7 +27,7 @@ import java.util.Map;
  */
 public final class DocumentAutomationModule implements CommandCenterModule {
     /** The module's own version: it changes when the module changes. */
-    public static final String VERSION = "1.0.0";
+    public static final String VERSION = "1.1.0";
 
     public String id() { return "document-automation"; }
     public String name() { return "Document Automation"; }

@@ -28,9 +28,9 @@ class DocumentAutomationModuleTest {
         try (Db db = Db.embedded(data)) {
             ControlRoom cr = new ControlRoom(db, data, com.oneofficeautomation.packages.FirstPartyPackages.registry(), null);
             assertTrue(cr.modules.list().contains(Map.of("id", "document-automation", "name", "Document Automation",
-                    "version", com.oneofficeautomation.modules.docauto.DocumentAutomationModule.VERSION, "schema", 0)), String.valueOf(cr.modules.list()));
+                    "version", com.oneofficeautomation.modules.docauto.DocumentAutomationModule.VERSION, "schema", 1)), String.valueOf(cr.modules.list()));
             assertTrue(cr.modules.userRoutes.containsKey("docflow"));
-            assertTrue(cr.modules.agentRoutes.containsKey("docflow/documents"));
+            assertTrue(cr.modules.agentRoutes.keySet().containsAll(List.of("docflow/documents", "docflow/results")));
             assertTrue(cr.modules.callbacks.keySet().containsAll(List.of("docflow-callback/start-bot", "docflow-callback/events")));
             assertEquals(2, cr.modules.jobs.size(), "review tasks and email inboxes");
             assertNotNull(cr.modules.taskKind("document_review"));
@@ -40,8 +40,9 @@ class DocumentAutomationModuleTest {
             assertEquals(1, ((Number) cr.platform.setting("mcp_documents")).intValue());
             assertEquals(1, cr.modules.mcpTools.size(), "its documents_ tools");
             assertEquals(1, cr.modules.templateParts.size());
-            // ooa db migrate also brings each module's own tables up to date (it has none yet: version 0)
-            assertTrue(Modules.migrateAll(db).contains(Map.of("module", "document-automation", "from", 0, "to", 0)));
+            // ooa db migrate also brings each module's own tables up to date (version 1, docflow_collected, made when the module started)
+            assertTrue(Modules.migrateAll(db).contains(Map.of("module", "document-automation", "from", 1, "to", 1)));
+            assertEquals(0, db.query("SELECT document_id FROM docflow_collected").size(), "its table is there");
         }
     }
 }
