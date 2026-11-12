@@ -238,6 +238,11 @@ final class HttpJson {
         } else if (j instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> first && first.get("message") != null) msg = String.valueOf(first.get("message"));
         if (msg == null) msg = r.text().length() > 300 ? r.text().substring(0, 300) : r.text();
         int s = r.status();
+        // K5 (batch 10): Microsoft Graph refuses "me" to an app sign-in; say what to write instead
+        if (msg.contains("/me request is only valid with delegated authentication") || msg.contains("only valid with delegated authentication flow"))
+            return new ActionException(prefix + ".ME_NEEDS_A_USER", "This connection signs in as an app, which has no \"me\": " + msg,
+                    "Name the person or place instead: drive users/ann@acme.com (or a SharePoint site such as contoso.sharepoint.com:/sites/Finance), mailbox ann@acme.com, "
+                            + "and for Teams by name the user whose teams to search. Or use a connection that signs in as a person.", false, Map.of("status", java.math.BigDecimal.valueOf(s)));
         String code = s == 401 ? ".AUTH_FAILED" : s == 403 ? ".FORBIDDEN" : s == 404 ? ".NOT_FOUND" : s == 429 ? ".RATE_LIMITED" : s >= 500 ? ".SERVER_ERROR" : ".REQUEST_FAILED";
         String fix = s == 401 ? "The access token is missing, wrong or expired; refresh it in the vault."
                 : s == 403 ? "The account or app lacks permission for this operation." : s == 404 ? "Check the id, name or path." : s == 429 ? "Too many requests; retry later." : null;

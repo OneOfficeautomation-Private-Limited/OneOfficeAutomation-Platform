@@ -28,6 +28,26 @@ class Microsoft365MoreOptionsTest {
 
     // ------------------------------------------------------------------------------- calendar
 
+    /** K5 (batch 10): a drive named as builders name it, and a clear message when an app sign-in meets "me". */
+    @Test void drivesByPersonSiteAndLibraryAndTheAppSignInMessage() throws Exception {
+        assertEquals("me/drive", Microsoft365Package.driveRef(null));
+        assertEquals("users/ann%40acme.com/drive", Microsoft365Package.driveRef("ann@acme.com"));
+        assertEquals("users/ann@acme.com/drive", Microsoft365Package.driveRef("users/ann@acme.com"));
+        assertEquals("sites/contoso.sharepoint.com:/sites/Finance:/drive", Microsoft365Package.driveRef("contoso.sharepoint.com:/sites/Finance"));
+        assertEquals("sites/contoso.sharepoint.com:/sites/Finance:/lists/Supplier%20invoices/drive", Microsoft365Package.driveRef("contoso.sharepoint.com:/sites/Finance:/Supplier invoices"));
+        assertEquals("drives/b!xyz", Microsoft365Package.driveRef("drives/b!xyz"));
+        try (Microsoft365GapsTest.Fake f = new Microsoft365GapsTest.Fake()) {
+            f.at("GET", "/v1.0/me/drive/root:/a.txt:/content", c -> new Object[]{400, "{\"error\":{\"code\":\"BadRequest\",\"message\":\"/me request is only valid with delegated authentication flow.\"}}"})
+             .at("GET", "/v1.0/sites/contoso.sharepoint.com:/sites/Finance:/drive/root:/a.txt:/content", c -> new Object[]{200, "hello"});
+            var ctx = PackagesTestSupport.ctx(PackagesTest.tmp(), Map.of());
+            ActionException e = assertThrows(ActionException.class, () -> pkg.download(ctx, tok, "a.txt", "a.txt", true, null, f.base()));
+            assertEquals("M365.ME_NEEDS_A_USER", e.code(), e.getMessage());
+            assertTrue(e.suggestedFix().contains("users/ann@acme.com"));
+            Map<String, Object> d = pkg.download(ctx, tok, "a.txt", "b.txt", true, "contoso.sharepoint.com:/sites/Finance", f.base());
+            assertEquals("hello", java.nio.file.Files.readString(java.nio.file.Path.of((String) d.get("path"))));
+        }
+    }
+
     @Test void createEventInNamedCalendarWithAttachmentsAndWeekdayRepeats() throws Exception {
         try (Fake f = new Fake()) {
             String b = f.base();

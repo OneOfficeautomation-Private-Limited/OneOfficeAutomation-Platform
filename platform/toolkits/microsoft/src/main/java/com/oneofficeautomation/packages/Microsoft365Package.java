@@ -480,9 +480,23 @@ public final class Microsoft365Package {
         return listEvents(ctx, token, from, to, subject, tz, calendar, mailbox, base, 1000);
     }
 
-    private static String drive(String drive, String base) {
-        String d = drive == null || drive.isBlank() ? "me/drive" : drive.replaceAll("^/+|/+$", "");
-        return base.replaceAll("/+$", "") + "/" + d;
+    private static String drive(String drive, String base) { return base.replaceAll("/+$", "") + "/" + driveRef(drive); }
+
+    /**
+     * K5 (batch 10): which drive, as builders name it: me/drive, a person (ann@acme.com or users/ann@acme.com), a
+     * SharePoint site's own library (contoso.sharepoint.com:/sites/Finance), a library of a site by its name
+     * (contoso.sharepoint.com:/sites/Finance:/Invoices), or Graph's own forms (sites/{site-id}/drive, drives/{id}).
+     */
+    static String driveRef(String drive) {
+        String d = drive == null || drive.isBlank() ? "me/drive" : drive.strip().replaceAll("^/+|/+$", "");
+        if (d.matches("[^/@\\s]+@[^/@\\s]+")) return "users/" + HttpJson.enc(d) + "/drive";
+        if (d.matches("users/[^/]+")) return d + "/drive";
+        java.util.regex.Matcher site = java.util.regex.Pattern.compile("^(?:sites/)?([A-Za-z0-9.-]+\\.sharepoint\\.(?:com|us|de|cn)):(/[^:]+)(?::/([^:/][^:]*))?$").matcher(d);
+        if (site.matches()) {
+            String root = "sites/" + site.group(1) + ":/" + HttpJson.encPath(site.group(2)) + ":";
+            return site.group(3) == null ? root + "/drive" : root + "/lists/" + HttpJson.enc(site.group(3).strip()) + "/drive";
+        }
+        return d;
     }
 
     /** Query part setting Graph's conflict behaviour, empty for the given default. */
@@ -492,7 +506,8 @@ public final class Microsoft365Package {
         return v.equals(dflt) ? "" : "?@microsoft.graph.conflictBehavior=" + v;
     }
 
-    private static final String D_DRIVE = "me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}.";
+    private static final String D_DRIVE = "Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), "
+            + "a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site.";
 
     public Map<String, Object> upload(ActionContext ctx, Object token, String local, String remote, String ifExists, String drive, String base) {
         return upload(ctx, token, local, remote, ifExists, drive, base, 10);
