@@ -140,7 +140,7 @@ Read one email: sender, recipients, subject, text, HTML and attachment names.
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `email` | Dictionary | id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size. |
+| `email` | Dictionary | id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -509,7 +509,7 @@ Send an email (plain text or HTML) with optional CC, BCC and attachments through
 | Security | `security` | Text | No | `starttls` | Main; tick Send through a specific server | Connection security. One of: `starttls`, `ssl`, `none` |
 | User | `user` | Text | No |  | Main; tick Send through a specific server | Mailbox user name; the mailbox session's user when empty. |
 | Password | `password` | Credential (vault) | No |  | Main; tick Send through a specific server | Password or app password from the vault; with neither password nor token the server is used without signing in (internal relay). |
-| Access token | `access_token` | Credential (vault) | No |  | Main; tick Send through a specific server | OAuth 2.0 access token (Microsoft 365, Gmail) from the vault. |
+| Access token | `access_token` | Credential (vault) | No |  | Main; tick Send through a specific server | OAuth 2.0 access token (Microsoft 365, Gmail) from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | From | `from` | Text | No |  | More options | Sender address; the user when empty. |
 | Read receipt | `read_receipt` | Yes/No | No | No | More options | Ask the recipient's mail program to confirm when the email is opened. |
 | Inline images | `inline_images` | List | No |  | More options | HTML body only: image files embedded in the email; refer to each in the body as cid: plus its file name, e.g. <img src="cid:logo.png">. |
@@ -550,3 +550,4 @@ Yield each email matching the Find emails filters as a dictionary: id, from, sub
 | Has attachments only | `has_attachments_only` | Yes/No | No | No | Main | Only emails that have attachments. |
 | Oldest first | `oldest_first` | Yes/No | No | No | Main | Give the oldest emails first instead of the newest. |
 | Session | `session` | Text | No | `mail` | Main | Session name of the open mailbox. |
+| With body | `with_body` | Yes/No | No | No | Main | Give each email whole: text, HTML, recipients and attachment names (one more request per email); the email stays unread. Without it each email has id, from, subject, received, unread and has_attachments. |

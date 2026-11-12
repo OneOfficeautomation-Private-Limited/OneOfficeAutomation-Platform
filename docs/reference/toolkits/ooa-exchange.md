@@ -6,7 +6,7 @@ Toolkit `ooa.exchange`, version 1.0.0. Read, send, reply to, move, mark and dele
 
 ## Contents
 
-- **Mailbox**: Connect to Exchange mailbox, Delete email, Disconnect, Read email, Get folders, Find emails, Mark read or unread, Move email, Save attachments
+- **Mailbox**: Connect to Exchange mailbox, Delete email, Disconnect, Read email, Get folders, Find emails, Mark read or unread, Move email, Save attachments, Save email as .eml
 - **Send**: Forward email, Reply to email, Reply to all, Send email
 - **Loop types**: Each email in an Exchange folder
 
@@ -16,7 +16,7 @@ Toolkit `ooa.exchange`, version 1.0.0. Read, send, reply to, move, mark and dele
 
 `ooa.exchange/connect` (action)
 
-Sign in to an on-premises Exchange Server mailbox through Exchange Web Services (EWS) as a named session; checks the sign-in by opening the inbox.
+Sign in to an on-premises Exchange Server mailbox through Exchange Web Services (EWS) as a named session; checks the sign-in by opening the inbox. For Exchange Online (Microsoft 365) use the Microsoft 365 toolkit instead: Microsoft is retiring EWS there.
 
 **Settings**
 
@@ -82,7 +82,7 @@ Read one email: sender, recipients, subject, text, HTML and attachment names.
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `email` | Dictionary | id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size, unread, conversation_id. |
+| `email` | Dictionary | id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size, unread, conversation_id. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -124,6 +124,7 @@ List emails in an Exchange folder, newest first, filtered by unread, sender, sub
 | Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
 | Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
 | Maximum results | `max_results` | Number | No | `100` | Main | Maximum emails returned. Range: 1 to  |
+| Body contains | `body_contains` | Text | No |  | More options | Body contains this text (searched by the server); separate several with ; to match any of them. |
 | Has attachments only | `has_attachments_only` | Yes/No | No | No | More options | Only emails that have attachments. |
 | Oldest first | `oldest_first` | Yes/No | No | No | More options | Return the oldest emails first instead of the newest. |
 | Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
@@ -202,6 +203,29 @@ Save an email's file attachments to a folder, optionally only names matching a p
 
 *Time limit 60 s; needs: network, filesystem.*
 
+### Save email as .eml
+
+`ooa.exchange/save_email_as_eml` (action)
+
+Save a whole email (text, HTML, attachments and headers) as an .eml file that any mail program opens.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| ID | `id` | Text | Yes |  | Main | Email id from Find emails (an EWS item id). |
+| Local path | `local_path` | File path | Yes |  | Main | The .eml file to write, or a folder: the subject then names the file. |
+| Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace a file that is already there; when false it stops the step. |
+| Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `path` | File path | The saved file. |
+
+*Time limit 60 s; needs: network, filesystem.*
+
 ## Send
 
 ### Forward email
@@ -220,6 +244,8 @@ Forward an email, with its attachments, and a note shown above the original.
 | Bcc | `bcc` | Any | No |  | Main | BCC address(es). |
 | Note | `note` | Text | No | (empty) | Main | Text shown above the forwarded email. |
 | Body is HTML | `html` | Yes/No | No | No | Main | The note is HTML. |
+| Attachments | `attachments` | List | No |  | Main | Files to attach (paths); the reply is then saved as a draft, given the files and sent. |
+| As attachment | `as_attachment` | Yes/No | No | No | More options | Attach the original email as an .eml file instead of quoting it below the note. |
 | Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
 
 *Time limit 120 s; needs: network.*
@@ -237,6 +263,7 @@ Reply to the sender of an email, keeping it in the same conversation with the or
 | ID | `id` | Text | Yes |  | Main | Email id from Find emails (an EWS item id). |
 | Body | `body` | Text | No | (empty) | Main | Reply text, shown above the original. |
 | Body is HTML | `html` | Yes/No | No | No | Main | Body is HTML. |
+| Attachments | `attachments` | List | No |  | Main | Files to attach (paths); the reply is then saved as a draft, given the files and sent. |
 | Cc | `cc` | Any | No |  | More options | Extra CC address(es). |
 | Bcc | `bcc` | Any | No |  | More options | BCC address(es). |
 | Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
@@ -256,8 +283,10 @@ Reply to the sender and all other recipients of an email, keeping it in the same
 | ID | `id` | Text | Yes |  | Main | Email id from Find emails (an EWS item id). |
 | Body | `body` | Text | No | (empty) | Main | Reply text, shown above the original. |
 | Body is HTML | `html` | Yes/No | No | No | Main | Body is HTML. |
+| Attachments | `attachments` | List | No |  | Main | Files to attach (paths); the reply is then saved as a draft, given the files and sent. |
 | Cc | `cc` | Any | No |  | More options | Extra CC address(es). |
 | Bcc | `bcc` | Any | No |  | More options | BCC address(es). |
+| Exclude sender | `exclude_sender` | Yes/No | No | No | More options | Leave the original sender out, replying only to the other recipients (e.g. to tell the team, not the customer). |
 | Session | `session` | Text | No | `exchange` | More options | Session name of the open Exchange mailbox. |
 
 *Time limit 120 s; needs: network.*
@@ -309,3 +338,9 @@ Yield each email matching the Find emails filters as a dictionary: id, from, sub
 | Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
 | Maximum results | `max_results` | Number | No | `100` | Main | Stop after this many emails. Range: 1 to  |
 | Session | `session` | Text | No | `exchange` | Main | Session name of the open Exchange mailbox. |
+| Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
+| Read only | `read_only` | Yes/No | No | No | Main | Only emails already read. |
+| Has attachments only | `has_attachments_only` | Yes/No | No | No | Main | Only emails that have attachments. |
+| Oldest first | `oldest_first` | Yes/No | No | No | Main | The oldest emails first instead of the newest. |
+| Body contains | `body_contains` | Text | No |  | Main | Body contains this text (searched by the server); separate several with ; to match any of them. |
+| With body | `with_body` | Yes/No | No | No | Main | Give each email whole: text, HTML, recipients and attachment names (one more request per email); the email stays unread. Without it each email has id, from, subject, received, unread and has_attachments. |

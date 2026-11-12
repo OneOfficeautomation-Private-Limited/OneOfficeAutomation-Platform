@@ -486,3 +486,35 @@ Every field has a label and help. Email triggers exist in One CommandCenter (the
 | **A6** | Exchange catches up: Reply and Forward attachments, include original, forward as attachment, leave out the sender, Save as .eml, loop filters; its help says Exchange Online should use Microsoft 365. | Small |
 | **A7** | Command samples for Gmail, Microsoft 365 mail and the Exchange gaps against stand-in servers ({mock}); Outlook desktop samples marked "desktop", tried once here if Outlook is set up. | Medium |
 | **A8** | Gmail names in the common words ("Send email (Gmail)", "Find emails (Gmail)", ...); the old names stay searchable. | Small |
+
+**Built 12 Nov 2026 (all)** on ui/usage-review. What changed:
+- **A1**: a saved connection can sign in by itself: Microsoft 365, Google or another OAuth server, either the app's own
+  sign-in (client id and secret, for unattended agents) or one person's refresh token. The runner gets the access token
+  when a step needs one, keeps it, and renews it a minute before it runs out; the newest refresh token Microsoft gives
+  is used next (kept in memory, not written back to the vault). Kept in the connection's settings and vault references
+  (sign_in_...), so no storage changed; form in One AgentStudio and One CommandCenter. Email (IMAP with OAuth) can now
+  have connections, with its Connect settings. Steps that pass a token keep it.
+- **A2**: Read email of every service also gives the same keys (id, from, to, cc, subject, received, text, html,
+  attachments, has_attachments, unread, message_id), next to its own; Microsoft 365 now gives attachment names and
+  unread, Outlook desktop's Find emails a table like the others. Tools > Switch mail service turns an agent's mail
+  steps into another service's (renamed fields, read state, Gmail labels), lists what has no match, and is undone in one go.
+  Not changed: an existing key keeps its type (Microsoft 365's received stays text).
+- **A3**: each-email loops for Microsoft 365, Gmail and Outlook desktop; every mail loop has "with the text and HTML"
+  (read one at a time, left unread).
+- **A4**: Read state is one choice (All, Unread only, Read only) in steps and loops; stored as the two ticks.
+- **A5**: AA map fixed (Microsoft 365 Save email; Email Connect to EWS or Outlook); the search-name script now lives in
+  docs/research/tools/make-aa-names.py.
+- **A6**: Exchange replies and forwards take files (through a draft), reply all can leave the sender out, forward can
+  attach the original as .eml, Save email as .eml, Find emails and the loop search the body, and the loop has the same
+  filters as Find emails. Not possible on EWS: replying without the original quoted.
+- **A7**: 36 samples run (Microsoft 365 mail, Gmail, Exchange gaps, the loops); 3 Outlook desktop samples are marked
+  desktop and were not run here (Outlook would open on the screen).
+- **A8**: Gmail commands are named like the others ("Send email (Gmail)"...); the old names still find them in Studio
+  ("Formerly: ...").
+- Found on the way: batch 6 changed the mouse commands' signatures, and some older tests no longer compiled; the earlier
+  signatures are back, and the full suite is now checked with --continue and fresh result times.
+- Tests: full suite with --continue, public-site samples off: every module passes except two live desktop tests
+  (Character Map typing, keyboard hooks), where Windows refused simulated key presses (access denied, error 5: a locked
+  screen or an administrator window in front); not from these changes. The CLI test JVM ran out of memory with the new
+  mail samples: every sample now shares one toolkit registry (the cause of MERGE-1), and all 1,563 CLI tests pass.
+  Tried in One AgentStudio: the old Gmail name finds the new one, Read state, Switch mail service and Undo, the sign-in form.

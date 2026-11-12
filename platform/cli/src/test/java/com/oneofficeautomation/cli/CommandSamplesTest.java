@@ -91,7 +91,7 @@ class CommandSamplesTest {
     Stream<DynamicTest> samples() throws Exception {
         Path dir = Path.of("src/test/resources/command-samples");
         List<DynamicTest> tests = new ArrayList<>();
-        Runner runner = Runner.builder(FirstPartyPackages.registry()).workDir(tmpRoot).build();
+        Runner runner = Runner.builder(registry()).workDir(tmpRoot).build();
         // as a Bot Agent does when it starts: PDF's font list is made in the background while the first files run (on a
         // fresh Windows CI machine it took over 300 s, and the first PDF sample timed out waiting for it)
         FirstPartyPackages.warmUp();
@@ -229,6 +229,17 @@ class CommandSamplesTest {
     static final String MAIL_USER = "bot@sample.test", MAIL_PASSWORD = "sample-mail-pass";
 
     /**
+     * One toolkit registry for every case. Cases with credentials or child agents need their own vault and runner, not
+     * their own registry: building one per case kept about a hundred registries reachable until the class ended
+     * (MERGE-1), and the mail samples of batch 7 took the test JVM past 3 GB.
+     */
+    private static com.oneofficeautomation.sdk.PackageRegistry registry;
+    static synchronized com.oneofficeautomation.sdk.PackageRegistry registry() {
+        if (registry == null) registry = FirstPartyPackages.registry();
+        return registry;
+    }
+
+    /**
      * A use case: a whole agent file (examples/use-cases) run with its folder copied into the case folder.
      * {@code {"flow": path, "copy": folder, "inputs": {name: value | {"$credential": ref}}, "secrets"?, "setup"?: [steps], "expect", "expectFiles"}}.
      * setup steps run first (e.g. to put mail in the test mailbox); expect checks the agent's output variables.
@@ -251,7 +262,7 @@ class CommandSamplesTest {
             String[] ref = e.getKey().split("/");
             vault.put(ref[0], ref[1], ref[2], String.valueOf(e.getValue()));
         }
-        Runner runner = Runner.builder(FirstPartyPackages.registry()).workDir(tmp).service("vault", vault).build();
+        Runner runner = Runner.builder(registry()).workDir(tmp).service("vault", vault).build();
         if (cs.get("setup") instanceof List<?> setup) {
             List<Map<String, Object>> steps = (List<Map<String, Object>>) setup;
             collect(steps, new LinkedHashSet<>(), new int[]{0});
@@ -349,7 +360,7 @@ class CommandSamplesTest {
                 String[] ref = e.getKey().split("/");
                 vault.put(ref[0], ref[1], ref[2], String.valueOf(e.getValue()));
             }
-            Runner.Builder b = Runner.builder(FirstPartyPackages.registry()).workDir(tmp).service("vault", vault);
+            Runner.Builder b = Runner.builder(registry()).workDir(tmp).service("vault", vault);
             if (agents) b.service("repository", (com.oneofficeautomation.runner.AutomationRepository) (aid, version) -> (Map<String, Object>) ((Map<String, Object>) cs.get("agents")).get(aid));
             runner = b.build();
         }

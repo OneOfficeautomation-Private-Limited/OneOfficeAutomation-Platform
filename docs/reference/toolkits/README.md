@@ -47,7 +47,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Environment locks](ooa-locks.md) | `ooa.locks` | 3 | 1 | 0 | Named locks that one agent run holds at a time, so two runners never use the same single-user system together. |
 | [Excel (desktop, needs Excel)](ooa-excel_desktop.md) | `ooa.excel_desktop` | 5 | 0 | 0 | Run macros, refresh data and pivots, update links, export to PDF and convert workbooks using the installed Microsoft Excel. |
 | [Excel (no Office needed)](ooa-excel.md) | `ooa.excel` | 75 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
-| [Exchange on-premises (EWS)](ooa-exchange.md) | `ooa.exchange` | 13 | 0 | 1 | Read, send, reply to, move, mark and delete emails in an on-premises Exchange Server 2013-2019 or SE mailbox through Exchange Web Services (EWS). For Exchange Online (Microsoft 365) use the Microsoft 365 toolkit, as Microsoft is retiring EWS there. |
+| [Exchange on-premises (EWS)](ooa-exchange.md) | `ooa.exchange` | 14 | 0 | 1 | Read, send, reply to, move, mark and delete emails in an on-premises Exchange Server 2013-2019 or SE mailbox through Exchange Web Services (EWS). For Exchange Online (Microsoft 365) use the Microsoft 365 toolkit, as Microsoft is retiring EWS there. |
 | [File](ooa-file.md) | `ooa.file` | 19 | 4 | 1 | Read, write, copy, move and delete files. |
 | [Folder](ooa-folder.md) | `ooa.folder` | 10 | 2 | 1 | Create, list, copy and delete folders. |
 | [FTP / SFTP](ooa-file_transfer.md) | `ooa.file_transfer` | 15 | 0 | 0 | Connect to FTP, FTPS or SFTP servers to list, upload, download, rename and delete files. |
@@ -55,7 +55,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Generative AI](ooa-genai.md) | `ooa.genai` | 14 | 0 | 0 | Prompt large language models (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Vertex AI, self-hosted) to answer, read pictures, draw pictures and analyse text. |
 | [GitHub](ooa-github.md) | `ooa.github` | 21 | 1 | 0 | Work with GitHub repositories: issues, pull requests, branches, files, releases and Actions workflows. Works with github.com and GitHub Enterprise Server. |
 | [Google Cloud AI](ooa-google_ai.md) | `ooa.google_ai` | 7 | 0 | 0 | Read sentiment and entities in text with Cloud Natural Language, labels and text in pictures with Cloud Vision, and text, entities, form fields and tables from documents with Document AI. |
-| [Google Workspace](ooa-google.md) | `ooa.google` | 72 | 0 | 0 | Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail. |
+| [Google Workspace](ooa-google.md) | `ooa.google` | 72 | 0 | 1 | Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail. |
 | [Hash, encryption and encoding](ooa-crypto.md) | `ooa.crypto` | 14 | 0 | 0 | Hashes, HMAC signatures, AES-256 encryption of text and files, and Base64 encoding. |
 | [Image recognition](ooa-image.md) | `ooa.image` | 6 | 2 | 0 | Find, wait for and click images on the screen or inside image files. |
 | [Insights](ooa-insights.md) | `ooa.insights` | 4 | 0 | 0 | Record business values and timed transactions from agents for dashboards and ROI reports, and read them back. |
@@ -71,14 +71,14 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Log to file](ooa-log.md) | `ooa.log` | 5 | 0 | 0 | Write timestamped lines to a log file or to the run log in One CommandCenter; secrets are masked automatically. |
 | [Long-running agents](ooa-longrunning.md) | `ooa.longrunning` | 8 | 0 | 0 | Suspend an agent until a time, a task, a work item, another run or a callback URL is called, and carry on from the same step; only from One CommandCenter. |
 | [MCP tools](ooa-mcp.md) | `ooa.mcp` | 2 | 0 | 0 | List and call the tools of an MCP server (Model Context Protocol over HTTP). |
-| [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 102 | 0 | 0 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
+| [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 102 | 0 | 1 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 21 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
 | [Network](ooa-network.md) | `ooa.network` | 7 | 2 | 0 | Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3. |
 | [Number](ooa-number.md) | `ooa.number` | 6 | 0 | 0 | Round, format and generate numbers with exact decimal arithmetic. |
 | [OCR](ooa-ocr.md) | `ooa.ocr` | 8 | 1 | 0 | Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract, or the OCR built into Windows when Tesseract is not installed). |
 | [Okta](ooa-okta.md) | `ooa.okta` | 14 | 0 | 0 | Create and manage Okta users, change their status, reset passwords and manage group membership. |
 | [Open Excel and Word files (needs Office)](ooa-office_attach.md) | `ooa.office_attach` | 9 | 0 | 0 | Read, write and save an Excel workbook or Word document that is already open on the desktop, in the same window. |
-| [Outlook (desktop, needs Outlook)](ooa-outlook_desktop.md) | `ooa.outlook_desktop` | 10 | 0 | 0 | Find, read, send, reply to, forward, move and file emails with the Outlook installed on the runner, using its mail profile. |
+| [Outlook (desktop, needs Outlook)](ooa-outlook_desktop.md) | `ooa.outlook_desktop` | 10 | 0 | 1 | Find, read, send, reply to, forward, move and file emails with the Outlook installed on the runner, using its mail profile. |
 | [PDF](ooa-pdf.md) | `ooa.pdf` | 16 | 0 | 0 | Extract text, merge, split, read and fill forms, encrypt, decrypt and convert PDF pages to images. |
 | [PGP](ooa-pgp.md) | `ooa.pgp` | 6 | 0 | 0 | Import keys, encrypt, decrypt, sign and verify files with OpenPGP (GnuPG). |
 | [Play sound](ooa-sound.md) | `ooa.sound` | 4 | 0 | 0 | Beep, play a WAV file, or play MP3, WMA, M4A and video files, e.g. to alert an attended user. |
@@ -112,4 +112,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 101 toolkits, 1288 actions, 50 conditions and 15 loop types.
+In all: 101 toolkits, 1289 actions, 50 conditions and 18 loop types.
