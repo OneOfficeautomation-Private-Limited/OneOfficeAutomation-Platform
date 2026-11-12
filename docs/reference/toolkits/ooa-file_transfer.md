@@ -216,7 +216,7 @@ Send one raw command, such as SITE CHMOD 644 file.txt, FEAT or SYST, to an FTP o
 
 `ooa.file_transfer/create_folder` (action)
 
-Create a remote folder.
+Create a remote folder, and the folders on its path that are missing (e.g. /in/2026/11).
 
 **Settings**
 

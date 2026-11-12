@@ -6,7 +6,7 @@ Toolkit `ooa.aws_ai`, version 1.0.0. Read sentiment, entities, language and pers
 
 ## Contents
 
-- **Comprehend (text)**: Detect language, Detect personal data, Detect entities, Detect sentiment
+- **Comprehend (text)**: Detect language, Detect personal data, Detect entities, Key phrases, Detect sentiment
 - **Connection**: Connect, Disconnect
 - **Rekognition (pictures)**: Detect labels in a picture, Detect text in a picture
 - **Textract (documents)**: Read forms and tables, Read text from a scan
@@ -82,6 +82,31 @@ Find people, places, organisations, dates, quantities and other named things in 
 | --- | --- | --- |
 | `entities` | Table | Columns: text, type, score, begin_offset, end_offset. |
 | `count` | Number | How many entities were found. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Key phrases
+
+`ooa.aws_ai/comprehend_key_phrases` (action)
+
+Find the main noun phrases of a text, such as "the monthly invoice" or "three new laptops" (Amazon Comprehend).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No | `aws_ai` | Main | Name of the session opened by Connect. |
+| Text | `text` | Text | Yes |  | Main | The text to read, at most 100,000 bytes. |
+| Language | `language` | Text | No | `en` | Main | Language of the text, e.g. en, es, fr, de, it, pt, ja, ko, zh, ar or hi. |
+| Minimum score | `min_score` | Number | No | `0` | More options | Leave out phrases scored below this (0 to 1). Range: 0 to 1 |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `phrases` | List | The phrases, most likely first. |
+| `key_phrases` | Table | Columns: text, score, begin_offset, end_offset. |
+| `count` | Number | How many phrases were found. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 

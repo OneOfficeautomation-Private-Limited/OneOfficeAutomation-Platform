@@ -1,6 +1,6 @@
 # PGP
 
-Toolkit `ooa.pgp`, version 1.0.0. Import keys, encrypt, decrypt, sign and verify files with OpenPGP (GnuPG).
+Toolkit `ooa.pgp`, version 1.1.0. Import keys, encrypt, decrypt, sign and verify files with OpenPGP: with GnuPG when it is installed on the runner, otherwise built in.
 
 [All toolkits](README.md)
 
@@ -31,7 +31,7 @@ Generate a new OpenPGP key pair (signing key plus encryption subkey) and optiona
 | Comment | `comment` | Text | No |  | More options | Optional comment stored in the user id. |
 | Expires | `expires` | Text | No | `2y` | More options | Lifetime, e.g. 1y, 6m, 90d, a date like 2028-12-31, or never. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace key files that are already there; when off, the step fails before any key is made. |
-| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate GnuPG key folder for this agent; the runner user's keyring when empty. |
+| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate key folder for this agent; the runner user's keyring when empty (GnuPG's, or the built-in one when GnuPG is not installed). |
 
 **Results**
 
@@ -56,7 +56,7 @@ Import a public or private key file (.asc or .gpg).
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Key file. |
 | Passphrase | `passphrase` | Credential (vault) | No |  | Main; tick The key has a passphrase | Passphrase, when importing a protected private key. |
-| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate GnuPG key folder for this agent; the runner user's keyring when empty. |
+| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate key folder for this agent; the runner user's keyring when empty (GnuPG's, or the built-in one when GnuPG is not installed). |
 
 **Results**
 
@@ -83,7 +83,7 @@ Decrypt a file with your private key.
 | Path | `path` | File path | Yes |  | Main | Encrypted file. |
 | Target | `target` | File path | No |  | Main | Decrypted file to create; when empty, the encrypted file's name without .pgp, .gpg or .asc. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing target file. |
-| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate GnuPG key folder for this agent; the runner user's keyring when empty. |
+| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate key folder for this agent; the runner user's keyring when empty (GnuPG's, or the built-in one when GnuPG is not installed). |
 
 **Results**
 
@@ -112,7 +112,7 @@ Encrypt a file for one or more recipients' public keys, or with a passphrase onl
 | Armor | `armor` | Yes/No | No | No | Main | ASCII-armored output (text) instead of binary. |
 | Cipher | `cipher` | Text | No | `default` | More options | Symmetric cipher for the data; default lets GnuPG choose from the recipients' key preferences (AES-128 for a passphrase). Older ciphers (CAST5, 3DES, BLOWFISH) only for old partners. One of: `default`, `AES256`, `AES192`, `AES128`, `CAMELLIA256`, `CAMELLIA192`, `CAMELLIA128`, `TWOFISH`, `CAST5`, `3DES`, `BLOWFISH` |
 | Compression | `compression` | Text | No | `default` | More options | Compression before encryption; none for files that are already compressed, such as .zip or .jpg. One of: `default`, `none`, `zip`, `zlib`, `bzip2` |
-| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate GnuPG key folder for this agent; the runner user's keyring when empty. |
+| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate key folder for this agent; the runner user's keyring when empty (GnuPG's, or the built-in one when GnuPG is not installed). |
 
 **Results**
 
@@ -138,7 +138,7 @@ Create a detached signature (.sig) proving the file came from you.
 | Signature | `signature` | File path | Yes |  | Main | Signature file to create, e.g. report.csv.sig. |
 | Key | `key` | Text | No |  | Main; choice Signing key = A specific key | Signing key id or email; the default key when empty. |
 | Passphrase | `passphrase` | Credential (vault) | No |  | Main | Private key passphrase from the vault. |
-| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate GnuPG key folder for this agent; the runner user's keyring when empty. |
+| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate key folder for this agent; the runner user's keyring when empty (GnuPG's, or the built-in one when GnuPG is not installed). |
 
 *Time limit 300 s; needs: filesystem.*
 
@@ -154,7 +154,7 @@ Check a detached signature; returns the result instead of failing.
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Signed file. |
 | Signature | `signature` | File path | Yes |  | Main | Signature file. |
-| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate GnuPG key folder for this agent; the runner user's keyring when empty. |
+| Gnupg home | `gnupg_home` | File path | No |  | More options | Separate key folder for this agent; the runner user's keyring when empty (GnuPG's, or the built-in one when GnuPG is not installed). |
 
 **Results**
 

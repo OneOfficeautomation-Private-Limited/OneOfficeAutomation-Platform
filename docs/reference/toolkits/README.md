@@ -17,7 +17,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [AI screen (vision)](ooa-ai_screen.md) | `ooa.ai_screen` | 4 | 0 | 0 | Find and click controls on the screen from a plain description, with a vision model. |
 | [Application](ooa-application.md) | `ooa.application` | 9 | 1 | 0 | Open files, start, run and stop programs on the runner. |
 | [Asana](ooa-asana.md) | `ooa.asana` | 41 | 0 | 0 | Manage Asana work: workspaces, projects, sections, tasks and subtasks, followers, comments, attachments, tags and users. |
-| [AWS AI services](ooa-aws_ai.md) | `ooa.aws_ai` | 10 | 0 | 0 | Read sentiment, entities, language and personal data in text with Amazon Comprehend, text, forms and tables from scans with Amazon Textract, and labels and text in pictures with Amazon Rekognition. |
+| [AWS AI services](ooa-aws_ai.md) | `ooa.aws_ai` | 11 | 0 | 0 | Read sentiment, entities, language and personal data in text with Amazon Comprehend, text, forms and tables from scans with Amazon Textract, and labels and text in pictures with Amazon Rekognition. |
 | [AWS EC2](ooa-aws_ec2.md) | `ooa.aws_ec2` | 19 | 0 | 0 | Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, switch detailed monitoring on or off, and snapshot, create, attach and detach their EBS volumes. |
 | [Azure AI services](ooa-azure_ai.md) | `ooa.azure_ai` | 8 | 0 | 0 | Read sentiment, entities and personal data in text with Azure AI Language, text, fields and tables from documents with Document Intelligence, and tags, captions and text in pictures with Image Analysis. |
 | [Azure DevOps](ooa-azure_devops.md) | `ooa.azure_devops` | 44 | 1 | 0 | Work with Azure DevOps: work items and WIQL queries, comments and attachments, Git repositories and pull requests, pipelines, builds and sprints. Works with the cloud service and Azure DevOps Server. |
@@ -40,7 +40,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Desktop objects](ooa-desktop_ui.md) | `ooa.desktop_ui` | 10 | 1 | 0 | Capture controls in Windows applications and find them again by their UI Automation properties to click, type, read and select. |
 | [Dictionary](ooa-dictionary.md) | `ooa.dictionary` | 7 | 4 | 0 | Put, get and remove key/value pairs. |
 | [DLL](ooa-dll.md) | `ooa.dll` | 3 | 0 | 0 | Call a function in a trusted native library (DLL) with numbers and text, and get its return value. |
-| [Document Automation](ooa-documents.md) | `ooa.documents` | 1 | 0 | 0 | Send documents (PDF, PNG, JPG, TIFF) to a Document Automation process and get the fields it reads. |
+| [Document Automation](ooa-documents.md) | `ooa.documents` | 5 | 0 | 0 | Send documents (PDF, PNG, JPG, TIFF) to a Document Automation process, then pick up what it read: fields, tables and confidence, once read or reviewed. |
 | [Document processing](ooa-idp.md) | `ooa.idp` | 4 | 0 | 0 | Classify documents by type, extract fields by rules, and extract with AI that learns from validated examples. |
 | [DocuSign](ooa-docusign.md) | `ooa.docusign` | 20 | 0 | 0 | Send documents for e-signature, track and manage envelopes and recipients, use templates and download signed documents. |
 | [Email](ooa-email.md) | `ooa.email` | 19 | 0 | 1 | Send emails with attachments, read and search mailboxes, save attachments, move, mark and delete emails. |
@@ -80,7 +80,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Open Excel and Word files (needs Office)](ooa-office_attach.md) | `ooa.office_attach` | 9 | 0 | 0 | Read, write and save an Excel workbook or Word document that is already open on the desktop, in the same window. |
 | [Outlook (desktop, needs Outlook)](ooa-outlook_desktop.md) | `ooa.outlook_desktop` | 10 | 0 | 1 | Find, read, send, reply to, forward, move and file emails with the Outlook installed on the runner, using its mail profile. |
 | [PDF](ooa-pdf.md) | `ooa.pdf` | 16 | 0 | 0 | Extract text, merge, split, read and fill forms, encrypt, decrypt and convert PDF pages to images. |
-| [PGP](ooa-pgp.md) | `ooa.pgp` | 6 | 0 | 0 | Import keys, encrypt, decrypt, sign and verify files with OpenPGP (GnuPG). |
+| [PGP](ooa-pgp.md) | `ooa.pgp` | 6 | 0 | 0 | Import keys, encrypt, decrypt, sign and verify files with OpenPGP: with GnuPG when it is installed on the runner, otherwise built in. |
 | [Play sound](ooa-sound.md) | `ooa.sound` | 4 | 0 | 0 | Beep, play a WAV file, or play MP3, WMA, M4A and video files, e.g. to alert an attended user. |
 | [PowerPoint](ooa-powerpoint.md) | `ooa.powerpoint` | 17 | 0 | 0 | Open or create .pptx presentations, add, copy and delete slides, edit text, pictures and tables, and save. |
 | [PowerPoint (desktop, needs PowerPoint)](ooa-powerpoint_desktop.md) | `ooa.powerpoint_desktop` | 4 | 0 | 0 | Insert videos and files, paste the clipboard and run macros using the installed Microsoft PowerPoint. |
@@ -112,4 +112,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 101 toolkits, 1289 actions, 50 conditions and 18 loop types.
+In all: 101 toolkits, 1294 actions, 50 conditions and 18 loop types.
