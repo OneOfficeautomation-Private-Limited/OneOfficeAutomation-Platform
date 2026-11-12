@@ -51,6 +51,8 @@ dependencies {
     // in-memory SMTP/IMAP server for the email sample tasks (CommandSamplesTest)
     testImplementation("com.icegreen:greenmail:2.1.2")
     testImplementation("org.apache.sshd:sshd-core:2.14.0")   // in-process SSH host for the terminal command samples (T3)
+    testImplementation("org.apache.sshd:sshd-sftp:2.14.0")   // and SFTP on it, for the file transfer samples (S1)
+    testImplementation("org.apache.ftpserver:ftpserver-core:1.2.0")   // in-process FTP server for the file transfer samples (S1)
     // in-memory LDAP directory for the Active Directory sample tasks
     testImplementation("com.unboundid:unboundid-ldapsdk:7.0.1")
     // in-memory database for the database sample tasks

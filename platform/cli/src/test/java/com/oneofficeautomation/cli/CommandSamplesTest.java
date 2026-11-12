@@ -184,7 +184,9 @@ class CommandSamplesTest {
                 .replace("\"{smtp_port}\"", mail == null ? "0" : String.valueOf(mail.getSmtp().getPort()))
                 .replace("\"{imap_port}\"", mail == null ? "0" : String.valueOf(mail.getImap().getPort()))
                 // requires "ssh": the in-process VT host of the terminal samples (user agent, password test/mail/password)
-                .replace("\"{ssh_port}\"", requires.equals("ssh") ? String.valueOf(SampleSshHost.port()) : "0");
+                .replace("\"{ssh_port}\"", requires.equals("ssh") ? String.valueOf(SampleSshHost.port()) : "0")
+                // requires "ftp": the in-process FTP server of the file transfer samples (user agent, password test/mail/password)
+                .replace("\"{ftp_port}\"", requires.equals("ftp") ? String.valueOf(ftpPort()) : "0");
         try {
             if (requires.equals("internet")) { runOnOutsideSite(runner, raw, json, label, tmp); return; }
             runCase(runner, (Map<String, Object>) JsonLite.parse(json), label, tmp);
@@ -234,6 +236,10 @@ class CommandSamplesTest {
      * (MERGE-1), and the mail samples of batch 7 took the test JVM past 3 GB.
      */
     private static com.oneofficeautomation.sdk.PackageRegistry registry;
+    static int ftpPort() {
+        try { return SampleFtpHost.port(); } catch (Exception e) { throw new IllegalStateException("The sample FTP server did not start: " + e.getMessage(), e); }
+    }
+
     static synchronized com.oneofficeautomation.sdk.PackageRegistry registry() {
         if (registry == null) registry = FirstPartyPackages.registry();
         return registry;

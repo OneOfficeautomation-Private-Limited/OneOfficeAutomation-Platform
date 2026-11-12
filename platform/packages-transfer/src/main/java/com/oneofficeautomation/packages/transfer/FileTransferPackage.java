@@ -305,12 +305,24 @@ public final class FileTransferPackage {
         return Map.of();
     }
 
-    @Action(id = "create_folder", name = "Create folder", category = "Files", timeoutSeconds = 120, capabilities = "network", description = "Create a remote folder.",
+    @Action(id = "create_folder", name = "Create folder", category = "Files", timeoutSeconds = 120, capabilities = "network",
+            description = "Create a remote folder, and the folders on its path that are missing (e.g. /in/2026/11).",
             panel = "session, folder")
     public Map<String, Object> mkdir(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, description = "Remote folder.") String dir,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"transfer\"", description = "Session name.") String session) {
-        try { conn(ctx, session).mkdir(dir); } catch (Exception e) { throw fail(e, "Creating " + dir); }
+        Conn c = conn(ctx, session);
+        // S1 (batch 8): the missing folders on the path first, as a sample found /in/2026 failing when /in was not there
+        String d = dir == null ? "" : dir.replace('\\', '/');
+        StringBuilder sofar = new StringBuilder(d.startsWith("/") ? "/" : "");
+        String[] parts = d.split("/");
+        for (int i = 0; i < parts.length - 1; i++) {
+            if (parts[i].isEmpty()) continue;
+            sofar.append(parts[i]);
+            ensureFolder(c, sofar.toString());
+            sofar.append('/');
+        }
+        try { c.mkdir(dir); } catch (Exception e) { throw fail(e, "Creating " + dir); }
         return Map.of();
     }
 

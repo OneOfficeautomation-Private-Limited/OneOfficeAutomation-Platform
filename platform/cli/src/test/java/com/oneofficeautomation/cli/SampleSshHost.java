@@ -27,6 +27,9 @@ final class SampleSshHost {
             s.setKeyPairProvider(new SimpleGeneratorHostKeyProvider());
             s.setPasswordAuthenticator((user, pw, session) -> user.equals("agent") && pw.equals(CommandSamplesTest.MAIL_PASSWORD));
             s.setShellFactory(ch -> new Shell());
+            // SFTP on the same host (S1, batch 8): a folder of its own, shared by the samples, which use their own subfolders
+            s.setSubsystemFactories(java.util.List.of(new org.apache.sshd.sftp.server.SftpSubsystemFactory()));
+            s.setFileSystemFactory(new org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory(java.nio.file.Files.createTempDirectory("ooa-sample-sftp")));
             s.start();
             server = s;
         }
