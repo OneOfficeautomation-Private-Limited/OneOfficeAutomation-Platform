@@ -439,7 +439,7 @@ public final class Microsoft365Package {
     }
 
     @Action(id = "list_events", name = "Get calendar events", category = "Calendar", idempotent = true, capabilities = "network", description = "List events between two dates.",
-            panel = "access_token, start, end, subject_contains | time_zone, calendar, mailbox, base_url")
+            panel = "access_token, start, end, subject_contains | max_results, time_zone, calendar, mailbox, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, subject, start, end, location, organizer.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listEvents(ActionContext ctx,
@@ -450,20 +450,34 @@ public final class Microsoft365Package {
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone of the returned start and end times, e.g. Europe/London.") String tz,
             @Input(name = "calendar", type = OoaType.STRING, required = false, formerNames = "calendar_id", description = "Read this calendar instead of the default one.") String calendar,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 0,
+                    description = "At most this many events (0: every event in the period).") int max) {
         String cal = calendar == null || calendar.isBlank() ? "" : "/calendars/" + HttpJson.enc(calendar);
         String url = root(base, mailbox) + cal + "/calendarView?" + HttpJson.query(Map.of("startDateTime", from + "Z", "endDateTime", to + "Z", "$top", 500, "$orderby", "start/dateTime"));
         String zone = tz == null || tz.isBlank() ? "UTC" : tz.replace("\"", "");
         List<Object> rows = new ArrayList<>();
-        for (Object o : (List<?>) HttpJson.req(P, "GET", url).bearer(token).header("Prefer", "outlook.timezone=\"" + zone + "\"").send(ctx).map().getOrDefault("value", List.of())) {
+        // K4 (batch 10): every page of the period (Graph gives at most 500 a page), the subject filter on each
+        pages:
+        while (url != null) {
+            Map<String, Object> page = HttpJson.req(P, "GET", url).bearer(token).header("Prefer", "outlook.timezone=\"" + zone + "\"").send(ctx).map();
+            for (Object o : (List<?>) page.getOrDefault("value", List.of())) {
             Map<?, ?> e = (Map<?, ?>) o;
             if (!anyContains(s(e.get("subject")), subject)) continue;
+            if (max > 0 && rows.size() >= max) { ctx.info("Stopped at " + max + " events (max_results); there are more in the period"); break pages; }
             rows.add(new ArrayList<>(Arrays.asList(e.get("id"), e.get("subject"),
                     e.get("start") instanceof Map<?, ?> s ? s.get("dateTime") : null, e.get("end") instanceof Map<?, ?> en ? en.get("dateTime") : null,
                     e.get("location") instanceof Map<?, ?> l ? l.get("displayName") : null,
                     e.get("organizer") instanceof Map<?, ?> og && og.get("emailAddress") instanceof Map<?, ?> ea ? ea.get("address") : null)));
+            }
+            url = (String) page.get("@odata.nextLink");
         }
         return Map.of("table", Values.table(List.of("id", "subject", "start", "end", "location", "organizer"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
+    }
+
+    /** Earlier signature, kept for callers written before max_results (K4, batch 10). */
+    public Map<String, Object> listEvents(ActionContext ctx, Object token, LocalDateTime from, LocalDateTime to, String subject, String tz, String calendar, String mailbox, String base) {
+        return listEvents(ctx, token, from, to, subject, tz, calendar, mailbox, base, 1000);
     }
 
     private static String drive(String drive, String base) {

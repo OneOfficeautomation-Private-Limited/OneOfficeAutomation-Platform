@@ -150,6 +150,8 @@ class Ec2PackageTest {
                 case "DescribeRegions" -> xml("<DescribeRegionsResponse" + NS + "/>");
                 case "DescribeInstances" -> xml("<DescribeInstancesResponse" + NS + "><reservationSet><item><instancesSet>"
                         + instance(A, looks.incrementAndGet() < 3 ? "pending" : "running", "x") + "</instancesSet></item></reservationSet></DescribeInstancesResponse>");
+                case "StartInstances" -> xml("<StartInstancesResponse" + NS + "><instancesSet><item><instanceId>" + A + "</instanceId><currentState><name>pending</name></currentState>"
+                        + "<previousState><name>stopped</name></previousState></item></instancesSet></StartInstancesResponse>");
                 case "DescribeInstanceStatus" -> xml("<DescribeInstanceStatusResponse" + NS + "><instanceStatusSet><item><instanceId>" + A + "</instanceId>"
                         + "<availabilityZone>eu-west-1a</availabilityZone><instanceState><name>running</name></instanceState><systemStatus><status>ok</status></systemStatus>"
                         + "<instanceStatus><status>initializing</status></instanceStatus></item></instanceStatusSet></DescribeInstanceStatusResponse>");
@@ -159,6 +161,19 @@ class Ec2PackageTest {
             assertEquals(Map.of(A, "running"), pkg.waitForState(ctx, "ec2", List.of(A), "running", 30, 0.05).get("states"));
             assertEquals(3, looks.get(), "it looked until the instance was running");
             fails("EC2.WAIT_TIMEOUT", () -> pkg.waitForState(ctx, "ec2", List.of(A), "stopped", 1, 0.2));
+            // K4 (batch 10): Start can wait until running, and gives the states with its changes
+            looks.set(0);
+            double every = Ec2Package.waitEverySeconds;
+            Ec2Package.waitEverySeconds = 0.05;
+            try {
+                Map<String, Object> started = pkg.startInstances(ctx, "ec2", List.of(A), true, 30);
+                assertEquals(Map.of(A, "running"), started.get("states"));
+                assertTrue(String.valueOf(started.get("changes")).contains("stopped"));
+                assertEquals(3, looks.get());
+            } finally { Ec2Package.waitEverySeconds = every; }
+            assertTrue(java.util.Arrays.stream(Ec2Package.class.getMethods()).map(m -> m.getAnnotation(com.oneofficeautomation.sdk.Action.class))
+                    .filter(a -> a != null && a.id().equals("wait_for_state")).findFirst().orElseThrow().timeoutSeconds() >= 3600,
+                    "the step's own time limit is longer than its longest wait");
             Map<String, Object> st = pkg.getInstanceStatus(ctx, "ec2", List.of(A), true);
             assertEquals(Map.of(A, "running"), st.get("states"));
             assertTrue(String.valueOf(st.get("statuses")).contains("initializing"));

@@ -267,7 +267,7 @@ public final class DatabricksPackage {
 
     @Action(id = "run_job", name = "Run job now", category = "Jobs", timeoutSeconds = 86400, capabilities = "network",
             description = "Start a job right away, optionally with parameters, and wait for it to finish if you like.",
-            panel = "workspace_url, access_token, job_id, job_parameters | wait_until_finished, wait_seconds, fail_if_run_fails")
+            panel = "workspace_url, access_token, job_id, job_parameters, [Wait until it ends: wait, timeout_seconds, fail_if_run_fails]")
     @Output(name = "run_id", type = OoaType.STRING, description = "Id of the job run.")
     @Output(name = "life_cycle_state", type = OoaType.STRING, description = "Where the run is, e.g. PENDING, RUNNING or TERMINATED.")
     @Output(name = "result_state", type = OoaType.STRING, description = "SUCCESS, FAILED, TIMEDOUT or CANCELED once it has finished; empty before that.")
@@ -276,8 +276,9 @@ public final class DatabricksPackage {
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "job_id", type = OoaType.STRING, description = "Job to start (see List jobs).") String jobId,
             @Input(name = "job_parameters", type = OoaType.DICTIONARY, required = false, description = "Job parameter values, e.g. {\"run_date\": \"2026-10-20\"}.") Map<String, Object> params,
-            @Input(name = "wait_until_finished", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait for the run to end before going on.") boolean wait,
-            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "3600", description = "Longest time to wait when waiting is on.") int waitSeconds,
+            @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", formerNames = "wait_until_finished", description = "Wait for the run to end before going on.") boolean wait,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "3600", min = 1, max = 86400, formerNames = "wait_seconds", visibleWhen = "wait=true",
+                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT (the run goes on in Databricks).") int waitSeconds,
             @Input(name = "fail_if_run_fails", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "When waiting, stop the agent with an error if the run does not succeed.") boolean failOnError,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -291,6 +292,10 @@ public final class DatabricksPackage {
             HttpJson.pause(ctx, pollMillis);
             s = runSummary(getRunRaw(ctx, url, token, runId));
         }
+        // K4 (batch 10): a wait that runs out says so, instead of returning a run that is still going as if it were done
+        if (wait && !runFinished(s))
+            throw new ActionException(P + ".WAIT_TIMEOUT", "Job run " + runId + " is still " + s.get("life_cycle_state") + " after " + waitSeconds + " s",
+                    "Raise timeout_seconds, or check the run later with Get job run: " + s.get("run_page_url"), false, Map.of("run_id", runId));
         if (wait && failOnError && runFinished(s) && !"SUCCESS".equals(s.get("result_state")))
             throw new ActionException(P + ".RUN_FAILED", "Job run " + runId + " ended with " + s.get("result_state") + ": " + s.get("state_message"),
                     "Open the run page for details: " + s.get("run_page_url"));
@@ -349,13 +354,14 @@ public final class DatabricksPackage {
 
     @Action(id = "start_cluster", name = "Start cluster", category = "Clusters", timeoutSeconds = 3600, capabilities = "network",
             description = "Start a stopped cluster, and wait until it is running if you like. Nothing happens if it is already running.",
-            panel = "workspace_url, access_token, cluster_id | wait_until_running, wait_seconds")
+            panel = "workspace_url, access_token, cluster_id, [Wait until running: wait, timeout_seconds]")
     @Output(name = "state", type = OoaType.STRING, description = "Cluster state afterwards, e.g. PENDING or RUNNING.")
     public Map<String, Object> startCluster(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "cluster_id", type = OoaType.STRING, description = "Cluster to start (see List clusters).") String clusterId,
-            @Input(name = "wait_until_running", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Wait until the cluster is ready before going on.") boolean wait,
-            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1200", description = "Longest time to wait.") int waitSeconds,
+            @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "true", formerNames = "wait_until_running", description = "Wait until the cluster is ready before going on.") boolean wait,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1200", min = 1, max = 3600, formerNames = "wait_seconds", visibleWhen = "wait=true",
+                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int waitSeconds,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
         String id = textId("cluster", clusterId);
         String state = clusterState(ctx, url, token, id);
@@ -369,18 +375,38 @@ public final class DatabricksPackage {
             HttpJson.pause(ctx, pollMillis);
             state = clusterState(ctx, url, token, id);
         }
+        if (wait && !state.equals("RUNNING"))
+            throw new ActionException(P + ".WAIT_TIMEOUT", "Cluster " + id + " is still " + state + " after " + waitSeconds + " s", "Raise timeout_seconds, or check the cluster in Databricks.");
         return Out.of("state", state);
     }
 
-    @Action(id = "terminate_cluster", name = "Stop cluster", category = "Clusters", capabilities = "network",
-            description = "Stop a running cluster to save cost. Its settings are kept so it can be started again.",
-            panel = "workspace_url, access_token, cluster_id")
+    @Action(id = "terminate_cluster", name = "Stop cluster", category = "Clusters", timeoutSeconds = 3700, capabilities = "network",
+            description = "Stop a running cluster to save cost. Its settings are kept so it can be started again. Optionally wait until it has stopped.",
+            panel = "workspace_url, access_token, cluster_id, [Wait until stopped: wait, timeout_seconds]")
+    @Output(name = "state", type = OoaType.STRING, description = "Cluster state afterwards, e.g. TERMINATING or TERMINATED.")
     public Map<String, Object> terminateCluster(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "cluster_id", type = OoaType.STRING, description = "Cluster to stop.") String clusterId,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        req("POST", ws(url) + "/api/2.0/clusters/delete", token).json(Map.of("cluster_id", textId("cluster", clusterId))).send(ctx);
-        return Map.of();
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until the cluster has stopped before going on.") boolean wait,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1200", min = 1, max = 3600, visibleWhen = "wait=true",
+                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int waitSeconds) {
+        String id = textId("cluster", clusterId);
+        req("POST", ws(url) + "/api/2.0/clusters/delete", token).json(Map.of("cluster_id", id)).send(ctx);
+        String state = clusterState(ctx, url, token, id);
+        long deadline = System.currentTimeMillis() + waitSeconds * 1000L;
+        while (wait && !state.equals("TERMINATED") && System.currentTimeMillis() < deadline) {
+            HttpJson.pause(ctx, pollMillis);
+            state = clusterState(ctx, url, token, id);
+        }
+        if (wait && !state.equals("TERMINATED"))
+            throw new ActionException(P + ".WAIT_TIMEOUT", "Cluster " + id + " is still " + state + " after " + waitSeconds + " s", "Raise timeout_seconds, or check the cluster in Databricks.");
+        return Out.of("state", state);
+    }
+
+    /** Earlier signature, kept for callers written before waiting (K4, batch 10). */
+    public Map<String, Object> terminateCluster(ActionContext ctx, String url, String clusterId, Object token) {
+        return terminateCluster(ctx, url, clusterId, token, false, 1200);
     }
 
     // ----- files -----

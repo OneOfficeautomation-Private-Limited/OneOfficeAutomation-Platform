@@ -156,28 +156,57 @@ public final class Ec2Package {
 
     // ----- changing state -----
 
-    @Action(id = "start_instances", name = "Start instances", category = "Instances", capabilities = "network", description = "Start stopped instances.",
-            panel = "session, instance_ids")
+    @Action(id = "start_instances", name = "Start instances", category = "Instances", capabilities = "network", timeoutSeconds = 3700,
+            description = "Start stopped instances; optionally wait until they are running.",
+            panel = "session, instance_ids, [Wait until running: wait, timeout_seconds]")
     @Output(name = "changes", type = OoaType.TABLE, description = "Columns: instance_id, previous_state, current_state.")
+    @Output(name = "states", type = OoaType.DICTIONARY, description = "Instance id to its state at the end, when waiting.")
     public Map<String, Object> startInstances(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
-            @Input(name = "instance_ids", type = OoaType.LIST, description = D_IDS) List<Object> ids) {
-        return changes(call(ctx, ctx.session(session, Ec2Session.class), "StartInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ids, true))));
+            @Input(name = "instance_ids", type = OoaType.LIST, description = D_IDS) List<Object> ids,
+            @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until every instance is running before going on.") boolean wait,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", min = 1, max = 3600, visibleWhen = "wait=true",
+                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int timeout) {
+        return waited(ctx, session, ids, changes(call(ctx, ctx.session(session, Ec2Session.class), "StartInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ids, true)))),
+                wait, "running", timeout);
     }
 
-    @Action(id = "stop_instances", name = "Stop instances", category = "Instances", capabilities = "network",
-            description = "Stop running instances; their disks are kept. Optionally hibernate them or force the stop.",
-            panel = "session, instance_ids | hibernate, force")
+    /** Earlier signature, kept for callers written before waiting (K4, batch 10). */
+    public Map<String, Object> startInstances(ActionContext ctx, String session, List<Object> ids) { return startInstances(ctx, session, ids, false, 600); }
+
+    /** Seconds between checks when Start, Stop or Terminate waits (tests make it shorter). */
+    static double waitEverySeconds = 10;
+
+    /** K4 (batch 10): a start, stop or end that waits for its state gives the states with its changes. */
+    private Map<String, Object> waited(ActionContext ctx, String session, List<Object> ids, Map<String, Object> changes, boolean wait, String state, int timeout) {
+        if (!wait) return changes;
+        Map<String, Object> out = new LinkedHashMap<>(changes);
+        out.putAll(waitForState(ctx, session, ids, state, timeout, waitEverySeconds));
+        return out;
+    }
+
+    @Action(id = "stop_instances", name = "Stop instances", category = "Instances", capabilities = "network", timeoutSeconds = 3700,
+            description = "Stop running instances; their disks are kept. Optionally hibernate them or force the stop, and wait until they are stopped.",
+            panel = "session, instance_ids, [Wait until stopped: wait, timeout_seconds] | hibernate, force")
     @Output(name = "changes", type = OoaType.TABLE, description = "Columns: instance_id, previous_state, current_state.")
+    @Output(name = "states", type = OoaType.DICTIONARY, description = "Instance id to its state at the end, when waiting.")
     public Map<String, Object> stopInstances(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
             @Input(name = "instance_ids", type = OoaType.LIST, description = D_IDS) List<Object> ids,
             @Input(name = "hibernate", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Hibernate instead of stopping (the instance must be set up for it).") boolean hibernate,
-            @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Force the stop without a clean shutdown, for an instance that hangs.") boolean force) {
+            @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Force the stop without a clean shutdown, for an instance that hangs.") boolean force,
+            @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until every instance is stopped before going on.") boolean wait,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", min = 1, max = 3600, visibleWhen = "wait=true",
+                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int timeout) {
         Map<String, String> p = list(new LinkedHashMap<>(), "InstanceId", ids(ids, true));
         if (hibernate) p.put("Hibernate", "true");
         if (force) p.put("Force", "true");
-        return changes(call(ctx, ctx.session(session, Ec2Session.class), "StopInstances", p));
+        return waited(ctx, session, ids, changes(call(ctx, ctx.session(session, Ec2Session.class), "StopInstances", p)), wait, "stopped", timeout);
+    }
+
+    /** Earlier signature, kept for callers written before waiting (K4, batch 10). */
+    public Map<String, Object> stopInstances(ActionContext ctx, String session, List<Object> ids, boolean hibernate, boolean force) {
+        return stopInstances(ctx, session, ids, hibernate, force, false, 600);
     }
 
     @Action(id = "reboot_instances", name = "Reboot instances", category = "Instances", capabilities = "network", description = "Restart running instances.",
@@ -189,15 +218,23 @@ public final class Ec2Package {
         return Map.of();
     }
 
-    @Action(id = "terminate_instances", name = "Terminate instances", category = "Instances", capabilities = "network",
+    @Action(id = "terminate_instances", name = "Terminate instances", category = "Instances", capabilities = "network", timeoutSeconds = 3700,
             description = "End instances for good; disks marked to be deleted on end are deleted too. This cannot be undone.",
-            panel = "session, instance_ids")
+            panel = "session, instance_ids, [Wait until terminated: wait, timeout_seconds]")
     @Output(name = "changes", type = OoaType.TABLE, description = "Columns: instance_id, previous_state, current_state.")
+    @Output(name = "states", type = OoaType.DICTIONARY, description = "Instance id to its state at the end, when waiting.")
     public Map<String, Object> terminateInstances(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ec2\"", description = D_SESSION) String session,
-            @Input(name = "instance_ids", type = OoaType.LIST, description = D_IDS) List<Object> ids) {
-        return changes(call(ctx, ctx.session(session, Ec2Session.class), "TerminateInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ids, true))));
+            @Input(name = "instance_ids", type = OoaType.LIST, description = D_IDS) List<Object> ids,
+            @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until every instance is terminated before going on.") boolean wait,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", min = 1, max = 3600, visibleWhen = "wait=true",
+                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int timeout) {
+        return waited(ctx, session, ids, changes(call(ctx, ctx.session(session, Ec2Session.class), "TerminateInstances", list(new LinkedHashMap<>(), "InstanceId", ids(ids, true)))),
+                wait, "terminated", timeout);
     }
+
+    /** Earlier signature, kept for callers written before waiting (K4, batch 10). */
+    public Map<String, Object> terminateInstances(ActionContext ctx, String session, List<Object> ids) { return terminateInstances(ctx, session, ids, false, 600); }
 
     @Action(id = "enable_monitoring", name = "Enable monitoring", category = "Monitoring", capabilities = "network",
             description = "Switch on detailed (one-minute) CloudWatch monitoring for instances.", panel = "session, instance_ids")
@@ -272,7 +309,7 @@ public final class Ec2Package {
         return Map.of();
     }
 
-    @Action(id = "wait_for_state", name = "Wait for state", category = "Instances", idempotent = true, capabilities = "network",
+    @Action(id = "wait_for_state", name = "Wait for state", category = "Instances", idempotent = true, capabilities = "network", timeoutSeconds = 3700,
             description = "Wait until every instance named is in a state, e.g. running after a start or stopped after a stop.",
             panel = "session, instance_ids, state | timeout_seconds, check_every_seconds")
     @Output(name = "states", type = OoaType.DICTIONARY, description = "Instance id to the state it was in at the end.")
@@ -281,7 +318,7 @@ public final class Ec2Package {
             @Input(name = "instance_ids", type = OoaType.LIST, description = D_IDS) List<Object> ids,
             @Input(name = "state", type = OoaType.STRING, required = false, enumValues = {"running", "stopped", "terminated", "pending", "stopping", "shutting-down"},
                     defaultValue = "\"running\"", description = "The state to wait for.") String state,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", description = "Stop waiting after this many seconds and fail.") int timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", min = 1, max = 3600, description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int timeout,
             @Input(name = "check_every_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "Seconds between checks.") double every) {
         if (!STATES.contains(state)) throw new ActionException(P + ".BAD_STATE", "Unknown state '" + state + "'", "Use one of " + String.join(", ", STATES) + ".");
         Ec2Session s = ctx.session(session, Ec2Session.class);

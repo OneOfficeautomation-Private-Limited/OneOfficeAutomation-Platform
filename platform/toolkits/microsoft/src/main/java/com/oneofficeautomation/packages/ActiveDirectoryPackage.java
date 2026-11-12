@@ -55,10 +55,37 @@ public final class ActiveDirectoryPackage {
     static final class JndiDirectory implements Directory {
         final LdapContext c;
         JndiDirectory(LdapContext c) { this.c = c; }
+        /** Entries a page (K4, batch 10): Active Directory returns at most 1,000 entries to a search that is not paged. */
+        static int PAGE = 500;   // tests make it smaller
+
+        /**
+         * Reads page by page (the paged results control, which every Active Directory and most LDAP servers support;
+         * a server without it answers in one go), stopping after the search's count limit with SizeLimitExceededException.
+         */
         @Override public void search(String base, String filter, SearchControls sc, Consumer<Entry> each) throws NamingException {
-            NamingEnumeration<SearchResult> r = c.search(new LdapName(base), filter, sc);
-            try { while (r.hasMore()) { SearchResult e = r.next(); each.accept(new Entry(e.getNameInNamespace(), e.getAttributes())); } }
-            finally { r.close(); }
+            long limit = sc.getCountLimit(), n = 0;
+            SearchControls all = new SearchControls(sc.getSearchScope(), 0, sc.getTimeLimit(), sc.getReturningAttributes(), false, false);
+            javax.naming.ldap.Control[] before = c.getRequestControls();
+            byte[] cookie = null;
+            try {
+                do {
+                    try { c.setRequestControls(new javax.naming.ldap.Control[]{new javax.naming.ldap.PagedResultsControl(PAGE, cookie, javax.naming.ldap.Control.NONCRITICAL)}); }
+                    catch (java.io.IOException e) { throw new NamingException("Cannot ask for pages: " + e.getMessage()); }
+                    NamingEnumeration<SearchResult> r = c.search(new LdapName(base), filter, all);
+                    try {
+                        while (r.hasMore()) {
+                            SearchResult e = r.next();
+                            if (limit > 0 && n >= limit) throw new SizeLimitExceededException("More than " + limit + " entries");
+                            each.accept(new Entry(e.getNameInNamespace(), e.getAttributes()));
+                            n++;
+                        }
+                    } finally { r.close(); }
+                    cookie = null;
+                    javax.naming.ldap.Control[] answer = c.getResponseControls();
+                    if (answer != null) for (javax.naming.ldap.Control x : answer)
+                        if (x instanceof javax.naming.ldap.PagedResultsResponseControl prc) cookie = prc.getCookie();
+                } while (cookie != null && cookie.length > 0);
+            } finally { c.setRequestControls(before); }
         }
         @Override public Attributes read(String dn, String[] attributes) throws NamingException { return c.getAttributes(new LdapName(dn), attributes); }
         @Override public void modify(String dn, ModificationItem[] items) throws NamingException { c.modifyAttributes(new LdapName(dn), items); }
@@ -188,7 +215,7 @@ public final class ActiveDirectoryPackage {
                 try { for (String n : names) row.add(attrValue(e.attributes().get(n))); } catch (NamingException x) { throw new IllegalStateException(x); }
                 rows.add(row);
             });
-        } catch (SizeLimitExceededException e) { ctx.warn("Search stopped at " + max + " results");
+        } catch (SizeLimitExceededException e) { ctx.warn("Search stopped at " + rows.size() + " results (max_results); there are more");
         } catch (InvalidSearchFilterException e) { throw new ActionException("AD.BAD_FILTER", "Invalid LDAP filter: " + filter, "Example: (&(objectClass=user)(sAMAccountName=jdoe))");
         } catch (NamingException e) { throw ad(e); }
         return Out.of("table", Values.table(cols, rows), "count", BigDecimal.valueOf(rows.size()));
@@ -902,7 +929,7 @@ public final class ActiveDirectoryPackage {
                         rows.add(new ArrayList<>(Arrays.asList(e.dn(), attrValue(e.attributes().get("cn")), attrValue(e.attributes().get("sAMAccountName")), type == null ? null : String.valueOf(type), attrValue(e.attributes().get("mail")))));
                     } catch (NamingException x) { throw new IllegalStateException(x); }
                 });
-            } catch (SizeLimitExceededException e) { ctx.warn("Stopped at " + max + " members"); }
+            } catch (SizeLimitExceededException e) { ctx.warn("Stopped at " + rows.size() + " members (max_results); there are more"); }
             if (rows.isEmpty() && !recursive) {
                 // directories that do not keep memberOf (OpenLDAP without the overlay, test servers): read the group's own member list
                 Attribute members = s.dir.read(dn, new String[]{"member"}).get("member");

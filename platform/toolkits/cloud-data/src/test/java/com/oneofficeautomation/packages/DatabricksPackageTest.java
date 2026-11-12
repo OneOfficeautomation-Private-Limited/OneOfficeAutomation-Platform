@@ -178,6 +178,23 @@ class DatabricksPackageTest {
         }
     }
 
+    /** K4 (batch 10): a wait that runs out fails with WAIT_TIMEOUT instead of carrying on as if the job were done. */
+    @Test void waitsThatRunOutFailAndStopClusterCanWait() throws Exception {
+        try (Fake f = new Fake()) {
+            AtomicInteger looks = new AtomicInteger();
+            f.on("POST /api/2.1/jobs/run-now", c -> ok("{\"run_id\":77}"))
+             .on("GET /api/2.1/jobs/runs/get", c -> ok("{\"run_id\":77,\"state\":{\"life_cycle_state\":\"RUNNING\"},\"run_page_url\":\"https://x/run/77\"}"))
+             .on("POST /api/2.0/clusters/delete", c -> ok("{}"))
+             .on("GET /api/2.0/clusters/get", c -> ok("{\"state\":\"" + (looks.incrementAndGet() < 3 ? "TERMINATING" : "TERMINATED") + "\"}"));
+            ActionContext ctx = ctx(PackagesTest.tmp());
+            var e = fails("DATABRICKS.WAIT_TIMEOUT", () -> pkg.runJob(ctx, f.url(), "5", null, true, 1, true, TOKEN));
+            assertTrue(e.getMessage().contains("RUNNING"), e.getMessage());
+            assertEquals("RUNNING", pkg.runJob(ctx, f.url(), "5", null, false, 1, true, TOKEN).get("life_cycle_state"), "without waiting it returns at once");
+            assertEquals("TERMINATED", pkg.terminateCluster(ctx, f.url(), "0923-a", TOKEN, true, 60).get("state"));
+            assertEquals(3, looks.get());
+        }
+    }
+
     @Test void filesApiAndDbfsTransfers() throws Exception {
         try (Fake f = new Fake()) {
             byte[] big = new byte[1024 * 1024 + 300];
