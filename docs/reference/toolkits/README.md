@@ -20,7 +20,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [AWS AI services](ooa-aws_ai.md) | `ooa.aws_ai` | 11 | 0 | 0 | Read sentiment, entities, language and personal data in text with Amazon Comprehend, text, forms and tables from scans with Amazon Textract, and labels and text in pictures with Amazon Rekognition. |
 | [AWS EC2](ooa-aws_ec2.md) | `ooa.aws_ec2` | 19 | 0 | 0 | Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, switch detailed monitoring on or off, and snapshot, create, attach and detach their EBS volumes. |
 | [Azure AI services](ooa-azure_ai.md) | `ooa.azure_ai` | 8 | 0 | 0 | Read sentiment, entities and personal data in text with Azure AI Language, text, fields and tables from documents with Document Intelligence, and tags, captions and text in pictures with Image Analysis. |
-| [Azure DevOps](ooa-azure_devops.md) | `ooa.azure_devops` | 44 | 1 | 0 | Work with Azure DevOps: work items and WIQL queries, comments and attachments, Git repositories and pull requests, pipelines, builds and sprints. Works with the cloud service and Azure DevOps Server. |
+| [Azure DevOps](ooa-azure_devops.md) | `ooa.azure_devops` | 49 | 1 | 0 | Work with Azure DevOps: work items and WIQL queries, comments and attachments, Git repositories and pull requests, pipelines, builds and sprints. Works with the cloud service and Azure DevOps Server. |
 | [Azure VMs](ooa-azure_vm.md) | `ooa.azure_vm` | 8 | 0 | 0 | List Azure virtual machines, read their power state, start, stop (deallocate or power off) and restart them, and snapshot their disks. |
 | [Boolean](ooa-boolean.md) | `ooa.boolean` | 5 | 0 | 0 | Convert and invert true/false values. |
 | [Box](ooa-box.md) | `ooa.box` | 16 | 0 | 0 | Work with Box folders and files: upload, download, copy, move, search, share links and invite collaborators. |
@@ -35,7 +35,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Data store](ooa-data.md) | `ooa.data` | 9 | 0 | 0 | Create, change, read, query and delete records in One CommandCenter's entities; upload, download and list files in storage buckets. |
 | [Data Table](ooa-datatable.md) | `ooa.datatable` | 33 | 5 | 0 | Build, filter, sort, search and change in-memory tables. |
 | [Database](ooa-database.md) | `ooa.database` | 12 | 0 | 1 | Connect to databases and run parameterised queries, updates and transactions. |
-| [Databricks](ooa-databricks.md) | `ooa.databricks` | 14 | 0 | 0 | Run SQL on a Databricks SQL warehouse, start and watch jobs, start or stop clusters, and move files in and out of the workspace. |
+| [Databricks](ooa-databricks.md) | `ooa.databricks` | 15 | 0 | 0 | Run SQL on a Databricks SQL warehouse, start and watch jobs, start or stop clusters, and move files in and out of the workspace. |
 | [Date and time](ooa-datetime.md) | `ooa.datetime` | 19 | 8 | 0 | Current time, add, difference, format, time zone conversion and working days with business calendars. |
 | [Desktop objects](ooa-desktop_ui.md) | `ooa.desktop_ui` | 10 | 1 | 0 | Capture controls in Windows applications and find them again by their UI Automation properties to click, type, read and select. |
 | [Dictionary](ooa-dictionary.md) | `ooa.dictionary` | 7 | 4 | 0 | Put, get and remove key/value pairs. |
@@ -76,7 +76,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Network](ooa-network.md) | `ooa.network` | 7 | 2 | 0 | Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3. |
 | [Number](ooa-number.md) | `ooa.number` | 6 | 0 | 0 | Round, format and generate numbers with exact decimal arithmetic. |
 | [OCR](ooa-ocr.md) | `ooa.ocr` | 8 | 1 | 0 | Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract, or the OCR built into Windows when Tesseract is not installed). |
-| [Okta](ooa-okta.md) | `ooa.okta` | 14 | 0 | 0 | Create and manage Okta users, change their status, reset passwords and manage group membership. |
+| [Okta](ooa-okta.md) | `ooa.okta` | 17 | 0 | 0 | Create and manage Okta users, change their status, reset passwords and manage group membership. |
 | [Open Excel and Word files (needs Office)](ooa-office_attach.md) | `ooa.office_attach` | 9 | 0 | 0 | Read, write and save an Excel workbook or Word document that is already open on the desktop, in the same window. |
 | [Outlook (desktop, needs Outlook)](ooa-outlook_desktop.md) | `ooa.outlook_desktop` | 10 | 0 | 1 | Find, read, send, reply to, forward, move and file emails with the Outlook installed on the runner, using its mail profile. |
 | [PDF](ooa-pdf.md) | `ooa.pdf` | 16 | 0 | 0 | Extract text, merge, split, read and fill forms, encrypt, decrypt and convert PDF pages to images. |
@@ -89,7 +89,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Prompt Skills](ooa-ai_skills.md) | `ooa.ai_skills` | 2 | 0 | 0 | Run saved, reusable prompt templates (Prompt Skills) with your values. |
 | [REST Web Service](ooa-rest.md) | `ooa.rest` | 3 | 0 | 0 | Call HTTP/REST APIs with JSON, headers and authentication. |
 | [Run context](ooa-run_context.md) | `ooa.run_context` | 2 | 0 | 0 | Information about the current run: run id, runner, user and workspace. |
-| [Salesforce](ooa-salesforce.md) | `ooa.salesforce` | 10 | 0 | 0 | Query Salesforce with SOQL and create, read, update and delete records. |
+| [Salesforce](ooa-salesforce.md) | `ooa.salesforce` | 13 | 0 | 0 | Query Salesforce with SOQL and create, read, update and delete records. |
 | [SAP BAPI](ooa-sap_bapi.md) | `ooa.sap_bapi` | 7 | 0 | 0 | Call SAP BAPIs and RFC function modules through SAP JCo: connect, run a function with imports, structures and tables, commit or roll back, read tables and function details. |
 | [SAP GUI](ooa-sap.md) | `ooa.sap` | 30 | 0 | 0 | Log on to SAP, run transactions, set and read fields, press buttons, read grids and the status bar through SAP GUI Scripting. |
 | [Scripts](ooa-script.md) | `ooa.script` | 7 | 0 | 0 | Run PowerShell, Python, JavaScript and VBScript with arguments and captured output. |
@@ -112,4 +112,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 101 toolkits, 1294 actions, 50 conditions and 18 loop types.
+In all: 101 toolkits, 1306 actions, 50 conditions and 18 loop types.

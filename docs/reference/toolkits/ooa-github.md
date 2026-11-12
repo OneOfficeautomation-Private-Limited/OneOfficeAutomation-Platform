@@ -27,7 +27,7 @@ Add a comment to an issue or a pull request conversation.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Number | `number` | Number | Yes |  | Main | Issue or pull request number. |
@@ -53,7 +53,7 @@ Close an issue as completed or as not planned.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Number | `number` | Number | Yes |  | Main | Issue number. |
@@ -72,7 +72,7 @@ Open a new issue, optionally with labels and assignees.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Title | `title` | Text | Yes |  | Main | Short title of the issue. Example: `Invoice upload fails for PDF over 10 MB` |
@@ -101,7 +101,7 @@ Read an issue by its number.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Number | `number` | Number | Yes |  | Main | Issue number. Example: `42` |
@@ -126,7 +126,7 @@ List a repository's issues, filtered by state, labels or assignee. Pull requests
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | State | `state` | Text | No | `open` | Main | open, closed or all. One of: `open`, `closed`, `all` |
@@ -155,7 +155,7 @@ Change an issue's title, text, state, labels or assignees. Only the inputs you f
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Number | `number` | Number | Yes |  | Main | Issue number. |
@@ -180,7 +180,7 @@ Create a branch starting from another branch (the default branch when none is gi
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Branch | `branch` | Text | Yes |  | Main | Name of the new branch. Example: `agent/update-rates` |
@@ -205,7 +205,7 @@ List a repository's branches.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Maximum results | `max_results` | Number | No | `100` | More options | Most items to return; pages are read until this many are found. |
@@ -232,7 +232,7 @@ Propose merging one branch into another.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Title | `title` | Text | Yes |  | Main | Title of the pull request. |
@@ -261,7 +261,7 @@ Read a pull request, including whether it is merged and whether it can be merged
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Number | `number` | Number | Yes |  | Main | Pull request number. |
@@ -286,7 +286,7 @@ List pull requests, filtered by state and target branch.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | State | `state` | Text | No | `open` | Main | open, closed or all. One of: `open`, `closed`, `all` |
@@ -313,7 +313,7 @@ Merge a pull request with a merge commit, squash or rebase.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Number | `number` | Number | Yes |  | Main | Pull request number. |
@@ -344,7 +344,7 @@ Publish a release for a tag; the tag is created from the target branch when it d
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Tag | `tag` | Text | Yes |  | Main | Tag name of the release. Example: `v2.4.0` |
@@ -374,7 +374,7 @@ Read the newest published release (drafts and pre-releases are skipped).
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Endpoint address | `base_url` | Text | No | `https://api.github.com` | More options | API address. Keep the default for github.com; for GitHub Enterprise Server use https://github.yourcompany.com/api/v3. |
@@ -400,7 +400,7 @@ Read a file from a repository as text, or save it to a local file.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Path | `path` | Text | Yes |  | Main | Path of the file inside the repository. Example: `config/rates.json` |
@@ -428,7 +428,7 @@ Commit a new or changed file to a branch, from text or from a local file.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Path | `path` | Text | Yes |  | Main | Path of the file inside the repository. Example: `reports/2026-10.csv` |
@@ -460,7 +460,7 @@ Read a repository's main details, such as its default branch and visibility.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Endpoint address | `base_url` | Text | No | `https://api.github.com` | More options | API address. Keep the default for github.com; for GitHub Enterprise Server use https://github.yourcompany.com/api/v3. |
@@ -484,7 +484,7 @@ List the repositories of an organization or of another user, or the repositories
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner type | `owner_type` | Text | No | `organization` | Main | organization: the name in organization is an organization; user: it is a user's login, and their public repositories are listed. One of: `organization`, `user` |
 | Organization | `organization` | Text | No |  | Main | Organization name, or a user's login when owner_type is user. Leave empty for the repositories of the token's user. Example: `acme-corp` |
 | Maximum results | `max_results` | Number | No | `100` | More options | Most items to return; pages are read until this many are found. |
@@ -511,7 +511,7 @@ Read the status and result of one GitHub Actions run.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Run ID | `run_id` | Number | Yes |  | Main | Run id, from List workflow runs. |
@@ -537,7 +537,7 @@ List recent GitHub Actions runs, newest first, for one workflow or the whole rep
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Workflow | `workflow` | Text | No |  | Main | Workflow file name or id. Empty lists runs of all workflows. |
@@ -565,7 +565,7 @@ Start a GitHub Actions workflow that allows manual runs, with optional inputs.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Workflow | `workflow` | Text | Yes |  | Main | Workflow file name (e.g. deploy.yml) or numeric workflow id. Example: `deploy.yml` |
@@ -590,7 +590,7 @@ True when the pull request has been merged.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Endpoint address | `base_url` | Text | No | `https://api.github.com` | Main | API address. Keep the default for github.com; for GitHub Enterprise Server use https://github.yourcompany.com/api/v3. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or app token from the vault, with access to the repository. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Owner | `owner` | Text | Yes |  | Main | User or organization that owns the repository, e.g. acme-corp. |
 | Repo | `repo` | Text | Yes |  | Main | Repository name without the owner, e.g. billing-service. |
 | Number | `number` | Number | Yes |  | Main | Pull request number. |

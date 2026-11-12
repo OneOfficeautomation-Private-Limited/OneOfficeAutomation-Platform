@@ -23,7 +23,7 @@ Stop a statement that is still running.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Statement handle | `statement_handle` | Text | Yes |  | Main | Handle from Run SQL statement. |
 | Token type | `token_type` | Text | No | `OAUTH` | More options | Kind of token in the vault: OAUTH, KEYPAIR_JWT or PROGRAMMATIC_ACCESS_TOKEN. One of: `OAUTH`, `KEYPAIR_JWT`, `PROGRAMMATIC_ACCESS_TOKEN` |
 
@@ -40,7 +40,7 @@ Run one SQL statement and return its rows as a data table. Use ? in the SQL for 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | SQL statement | `sql` | Text | Yes |  | Main | SQL to run. Put ? where each binding value goes. Example: `SELECT * FROM ORDERS WHERE REGION = ? AND AMOUNT > ?` |
 | Bindings | `bindings` | List | No |  | Main; tick Fill in ? placeholders | Values for the ? placeholders, in order, e.g. ["EMEA", 1000]. |
 | Warehouse | `warehouse` | Text | No |  | More options | Warehouse that runs the query. Leave empty for the user's default warehouse. |
@@ -74,7 +74,7 @@ Run one SQL statement and write all of its rows to a file (CSV, tab-separated or
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | SQL statement | `sql` | Text | Yes |  | Main | SQL to run. Put ? where each binding value goes. Example: `SELECT * FROM ORDERS WHERE ORDER_DATE >= ?` |
 | Bindings | `bindings` | List | No |  | Main; tick Fill in ? placeholders | Values for the ? placeholders, in order, e.g. ["2026-10-01"]. |
 | File | `file` | File path | Yes |  | Main | File to write; add .gz yourself when compressing. Example: `exports/orders.csv` |
@@ -110,7 +110,7 @@ Read the rows of a finished statement into a data table, page by page.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Statement handle | `statement_handle` | Text | Yes |  | Main | Handle from Run SQL statement. |
 | Maximum rows | `max_rows` | Number | No | `100000` | More options | Most rows to bring back. |
 | Token type | `token_type` | Text | No | `OAUTH` | More options | Kind of token in the vault: OAUTH, KEYPAIR_JWT or PROGRAMMATIC_ACCESS_TOKEN. One of: `OAUTH`, `KEYPAIR_JWT`, `PROGRAMMATIC_ACCESS_TOKEN` |
@@ -136,7 +136,7 @@ Check whether a statement that was left running has finished, failed or is still
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Statement handle | `statement_handle` | Text | Yes |  | Main | Handle from Run SQL statement. |
 | Token type | `token_type` | Text | No | `OAUTH` | More options | Kind of token in the vault: OAUTH, KEYPAIR_JWT or PROGRAMMATIC_ACCESS_TOKEN. One of: `OAUTH`, `KEYPAIR_JWT`, `PROGRAMMATIC_ACCESS_TOKEN` |
 
@@ -163,7 +163,7 @@ Add every row of a data table to a Snowflake table. Columns are matched by name.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Table name | `table_name` | Text | Yes |  | Main | Target table, written as DATABASE.SCHEMA.TABLE (or just TABLE with database and schema set). Example: `SALES.PUBLIC.ORDERS` |
 | Data | `data` | Table | Yes |  | Main | Rows to add. Its column names must match columns of the target table. |
 | Batch size | `batch_size` | Number | No | `500` | More options | Rows sent per request. |
@@ -194,7 +194,7 @@ Return the columns of a table with their data types.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Table name | `table_name` | Text | Yes |  | Main | Table, written as DATABASE.SCHEMA.TABLE. Example: `SALES.PUBLIC.ORDERS` |
 | Role | `role` | Text | No |  | More options | Role to run as. Leave empty for the user's default role. |
 | Token type | `token_type` | Text | No | `OAUTH` | More options | Kind of token in the vault: OAUTH, KEYPAIR_JWT or PROGRAMMATIC_ACCESS_TOKEN. One of: `OAUTH`, `KEYPAIR_JWT`, `PROGRAMMATIC_ACCESS_TOKEN` |
@@ -219,7 +219,7 @@ Return the databases the role can see.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Role | `role` | Text | No |  | More options | Role to run as. Leave empty for the user's default role. |
 | Token type | `token_type` | Text | No | `OAUTH` | More options | Kind of token in the vault: OAUTH, KEYPAIR_JWT or PROGRAMMATIC_ACCESS_TOKEN. One of: `OAUTH`, `KEYPAIR_JWT`, `PROGRAMMATIC_ACCESS_TOKEN` |
 
@@ -243,7 +243,7 @@ Return the schemas in a database.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Database | `database` | Text | Yes |  | Main | Database to look in. |
 | Role | `role` | Text | No |  | More options | Role to run as. Leave empty for the user's default role. |
 | Token type | `token_type` | Text | No | `OAUTH` | More options | Kind of token in the vault: OAUTH, KEYPAIR_JWT or PROGRAMMATIC_ACCESS_TOKEN. One of: `OAUTH`, `KEYPAIR_JWT`, `PROGRAMMATIC_ACCESS_TOKEN` |
@@ -268,7 +268,7 @@ Return the tables in a schema.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Database | `database` | Text | Yes |  | Main | Database to look in. |
 | Schema | `schema` | Text | Yes |  | Main | Schema to look in, e.g. PUBLIC. |
 | Role | `role` | Text | No |  | More options | Role to run as. Leave empty for the user's default role. |
@@ -294,7 +294,7 @@ Return the warehouses the role can use, with their size and state.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
-| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Role | `role` | Text | No |  | More options | Role to run as. Leave empty for the user's default role. |
 | Token type | `token_type` | Text | No | `OAUTH` | More options | Kind of token in the vault: OAUTH, KEYPAIR_JWT or PROGRAMMATIC_ACCESS_TOKEN. One of: `OAUTH`, `KEYPAIR_JWT`, `PROGRAMMATIC_ACCESS_TOKEN` |
 

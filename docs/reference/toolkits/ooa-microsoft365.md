@@ -191,8 +191,8 @@ Suggest time slots in a period when the attendees are free for a meeting of the 
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Attendees | `attendees` | Any | Yes |  | Main | Attendee address(es). |
 | Duration (minutes) | `duration_minutes` | Number | No | `30` | Main | Meeting length in minutes. |
-| From | `from` | DateTime | Yes |  | Main | Start of the search period. |
-| To | `to` | DateTime | Yes |  | Main | End of the search period. |
+| Start | `start` | DateTime | Yes |  | Main | Start of the search period. |
+| End | `end` | DateTime | Yes |  | Main | End of the search period. |
 | Include outside working (hours) | `include_outside_working_hours` | Yes/No | No | No | More options | Also suggest times outside the attendees' working hours. |
 | Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone of from, to and the results. |
 | Maximum results | `max_results` | Number | No | `10` | More options | Most suggestions. |
@@ -220,11 +220,12 @@ List events between two dates.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
-| From | `from` | DateTime | Yes |  | Main | Start of the period (UTC). |
-| To | `to` | DateTime | Yes |  | Main | End of the period (UTC). |
+| Start | `start` | DateTime | Yes |  | Main | Start of the period (UTC). |
+| End | `end` | DateTime | Yes |  | Main | End of the period (UTC). |
 | Subject contains | `subject_contains` | Text | No |  | Main | Only events whose title contains this text. |
+| Maximum results | `max_results` | Number | No | `1000` | More options | At most this many events (0: every event in the period). Range: 0 to  |
 | Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone of the returned start and end times, e.g. Europe/London. |
-| Calendar ID | `calendar_id` | Text | No |  | More options | Read this calendar instead of the default one. |
+| Calendar | `calendar` | Text | No |  | More options | Read this calendar instead of the default one. |
 | Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -233,6 +234,7 @@ List events between two dates.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, subject, start, end, location, organizer. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -337,7 +339,7 @@ Check whether a person has been given direct access to a file or folder and with
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | Email | `email` | Text | Yes |  | Main | Email address of the person. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -366,7 +368,7 @@ Copy a file or folder into another folder, optionally under a new name, and wait
 | New name | `new_name` | Text | No |  | More options | Name for the copy; the original name when empty. |
 | To drive | `to_drive` | Text | No |  | More options | Destination drive when different from the source drive. |
 | Wait (seconds) | `wait_seconds` | Number | No | `120` | More options | How long to wait for the copy; 0 returns at once. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -393,7 +395,7 @@ Create a folder inside a drive folder.
 | Parent folder | `parent_folder` | Text | No | (empty) | Main | Parent folder path (empty for the root), or id:{item-id}. |
 | Name | `name` | Text | Yes |  | Main | New folder name. |
 | If exists | `if_exists` | Text | No | `fail` | More options | When the name is taken: fail, rename (add a number) or replace. One of: `fail`, `rename`, `replace` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -420,7 +422,7 @@ Create a link that opens a file or folder for viewing or editing, for anyone or 
 | Type | `type` | Text | No | `view` | Main | view or edit. One of: `view`, `edit` |
 | Scope | `scope` | Text | No | `organization` | Main | organization: people in your organisation; anonymous: anyone with the link. One of: `organization`, `anonymous` |
 | Expires | `expires` | DateTime | No |  | Main; tick Link expires | When the link stops working (UTC); never when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -445,7 +447,7 @@ Delete a file or folder; it goes to the drive's recycle bin unless deleted perma
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | Permanent | `permanent` | Yes/No | No | No | More options | Delete for good, skipping the recycle bin (OneDrive for work or school and SharePoint). |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; needs: network.*
@@ -464,7 +466,7 @@ Download a file from a OneDrive or SharePoint path to a local file.
 | Remote path | `remote_path` | Text | Yes |  | Main | Path of the file in the drive. |
 | Local path | `local_path` | File path | Yes |  | Main | Where to save it. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing local file; when false a number such as (2) is added to the name. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -489,7 +491,7 @@ Convert a Word, Excel, PowerPoint or other supported file in the drive to PDF an
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | Local path | `local_path` | File path | Yes |  | Main | Where to save the PDF. Example: `out/report.pdf` |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing local file; when false a number such as (2) is added to the name. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -516,7 +518,7 @@ Search a drive for files and folders whose name or content matches the text.
 | In folder | `in_folder` | Text | No |  | Main; tick Search one folder only | Search only inside this folder (path or id:{item-id}); the whole drive when empty. |
 | Exact name | `exact_name` | Yes/No | No | No | More options | Keep only items whose name equals the text (not case-sensitive). |
 | Maximum results | `max_results` | Number | No | `100` | More options | Maximum items. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -540,7 +542,7 @@ Read a file's or folder's id, size, dates, last editor, parent path and link.
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -563,7 +565,7 @@ List the files and folders in a drive folder.
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Folder | `folder` | Text | No | (empty) | Main | Folder path; the root when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -571,6 +573,7 @@ List the files and folders in a drive folder.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, type, size, modified, web_url. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -586,7 +589,7 @@ List who can open or edit a file or folder, including sharing links.
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -594,6 +597,7 @@ List who can open or edit a file or folder, including sharing links.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, roles, granted_to, link_type, link_scope, link_url. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -612,7 +616,7 @@ Move a file or folder into another folder in the same drive, optionally renaming
 | To folder | `to_folder` | Text | Yes |  | Main | Destination folder path (empty for the root), or id:{item-id}. |
 | If exists | `if_exists` | Text | No | `fail` | Main | When the name is taken at the destination: fail, rename (add a number) or replace. One of: `fail`, `rename`, `replace` |
 | New name | `new_name` | Text | No |  | More options | New name; unchanged when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -638,7 +642,7 @@ Give a file or folder a new name in the same folder.
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | New name | `new_name` | Text | Yes |  | Main | New name, including the extension for files. |
 | If exists | `if_exists` | Text | No | `fail` | More options | When the new name is taken in the folder: fail, rename (add a number) or replace. One of: `fail`, `rename`, `replace` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -663,7 +667,7 @@ Make an earlier version of a file the current one; by default the version before
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | Version ID | `version_id` | Text | No | (empty) | Main; choice Version = A specific version | Version to restore, e.g. 3.0; the previous version when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -691,7 +695,7 @@ Give people read or edit access to a file or folder, optionally emailing them an
 | Send invitation | `send_invitation` | Yes/No | No | Yes | Main | Email the people a sharing invitation. |
 | Message | `message` | Text | No |  | Main; tick Add a note to the invitation | Text added to the invitation. |
 | Require sign in | `require_sign_in` | Yes/No | No | Yes | More options | People must sign in to open the item. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -717,7 +721,7 @@ Upload a local file of any size to a OneDrive or SharePoint folder path; creates
 | Remote path | `remote_path` | Text | Yes |  | Main | Target path in the drive, including the file name. Example: `Reports/2026/summary.xlsx` |
 | If exists | `if_exists` | Text | No | `replace` | Main | When the name is taken at the destination: fail, rename (add a number) or replace. One of: `fail`, `rename`, `replace` |
 | Chunk size (MB) | `chunk_size_mb` | Number | No | `10` | More options | Size of each piece sent for files over 4 MB (rounded down to a multiple of 320 KB); smaller pieces suit slow or unreliable networks. Range: 0.3125 to 60 |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -938,6 +942,7 @@ List the channels of a team.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, description, membership_type. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -960,6 +965,7 @@ List the Microsoft Teams teams the user belongs to.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, description. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1107,6 +1113,7 @@ Read the items of a SharePoint list as a Data Table, optionally filtered and lim
 | List | `list` | Text | Yes |  | Main | List id or display name. |
 | Filter | `filter` | Text | No |  | Main; tick Filter the items | OData filter on fields, e.g. fields/Status eq 'Open'. Example: `fields/Status eq 'Open'` |
 | Columns | `columns` | List | No |  | Main | Field names to return; all when empty. |
+| Use display names | `use_display_names` | Yes/No | No | No | Main | Name the table's columns as people see them in SharePoint (Status, not Status0 or field_1); columns may then be given that way too. |
 | Maximum results | `max_results` | Number | No | `1000` | More options | Maximum items. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -1114,7 +1121,7 @@ Read the items of a SharePoint list as a Data Table, optionally filtered and lim
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `table` | Table | Column id, then one column per list field. |
+| `table` | Table | Column id, then one column per list field (named as people see them when use_display_names is on). |
 | `count` | Number | Number of items. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -1138,6 +1145,7 @@ List the lists and libraries of a SharePoint site.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, display_name, template, web_url. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1691,7 +1699,7 @@ Append rows to the end of an Excel table.
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Table | `table` | Text | Yes |  | Main | Table name or id. |
 | Rows | `rows` | Any | Yes |  | Main | List of rows (each a list of values), one flat list for a single row, or a Data Table (rows only). |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1715,7 +1723,7 @@ Add a worksheet to a workbook in OneDrive or SharePoint.
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Name | `name` | Text | No |  | Main | Name for the worksheet; Excel picks one when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1741,7 +1749,7 @@ Resize the columns of a range so their contents fit.
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range whose columns are resized. Example: `A1:F1` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -1760,7 +1768,7 @@ Resize the rows of a range so their contents fit.
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range whose rows are resized. Example: `A1:A50` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -1780,7 +1788,7 @@ Clear the values, the formatting, or both from a range without shifting other ce
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range address. Example: `A2:F100` |
 | Clear | `clear` | Text | No | `all` | Main | What to clear: all, contents or formats. One of: `all`, `contents`, `formats` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -1825,7 +1833,7 @@ Copy a cell or range to another place in the same workbook, as values or with fo
 | Destination sheet | `destination_sheet` | Text | No |  | Main; tick To another sheet | Worksheet to copy to; the same sheet when empty. |
 | Copy | `copy` | Text | No | `values` | More options | values copies the results; formulas copies formulas exactly as written (cell references are not moved). One of: `values`, `formulas` |
 | Include number formats | `include_number_formats` | Yes/No | No | Yes | More options | Also copy number formats such as dates and currency. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1852,7 +1860,7 @@ Copy a worksheet's cells (values, formulas and number formats) into a new worksh
 | Target remote path | `target_remote_path` | Text | No |  | Main; tick Into another workbook | Workbook to copy into (path in the same drive, or id:{item-id}); the same workbook when empty. |
 | New name | `new_name` | Text | No |  | Main | Name of the new worksheet; the source sheet's name when empty, which must then be free in the target workbook. |
 | Copy formats | `copy_formats` | Text | No | `all` | More options | all copies column widths, row heights, fonts, fill colours and alignment; sizes only widths and heights; none only cells and number formats (fastest). One of: `all`, `sizes`, `none` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1880,7 +1888,7 @@ Turn a range into an Excel table, optionally naming it.
 | Name | `name` | Text | No |  | Main | Table name; Excel picks one when empty. |
 | Range | `range` | Text | Yes |  | Main | Range the table covers. Example: `A1:D1` |
 | Has headers | `has_headers` | Yes/No | No | Yes | Main | The first row holds column names. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1906,7 +1914,7 @@ Create a new, empty Excel workbook in OneDrive or SharePoint, optionally with na
 | Remote path | `remote_path` | Text | Yes |  | Main | Path of the new workbook, ending in .xlsx. Example: `Reports/2026/new.xlsx` |
 | Sheet names | `sheet_names` | List | No |  | More options | Names of the sheets; one sheet called Sheet1 when empty. |
 | If exists | `if_exists` | Text | No | `fail` | More options | When a file of that name exists: fail, rename (add a number) or replace it. One of: `fail`, `rename`, `replace` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1933,7 +1941,7 @@ Delete the cells of a range and close the gap by moving cells up or left, or del
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range address. Example: `A5:F5` |
 | Shift | `shift` | Text | No | `up` | Main | Move the remaining cells up or left; entire_row or entire_column deletes the whole rows or columns of the range. One of: `up`, `left`, `entire_row`, `entire_column` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; needs: network.*
@@ -1951,7 +1959,7 @@ Delete an Excel table together with its data.
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Table | `table` | Text | Yes |  | Main | Table name or id. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; needs: network.*
@@ -1970,7 +1978,7 @@ Delete a worksheet and everything on it from a workbook in OneDrive or SharePoin
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | No |  | Main; choice Sheet by = Name | Worksheet name; or give sheet_position instead. |
 | Sheet position | `sheet_position` | Number | No |  | Main; choice Sheet by = Position | Position of the worksheet among the tabs, the first being 1; used instead of sheet. Example: `2` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; needs: network.*
@@ -1993,7 +2001,7 @@ Search the used cells of a sheet, or a range, for text and return the addresses 
 | Search by | `search_by` | Text | No | `rows` | Main | Order of the results: rows goes across each row first, columns goes down each column first. One of: `rows`, `columns` |
 | Match case | `match_case` | Yes/No | No | No | Main | Upper and lower case must match. |
 | Whole cell | `whole_cell` | Yes/No | No | No | Main | The whole cell must equal the text. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2021,7 +2029,7 @@ Find the first empty cell after the last value in a column (going down) or in a 
 | Direction | `direction` | Text | No | `down` | Main | down: after the last value of a column; right: after the last value of a row. One of: `down`, `right` |
 | Column | `column` | Text | No | `A` | Main | Column letter to look in. Shown when: `{"direction": ["down"]}` |
 | Row | `row` | Number | No | `1` | Main | Row number to look in. Range: 1 to ; Shown when: `{"direction": ["right"]}` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2065,7 +2073,7 @@ Set fill, font, alignment, wrapping, size, borders, merging and number format of
 | Border style | `border_style` | Text | No |  | More options | Line style of every border of the range, inside and out; unchanged when empty. One of: `None`, `Continuous`, `Dash`, `DashDot`, `DashDotDot`, `Dot`, `Double`, `SlantDashDot` |
 | Border color | `border_color` | Text | No |  | More options | Colour of those borders. Example: `#000000` |
 | Merge | `merge` | Yes/No | No |  | More options | Merge the cells (true) or unmerge them (false); unchanged when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2084,7 +2092,7 @@ Read one cell's value and the text Excel shows for it.
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `C7` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2110,7 +2118,7 @@ Read one cell's fill colour, font (name, size, colour, bold, italic, underline),
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `C7` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2135,7 +2143,7 @@ Read the cell values of a range as a list of rows, without treating the first ro
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range address. Example: `A1:D20` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2162,7 +2170,7 @@ Read all rows of an Excel table, or one row by its position, as a Data Table, us
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Table | `table` | Text | Yes |  | Main | Table name or id. |
 | Row index | `row_index` | Number | No |  | Main; tick Only one row | Return only this data row; 1 is the first row under the headers. All rows when empty. Range: 1 to  |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2186,7 +2194,7 @@ List the worksheets of a workbook in OneDrive or SharePoint, in tab order.
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2212,7 +2220,7 @@ Hide a worksheet tab without deleting it; very hidden sheets can only be shown a
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Very hidden | `very_hidden` | Yes/No | No | No | More options | Hide it so that it cannot be shown from Excel's menu. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2232,7 +2240,7 @@ Insert empty cells at a range, pushing the existing cells down or right, or inse
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range address. Example: `A5:F5` |
 | Shift | `shift` | Text | No | `down` | Main | Push the existing cells down or right; entire_row or entire_column inserts as many whole rows or columns as the range covers. One of: `down`, `right`, `entire_row`, `entire_column` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2256,7 +2264,7 @@ List the Excel tables in a workbook, or on one worksheet.
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | No | (empty) | Main; tick Only one worksheet | Only tables on this worksheet; all when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2264,6 +2272,7 @@ List the Excel tables in a workbook, or on one worksheet.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, style, show_headers. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -2281,7 +2290,7 @@ Read one sheet column from row 1 to the last used row.
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Column | `column` | Text | Yes |  | Main | Column letter, or its number starting at 1. Example: `C` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2306,7 +2315,7 @@ Read the formula in a cell together with its current value.
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `D10` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2334,7 +2343,7 @@ Read a range, or all cells in use, from an Excel workbook stored in OneDrive or 
 | Range | `range` | Text | No |  | Main; choice Cells = A range | Range address; all cells in use on the sheet when empty. Example: `A1:D20` |
 | First row is the header | `header` | Yes/No | No | Yes | Main | The first row holds the column names. |
 | Read as | `read_as` | Text | No | `value` | Main | value returns numbers and booleans as such; text returns what Excel displays, with number formats applied. One of: `value`, `text` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2359,7 +2368,7 @@ Read one sheet row from column A to the last used column.
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Row | `row` | Number | Yes |  | Main | Row number, starting at 1. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2384,7 +2393,7 @@ Give an Excel table a new name.
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Table | `table` | Text | Yes |  | Main | Table name or id. |
 | New name | `new_name` | Text | Yes |  | Main | New table name (no spaces). |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2404,7 +2413,7 @@ Give a worksheet in a OneDrive or SharePoint workbook a new name.
 | Sheet | `sheet` | Text | No |  | Main; choice Sheet by = Name | Current worksheet name; or give sheet_position instead. |
 | Sheet position | `sheet_position` | Number | No |  | Main; choice Sheet by = Position | Position of the worksheet among the tabs, the first being 1; used instead of sheet. Example: `2` |
 | New name | `new_name` | Text | Yes |  | Main | New worksheet name. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2424,7 +2433,7 @@ Write one value into a cell.
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `C7` |
 | Value | `value` | Any | Yes |  | Main | Value to write; empty clears the value. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2444,7 +2453,7 @@ Put a formula into a cell and return the value Excel calculates.
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `D10` |
 | Formula | `formula` | Text | Yes |  | Main | Formula; the leading = is added when missing. Example: `=SUM(D2:D9)` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2470,7 +2479,7 @@ Write a list of rows into a sheet; a single cell address is grown to fit the val
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Top-left cell, or a full range matching the values' size. Example: `B2` |
 | Values | `values` | Any | Yes |  | Main | List of rows (each a list of values), one flat list for a single row, or a Data Table (rows only). |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2494,7 +2503,7 @@ Make a hidden worksheet tab visible again.
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2512,7 +2521,7 @@ Find the block of cells on a sheet that holds values, with its last row and colu
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2543,7 +2552,7 @@ Write a Data Table to a sheet starting at a cell, with or without its column nam
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Start cell | `start_cell` | Text | No | `A1` | Main | Top-left cell. |
 | Include headers | `include_headers` | Yes/No | No | Yes | More options | Write the column names as the first row. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2569,7 +2578,7 @@ Write a table into an Excel workbook in OneDrive or SharePoint, starting at a ce
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Start cell | `start_cell` | Text | No | `A1` | Main | Top-left cell. |
 | Table | `table` | Table | Yes |  | Main | Data to write. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**

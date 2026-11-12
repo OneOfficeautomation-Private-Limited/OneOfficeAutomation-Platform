@@ -201,7 +201,7 @@ List instances with their state, type, addresses and tags: all of them, the ones
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
-| Instance IDs | `instance_ids` | List | No |  | Main; choice Instances = These ones | Instance ids, e.g. ["i-0abc1234def567890"]. Leave empty for all. |
+| Instance IDs | `instance_ids` | List | No |  | Main; choice Instances = These ones | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. Leave empty for all. |
 | Filters | `filters` | Dictionary | No |  | Main | EC2 filters, name to value or list of values, e.g. {"instance-state-name": "running", "tag:Team": ["Finance", "HR"]}. |
 | Maximum results | `max_results` | Number | No | `1000` | More options | Stop after this many instances. |
 
@@ -226,7 +226,7 @@ Read each instance's state and the results of AWS's system and instance health c
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
-| Instance IDs | `instance_ids` | List | No |  | Main | Instance ids, e.g. ["i-0abc1234def567890"]. Leave empty for all. |
+| Instance IDs | `instance_ids` | List | No |  | Main | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. Leave empty for all. |
 | Include stopped | `include_stopped` | Yes/No | No | Yes | Main | Also list instances that are not running (AWS leaves them out otherwise). |
 
 **Results**
@@ -279,7 +279,7 @@ Restart running instances.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
-| Instance IDs | `instance_ids` | List | Yes |  | Main | Instance ids, e.g. ["i-0abc1234def567890"]. |
+| Instance IDs | `instance_ids` | List | Yes |  | Main | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. |
 
 *Time limit 60 s; needs: network.*
 
@@ -294,7 +294,7 @@ Add tags to instances, or change the values of tags they already have.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
-| Instance IDs | `instance_ids` | List | Yes |  | Main | Instance ids, e.g. ["i-0abc1234def567890"]. |
+| Instance IDs | `instance_ids` | List | Yes |  | Main | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. |
 | Tags | `tags` | Dictionary | Yes |  | Main | Tag name to value, e.g. {"Name": "Invoice bot", "Team": "Finance"}. |
 
 *Time limit 60 s; needs: network.*
@@ -303,35 +303,40 @@ Add tags to instances, or change the values of tags they already have.
 
 `ooa.aws_ec2/start_instances` (action)
 
-Start stopped instances.
+Start stopped instances; optionally wait until they are running.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
-| Instance IDs | `instance_ids` | List | Yes |  | Main | Instance ids, e.g. ["i-0abc1234def567890"]. |
+| Instance IDs | `instance_ids` | List | Yes |  | Main | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. |
+| Wait | `wait` | Yes/No | No | No | Main; tick Wait until running | Wait until every instance is running before going on. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `600` | Main; tick Wait until running | Stop waiting after this many seconds and fail with WAIT_TIMEOUT. Range: 1 to 3600; Shown when: `{"wait": ["true"]}` |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
 | `changes` | Table | Columns: instance_id, previous_state, current_state. |
+| `states` | Dictionary | Instance id to its state at the end, when waiting. |
 
-*Time limit 60 s; needs: network.*
+*Time limit 3700 s; needs: network.*
 
 ### Stop instances
 
 `ooa.aws_ec2/stop_instances` (action)
 
-Stop running instances; their disks are kept. Optionally hibernate them or force the stop.
+Stop running instances; their disks are kept. Optionally hibernate them or force the stop, and wait until they are stopped.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
-| Instance IDs | `instance_ids` | List | Yes |  | Main | Instance ids, e.g. ["i-0abc1234def567890"]. |
+| Instance IDs | `instance_ids` | List | Yes |  | Main | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. |
+| Wait | `wait` | Yes/No | No | No | Main; tick Wait until stopped | Wait until every instance is stopped before going on. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `600` | Main; tick Wait until stopped | Stop waiting after this many seconds and fail with WAIT_TIMEOUT. Range: 1 to 3600; Shown when: `{"wait": ["true"]}` |
 | Hibernate | `hibernate` | Yes/No | No | No | More options | Hibernate instead of stopping (the instance must be set up for it). |
 | Force | `force` | Yes/No | No | No | More options | Force the stop without a clean shutdown, for an instance that hangs. |
 
@@ -340,8 +345,9 @@ Stop running instances; their disks are kept. Optionally hibernate them or force
 | Name | Type | Description |
 | --- | --- | --- |
 | `changes` | Table | Columns: instance_id, previous_state, current_state. |
+| `states` | Dictionary | Instance id to its state at the end, when waiting. |
 
-*Time limit 60 s; needs: network.*
+*Time limit 3700 s; needs: network.*
 
 ### Terminate instances
 
@@ -354,15 +360,18 @@ End instances for good; disks marked to be deleted on end are deleted too. This 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
-| Instance IDs | `instance_ids` | List | Yes |  | Main | Instance ids, e.g. ["i-0abc1234def567890"]. |
+| Instance IDs | `instance_ids` | List | Yes |  | Main | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. |
+| Wait | `wait` | Yes/No | No | No | Main; tick Wait until terminated | Wait until every instance is terminated before going on. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `600` | Main; tick Wait until terminated | Stop waiting after this many seconds and fail with WAIT_TIMEOUT. Range: 1 to 3600; Shown when: `{"wait": ["true"]}` |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
 | `changes` | Table | Columns: instance_id, previous_state, current_state. |
+| `states` | Dictionary | Instance id to its state at the end, when waiting. |
 
-*Time limit 60 s; needs: network.*
+*Time limit 3700 s; needs: network.*
 
 ### Wait for state
 
@@ -375,9 +384,9 @@ Wait until every instance named is in a state, e.g. running after a start or sto
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
-| Instance IDs | `instance_ids` | List | Yes |  | Main | Instance ids, e.g. ["i-0abc1234def567890"]. |
+| Instance IDs | `instance_ids` | List | Yes |  | Main | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. |
 | State | `state` | Text | No | `running` | Main | The state to wait for. One of: `running`, `stopped`, `terminated`, `pending`, `stopping`, `shutting-down` |
-| Timeout (seconds) | `timeout_seconds` | Number | No | `600` | More options | Stop waiting after this many seconds and fail. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `600` | More options | Stop waiting after this many seconds and fail with WAIT_TIMEOUT. Range: 1 to 3600 |
 | Check every (seconds) | `check_every_seconds` | Number | No | `10` | More options | Seconds between checks. |
 
 **Results**
@@ -386,7 +395,7 @@ Wait until every instance named is in a state, e.g. running after a start or sto
 | --- | --- | --- |
 | `states` | Dictionary | Instance id to the state it was in at the end. |
 
-*Time limit 60 s; safe to repeat; needs: network.*
+*Time limit 3700 s; safe to repeat; needs: network.*
 
 ## Monitoring
 
@@ -401,7 +410,7 @@ Go back to basic (five-minute) monitoring for instances.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
-| Instance IDs | `instance_ids` | List | Yes |  | Main | Instance ids, e.g. ["i-0abc1234def567890"]. |
+| Instance IDs | `instance_ids` | List | Yes |  | Main | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. |
 
 **Results**
 
@@ -422,7 +431,7 @@ Switch on detailed (one-minute) CloudWatch monitoring for instances.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ec2` | Main | Name of the session opened by Connect. |
-| Instance IDs | `instance_ids` | List | Yes |  | Main | Instance ids, e.g. ["i-0abc1234def567890"]. |
+| Instance IDs | `instance_ids` | List | Yes |  | Main | Instances by id or by Name tag, e.g. ["i-0abc1234def567890"] or ["Invoice bot"]. |
 
 **Results**
 

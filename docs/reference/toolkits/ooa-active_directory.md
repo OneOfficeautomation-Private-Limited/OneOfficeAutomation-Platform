@@ -248,15 +248,17 @@ Sign in to Active Directory or an LDAP server.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Address (URL) | `url` | Text | Yes |  | Main | Server URL; use ldaps:// for password changes. Example: `ldaps://dc01.corp.example.com:636` |
-| Search base (distinguished name) | `base_dn` | Text | Yes |  | Main | Where searches start. Example: `DC=corp,DC=example,DC=com` |
+| Address (URL) | `url` | Text | Yes |  | Main | Server address. ldaps:// (or ldap:// with StartTLS) is recommended for everything and needed for password changes. AA's form LDAP://dc01/DC=corp,DC=example,DC=com is accepted; the part after the host is the base DN. Example: `ldaps://dc01.corp.example.com:636` |
+| Search base (distinguished name) | `base_dn` | Text | No |  | Main | Where searches start; taken from the address when it has one. Example: `DC=corp,DC=example,DC=com` |
 | Bind user | `bind_user` | Text | Yes |  | Main | User to sign in as (UPN or distinguished name). Example: `svc-bot@corp.example.com` |
 | Password | `password` | Credential (vault) | Yes |  | Main | Password from the vault. |
+| Start TLS | `start_tls` | Yes/No | No | No | More options | Encrypt an ldap:// connection with StartTLS before signing in (for domain controllers that require signing or encryption). |
+| Ca file | `ca_file` | File path | No |  | More options | Certificate of the company CA that issued the domain controller's certificate (PEM or DER), when it is not in the Windows certificate store. |
 | Connect timeout (seconds) | `connect_timeout_seconds` | Number | No | `10` | More options | Seconds to wait for the server to accept the connection. |
 | Read timeout (seconds) | `read_timeout_seconds` | Number | No | `30` | More options | Seconds to wait for each answer from the server. |
 | Follow referrals | `follow_referrals` | Yes/No | No | Yes | More options | Follow referrals to other domain controllers; turn off to ignore them. |
 
-*Time limit 60 s; needs: network.*
+*Time limit 60 s; needs: network, filesystem.*
 
 ### Disconnect
 
