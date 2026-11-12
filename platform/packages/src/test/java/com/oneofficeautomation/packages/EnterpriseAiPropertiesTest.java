@@ -193,6 +193,10 @@ class EnterpriseAiPropertiesTest {
         t.setField(ctx, "ann", null, null, null, "terminal", 2, "Enter", 20);
         assertEquals(List.of("ReadBuffer(Ascii)", "MoveCursor(0,9)", "EraseEOF", "String(\"ann\")", "Enter", "Wait(20,InputField)"), e.commands);
         fails("TERMINAL.PROTECTED_FIELD", () -> t.setField(ctx, "x", null, null, null, "terminal", 1, null, 30));
+        // T4: Set field can wait for the next screen's text in the same step, like Type text and Press key
+        e.commands.clear();
+        assertEquals(Map.of(), t.setField(ctx, "ann", null, null, null, "terminal", 2, "Enter", 20, "Ready"));
+        assertTrue(e.commands.contains("Ascii()"), "the screen is read for the text: " + e.commands);
 
         Map<String, Object> f = t.searchField(ctx, "jdoe", 1, true, "terminal", true);
         assertEquals(true, f.get("found"));

@@ -671,3 +671,9 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-repo-files li { display: flex; align-items: center; gap: 8px; }
 .st-file-sources { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; }
 .st-file-sources .st-link { display: inline-flex; align-items: center; gap: 4px; }
+.st-alt-field > .st-alt-label { flex: 0 0 9.5em; font-size: 12px; }
+.st-alt-field > :last-child { flex: 1; min-width: 0; }
+.st-window-field .st-row-tight > select { flex: 1; min-width: 0; }
+.st-key-picker { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; justify-content: flex-end; margin: -2px 0 4px; }
+.st-key-picker > select { flex: 0 1 14em; min-width: 9em; }
+.st-key-mod { font-size: 12px; }

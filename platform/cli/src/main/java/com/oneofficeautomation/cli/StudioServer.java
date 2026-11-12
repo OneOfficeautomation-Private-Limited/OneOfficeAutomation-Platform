@@ -290,7 +290,10 @@ public final class StudioServer {
         } else if (method.equals("POST") && route.equals("condition/test")) {
             sendJson(ex, 200, testCondition((Map<String, Object>) body(ex)));
         } else if (method.equals("POST") && route.equals("validate")) {
-            sendJson(ex, 200, Map.of("problems", validator().validate((Map<String, Object>) body(ex))));
+            Map<String, Object> checked = (Map<String, Object>) body(ex);
+            List<Object> problems = new ArrayList<>(validator().validate(checked));
+            problems.addAll(onThisComputer(checked));
+            sendJson(ex, 200, Map.of("problems", problems));
         } else if (method.equals("POST") && route.equals("run")) {
             Map<String, Object> req = (Map<String, Object>) body(ex);
             EventSink.ListSink sink = new EventSink.ListSink();
@@ -624,6 +627,39 @@ public final class StudioServer {
     }
 
     private FlowValidator validator() { return new FlowValidator(registry, schema); }
+
+    /**
+     * What Check now adds about this computer, not the agent (T2): a 3270 Connect step when no 3270 engine is
+     * installed here. It never stops a save; runners with the engine run the step.
+     */
+    static List<Map<String, Object>> onThisComputer(Map<String, Object> flow) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        List<String> tn3270 = new ArrayList<>();
+        stepsOf(flow, s -> {
+            if (!"ooa.terminal/connect".equals(s.get("action"))) return;
+            Object type = s.get("args") instanceof Map<?, ?> a ? a.get("terminal_type") : null;
+            String t = type == null ? "tn3270e" : String.valueOf(type);
+            if (t.startsWith("tn3270") && s.get("id") != null) tn3270.add(String.valueOf(s.get("id")));
+        });
+        if (!tn3270.isEmpty() && !com.oneofficeautomation.packages.TerminalPackage.engine3270Present())
+            for (String id : tn3270) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("stepId", id); m.put("path", "args.terminal_type");
+                m.put("message", "On this computer: no 3270 terminal engine is installed, so this Connect step can't run here");
+                m.put("suggestedFix", "Install the free wc3270 on each runner that runs it (and here to try it); 5250 and SSH need nothing.");
+                out.add(m);
+            }
+        return out;
+    }
+
+    /** Every step of a flow, nested ones and subflows included. */
+    @SuppressWarnings("unchecked")
+    static void stepsOf(Object node, java.util.function.Consumer<Map<String, Object>> each) {
+        if (node instanceof Map<?, ?> m) {
+            if (m.get("action") instanceof String) each.accept((Map<String, Object>) m);
+            for (Map.Entry<?, ?> e : m.entrySet()) if (!"args".equals(e.getKey())) stepsOf(e.getValue(), each);
+        } else if (node instanceof List<?> l) for (Object o : l) stepsOf(o, each);
+    }
 
     /** The recording in progress, for its live count and Cancel. */
     record Recording(EventSink.ListSink sink, java.util.concurrent.atomic.AtomicBoolean cancel) {}

@@ -4,6 +4,7 @@ import { Button, Select, TextInput } from "../components";
 import { parseLoose, showValue } from "./flowEdit";
 import { OPS, conditionText } from "./toolkits";
 import { CommitInput } from "./ValueSources";
+import { WindowField, isWindowTitle } from "./FieldKinds";
 import { useVars } from "./VariablesPanel";
 
 /**
@@ -148,6 +149,10 @@ export function SpecFields({ args, spec, keyPrefix, onChange }: { args: Record<s
           return <label key={name} className="st-cond-field"><span>{label}</span>
             <Select aria-label={label} value={cur === undefined ? "" : String(cur)} onChange={(e) => put(name, e.target.value === "" ? undefined : e.target.value === "true")}
               options={[{ value: "", label: s.default !== undefined ? "Default: " + (s.default ? "Yes" : "No") : "(not set)" }, { value: "true", label: "Yes" }, { value: "false", label: "No" }]} /></label>;
+        if (isWindowTitle(keyPrefix, name, s) && (s["x-ooa-type"] === "String" || s["x-ooa-type"] === undefined))
+          return <div key={name} className="st-cond-field"><span>{label}</span>
+            <WindowField id={"cond-" + keyPrefix + "-" + name} name={name} value={cur} fallback={s.default !== undefined ? "Default: " + showValue(s.default) : ""}
+              onCommit={(v) => put(name, v)} /></div>;
         return <label key={name} className="st-cond-field"><span>{label}</span>
           <CommitInput key={node.condition + name + showValue(cur)} label={label} initial={cur === undefined ? "" : showValue(cur)} want={(s["x-ooa-type"] as string) ?? "Any"}
             placeholder={s.default !== undefined ? "Default: " + showValue(s.default) : s.description?.slice(0, 40)}

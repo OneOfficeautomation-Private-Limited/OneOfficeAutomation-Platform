@@ -194,21 +194,63 @@ export function CredentialField({ id, name, value, onCommit, apply }: FieldProps
 
 // ------------------------------------------------------------------ windows
 
-/** A window title typed in (wildcards allowed), or chosen from the windows open on this computer. */
-export function WindowField({ id, name, value, fallback, onCommit, apply }: FieldProps) {
+/** The fallbacks a window lookup understands (WindowPackage.WINDOW_ORDER), in the order they are tried. */
+const WINDOW_ALTERNATIVES: { key: string; label: string; hint: string; number?: boolean }[] = [
+  { key: "title_pattern", label: "Title pattern", hint: "Invoice*- Excel" },
+  { key: "class_name", label: "Window class", hint: "XLMAIN" },
+  { key: "process_name", label: "Program name", hint: "excel.exe" },
+  { key: "index", label: "Index (with the class)", hint: "0", number: true },
+];
+
+/**
+ * W3: the Window toolkit's alternatives as named fields instead of a key/value list, stored the same way
+ * ({title_pattern, class_name, process_name, index}); a variable holding them still works.
+ */
+export function WindowAlternativesField({ id, name, value, onCommit, apply }: FieldProps) {
+  if (value !== undefined && (typeof value !== "object" || Array.isArray(value)))
+    return <CommitInput id={id} initial={showValue(value)} want="Dictionary" nameHint={name} onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />;
+  const cur = (value ?? {}) as Record<string, unknown>;
+  const put = (key: string, v: unknown) => {
+    const next = { ...cur };
+    if (v === undefined || v === "") delete next[key]; else next[key] = v;
+    onCommit(Object.keys(next).length ? next : undefined);
+  };
+  return <div className="st-source" id={id}>
+    {WINDOW_ALTERNATIVES.map((a) => <label key={a.key} className="st-row-tight st-alt-field">
+      <span className="st-alt-label">{a.label}</span>
+      <CommitInput key={a.key + showValue(cur[a.key])} label={a.label} initial={cur[a.key] === undefined ? "" : showValue(cur[a.key])} placeholder={a.hint}
+        want={a.number ? "Number" : "String"} nameHint={a.key}
+        onCommit={(t) => put(a.key, t === "" ? undefined : a.number && /^\d+$/.test(t.trim()) ? Number(t.trim()) : t)} apply={apply} />
+    </label>)}
+  </div>;
+}
+
+/**
+ * Fields that name a window: every "window" field, and the title of the Window toolkit's commands and conditions
+ * (W1), which pick from the open windows the same way.
+ */
+export function isWindowTitle(action: string, name: string, spec?: { "x-ooa-label"?: unknown }) {
+  return name === "window" || spec?.["x-ooa-label"] === "Window" || (name === "title" && action.startsWith("ooa.window/"));
+}
+
+/**
+ * A window title typed in (text in it, * and ? wildcards, or re: and a regular expression), or chosen from the windows
+ * open on this computer. The title has the whole width; the picker sits under it (U1), so a long title stays readable.
+ */
+export function WindowField({ id, name, value, fallback, onCommit, apply }: Omit<FieldProps, "apply"> & { apply?: FieldProps["apply"] }) {
   const vars = useVars();
   const [open, setOpen] = useState<OpenWindow[] | null>(null);
   const [busy, setBusy] = useState(false);
   const text = typeof value === "string" ? value : value === undefined ? "" : showValue(value);
   const load = () => { if (!vars) return; setBusy(true); vars.api.windows().then((w) => setOpen(w.filter((x) => x.title)), () => setOpen([])).finally(() => setBusy(false)); };
-  return <div className="st-source">
+  return <div className="st-source st-window-field">
+    <CommitInput key={"w" + text} id={id} initial={text} placeholder={fallback || "*Notepad"} want="String" nameHint={name}
+      onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
     <div className="st-row-tight">
-      <CommitInput key={"w" + text} id={id} initial={text} placeholder={fallback || "*Notepad"} want="String" nameHint={name}
-        onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
-      <Button kind="secondary" disabled={busy} onClick={load}>{busy ? "Looking…" : open ? "Refresh" : "Open windows"}</Button>
+      <Button kind="secondary" disabled={busy || !vars} onClick={load}>{busy ? "Looking…" : open ? "Refresh" : "Open windows"}</Button>
+      {open && <Select aria-label="Open windows" value="" onChange={(e) => e.target.value && onCommit(e.target.value)}
+        options={[{ value: "", label: open.length ? "Choose an open window…" : "No windows found" },
+          ...open.map((w) => ({ value: w.title!, label: w.title! + (w.process ? " (" + w.process + ")" : w.browser ? " (" + w.browser + ")" : "") }))]} />}
     </div>
-    {open && <Select aria-label="Open windows" value="" onChange={(e) => e.target.value && onCommit(e.target.value)}
-      options={[{ value: "", label: open.length ? "Choose an open window…" : "No windows found" },
-        ...open.map((w) => ({ value: w.title!, label: w.title! + (w.process ? " (" + w.process + ")" : w.browser ? " (" + w.browser + ")" : "") }))]} />}
   </div>;
 }

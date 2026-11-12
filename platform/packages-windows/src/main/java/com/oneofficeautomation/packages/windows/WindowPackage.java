@@ -57,10 +57,30 @@ public final class WindowPackage {
         return out;
     }
 
+    /**
+     * How every Window command matches a title, the same rule as the window fields of mouse, keyboard and capture steps
+     * ({@link TitlePattern}): contained text, * and ? wildcards over the whole title, or re: and a regular expression;
+     * case never matters. A title is also always found by the text it contains, as before, so older agents whose
+     * titles hold a * or ? (Notepad's "*Untitled", "Save changes?") keep finding their window.
+     */
+    static java.util.function.Predicate<String> titleRule(String title) {
+        String text = title == null ? "" : title;
+        String low = text.toLowerCase(Locale.ROOT);
+        java.util.function.Predicate<String> contains = t -> t != null && t.toLowerCase(Locale.ROOT).contains(low);
+        String q = text.strip();
+        if (!q.startsWith("re:") && q.indexOf('*') < 0 && q.indexOf('?') < 0) return contains;
+        java.util.function.Predicate<String> pattern;
+        try { pattern = TitlePattern.of(q); }
+        catch (IllegalArgumentException e) {
+            throw new ActionException("WINDOW.BAD_PATTERN", e.getMessage(), "Check the regular expression after re:, e.g. re:^Invoice \\d+ - Excel$.");
+        }
+        return t -> pattern.test(t) || contains.test(t);
+    }
+
     static Win find(String titleContains) {
-        String q = titleContains.toLowerCase(Locale.ROOT);
-        for (Win w : all()) if (w.title().toLowerCase(Locale.ROOT).contains(q)) return w;
-        throw new ActionException("WINDOW.NOT_FOUND", "No visible window title contains '" + titleContains + "'", "Use List windows to see the exact titles.", true);
+        java.util.function.Predicate<String> m = titleRule(titleContains);
+        for (Win w : all()) if (m.test(w.title())) return w;
+        throw new ActionException("WINDOW.NOT_FOUND", "No visible window title matches '" + titleContains + "'", "Use List windows to see the exact titles.", true);
     }
 
     // ---------- self-healing window lookup ----------
@@ -77,7 +97,7 @@ public final class WindowPackage {
     static Optional<Win> resolve(SelfHealing.Candidate c, List<Win> all) {
         String q = c.query();
         return switch (c.strategy()) {
-            case "title" -> all.stream().filter(w -> w.title().toLowerCase(Locale.ROOT).contains(q.toLowerCase(Locale.ROOT))).findFirst();
+            case "title" -> all.stream().filter(w -> titleRule(q).test(w.title())).findFirst();
             case "title_pattern" -> all.stream().filter(w -> TitlePattern.matches(q, w.title())).findFirst();
             case "class_name" -> all.stream().filter(w -> w.className().equalsIgnoreCase(q)).findFirst();
             case "process_name" -> all.stream().filter(w -> { String p = w.processName(); return p.equalsIgnoreCase(q) || p.equalsIgnoreCase(q + ".exe"); }).findFirst();
@@ -101,7 +121,7 @@ public final class WindowPackage {
             return SelfHealing.locate(chain, c -> resolve(c, all()), (long) (timeoutSeconds * 1000), SelfHealing.SYSTEM, 300, () -> UiGuard.before(ctx), ctx::warn, ctx::checkCancelled).element();
         } catch (ActionException e) {
             if (!"UI.ELEMENT_NOT_FOUND".equals(e.code())) throw e;
-            throw new ActionException("WINDOW.NOT_FOUND", timeoutSeconds > 0 ? "Window '" + title + "' did not appear within " + timeoutSeconds + " s" : "No visible window title contains '" + title + "'",
+            throw new ActionException("WINDOW.NOT_FOUND", timeoutSeconds > 0 ? "Window '" + title + "' did not appear within " + timeoutSeconds + " s" : "No visible window title matches '" + title + "'",
                     "Use List windows to see the exact titles, or record alternatives for the window.", true);
         }
     }
@@ -140,7 +160,7 @@ public final class WindowPackage {
         Set<Long> pids = new HashSet<>();
         pids.add(processId);
         ProcessHandle.of(processId).ifPresent(p -> p.descendants().forEach(d -> pids.add(d.pid())));
-        String q = titleContains == null || titleContains.isBlank() ? null : titleContains.toLowerCase(Locale.ROOT);
+        java.util.function.Predicate<String> q = titleContains == null || titleContains.isBlank() ? null : titleRule(titleContains);
         List<Win> found = new ArrayList<>();
         User32.INSTANCE.EnumWindows((hwnd, data) -> {
             if (User32.INSTANCE.IsWindowVisible(hwnd) && User32.INSTANCE.GetWindow(hwnd, new WinDef.DWORD(GW_OWNER)) == null) {
@@ -150,7 +170,7 @@ public final class WindowPackage {
                     char[] buf = new char[512];
                     User32.INSTANCE.GetWindowText(hwnd, buf, buf.length);
                     String t = Native.toString(buf);
-                    if (q == null || t.toLowerCase(Locale.ROOT).contains(q)) found.add(new Win(hwnd, t));
+                    if (q == null || q.test(t)) found.add(new Win(hwnd, t));
                 }
             }
             return true;
@@ -158,9 +178,9 @@ public final class WindowPackage {
         return found.stream().filter(w -> !w.title().isBlank()).findFirst().or(() -> found.stream().findFirst());
     }
 
-    private static final String D_TITLE_TEXT = "Text contained in the window title (case-insensitive).";
-    private static final String D_TITLE = "Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, "
-            + "unlike desktop objects, which need the whole title. May be empty when process_id is given.";
+    private static final String D_TITLE_TEXT = "Text in the window title, a pattern with * or ?, or re: and a regular expression (case-insensitive).";
+    private static final String D_TITLE = "Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. "
+            + "The first visible window that matches is used. May be empty when process_id is given.";
     private static final String D_PID = "Process id from Start program: use that program's main window instead of finding it by title; title, when given, then only narrows the choice.";
     private static final String D_WAIT = "Wait up to this many seconds for the window to appear; 0 looks once.";
     private static final String D_ALT = "Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged.";
@@ -289,7 +309,7 @@ public final class WindowPackage {
             pids.add(processId);
             ProcessHandle.of(processId).ifPresent(p -> p.descendants().forEach(d -> pids.add(d.pid())));
         }
-        String q = titleContains == null || titleContains.isBlank() ? null : titleContains.toLowerCase(Locale.ROOT);
+        java.util.function.Predicate<String> q = titleContains == null || titleContains.isBlank() ? null : titleRule(titleContains);
         List<Win> out = new ArrayList<>();
         User32.INSTANCE.EnumWindows((hwnd, data) -> {
             if (!User32.INSTANCE.IsWindowVisible(hwnd) && User32.INSTANCE.GetWindow(hwnd, new WinDef.DWORD(GW_OWNER)) == null) {
@@ -298,7 +318,7 @@ public final class WindowPackage {
                 String t = Native.toString(buf);
                 IntByReference pid = new IntByReference();
                 User32.INSTANCE.GetWindowThreadProcessId(hwnd, pid);
-                if (!t.isBlank() && (q == null || t.toLowerCase(Locale.ROOT).contains(q)) && (pids.isEmpty() || pids.contains((long) pid.getValue())))
+                if (!t.isBlank() && (q == null || q.test(t)) && (pids.isEmpty() || pids.contains((long) pid.getValue())))
                     out.add(new Win(hwnd, t));
             }
             return true;
@@ -338,18 +358,18 @@ public final class WindowPackage {
         UiGuard.before(ctx);
         if ((title == null || title.isBlank()) && (processId == null || processId <= 0))
             throw new ActionException("WINDOW.NO_TARGET", "Give the window title or a process id", "Fill in title, or process_id from Start program.");
-        String q = title == null ? "" : title.toLowerCase(Locale.ROOT);
+        java.util.function.Predicate<String> q = titleRule(title);
         long end = System.nanoTime() + (long) (Math.max(0, wait) * 1e9);
         while (true) {
             Win w = null;
             HiddenWindows mine = hiddenByRun(ctx, false);
             if (mine != null && (processId == null || processId <= 0))  // the windows this run hid come first
                 for (Map.Entry<WinDef.HWND, String> e : mine.windows.entrySet())
-                    if (User32.INSTANCE.IsWindow(e.getKey()) && e.getValue().toLowerCase(Locale.ROOT).contains(q)) { w = new Win(e.getKey(), e.getValue()); break; }
+                    if (User32.INSTANCE.IsWindow(e.getKey()) && q.test(e.getValue())) { w = new Win(e.getKey(), e.getValue()); break; }
             if (w == null) w = hidden(title, processId).stream().findFirst().orElse(null);
             if (w == null) {   // already visible: nothing to show, but bring it to the front when asked
                 Optional<Win> v = processId != null && processId > 0 ? mainWindow(processId, title)
-                        : all().stream().filter(x -> x.title().toLowerCase(Locale.ROOT).contains(q)).findFirst();
+                        : all().stream().filter(x -> q.test(x.title())).findFirst();
                 if (v.isPresent()) w = v.get();
             }
             if (w != null) {
@@ -359,7 +379,7 @@ public final class WindowPackage {
                 return Map.of("title", w.title());
             }
             if (System.nanoTime() >= end)
-                throw new ActionException("WINDOW.NOT_FOUND", "No hidden or visible window " + (title == null || title.isBlank() ? "of process " + processId : "title contains '" + title + "'"),
+                throw new ActionException("WINDOW.NOT_FOUND", "No hidden or visible window " + (title == null || title.isBlank() ? "of process " + processId : "title matches '" + title + "'"),
                         "Check the title; Hide window reports the full title of the window it hid.", true);
             ctx.checkCancelled();
             try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
@@ -472,8 +492,9 @@ public final class WindowPackage {
             if (p.matcher("").find()) throw new ActionException("WINDOW.PATTERN_TOO_BROAD", "The pattern matches an empty title, so it would match every window", "Make the pattern more specific.");
             return t -> p.matcher(t).find();
         }
-        String q = pattern.toLowerCase(Locale.ROOT);
-        return t -> t.toLowerCase(Locale.ROOT).contains(q);
+        java.util.function.Predicate<String> m = titleRule(pattern);
+        if (m.test("")) throw new ActionException("WINDOW.PATTERN_TOO_BROAD", "The pattern matches an empty title, so it would match every window", "Make the pattern more specific.");
+        return m;
     }
 
     public Map<String, Object> closeAll(ActionContext ctx, String title, boolean regex) { return closeAll(ctx, title, regex, null); }
@@ -484,7 +505,7 @@ public final class WindowPackage {
     @Output(name = "closed", type = OoaType.LIST, description = "Titles of the windows asked to close.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of windows asked to close.")
     public Map<String, Object> closeAll(ActionContext ctx,
-            @Input(name = "title", type = OoaType.STRING, example = " - Notepad", description = "Text in the window titles (case-insensitive), or a regular expression when use_regex is true.") String title,
+            @Input(name = "title", type = OoaType.STRING, example = " - Notepad", description = "Text in the window titles, a pattern with * or ?, or re: and a regular expression (case-insensitive); the tick below reads the whole title as a regular expression, as older agents do.") String title,
             @Input(name = "use_regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat title as a regular expression.") boolean regex,
             @Input(name = "keep", type = OoaType.LIST, required = false,
                     description = "Windows to leave open: text in their titles (case-insensitive), e.g. [\"Invoices.xlsx\"]. The agent's own windows are always kept.") List<Object> keep) {
@@ -544,6 +565,8 @@ public final class WindowPackage {
                 if (close > 0) {
                     String[] parts = text.substring(i + 1, close).trim().toUpperCase(Locale.ROOT).split("\\s+");
                     Integer vk = VKEYS.get(parts[0]);
+                    if (vk == null) vk = VKEYS.get(switch (com.oneofficeautomation.packages.KeyNames.desktop(parts[0])) {   // K1: other spellings
+                        case "PAGE_UP" -> "PGUP"; case "PAGE_DOWN" -> "PGDN"; case String s -> s; });
                     if (vk != null) {
                         int times = 1;
                         if (parts.length > 1) try { times = Math.max(1, Math.min(200, Integer.parseInt(parts[1]))); } catch (NumberFormatException e) { vk = null; }
@@ -717,7 +740,7 @@ public final class WindowPackage {
     }
 
     @Action(id = "wait_for", name = "Wait for window", category = "Window", timeoutSeconds = 3600, capabilities = "desktop",
-            description = "Wait until a window whose title contains the text (or the main window of a process) opens, or until it has closed.",
+            description = "Wait until a window whose title matches (or the main window of a process) opens, or until it has closed.",
             panel = "state, title, timeout_seconds, fail_on_timeout | alternatives, process_id")
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the window that opened (or that was open when waiting for it to close).")
     @Output(name = "met", type = OoaType.BOOLEAN, description = "True when the window opened or closed in time.")
@@ -756,10 +779,10 @@ public final class WindowPackage {
         }
     }
 
-    @Condition(id = "exists", name = "Window exists", description = "True when a visible window title contains the text.")
+    @Condition(id = "exists", name = "Window exists", description = "True when a visible window title matches (text in it, * or ? pattern, or re:).")
     public boolean exists(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE_TEXT) String title) {
-        String q = title.toLowerCase(Locale.ROOT);
-        return all().stream().anyMatch(w -> w.title().toLowerCase(Locale.ROOT).contains(q));
+        java.util.function.Predicate<String> q = titleRule(title);
+        return all().stream().anyMatch(w -> q.test(w.title()));
     }
 
     @Action(id = "capture", name = "Capture window", category = "Window", capabilities = {"desktop", "filesystem"}, description = "Save a PNG screenshot of one window.",
@@ -790,11 +813,11 @@ public final class WindowPackage {
     }
 
 
-    @Condition(id = "is_active", name = "Window is active", description = "True when the window in front has a title containing the text.")
+    @Condition(id = "is_active", name = "Window is active", description = "True when the window in front has a matching title (text in it, * or ? pattern, or re:).")
     public boolean isActive(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE_TEXT) String title) {
         windows();
         char[] buf = new char[512];
         User32.INSTANCE.GetWindowText(User32.INSTANCE.GetForegroundWindow(), buf, buf.length);
-        return Native.toString(buf).toLowerCase(Locale.ROOT).contains(title.toLowerCase(Locale.ROOT));
+        return titleRule(title).test(Native.toString(buf));
     }
 }

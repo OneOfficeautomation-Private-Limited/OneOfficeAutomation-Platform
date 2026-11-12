@@ -4,6 +4,7 @@ import { setArg, stateLists } from "./flowEdit";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
 import { oneStep, runOnce } from "./runOnce";
 import { useVars } from "./VariablesPanel";
+import { KeyPicker, keyKind } from "./KeyPicker";
 
 /**
  * Pickers beside step fields (gap round 2, 2 Nov 2026), as other RPA designers offer them: choose a SOAP operation from
@@ -21,6 +22,8 @@ export function pickerFor(step: FlowStep, name: string, props: Record<string, un
   if (step.action.startsWith("ooa.active_directory/") && DN_FIELDS.has(name)) return <DirectoryPicker key={"dir:" + name} step={step} field={name} />;
   if (step.action === "ooa.pdf/extract_area_text" && name === "x") return <PdfAreaPicker key="area" step={step} />;
   if (isHtmlBody(step, name, props)) return <HtmlBodyEditor key={"html:" + name} step={step} field={name} />;
+  const keys = keyKind(step.action, name);
+  if (keys) return <KeyPicker key={"keys:" + name} step={step} name={name} kind={keys} />;
   return null;
 }
 

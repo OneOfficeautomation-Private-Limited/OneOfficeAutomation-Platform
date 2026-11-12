@@ -665,7 +665,7 @@ final class Tn5250Session extends TerminalPackage.Session {
 
     /** Key names on a 5250 display; PA keys, FieldMark, Escape and Ctrl keys do not exist there. */
     static String keyAction(String key) {
-        String k = key.trim().toUpperCase(Locale.ROOT).replace(" ", "");
+        String k = KeyNames.terminal(key);   // K1: spaces, underscores and other spellings
         if (k.matches("PF([1-9]|1[0-9]|2[0-4])")) return "PF(" + k.substring(2) + ")";
         if (k.matches("F([1-9]|1[0-9]|2[0-4])")) return "PF(" + k.substring(1) + ")";
         return switch (k) {

@@ -18,6 +18,11 @@ class BackgroundTypingTest {
         assertEquals("{x}\rend", plan.get(4), "braces typed as text; a new line is Enter's character");
         assertEquals(List.of("a{b"), WindowPackage.keyPlan("a{b"), "an unclosed brace is text");
         assertEquals("WINDOW.BAD_KEY", assertThrows(ActionException.class, () -> WindowPackage.keyPlan("x{WIBBLE}")).code());
+        // K1: the desktop's names and other spellings work in braces too
+        List<Object> keys = WindowPackage.keyPlan("{PAGE_UP}{PAGE_DOWN 2}{Return}");
+        assertArrayEquals(new int[]{0x21, 1}, (int[]) keys.get(0));
+        assertArrayEquals(new int[]{0x22, 2}, (int[]) keys.get(1));
+        assertArrayEquals(new int[]{0x0D, 1}, (int[]) keys.get(2));
         assertEquals("WINDOW.BAD_KEY", assertThrows(ActionException.class, () -> WindowPackage.keyPlan("{TAB many}")).code());
         assertArrayEquals(new int[]{0x7B, 200}, (int[]) WindowPackage.keyPlan("{f12 999}").get(0), "counts are capped");
     }

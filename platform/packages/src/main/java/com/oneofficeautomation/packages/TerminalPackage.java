@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
  * {@link Tn5250Session}, and VT100/ANSI hosts over SSH through {@link VtSshSession}. Rows and columns are 1-based, as on screen.
  */
 @OoaPackage(id = "ooa.terminal", name = "Terminal emulator (TN3270, TN5250, VT over SSH)", version = "1.2.0",
-        description = "Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text.")
+        description = "Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. 3270 needs the free wc3270 engine on the runner (wc3270 installer); 5250 and SSH need nothing.")
 public final class TerminalPackage {
 
     static String exe() {
@@ -23,6 +23,21 @@ public final class TerminalPackage {
         if (ProcessRunner.WINDOWS) for (String p : List.of("C:\\Program Files\\wc3270\\ws3270.exe", "C:\\Program Files (x86)\\wc3270\\ws3270.exe"))
             if (Files.isRegularFile(Path.of(p))) return p;
         return "s3270";
+    }
+
+    /**
+     * True when this computer has the 3270 engine (ws3270 from the free wc3270 installer, s3270 on the PATH, or
+     * OOA_S3270); 5250 and VT/SSH hosts need none. Studio's Problems check uses it to warn before a run (T2).
+     */
+    public static boolean engine3270Present() {
+        String e = exe();
+        if (!e.equals("s3270")) return Files.isRegularFile(Path.of(e));
+        String path = System.getenv("PATH");
+        if (path == null) return false;
+        for (String dir : path.split(java.io.File.pathSeparator))
+            for (String name : List.of("s3270", "s3270.exe", "ws3270.exe"))
+                try { if (!dir.isBlank() && Files.isRegularFile(Path.of(dir.strip(), name))) return true; } catch (RuntimeException ignored) { }
+        return false;
     }
 
     /** One s3270 process: send an action line, read data lines until "ok" or "error". */
@@ -76,7 +91,7 @@ public final class TerminalPackage {
 
     private static final String VT = "terminal_type=vt-ssh", TN3270 = "terminal_type!=vt-ssh";
 
-    @Action(id = "connect", name = "Connect", category = "Terminal", timeoutSeconds = 120, capabilities = "network", description = "Connect to a TN3270 or TN5250 host, or sign in to a VT100/ANSI host over SSH, and wait for the first screen.",
+    @Action(id = "connect", name = "Connect", category = "Terminal", timeoutSeconds = 120, capabilities = "network", description = "Connect to a TN3270 or TN5250 host, or sign in to a VT100/ANSI host over SSH, and wait for the first screen. 3270 needs the free wc3270 engine installed on the runner; 5250 and SSH need nothing.",
             panel = "host, port, terminal_type, tls, model, code_page, user, password, [Sign in with a key file: key_file, key_passphrase], [Ask for a specific device name: lu_name], [Wait for text on the first screen: wait_for_text], session"
                     + " | connect_timeout_seconds, wait_for_input_field, host_key_fingerprint, emulation, screen_rows, screen_columns")
     public Map<String, Object> connect(ActionContext ctx,
@@ -389,7 +404,7 @@ public final class TerminalPackage {
 
     /** As above; VT hosts also take Escape, End, PageUp, PageDown and Ctrl+letter (e.g. Ctrl+C), but not the 3270-only keys. */
     static String keyAction(String key, boolean vt) {
-        String k = key.trim().toUpperCase(Locale.ROOT);
+        String k = KeyNames.terminal(key);   // K1: Page Up, PAGE_UP, PgUp, Del, Return, AA's KEY_ENTER...
         if (vt) {
             if (k.startsWith("SEQ:")) return "Seq(" + HexFormat.of().formatHex(escapeSequence(key.trim().substring(4)).getBytes(StandardCharsets.UTF_8)) + ")";
             if (k.matches("ALT\\s*[+-]\\s*\\S")) return "Seq(" + HexFormat.of().formatHex(("\033" + key.trim().substring(key.trim().length() - 1)).getBytes(StandardCharsets.UTF_8)) + ")";
@@ -407,6 +422,7 @@ public final class TerminalPackage {
             }
         }
         if (k.matches("PF([1-9]|1[0-9]|2[0-4])")) return "PF(" + k.substring(2) + ")";
+        if (k.matches("F([1-9]|1[0-9]|2[0-4])")) return "PF(" + k.substring(1) + ")";   // F5 means PF5 on 3270, as on 5250
         if (k.matches("PA[1-3]")) return "PA(" + k.substring(2) + ")";
         return switch (k) {
             case "ENTER" -> "Enter"; case "TAB" -> "Tab"; case "BACKTAB" -> "BackTab"; case "CLEAR" -> "Clear";
@@ -657,7 +673,7 @@ public final class TerminalPackage {
             @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Column of that position (1-based).") Integer col,
             @Input(name = "label", type = OoaType.STRING, required = false, description = "Label text shown before the field; used instead of row and column.") String label,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
-            @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Field number as listed by Get all fields (1-based); used instead of position or label.") Integer index) {
+            @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Field number as listed by Get all fields, counted from 1 (AA counts from 0: add 1); used instead of position or label.") Integer index) {
         Fields fs = fields(s(ctx, session));
         Field f = index != null ? byIndex(fs.list(), index) : locate(fs.list(), fs.cols(), fs.rows(), row, col, label, false);
         Map<String, Object> m = f.asMap(false);
@@ -673,16 +689,17 @@ public final class TerminalPackage {
     }
 
     @Action(id = "set_field", name = "Set field", category = "Fields", timeoutSeconds = 120, description = "Replace the contents of an input field, found by position, label or field number; Credentials are typed without being logged.",
-            panel = "session, (Find the field by: Position = row, column / Label = label / Field number = index), text, [Press a key after filling: press_key] | timeout_seconds")
+            panel = "session, (Find the field by: Position = row, column / Label = label / Field number = index), text, [Press a key after filling: press_key], [Wait for text afterwards: wait_for_text] | timeout_seconds")
     public Map<String, Object> setField(ActionContext ctx,
             @Input(name = "text", description = "Text, or a Credential variable for passwords.") Object text,
             @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row of any position in the field (1-based).") Integer row,
             @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Column of that position (1-based).") Integer col,
             @Input(name = "label", type = OoaType.STRING, required = false, description = "Label text shown before the field; the next input field after it is used.") String label,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
-            @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Field number as listed by Get all fields (1-based); used instead of position or label.") Integer index,
+            @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Field number as listed by Get all fields, counted from 1 (AA counts from 0: add 1); used instead of position or label.") Integer index,
             @Input(name = "press_key", type = OoaType.STRING, required = false, example = "Enter", description = "Key to press after filling the field; none when empty.") String pressKey,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = D_WAIT) int timeout) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = D_WAIT) int timeout,
+            @Input(name = "wait_for_text", type = OoaType.STRING, required = false, description = "Text that must appear on the screen afterwards, e.g. the next screen's title (waits up to timeout_seconds); no check when empty.") String waitText) {
         Session t = s(ctx, session);
         Fields fs = fields(t);
         Field f = index != null ? byIndex(fs.list(), index) : locate(fs.list(), fs.cols(), fs.rows(), row, col, label, true);
@@ -693,7 +710,13 @@ public final class TerminalPackage {
         if (t instanceof VtSshSession vt) vt.erase(f.text().stripTrailing().length()); else t.cmd("EraseEOF");
         if (!v.isEmpty()) t.cmd("String(" + quote(v) + ")");
         if (pressKey != null && !pressKey.isBlank()) press(t, pressKey, true, timeout);
+        after(ctx, session, 0, waitText, timeout);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before wait_for_text. */
+    public Map<String, Object> setField(ActionContext ctx, Object text, Integer row, Integer col, String label, String session, Integer index, String pressKey, int timeout) {
+        return setField(ctx, text, row, col, label, session, index, pressKey, timeout, null);
     }
 
     /** Earlier signature, kept for callers written before the index and press_key options. */

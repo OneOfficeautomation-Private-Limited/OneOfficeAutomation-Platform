@@ -57,6 +57,7 @@ public final class DesktopPackage {
         List<Integer> codes = new ArrayList<>();
         for (String part : combo.toUpperCase(Locale.ROOT).split("\\+")) {
             Integer c = KEYS.get(part.trim());
+            if (c == null) c = KEYS.get(KeyNames.desktop(part));   // K1: Page Up, PgUp, Del, Return, Control...
             if (c == null) throw new ActionException("DESKTOP.BAD_KEY", "Unknown key '" + part.trim() + "' in '" + combo + "'",
                     "Use names like ENTER, TAB, ESC, F5, CTRL+S, ALT+F4.");
             codes.add(c);
@@ -928,6 +929,7 @@ public final class DesktopPackage {
                 Map.entry("WIN", 0x5B), Map.entry("PRINTSCREEN", 0x2C), Map.entry("CAPS_LOCK", 0x14), Map.entry("NUM_LOCK", 0x90),
                 Map.entry("SCROLL_LOCK", 0x91), Map.entry("PAUSE", 0x13), Map.entry("MENU", 0x5D));
         if (special.containsKey(n)) return special.get(n);
+        if (special.containsKey(KeyNames.desktop(n))) return special.get(KeyNames.desktop(n));   // K1: other spellings
         if (n.matches("F([1-9]|1[0-9]|2[0-4])")) return 0x70 + Integer.parseInt(n.substring(1)) - 1;
         if (n.matches("[A-Z0-9]")) return (int) n.charAt(0);
         if (n.matches("NUMPAD[0-9]")) return 0x60 + (n.charAt(6) - '0');

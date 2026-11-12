@@ -15,7 +15,7 @@ import {
 } from "./stepKinds";
 import { AssignmentsEditor, AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
-import { BoolField, CollectionField, CredentialField, DateField, FileField, WindowField } from "./FieldKinds";
+import { BoolField, CollectionField, CredentialField, DateField, FileField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
 import { pickerFor } from "./Pickers";
 
 export { CommitInput };
@@ -363,10 +363,11 @@ function InputField({ action, name, label, spec, required, value, onCommit, appl
       const ooaType = spec["x-ooa-type"];
       if (spec.type === "boolean") return <BoolField {...kind} />;
       if (ooaType === "DateTime") return <DateField {...kind} />;
+      if (name === "alternatives" && action.startsWith("ooa.window/") && ooaType === "Dictionary") return <WindowAlternativesField {...kind} />;
       if (ooaType === "List" || ooaType === "Dictionary" || ooaType === "Table") return <CollectionField {...kind} type={ooaType} />;
       if (ooaType === "Credential") return <CredentialField {...kind} />;
       if (ooaType === "File") return <FileField {...kind} folder={FOLDER_FIELD.test(name) || folderAction} />;
-      if ((name === "window" || spec["x-ooa-label"] === "Window") && (ooaType === "String" || ooaType === undefined)) return <WindowField {...kind} />;
+      if (isWindowTitle(action, name, spec) && (ooaType === "String" || ooaType === undefined)) return <WindowField {...kind} />;
       const text = isNumber(spec) ? showNumber(value) : showValue(value);
       return <CommitInput key={text} id={id} initial={text} placeholder={fallback} mono={typeof value === "string" && value.startsWith("$")}
         onCommit={(t) => onCommit(parseValue(t, spec))} want={spec["x-ooa-type"] ?? "Any"} apply={apply} nameHint={name} />;
