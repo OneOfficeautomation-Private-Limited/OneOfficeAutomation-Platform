@@ -68,6 +68,10 @@ class AwsAiPackageTest {
                     "Comprehend_20171127.DetectEntities", c -> json(Map.of("Entities", List.of(
                             Map.of("Text", "Acme Ltd", "Type", "ORGANIZATION", "Score", new BigDecimal("0.99"), "BeginOffset", 0, "EndOffset", 8),
                             Map.of("Text", "today", "Type", "DATE", "Score", new BigDecimal("0.4"), "BeginOffset", 15, "EndOffset", 20)))),
+                    "Comprehend_20171127.DetectKeyPhrases", c -> json(Map.of("KeyPhrases", List.of(
+                            Map.of("Text", "the invoice", "Score", new BigDecimal("0.81"), "BeginOffset", 4, "EndOffset", 15),
+                            Map.of("Text", "three laptops", "Score", new BigDecimal("0.99"), "BeginOffset", 20, "EndOffset", 33),
+                            Map.of("Text", "it", "Score", new BigDecimal("0.3"), "BeginOffset", 0, "EndOffset", 2)))),
                     "Comprehend_20171127.DetectDominantLanguage", c -> json(Map.of("Languages", List.of(Map.of("LanguageCode", "fr", "Score", new BigDecimal("0.2")),
                             Map.of("LanguageCode", "de", "Score", new BigDecimal("0.79"))))),
                     "Comprehend_20171127.DetectPiiEntities", c -> json(Map.of("Entities", List.of(
@@ -93,6 +97,12 @@ class AwsAiPackageTest {
             assertEquals(BigDecimal.ONE, e.get("count"), "the low-scored entity is left out");
             assertEquals(List.of("text", "type", "score", "begin_offset", "end_offset"), cols(e.get("entities")));
             assertEquals("ORGANIZATION", rows(e.get("entities")).get(0).get(1));
+
+            Map<String, Object> k = pkg.comprehendKeyPhrases(ctx, "aws_ai", "Pay the invoice for three laptops", "en", 0.5);
+            assertEquals("Comprehend_20171127.DetectKeyPhrases", f.last("POST", "/").header("X-Amz-Target"));
+            assertEquals(List.of("three laptops", "the invoice"), k.get("phrases"), "most likely first, the low-scored one left out");
+            assertEquals(List.of("text", "score", "begin_offset", "end_offset"), cols(k.get("key_phrases")));
+            assertEquals(new BigDecimal("2"), k.get("count"));
 
             Map<String, Object> l = pkg.comprehendDetectLanguage(ctx, null, "Guten Tag");
             assertEquals("de", l.get("language"));

@@ -666,10 +666,10 @@
     "AI/AWS SageMaker": "ooa.genai/prompt",
     "AI/Hugging Face": "ooa.genai/prompt",
     "AI Skill/Execute": "ooa.ai_skills/run",
-    "AWS Comprehend NLP/Get Sentiment": "ooa.genai/sentiment",
-    "AWS Comprehend NLP/Key Phrases": "ooa.genai/key_phrases",
-    "AWS Comprehend NLP/Detect the language of the text": "ooa.genai/detect_language",
-    "AWS Comprehend NLP/Named Entities": "ooa.genai/entities",
+    "AWS Comprehend NLP/Get Sentiment": "ooa.aws_ai/comprehend_sentiment",
+    "AWS Comprehend NLP/Key Phrases": "ooa.aws_ai/comprehend_key_phrases",
+    "AWS Comprehend NLP/Detect the language of the text": "ooa.aws_ai/comprehend_detect_language",
+    "AWS Comprehend NLP/Named Entities": "ooa.aws_ai/comprehend_entities",
     "Interactive forms/Display": "ooa.forms/display",
     "Microsoft 365 Calendar/Add attachment": "ooa.microsoft365/add_event_attachment",
     "Microsoft 365 Calendar/Add attendee": "ooa.microsoft365/add_attendees",
@@ -1032,7 +1032,16 @@
     "Interactive forms/Change label": "ooa.forms/change_label",
     "Interactive forms/Dynamic area": "ooa.forms/dynamic_area",
     "Email/Connect to EWS server": "ooa.exchange/connect",
-    "Email/Connect to Outlook": "-: Outlook desktop needs no connect step: its steps use the runner's Outlook profile (ooa.outlook_desktop)"
+    "Email/Connect to Outlook": "-: Outlook desktop needs no connect step: its steps use the runner's Outlook profile (ooa.outlook_desktop)",
+    "Document Extraction/Extract data": "ooa.documents/send",
+    "Document Extraction/Get document data": "ooa.documents/get_result",
+    "Document Extraction/Download data": "ooa.documents/list_finished",
+    "Google Document AI/Connect": "ooa.google_ai/connect",
+    "Google Document AI/Extract": "ooa.google_ai/documentai_process",
+    "Google Document AI/Disconnect": "ooa.google_ai/disconnect",
+    "IQ Bot/Upload document": "ooa.documents/send",
+    "IQ Bot/Download all documents": "ooa.documents/list_finished",
+    "IQ Bot Extraction/Process documents": "ooa.documents/send"
   },
   "packages": {
     "core": {
