@@ -128,6 +128,28 @@ class AiGapsTest {
         }
     }
 
+    /** I2 (command review, batch 9): Chat and Prompt with pictures take the options of Prompt. */
+    @SuppressWarnings("unchecked")
+    @Test void chatAndPicturesTakeThePromptOptions() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("POST /v1/chat/completions", c -> ok(CHAT_OK.formatted("{\\\"total\\\": 12}")));
+            Path w = tmp();
+            Files.write(w.resolve("receipt.png"), PNG);
+            Map<String, Object> r = new GenAiPackage().chat(ctx(w, new ArrayList<>()), "Total?", "json", null, "openai", null, "gpt-4o", KEY, f.url() + "/v1", 0, 100, false, 40,
+                    0.5, List.of("END"), null, null, 0, null, null, null, null, 7, "json");
+            assertEquals(Map.of("total", new java.math.BigDecimal("12")).toString(), String.valueOf(r.get("json")));
+            Map<String, Object> body = f.last("POST", "/v1/chat/completions").json();
+            assertEquals(Map.of("type", "json_object"), body.get("response_format"));
+            assertEquals("7", String.valueOf(body.get("seed")));
+            new GenAiPackage().promptWithImages(ctx(w, new ArrayList<>()), "Total?", List.of("receipt.png"), null, "openai", null, "gpt-4o", KEY, f.url() + "/v1", false, null, null,
+                    0, 100, "text", 0, 0.9, null, List.of("END"), null, null, 3);
+            body = f.last("POST", "/v1/chat/completions").json();
+            assertEquals("0.9", String.valueOf(body.get("top_p")));
+            assertEquals(List.of("END"), body.get("stop"));
+            assertEquals("3", String.valueOf(body.get("seed")));
+        }
+    }
+
     @SuppressWarnings("unchecked")
     @Test void picturesInChatsForOpenAiAndAnthropic() throws Exception {
         try (Fake f = new Fake()) {
