@@ -6,6 +6,18 @@ import { noAnswer, withFix } from "./cr";
 
 export type ApiError = { code: string; message: string; hint?: string; suggestedFix?: string | null };
 
+/**
+ * What to show for a failure (error batch E1, 13 Nov 2026): an API failure's message already carries what to do
+ * (withFix), any other error its own message, never "Error: ..." from String(e).
+ */
+export function errorText(e: unknown): string { return e instanceof Error ? e.message : String(e); }
+
+/** A run's or check's error (code, message, suggested fix) as one line with what to do. */
+export function runErrorText(err: { message?: string | null; suggestedFix?: string | null; code?: string } | null | undefined, otherwise = ""): string {
+  if (!err?.message) return otherwise;
+  return withFix({ message: err.message, suggestedFix: err.suggestedFix ?? undefined });
+}
+
 export class ApiFailure extends Error {
   constructor(readonly status: number, readonly error: ApiError) { super(withFix({ ...error, suggestedFix: error.suggestedFix ?? undefined })); }
 }

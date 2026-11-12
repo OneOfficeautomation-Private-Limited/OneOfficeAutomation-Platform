@@ -1,3 +1,4 @@
+import { errorText, runErrorText } from "../api/client";
 import { useCallback, useRef, useState, type ReactElement } from "react";
 import type { Flow, FlowStep, StudioApi } from "../api/client";
 import { setArg, stateLists } from "./flowEdit";
@@ -45,7 +46,7 @@ function useArgSetter(step: FlowStep) {
 
 async function check(api: StudioApi, action: string, args: Args, out: Record<string, string>) {
   const r = await runOnce(api, oneStep(action, args, out), {}, 120_000);
-  if (r.status !== "success") throw new Error(r.error?.message ?? "The check did not finish (" + r.status + ")");
+  if (r.status !== "success") throw new Error(runErrorText(r.error, "The check did not finish (" + r.status + ")"));
   return r.outputs ?? {};
 }
 
@@ -79,7 +80,7 @@ function PointPicker({ step }: { step: FlowStep }) {
       set(pointArgs(step.action, p));
       vars.notice?.(p.window ? "Point " + p.x + ", " + p.y + " in “" + p.window + "”" + (p.window_width ? ", a window of " + p.window_width + " x " + p.window_height : "") + "."
         : "Point " + p.screen_x + ", " + p.screen_y + " on the screen (no window there).");
-    } catch (e) { setError(String((e as Error).message ?? e)); }
+    } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   };
   return <PickerRow><span className="st-row-tight">
@@ -112,7 +113,7 @@ function WsdlPicker({ step }: { step: FlowStep }) {
       const list = (o.operations as Operation[] | undefined) ?? [];
       setOps(list); setChosen(list[0]?.name ?? "");
       if (!list.length) setError("The WSDL lists no operations.");
-    } catch (e) { setError(String((e as Error).message ?? e)); }
+    } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   };
   const op = ops?.find((o) => o.name === chosen);
@@ -218,7 +219,7 @@ function DirectoryPicker({ step, field }: { step: FlowStep; field: string }) {
             attributes: ["name", "objectClass", "sAMAccountName"] }, out: { table: "t" } }],
       };
       const r = await runOnce(vars.api, flow, {}, 60_000);
-      if (r.status !== "success") throw new Error(r.error?.message ?? "The directory did not answer");
+      if (r.status !== "success") throw new Error(runErrorText(r.error, "The directory did not answer"));
       const t = r.outputs?.t as { columns: string[]; rows: unknown[][] } | undefined;
       const ci = (c: string) => t?.columns.indexOf(c) ?? -1;
       const rows: DirEntry[] = (t?.rows ?? []).map((row) => {
@@ -227,7 +228,7 @@ function DirectoryPicker({ step, field }: { step: FlowStep; field: string }) {
         return { dn: String(row[ci("dn")]), name: String(row[ci("name")] ?? row[ci("dn")]), kind };
       }).sort((a, b) => Number(CONTAINERS.has(b.kind)) - Number(CONTAINERS.has(a.kind)) || a.name.localeCompare(b.name));
       setItems(rows); setBase(dn);
-    } catch (e) { setError(String((e as Error).message ?? e)); }
+    } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   };
   const start = () => { setOpen(true); setItems(null); setTrail([]); setPick(literal(step.args?.[field])); if (conn) list(literal(conn.base_dn)); };
@@ -290,7 +291,7 @@ function PdfAreaPicker({ step }: { step: FlowStep }) {
       const o = await check(vars.api, "ooa.pdf/render_page", { path, page: Number(pg) || 1, dpi: 96, ...(step.args?.password ? { password: step.args.password } : {}) },
         { image: "image", width_points: "w", height_points: "h", page_count: "n" });
       setImg({ src: String(o.image), w: Number(o.w), h: Number(o.h), pages: Number(o.n) });
-    } catch (e) { setError(String((e as Error).message ?? e)); setImg(null); }
+    } catch (e) { setError(errorText(e)); setImg(null); }
     finally { setBusy(false); }
   };
   const start = () => {

@@ -1,3 +1,4 @@
+import { errorText } from "../api/client";
 import { useEffect, useMemo, useState } from "react";
 import type { Flow, RepoFile } from "../api/client";
 import { Button, Dialog, Icon, TextInput } from "../components";
@@ -27,7 +28,7 @@ export function RepoFileBrowser({ onPick, onClose }: { onPick: (path: string) =>
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   useEffect(() => {
-    vars?.api.crFiles().then(setFiles, (e) => setError((e instanceof Error ? e.message : String(e)) + " Sign in to One CommandCenter on the Automation page's Public tab, then try again."));
+    vars?.api.crFiles().then(setFiles, (e) => setError((errorText(e)) + " Sign in to One CommandCenter on the Automation page's Public tab, then try again."));
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const shown = useMemo(() => (files ?? []).filter((f) => !q.trim() || f.path.toLowerCase().includes(q.trim().toLowerCase())), [files, q]);
   return (

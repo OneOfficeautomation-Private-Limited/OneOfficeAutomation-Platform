@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ApiFailure, type AgentSummary, type Flow, type ModelConnections, type StudioApi } from "../api/client";
+import { type AgentSummary, type Flow, type ModelConnections, type StudioApi, errorText, runErrorText } from "../api/client";
 import { Button, Field, Icon, SearchSelect, Select, TabPanel, Tabs, TextInput } from "../components";
 import { aiStep } from "./aiAgent";
 import { setArg } from "./flowEdit";
@@ -56,12 +56,12 @@ export function AiAgentEditor({ api, flow, onEdit, agents, connections, onNewCon
     try {
       const r = await runOnce(api, oneStep("ooa.genai/prompt", { prompt, connection: conn, response_format: "json", max_tokens: 700 }, { json: "json" }));
       const j = r.outputs?.json as Record<string, unknown> | undefined;
-      if (r.status !== "success" || !j) { setDrafting("The model could not write it: " + (r.error?.message ?? r.status)); return; }
+      if (r.status !== "success" || !j) { setDrafting("The model could not write it: " + runErrorText(r.error, r.status)); return; }
       let next: Flow = { ...flow, description: brief.trim() };
       for (const k of ["role", "instructions", "action_plan"]) if (typeof j[k] === "string") next = setArg(next, step.id, k, j[k]);
       onEdit(next);
       setDrafting("Written. Change anything below.");
-    } catch (e) { setDrafting("The model could not write it: " + (e instanceof ApiFailure ? e.error.message : String(e))); }
+    } catch (e) { setDrafting("The model could not write it: " + errorText(e)); }
   };
 
   const busy = !!run && !isFinished(run);
@@ -138,7 +138,7 @@ export function AiAgentEditor({ api, flow, onEdit, agents, connections, onNewCon
             placeholder="Paste an email, a ticket or a question" />}</Field>
           <Button kind="run" icon="play" onClick={() => onTry(request)} disabled={busy || !request.trim()}>Run a test</Button>
           {run?.result && <>
-            {run.result.error && <p className="st-error">{run.result.error.message}{run.result.error.suggestedFix ? " " + run.result.error.suggestedFix : ""}</p>}
+            {run.result.error && <p className="st-error">{runErrorText(run.result.error)}</p>}
             {out.answer != null && <><h3 className="st-prop-section">Answer</h3><p className="st-ai-answer">{String(out.answer)}</p></>}
             {out.status != null && <p className="st-muted">Status: {String(out.status)}</p>}
             {trace.length > 0 && <>

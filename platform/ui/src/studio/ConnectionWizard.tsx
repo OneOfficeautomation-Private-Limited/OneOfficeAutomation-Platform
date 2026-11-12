@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ApiFailure, type ModelConnection, type ModelConnections, type StudioApi } from "../api/client";
+import { type ModelConnection, type ModelConnections, type StudioApi, errorText, runErrorText } from "../api/client";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
 import { oneStep, runOnce } from "./runOnce";
 
@@ -53,15 +53,15 @@ export function ConnectionWizard({ api, existing, onClose, onSaved }:
     try {
       const out = await api.saveModelConnections({ default: asDefault ? conn.name : existing.default, connections: [...existing.connections, conn] });
       setSaved(true); setError(null); onSaved(out, conn.name);
-    } catch (e) { setError(e instanceof ApiFailure ? e.error.message + (e.error.hint ? " " + e.error.hint : "") : String(e)); }
+    } catch (e) { setError(errorText(e)); }
   };
   const runTest = async () => {
     setTest({ busy: true });
     try {
       const r = await runOnce(api, oneStep("ooa.genai/prompt", { prompt: "Reply with the single word OK.", connection: c.name.trim(), max_tokens: 5 }, { text: "answer" }));
       setTest(r.status === "success" ? { busy: false, ok: true, text: "Connected. The model answered: " + String(r.outputs?.answer ?? "").trim() }
-        : { busy: false, ok: false, text: "The test failed: " + (r.error?.message ?? r.status) + (r.error?.suggestedFix ? " " + r.error.suggestedFix : "") });
-    } catch (e) { setTest({ busy: false, ok: false, text: "The test failed: " + (e instanceof ApiFailure ? e.error.message : String(e)) }); }
+        : { busy: false, ok: false, text: "The test failed: " + runErrorText(r.error, r.status) });
+    } catch (e) { setTest({ busy: false, ok: false, text: "The test failed: " + errorText(e) }); }
   };
 
   return (

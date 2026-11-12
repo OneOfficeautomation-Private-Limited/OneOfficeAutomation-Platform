@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode,
+  type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
 import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem } from "../components";
 import { Automation, find as findNode } from "./Automation";
@@ -89,7 +89,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [showKeys, setShowKeys] = useState(false);
   const [askTrigger, setAskTrigger] = useState<{ kind: string; n: number } | null>(null);   // a workspace trigger picked in the command list   // AI agents shown as plain steps instead of in the AI agent editor
 
-  const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message : String(e));
+  const fail = (e: unknown) => setError(errorText(e));
   const reloadTree = useCallback(() => {
     api.agents().then(setAgents).catch(() => setAgents([]));
     api.modelConnections().then(setConnections).catch(() => setConnections(null));
@@ -372,7 +372,7 @@ export function App({ api: given }: { api?: StudioApi }) {
       const tab = tabsRef.current.find((t) => t.path === path);
       if (tab && isDirty(tab) && !(await save(path))) { failed.push(path.split("/").pop() + ": not saved"); continue; }
       try { last = await api.crCheckin(path, comment, live); done.push(last.path.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "") + " v" + last.version); }
-      catch (e) { failed.push(path.split("/").pop() + ": " + (e instanceof ApiFailure ? e.error.message : String(e))); }
+      catch (e) { failed.push(path.split("/").pop() + ": " + (errorText(e))); }
     }
     if (paths.length === 1 && last) setNotice(`Checked in ${last.path} as version ${last.version}` + (last.production_request ? "; it waits for approval before it goes live."
       : last.production ? "; it is now the live version." : "; the live version is unchanged."));
@@ -654,7 +654,7 @@ function NewFolderDialog({ parent, onClose, onCreate }: { parent: string | null;
   if (parent === null) return null;
   const submit = () => {
     if (!name.trim()) { setError("Give the folder a name."); return; }
-    onCreate(name.trim()).catch((e) => setError(e instanceof ApiFailure ? e.error.message : String(e)));
+    onCreate(name.trim()).catch((e) => setError(errorText(e)));
   };
   return (
     <Dialog open onClose={onClose} title="New folder" width={460}
@@ -714,8 +714,8 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
     setScriptRun({ busy: true });
     try {
       const r = await runOnce(api, oneStep(cmd.action, { file: tab.path, fail_on_error: false }, { output: "output", error_output: "error_output", exit_code: "exit_code" }), {}, 120000);
-      setScriptRun({ busy: false, status: r.status, output: String(r.outputs?.output ?? ""), error: r.error?.message ?? String(r.outputs?.error_output ?? ""), exit: r.outputs?.exit_code });
-    } catch (e) { setScriptRun({ busy: false, status: "failed", error: e instanceof ApiFailure ? e.error.message : String(e) }); }
+      setScriptRun({ busy: false, status: r.status, output: String(r.outputs?.output ?? ""), error: runErrorText(r.error, String(r.outputs?.error_output ?? "")), exit: r.outputs?.exit_code });
+    } catch (e) { setScriptRun({ busy: false, status: "failed", error: errorText(e) }); }
   };
   return (
     <div className="st-item-wrap">

@@ -1,7 +1,7 @@
 import { useEffect, useState, type DragEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Dependencies, Dependency, Flow, FlowStep, ModelConnections, PackageManifest, Proposal, StudioApi } from "../api/client";
-import { ApiFailure } from "../api/client";
+import { errorText } from "../api/client";
 import { Button, Dialog, Field, IconTile, Select, TextArea } from "../components";
 import { ON_ERROR, stateLists, type Place } from "./flowEdit";
 import { caseText, conditionText, describeAction, plainValue, startState, stateText, summarize, transitionText } from "./toolkits";
@@ -70,7 +70,7 @@ export function DependenciesPanel({ api, path, dirty, onOpen, onStep }:
   { api: StudioApi; path: string; dirty: boolean; onOpen: (path: string) => void; onStep: (stepId: string) => void }) {
   const [deps, setDeps] = useState<Dependencies | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const load = () => { setDeps(null); api.deps(path).then((d) => { setDeps(d); setError(null); }, (e) => setError(e instanceof ApiFailure ? e.error.message : String(e))); };
+  const load = () => { setDeps(null); api.deps(path).then((d) => { setDeps(d); setError(null); }, (e) => setError(errorText(e))); };
   useEffect(load, [api, path]);   // eslint-disable-line react-hooks/exhaustive-deps
   const group = (title: string, items: Dependency[], empty: string, mark: { icon: "bolt" | "code" | "spark" | "doc" | "branch"; color: string }, usedBy = false) => (
     <section className="st-dep-group" aria-label={title}>
@@ -214,7 +214,7 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
     if (!prompt.trim()) { setError("Describe what the agent should do."); return; }
     setBusy(true); setError(null); setProposal(null);
     try { setProposal(await api.assistantBuild(prompt, connection, flow)); }
-    catch (e) { setError(e instanceof ApiFailure ? e.error.message + (e.error.hint ? " " + e.error.hint : "") : String(e)); }
+    catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   };
   const flat = (steps: FlowStep[] = []): FlowStep[] => steps.flatMap((s) => [s, ...flat(s.children), ...flat(s.else),

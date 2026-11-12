@@ -1,3 +1,4 @@
+import { errorText } from "../api/client";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ClipboardEvent, type PointerEvent as ReactPointerEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { simplePackages } from "./simpleMode";
 import { SapImportDialog } from "./sapRecording";
@@ -707,7 +708,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               else onEditWhole(addSubflow(whole, name), []);
               setShown(name.trim()); setSubDialog(null);
               return null;
-            } catch (e) { return e instanceof Error ? e.message : String(e); }
+            } catch (e) { return errorText(e); }
           }} />}
           {longNames > 0 && !noRename && <div className="st-offer" role="status">
             <span>{longNames} recorded variable{longNames === 1 ? " has a long name" : "s have long names"} (made from page titles or field labels). Rename to Window_1, Text_1, Choice_1 …?</span>
@@ -942,7 +943,7 @@ function StateFields({ flow, id, k, onEdit }: { flow: Flow; id: string; k: numbe
   if (!step || !st) return null;
   const isStart = st.name === startState(step);
   const count = step.states!.length;
-  const rename = (t: string) => { try { setError(null); onEdit(renameState(flow, id, k, t)); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } };
+  const rename = (t: string) => { try { setError(null); onEdit(renameState(flow, id, k, t)); } catch (e) { setError(errorText(e)); } };
   const select = (m: { flow: Flow; part: Part | null }) => { if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); };
   return <>
     <Field label="Name" layout="beside">{(fid) => <CommitInput key={id + k + st.name} id={fid} initial={st.name} onCommit={rename} />}</Field>

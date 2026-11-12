@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApiFailure, type ObjectRef, type RepoCatalogue, type StudioApi } from "../api/client";
+import { type ObjectRef, type RepoCatalogue, type StudioApi, errorText } from "../api/client";
 import { Button, Dialog, Field, Icon, Select, TextInput } from "../components";
 import type { Captured } from "./capture";
 
@@ -102,7 +102,7 @@ export function ObjectRepositoryEditor({ data, onChange }: { data: Obj; onChange
   );
 }
 
-const failText = (e: unknown) => (e instanceof ApiFailure ? e.error.message + (e.error.hint ? " " + e.error.hint : "") : String(e));
+const failText = errorText;
 
 /** Choose an element from any object repository in the workspace. */
 export function PickElementDialog({ api, technology, onPick, onClose }:

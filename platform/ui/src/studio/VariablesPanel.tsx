@@ -1,3 +1,4 @@
+import { errorText } from "../api/client";
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { AgentSummary, Builtins, Flow, FlowVariable, PackageManifest, StudioApi } from "../api/client";
@@ -210,7 +211,7 @@ export function VariableDialog({ flow, existing, preset, onSave, onClose }:
       if (!out.enum) delete out.enum;
       const next = saveVariable(flow, out, existing?.name);
       onSave(next, out.name);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { setError(errorText(e)); }
   };
   const uses = existing ? usageCount(flow, existing.name) : 0;
   return (

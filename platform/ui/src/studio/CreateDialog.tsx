@@ -1,5 +1,5 @@
 import { type ReactElement, useMemo, useState } from "react";
-import { ApiFailure, type Blueprint, type NewItemKind } from "../api/client";
+import { type Blueprint, type NewItemKind, errorText } from "../api/client";
 import { Button, Dialog, IconTile } from "../components";
 import type { ItemType } from "./itemTypes";
 
@@ -37,7 +37,7 @@ export function CreateDialog({ type, folderPath, folders, blueprints = [], onCre
     if (!name.trim()) { setError("Give it a name."); return; }
     setBusy(true); setError(null);
     try { await onCreate(type.kind, name.trim(), from); }
-    catch (e) { setError(e instanceof ApiFailure ? e.error.message + (e.error.hint ? " " + e.error.hint : "") : String(e)); }
+    catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   };
 
