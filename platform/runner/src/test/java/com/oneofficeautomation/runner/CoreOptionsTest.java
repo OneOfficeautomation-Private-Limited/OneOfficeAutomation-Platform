@@ -61,6 +61,14 @@ class CoreOptionsTest {
         return (Boolean) r.outputs().get("hit");
     }
 
+    @Test void throwWithoutAMessageSaysItsCode() {
+        // command review C6: the message is optional, as AA's Throw
+        RunResult r = run("""
+            {"kind":"TaskBot","id":"t","name":"t","variables":[],"steps":[{"id":"x","action":"core/throw","args":{"code":"VALIDATION.FAILED"}}]}""");
+        assertEquals("VALIDATION.FAILED", r.error().get("code"));
+        assertEquals("Error VALIDATION.FAILED", r.error().get("message"));
+    }
+
     @Test void conditionOptions() {
         assertTrue(cond("{\"op\":\"eq\",\"left\":\"ACME Ltd\",\"right\":\"acme ltd\",\"ignoreCase\":true}", ""));
         assertFalse(cond("{\"op\":\"eq\",\"left\":\"ACME Ltd\",\"right\":\"acme ltd\"}", ""));

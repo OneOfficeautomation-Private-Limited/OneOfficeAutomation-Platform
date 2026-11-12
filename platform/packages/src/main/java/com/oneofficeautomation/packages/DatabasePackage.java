@@ -336,7 +336,7 @@ public final class DatabasePackage {
             Iterator<List<Object>> it = DataTablePackage.rows(data).iterator();
             return insertBatches(ctx, t, cols, () -> it.hasNext() ? it.next() : null, batchSize, session);
         }
-        String d = delimiter == null || delimiter.isEmpty() ? "," : delimiter;
+        String d = CsvPackage.delimiterText(delimiter);
         char dc = d.equalsIgnoreCase("tab") || d.equals("\\t") ? '\t' : d.length() == 1 ? d.charAt(0) : 0;
         if (dc == 0 || dc == '"' || dc == '\r' || dc == '\n') throw new ActionException("DB.BAD_DELIMITER", "The delimiter must be one character, got '" + d + "'", "Use , ; | or tab.");
         if (startRow < 1) throw new ActionException("DB.BAD_INPUT", "start_row must be 1 or more", "Lines are counted from 1.");
@@ -588,7 +588,7 @@ public final class DatabasePackage {
             throw new ActionException("DB.BAD_INPUT", byProc ? "Both sql and procedure are given" : "No SELECT or procedure given", "Fill in either sql or procedure.");
         if (maxRows < 0) throw new ActionException("DB.BAD_INPUT", "max_rows cannot be negative", "Use 0 for all rows, or a positive limit.");
         String proc = byProc ? identifier(procedure, "procedure") : null;
-        char d = delimiter == null || delimiter.isEmpty() ? ',' : delimiter.equalsIgnoreCase("tab") ? '\t' : delimiter.charAt(0);
+        char d = CsvPackage.delimiterText(delimiter).charAt(0);
         java.nio.file.Path p = ctx.resolvePath(path);
         if (!overwrite && java.nio.file.Files.exists(p)) throw new ActionException("DB.FILE_EXISTS", "File already exists: " + p, "Set overwrite to true or choose another name.");
         DbSession dbs = db(ctx, session);

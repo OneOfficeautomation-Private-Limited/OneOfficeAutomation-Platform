@@ -407,10 +407,11 @@ public final class Runner {
                 throw new OoaException("CONNECTION.WRONG_TOOLKIT", "Connection '" + name + "' is for " + cp + ", not " + pid, "Choose a connection made for " + pid + ".");
             Map<String, Object> out = new LinkedHashMap<>(raw == null ? Map.of() : raw);
             java.util.function.Predicate<String> empty = k -> out.get(k) == null || (out.get(k) instanceof String s && s.isBlank());
+            // K8: a connection saved under an input's former name still fills the renamed input
             if (conn.get("values") instanceof Map<?, ?> vals)
-                for (var e : ((Map<String, Object>) vals).entrySet()) if (spec.input(e.getKey()).isPresent() && empty.test(e.getKey())) out.put(e.getKey(), e.getValue());
+                for (var e : spec.currentArgs((Map<String, Object>) vals).entrySet()) if (spec.input(e.getKey()).isPresent() && empty.test(e.getKey())) out.put(e.getKey(), e.getValue());
             if (conn.get("credentials") instanceof Map<?, ?> creds)
-                for (var e : ((Map<String, Object>) creds).entrySet()) {
+                for (var e : spec.currentArgs((Map<String, Object>) creds).entrySet()) {
                     if (spec.input(e.getKey()).isEmpty() || !empty.test(e.getKey())) continue;
                     CredentialVault vault = (CredentialVault) services.get("vault");
                     if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault configured for the credentials of connection '" + name + "'");
@@ -418,6 +419,27 @@ public final class Runner {
                     secrets.add(s.reveal()); secureValues.add(s);
                     out.put(e.getKey(), s);
                 }
+            // A1: a connection that signs in by itself gives a fresh access token to a step that takes one and has none
+            Map<String, Object> vals = conn.get("values") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
+            // R2 (batch 8): web steps (REST, SOAP) take it as their bearer token
+            // K1 (batch 10): or the input the toolkit marks as taking the sign-in's token (Slack's bot token, Asana's token...)
+            String tokenInput = spec.inputs().stream().filter(i -> i.signInToken() && i.takesSignInToken()).map(ActionSpec.InputSpec::name).findFirst()
+                    .orElse(spec.input("access_token").isPresent() ? "access_token" : spec.input("bearer_token").isPresent() ? "bearer_token" : null);
+            if (OAuthSignIn.configured(vals) && tokenInput != null && empty.test(tokenInput)) {
+                CredentialVault vault = (CredentialVault) services.get("vault");
+                Map<String, Object> creds = conn.get("credentials") instanceof Map<?, ?> c ? (Map<String, Object>) c : Map.of();
+                SecureString t = OAuthSignIn.token(name, vals, creds, ref -> {
+                    if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault configured for the sign-in of connection '" + name + "'");
+                    SecureString s = vault.getSecret(ref, principal);
+                    secrets.add(s.reveal()); secureValues.add(s);
+                    return s;
+                });
+                secrets.add(t.reveal()); secureValues.add(t);
+                out.put(tokenInput, t);
+                // K1 (batch 10): a step that says what kind of token it gets (Snowflake) is told the sign-in's kind
+                if (spec.input("token_type").isPresent() && empty.test("token_type"))
+                    out.put("token_type", "snowflake_key_pair".equals(OAuthSignIn.grant(vals)) ? "KEYPAIR_JWT" : "OAUTH");
+            }
             return out;
         }
 
@@ -644,7 +666,9 @@ public final class Runner {
                     String id = String.valueOf(s.get("id"));
                     if (startAt != null && !reached) {
                         if (id.equals(startAt)) reached = true;
-                        else { if (!off && startPath.contains(id)) enterTowards(s); continue; }
+                        // a disabled block around the start step does not run: the run starts after it (usage review item 25)
+                        else if (off && startPath.contains(id)) { reached = true; continue; }
+                        else { if (startPath.contains(id)) enterTowards(s); continue; }
                     }
                     try {
                         if (!off) execStep(s, forceContinue);
@@ -898,7 +922,11 @@ public final class Runner {
                     Object fix = resolve(a.get("suggested_fix"));
                     Object details = resolve(a.get("details"));
                     boolean retryable = Boolean.TRUE.equals(Values.coerce(resolve(a.get("retryable")), "Boolean", "retryable"));
-                    throw new OoaException(Values.text(resolve(a.get("code"))), Values.text(resolve(a.get("message"))), fix == null ? null : Values.text(fix),
+                    // the message is optional, as AA's Throw (command review C6): without one, the code says what happened
+                    String code = Values.text(resolve(a.get("code")));
+                    Object msg = resolve(a.get("message"));
+                    String message = msg == null || Values.text(msg).isBlank() ? "Error " + code : Values.text(msg);
+                    throw new OoaException(code, message, fix == null ? null : Values.text(fix),
                             retryable, details instanceof Map<?, ?> d ? (Map<String, Object>) d : null);
                 }
                 case "comment" -> { }
@@ -1358,6 +1386,9 @@ public final class Runner {
                 err.put("stack", frame(Map.of("id", sid == null ? "" : sid)).stack());
                 if (h.get("screenshot") != null && !Boolean.FALSE.equals(h.get("screenshot"))) err.put("screenshot", screenshot(h.get("screenshot"), sid == null ? "run" : sid));
                 if (h.get("as") instanceof String as && !as.isBlank()) scope.set(as, err);
+                // as a Catch (usage review item 20): the message and the line number in variables of their own
+                if (h.get("message_to") instanceof String mt && !mt.isBlank()) scope.set(mt, e.getMessage());
+                if (h.get("line_to") instanceof String lt && !lt.isBlank()) scope.set(lt, err.get("line"));
                 execSteps(Steps.onErrorSteps(flow), false);
             } catch (StopSignal stop) {
                 log("info", "A Stop step ended the error handler", sid);
@@ -1640,6 +1671,7 @@ public final class Runner {
         }
 
         Map<String, Object> prepareArgs(ActionSpec spec, Map<String, Object> raw) {
+            raw = spec.currentArgs(raw);
             Map<String, Object> out = new LinkedHashMap<>();
             for (ActionSpec.InputSpec in : spec.inputs()) {
                 Object v = raw == null ? null : raw.get(in.name());
@@ -1806,7 +1838,7 @@ public final class Runner {
             while (true) {
                 OoaException err;
                 try {
-                    Map<String, Object> raw = (Map<String, Object>) resolve(step.getOrDefault("args", Map.of()));
+                    Map<String, Object> raw = spec.currentArgs((Map<String, Object>) resolve(step.getOrDefault("args", Map.of())));
                     if (step.get("connection") instanceof String cn && !cn.isBlank()) raw = withConnection(cn.strip(), pid, spec, raw);
                     Map<String, Object> args = prepareArgs(spec, raw);
                     ActionContext c = ctx(sid);

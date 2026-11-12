@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Flow, FsEntry, FsListing, OpenWindow, VaultCredentialRef } from "../api/client";
 import { Button, Dialog, Icon, IconButton, Select, TextInput } from "../components";
 import { showValue } from "./flowEdit";
+import { RepoFileBrowser, withRepoFile } from "./RepoFiles";
 import { CommitInput } from "./ValueSources";
 import { ListEditor, PairsEditor, useVars } from "./VariablesPanel";
 
@@ -86,16 +87,32 @@ export function CollectionField({ id, name, type, value, onCommit, apply }: Fiel
 
 // ------------------------------------------------------------------ files and folders
 
-/** A path typed in (with the variable list) or chosen with Browse… on this computer (files or folders). */
+/**
+ * A path typed in (with the variable list), chosen with Browse… on this computer, or (files) one kept in One CommandCenter
+ * (F1, as AA's Control Room file): that one is also added to the agent's files, so the runner gets it before the run.
+ */
 export function FileField({ id, name, value, fallback, onCommit, apply, folder }: FieldProps & { folder: boolean }) {
+  const vars = useVars();
   const [browsing, setBrowsing] = useState(false);
+  const [fromRepo, setFromRepo] = useState(false);
   const text = typeof value === "string" ? value : value === undefined ? "" : showValue(value);
-  return <div className="st-row-tight">
+  const inRepo = !!vars?.flow.files?.includes(text);
+  // the path gets the field's whole width; where it comes from is chosen just below it, in words (as AA's file sources)
+  return <div className="st-file-field">
     <CommitInput key={"f" + text} id={id} initial={text} placeholder={fallback || (folder ? "C:\\Folder or $folder" : "C:\\Folder\\file.xlsx or $file")} want="File"
       nameHint={name} onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
-    <IconButton icon="folder" label="Browse…" onClick={() => setBrowsing(true)} />
+    <div className="st-file-sources">
+      <button type="button" className="st-link" aria-label="Browse…" title="Choose on this computer" onClick={() => setBrowsing(true)}><Icon name="folder" size={13} /> Browse this computer</button>
+      {!folder && vars && <button type="button" className="st-link" aria-label="A file kept in One CommandCenter…" title="The runner gets it with the agent" onClick={() => setFromRepo(true)}>
+        <Icon name="globe" size={13} /> From One CommandCenter</button>}
+    </div>
+    {inRepo && <div className="ui-field-hint">A file from One CommandCenter: the runner gets it with the agent.</div>}
     {browsing && <FileBrowser folder={folder} start={isVarText(text) ? "" : text}
       onPick={(p) => { setBrowsing(false); onCommit(p); }} onClose={() => setBrowsing(false)} />}
+    {fromRepo && <RepoFileBrowser onClose={() => setFromRepo(false)} onPick={(p) => {
+      setFromRepo(false);
+      if (vars && apply) vars.edit(withRepoFile(apply(p, vars.flow), p)); else onCommit(p);
+    }} />}
   </div>;
 }
 
@@ -177,21 +194,87 @@ export function CredentialField({ id, name, value, onCommit, apply }: FieldProps
 
 // ------------------------------------------------------------------ windows
 
-/** A window title typed in (wildcards allowed), or chosen from the windows open on this computer. */
-export function WindowField({ id, name, value, fallback, onCommit, apply }: FieldProps) {
+/** AI steps whose "connection" names a model connection (I1, batch 9). */
+export const MODEL_STEPS = /^ooa\.(genai|ai_skills|ai_agent|idp|ai_screen|web_agent|knowledge)\//;
+
+/**
+ * I1 (batch 9): the model connection of an AI step, picked from the saved ones. Empty means the organisation's default
+ * (shown with its name), which the runner uses when the step sets no model of its own; a name or a variable can still
+ * be typed.
+ */
+export function ModelConnectionField({ id, name, value, onCommit, apply }: FieldProps) {
+  const vars = useVars();
+  const [conns, setConns] = useState<{ default: string; names: string[] } | null>(null);
+  useEffect(() => {
+    if (!vars) return;
+    vars.api.modelConnections().then((c) => setConns({ default: c.default, names: c.connections.map((x) => x.name) }), () => setConns({ default: "", names: [] }));
+  }, [vars]);
+  const text = typeof value === "string" ? value : value === undefined ? "" : showValue(value);
+  const known = conns?.names ?? [];
+  if (text.startsWith("$") || (text && conns && !known.includes(text) && text !== "default"))
+    return <CommitInput key={"mc" + text} id={id} initial={text} want="String" nameHint={name} onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />;
+  return <Select id={id} value={text === "default" ? "" : text} onChange={(e) => onCommit(e.target.value === "" ? undefined : e.target.value)}
+    options={[{ value: "", label: conns === null ? "Reading the model connections…" : conns.default ? "Default (" + conns.default + ")" : "No default: choose one or set up here" },
+      ...known.map((n) => ({ value: n, label: n }))]} />;
+}
+
+/** The fallbacks a window lookup understands (WindowPackage.WINDOW_ORDER), in the order they are tried. */
+const WINDOW_ALTERNATIVES: { key: string; label: string; hint: string; number?: boolean }[] = [
+  { key: "title_pattern", label: "Title pattern", hint: "Invoice*- Excel" },
+  { key: "class_name", label: "Window class", hint: "XLMAIN" },
+  { key: "process_name", label: "Program name", hint: "excel.exe" },
+  { key: "index", label: "Index (with the class)", hint: "0", number: true },
+];
+
+/**
+ * W3: the Window toolkit's alternatives as named fields instead of a key/value list, stored the same way
+ * ({title_pattern, class_name, process_name, index}); a variable holding them still works.
+ */
+export function WindowAlternativesField({ id, name, value, onCommit, apply }: FieldProps) {
+  if (value !== undefined && (typeof value !== "object" || Array.isArray(value)))
+    return <CommitInput id={id} initial={showValue(value)} want="Dictionary" nameHint={name} onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />;
+  const cur = (value ?? {}) as Record<string, unknown>;
+  const put = (key: string, v: unknown) => {
+    const next = { ...cur };
+    if (v === undefined || v === "") delete next[key]; else next[key] = v;
+    onCommit(Object.keys(next).length ? next : undefined);
+  };
+  return <div className="st-source" id={id}>
+    {WINDOW_ALTERNATIVES.map((a) => <label key={a.key} className="st-row-tight st-alt-field">
+      <span className="st-alt-label">{a.label}</span>
+      <CommitInput key={a.key + showValue(cur[a.key])} label={a.label} initial={cur[a.key] === undefined ? "" : showValue(cur[a.key])} placeholder={a.hint}
+        want={a.number ? "Number" : "String"} nameHint={a.key}
+        onCommit={(t) => put(a.key, t === "" ? undefined : a.number && /^\d+$/.test(t.trim()) ? Number(t.trim()) : t)} apply={apply} />
+    </label>)}
+  </div>;
+}
+
+/**
+ * Fields that name a window: every "window" field, and the title of the Window toolkit's commands and conditions
+ * (W1), which pick from the open windows the same way.
+ */
+export function isWindowTitle(action: string, name: string, spec?: { "x-ooa-label"?: unknown }) {
+  return name === "window" || spec?.["x-ooa-label"] === "Window" || (name === "title" && action.startsWith("ooa.window/"));
+}
+
+/**
+ * A window title typed in (text in it, * and ? wildcards, or re: and a regular expression), or chosen from the windows
+ * open on this computer. The title has the whole width; the picker sits under it (U1), so a long title stays readable.
+ */
+export function WindowField({ id, name, value, fallback, onCommit, apply }: Omit<FieldProps, "apply"> & { apply?: FieldProps["apply"] }) {
   const vars = useVars();
   const [open, setOpen] = useState<OpenWindow[] | null>(null);
   const [busy, setBusy] = useState(false);
   const text = typeof value === "string" ? value : value === undefined ? "" : showValue(value);
   const load = () => { if (!vars) return; setBusy(true); vars.api.windows().then((w) => setOpen(w.filter((x) => x.title)), () => setOpen([])).finally(() => setBusy(false)); };
-  return <div className="st-source">
+  return <div className="st-source st-window-field">
+    <CommitInput key={"w" + text} id={id} initial={text} placeholder={fallback || "*Notepad"} want="String" nameHint={name}
+      onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
     <div className="st-row-tight">
-      <CommitInput key={"w" + text} id={id} initial={text} placeholder={fallback || "*Notepad"} want="String" nameHint={name}
-        onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
-      <Button kind="secondary" disabled={busy} onClick={load}>{busy ? "Looking…" : open ? "Refresh" : "Open windows"}</Button>
+      <Button kind="secondary" disabled={busy || !vars} onClick={load}>{busy ? "Looking…" : open ? "Refresh" : "Open windows"}</Button>
+      {open && <Select aria-label="Open windows" value="" onChange={(e) => e.target.value && onCommit(e.target.value)}
+        options={[{ value: "", label: open.length ? "Choose an open window…" : "No windows found" },
+          ...open.map((w) => ({ value: w.title!, label: w.title! + (w.process ? " (" + w.process + ")" : w.browser ? " (" + w.browser + ")" : "") }))]} />}
     </div>
-    {open && <Select aria-label="Open windows" value="" onChange={(e) => e.target.value && onCommit(e.target.value)}
-      options={[{ value: "", label: open.length ? "Choose an open window…" : "No windows found" },
-        ...open.map((w) => ({ value: w.title!, label: w.title! + (w.process ? " (" + w.process + ")" : w.browser ? " (" + w.browser + ")" : "") }))]} />}
   </div>;
 }

@@ -90,7 +90,22 @@ public record ActionSpec(String kind, String id, String name, String description
 
     public record InputSpec(String name, OoaType type, String description, String label, boolean required,
                             Object defaultValue, String pattern, List<String> enumValues, String example,
-                            String visibleWhen, double min, double max) {
+                            String visibleWhen, double min, double max, List<String> formerNames, boolean signInToken) {
+        public InputSpec(String name, OoaType type, String description, String label, boolean required,
+                         Object defaultValue, String pattern, List<String> enumValues, String example,
+                         String visibleWhen, double min, double max) {
+            this(name, type, description, label, required, defaultValue, pattern, enumValues, example, visibleWhen, min, max, List.of(), false);
+        }
+        public InputSpec(String name, OoaType type, String description, String label, boolean required,
+                         Object defaultValue, String pattern, List<String> enumValues, String example,
+                         String visibleWhen, double min, double max, List<String> formerNames) {
+            this(name, type, description, label, required, defaultValue, pattern, enumValues, example, visibleWhen, min, max, formerNames, false);
+        }
+
+        /** K1 (batch 10): the input a connection's renewing sign-in fills (access_token and bearer_token always are). */
+        public boolean takesSignInToken() {
+            return type == OoaType.CREDENTIAL && (signInToken || name.equals("access_token") || name.equals("bearer_token"));
+        }
         public InputSpec(String name, OoaType type, String description, String label, boolean required,
                          Object defaultValue, String pattern, List<String> enumValues, String example) {
             this(name, type, description, label, required, defaultValue, pattern, enumValues, example, "", Double.NaN, Double.NaN);
@@ -143,6 +158,8 @@ public record ActionSpec(String kind, String id, String name, String description
             if (visibleWhen != null && !visibleWhen.isBlank()) s.put("x-ooa-visible-when", visibleRule());
             s.put("x-ooa-type", type.flowName());
             s.put("x-ooa-label", label.isEmpty() ? FieldLabels.of(name) : label);
+            if (formerNames != null && !formerNames.isEmpty()) s.put("x-ooa-former-names", formerNames);
+            if (takesSignInToken()) s.put("x-ooa-sign-in-token", true);
             return s;
         }
     }
@@ -181,4 +198,23 @@ public record ActionSpec(String kind, String id, String name, String description
     }
 
     public Optional<InputSpec> input(String n) { return inputs.stream().filter(i -> i.name().equals(n)).findFirst(); }
+
+    /**
+     * The arguments with each input's former name (K8, batch 10) moved to its current name; a value under the current
+     * name wins. The same map when nothing was renamed.
+     */
+    public Map<String, Object> currentArgs(Map<String, Object> args) {
+        if (args == null || args.isEmpty()) return args;
+        Map<String, Object> out = null;
+        for (InputSpec i : inputs) {
+            if (i.formerNames() == null) continue;
+            for (String old : i.formerNames())
+                if (args.containsKey(old)) {
+                    if (out == null) out = new LinkedHashMap<>(args);
+                    Object v = out.remove(old);
+                    out.putIfAbsent(i.name(), v);
+                }
+        }
+        return out == null ? args : out;
+    }
 }

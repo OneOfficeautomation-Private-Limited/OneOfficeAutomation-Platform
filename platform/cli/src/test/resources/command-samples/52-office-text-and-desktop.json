@@ -1,0 +1,56 @@
+[
+  {"command": "ooa.word/extract_text", "name": "reads a saved document's text without opening it as a session",
+   "steps": [
+     {"action": "ooa.word/create_document", "args": {"path": "{tmp}/letter.docx"}},
+     {"action": "ooa.word/add_paragraph", "args": {"text": "Dear Ann, your invoice is ready."}},
+     {"action": "ooa.word/close", "args": {"save": true}},
+     {"action": "ooa.word/extract_text", "args": {"path": "{tmp}/letter.docx"}, "out": {"text": "t"}},
+     {"action": "ooa.string/count_occurrences", "args": {"text": "$t", "find": "invoice is ready"}, "out": {"count": "n"}}],
+   "expect": {"n": 1}},
+  {"command": "ooa.word/get_page_count", "name": "counts a page break as a new page",
+   "steps": [
+     {"action": "ooa.word/create_document", "args": {"path": "{tmp}/pages.docx"}},
+     {"action": "ooa.word/add_paragraph", "args": {"text": "one"}},
+     {"action": "ooa.word/get_page_count", "args": {}, "out": {"pages": "p"}}],
+   "expect": {"p": 1}},
+  {"command": "ooa.powerpoint/extract_text", "name": "reads a saved presentation's text, slide after slide",
+   "steps": [
+     {"action": "ooa.powerpoint/create_presentation", "args": {"path": "{tmp}/deck.pptx"}},
+     {"action": "ooa.powerpoint/add_slide", "args": {"layout": "title_only", "title": "Quarterly results"}},
+     {"action": "ooa.powerpoint/close", "args": {"save": true}},
+     {"action": "ooa.powerpoint/extract_text", "args": {"path": "{tmp}/deck.pptx"}, "out": {"text": "t"}},
+     {"action": "ooa.string/count_occurrences", "args": {"text": "$t", "find": "Quarterly results"}, "out": {"count": "n"}}],
+   "expect": {"n": 1}},
+  {"command": "ooa.excel_desktop/convert", "name": "Excel converts a workbook to the old .xls format", "requires": "desktop",
+   "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/c.xlsx", "sheet": "Data"}},
+     {"action": "ooa.excel/set_cell", "args": {"cell": "A1", "value": "x"}},
+     {"action": "ooa.excel/close", "args": {"save": true}},
+     {"action": "ooa.excel_desktop/convert", "args": {"path": "{tmp}/c.xlsx", "target": "{tmp}/c.xls", "overwrite": true}}],
+   "expectFiles": {"c.xls": true}},
+  {"command": "ooa.excel_desktop/export_pdf", "name": "Excel saves a workbook as PDF", "requires": "desktop",
+   "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/e.xlsx", "sheet": "Data"}},
+     {"action": "ooa.excel/set_cell", "args": {"cell": "A1", "value": "report"}},
+     {"action": "ooa.excel/close", "args": {"save": true}},
+     {"action": "ooa.excel_desktop/export_pdf", "args": {"path": "{tmp}/e.xlsx", "target": "{tmp}/e.pdf", "overwrite": true}}],
+   "expectFiles": {"e.pdf": true}},
+  {"command": "ooa.excel_desktop/refresh_all", "name": "Excel refreshes and saves a workbook with nothing to refresh", "requires": "desktop",
+   "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/r.xlsx", "sheet": "Data"}},
+     {"action": "ooa.excel/close", "args": {"save": true}},
+     {"action": "ooa.excel_desktop/refresh_all", "args": {"path": "{tmp}/r.xlsx", "save": true}}],
+   "expectFiles": {"r.xlsx": true}},
+  {"command": "ooa.excel_desktop/update_links", "name": "Excel updates a workbook with no links", "requires": "desktop",
+   "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/l.xlsx", "sheet": "Data"}},
+     {"action": "ooa.excel/close", "args": {"save": true}},
+     {"action": "ooa.excel_desktop/update_links", "args": {"path": "{tmp}/l.xlsx", "save": true}}],
+   "expectFiles": {"l.xlsx": true}},
+  {"command": "ooa.excel_desktop/run_macro", "name": "a workbook without the macro gives a clear error", "requires": "desktop",
+   "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/m.xlsx", "sheet": "Data"}},
+     {"action": "ooa.excel/close", "args": {"save": true}},
+     {"action": "ooa.excel_desktop/run_macro", "args": {"path": "{tmp}/m.xlsx", "macro": "NoSuchMacro"}}],
+   "error": "EXCEL_DESKTOP.FAILED"}
+]

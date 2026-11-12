@@ -160,3 +160,11 @@ body.ui-resizing * { cursor: inherit !important; }
 .ui-keys kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--ui-field); border-bottom-width: 2px; border-radius: 4px;
   background: var(--ui-soft); color: var(--ui-text); font: 600 11.5px/18px ui-monospace, Consolas, monospace; text-align: center; }
 .ui-keys-switch { margin-bottom: 6px; }
+
+/* Notice (item 27, 9 Nov 2026): a notice closes by itself; an error keeps a labelled Close */
+.ui-notice { display: flex; align-items: center; gap: 12px; }
+.ui-notice > span { flex: 1; }
+.ui-notice-close { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.ui-notice-x { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: none; border: 1px solid transparent; border-radius: var(--ui-radius); background: transparent; color: inherit; cursor: pointer; }
+.ui-notice-x:hover { background: rgba(0, 0, 0, .08); }
+.ui-notice-x:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }

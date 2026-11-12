@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ClipboardEvent, type PointerEvent as ReactPointerEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { simplePackages } from "./simpleMode";
 import { SapImportDialog } from "./sapRecording";
-import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, StudioApi } from "../api/client";
+import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, RetryPolicy, StudioApi } from "../api/client";
+import { RetryFields } from "./ErrorPolicy";
+import { AgentRepoFiles } from "./RepoFiles";
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
@@ -9,7 +11,7 @@ import { Button, Dialog, Field, HelpButton, Icon, IconButton, IconTile, is, keyO
 import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
 import { ConditionEditor } from "./ConditionEditor";
 import {
-  addBranch, addOnError, blockIds, CLIP_KEY, copySteps, duplicateSteps, findStep, foldedSet, inHandler, innerLists, isBlock, moveManyTo, moveSelection, ON_ERROR, partList, parseSection,
+  addBranch, addOnError, blockIds, CLIP_KEY, setCatch, copySteps, disabledState, duplicateSteps, findStep, foldedSet, inHandler, innerLists, isBlock, moveManyTo, moveSelection, ON_ERROR, partList, parseSection,
   pasteSteps, readClip, removeBranch, removeOnError, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded, setOnError,
   replaceInSteps, setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
   moveCase, parseLoose, setCaseValues, showValue,
@@ -31,7 +33,21 @@ const openUrl = (flow: Flow): string | undefined => {
     const inner = find([...(s.children ?? []), ...(s.else ?? [])]); if (inner) return inner; } return undefined; };
   return find(flow.steps);
 };
+import { VariableChooser } from "./ValueSources";
 import { agentRows, describeAction, startState, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
+import { AA_NAMES } from "./aaNames";
+import { FORMER_NAMES } from "./formerNames";
+import { MailSwitchDialog } from "./MailSwitchDialog";
+
+/**
+ * Actions kept so older agents still run, but no longer offered in the library (usage review item 26): Open file is
+ * part of Open program/file, as in AA.
+ */
+export const RETIRED_ACTIONS = new Set(["ooa.application/open_file"]);
+/** The AA command name that matched a search, when the action's own name did not. */
+const aaMatch = (id: string, q: string) => q ? AA_NAMES[id]?.find((n) => n.toLowerCase().includes(q)) : undefined;
+/** A name the action had before it was renamed, when it matched a search and its own name did not. */
+const formerMatch = (id: string, q: string) => q ? FORMER_NAMES[id]?.find((n) => n.toLowerCase().includes(q)) : undefined;
 
 /** Drag data: a step being moved, or an action from the library being added. */
 const STEP_DRAG = "application/x-ooa-step";
@@ -47,7 +63,7 @@ const STUDIO_TRIGGERS: [string, string][] = [["schedule", "On a schedule"], ["fi
 export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, onSimple }: { packages: PackageManifest[]; onAdd: (action: string) => void;
   onTrigger?: (kind: string, where: "studio" | "server") => void; simple?: boolean; onSimple?: (on: boolean) => void }) {
   // Simple mode (G47): everyday toolkits under plain names; no triggers
-  const packages = simple ? simplePackages(all) : all;
+  const packages = (simple ? simplePackages(all) : all).map((p) => ({ ...p, actions: p.actions.filter((a) => !RETIRED_ACTIONS.has(p.id + "/" + a.id)) }));
   if (simple) onTrigger = undefined;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
@@ -61,7 +77,8 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
     const all = list.flatMap(({ p, actions }) => actions.map((a) => ({ id: p.id + "/" + a.id, name: a.name.toLowerCase() })));
     return (all.find((a) => a.name === q) ?? all.find((a) => a.name.startsWith(q)) ?? all[0])?.id;
   };
-  const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)) : p.actions }))
+  // a search also finds an action by its AA command name ("Open program/file", "Simulate keystrokes")
+  const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || !!aaMatch(p.id + "/" + a.id, q) || !!formerMatch(p.id + "/" + a.id, q)) : p.actions }))
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
   return (
     <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions"
@@ -104,7 +121,9 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
               {isOpen && <ul className="st-group-actions">{actions.map((a) => (
                 <li key={a.id}><button type="button" className="st-action" title={a.description} draggable
                   onDragStart={(e) => { e.dataTransfer.setData(ACTION_DRAG, p.id + "/" + a.id); e.dataTransfer.effectAllowed = "copy"; }}
-                  onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}</button></li>
+                  onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}
+                  {(() => { const own = a.name.toLowerCase().includes(q); const aa = !own ? aaMatch(p.id + "/" + a.id, q) : undefined; const was = !own && !aa ? formerMatch(p.id + "/" + a.id, q) : undefined;
+                    return aa ? <span className="st-aa-name">AA: {aa}</span> : was ? <span className="st-aa-name">Formerly: {was}</span> : null; })()}</button></li>
               ))}</ul>}
             </li>
           );
@@ -139,6 +158,16 @@ export type StepsClipboard = Clip & { system: boolean };
  * With no step selected, the agent's own settings, as AA's bot properties: its id, by which One CommandCenter's agent
  * repository and Run agent steps know it (each agent needs its own), and its description, which people and AI agents read.
  */
+/** The agent's error handling with a change; empty settings are left out. */
+function withErrorHandling(flow: Flow, patch: { default?: "continue"; retry?: RetryPolicy | undefined }): Flow {
+  const eh = { ...(flow.errorHandling ?? {}) };
+  if ("default" in patch) { if (patch.default) eh.default = patch.default; else delete eh.default; }
+  if ("retry" in patch) { if (patch.retry) eh.retry = patch.retry; else delete eh.retry; }
+  const next = { ...flow };
+  if (Object.keys(eh).length) next.errorHandling = eh; else delete next.errorHandling;
+  return next;
+}
+
 function AgentProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow) => void }) {
   const [id, setId] = useState(flow.id);
   const [about, setAbout] = useState(flow.description ?? "");
@@ -154,6 +183,14 @@ function AgentProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow) =>
       <Field label="Description" hint="What the agent does: people who run it read this, and AI agents that may call it.">
         {(fid) => <TextArea id={fid} rows={3} value={about} onChange={(e) => setAbout(e.target.value)}
           onBlur={() => { if (about !== (flow.description ?? "")) onEdit({ ...flow, description: about }); }} />}</Field>
+      {/* F1: files kept in One CommandCenter that go to the runner with the agent */}
+      <AgentRepoFiles flow={flow} onEdit={onEdit} />
+      {/* C3: the agent's default when a step fails outside a Try; a step's own setting wins */}
+      <h3 className="st-prop-section">When a step fails</h3>
+      <Field label="Outside a Try block" layout="beside" hint="A step's own If it fails setting wins. Errors inside a Try go to its Catch.">{(fid) =>
+        <Select id={fid} value={flow.errorHandling?.default ?? "stop"} onChange={(e) => onEdit(withErrorHandling(flow, { default: e.target.value === "continue" ? "continue" : undefined }))}
+          options={[{ value: "stop", label: "Stop the agent (On error runs first)" }, { value: "continue", label: "Log it and continue with the next step" }]} />}</Field>
+      <RetryFields idPrefix="agent" value={flow.errorHandling?.retry} onChange={(r) => onEdit(withErrorHandling(flow, { retry: r }))} />
     </div>
   );
 }
@@ -169,7 +206,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     askTrigger?: { kind: string; n: number } | null;
     run: LiveRun | null; breakpoints: string[]; onToggleBreakpoint: (id: string) => void; onStop: () => void; onDebug: (c: DebugCommand) => void;
     clipboard: StepsClipboard | null; onClipboard: (c: StepsClipboard) => void;
-    onRunFrom: (stepId: string, only: boolean, defaults: boolean) => void; onNotice: (text: string) => void; onError: (e: unknown) => void;
+    onRunFrom: (stepId: string, only: boolean, defaults: boolean, note?: string) => void; onNotice: (text: string) => void; onError: (e: unknown) => void;
     onOpenChild: (stepId: string) => void; onOpenPath: (path: string) => void; onNewConnection: () => void;
     /** The problems a check without saving found. */
     onChecked: (problems: Problem[]) => void; dirty: boolean }) {
@@ -232,7 +269,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const rightPanel = useRef<HTMLElement | null>(null);
   const [drop, setDrop] = useState<{ key: string | null; where: Place } | null>(null);
   const [bottomTab, setBottomTab] = useState("problems");
-  const [tool, setTool] = useState<"connections" | "connectors" | "sap" | null>(null);
+  const [tool, setTool] = useState<"connections" | "connectors" | "sap" | "mail" | null>(null);
   const [checking, setChecking] = useState(false);
   /** Checks the agent as it is in the editor, without saving it. */
   const checkNow = async () => {
@@ -317,7 +354,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const longNames = longRecordedVariables(flow).length;
   const [noRename, setNoRename] = useState(false);
   const vars: VarsCtx = { api, flow, builtins, agents, edit: (next) => onEdit(next), newVariable: (preset) => { setNewVar(preset); setRightHidden(false); },
-    notice: onNotice, fail: onError, where, openChild: onOpenChild, openPath: onOpenPath };
+    notice: onNotice, fail: onError, where, openChild: onOpenChild, openPath: onOpenPath, packages };
   const [view, setView] = usePersistent<"list" | "flow">("agent.view", "list");
   const [assistant, setAssistant] = useState<"build" | "explain" | null>(null);
   const agentName = (id: unknown) => { const a = agents.find((x) => x.id === id); return a ? a.name || a.id : String(id ?? ""); };
@@ -494,7 +531,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
       { key: "from-shared", label: "Paste from shared clipboard", onSelect: act.fromShared },
       { key: "rename", label: "Rename", description: "Shown on the step", shortcut: keyOf("steps.rename"), onSelect: act.note },
       { key: "duplicate", label: "Duplicate", shortcut: keyOf("steps.duplicate"), separatorBefore: true, onSelect: act.duplicate },
-      { key: "disable", label: allOff ? "Switch on" : "Switch off", shortcut: keyOf("steps.disable"), onSelect: act.disable },
+      { key: "disable", label: (allOff ? "Enable " : "Disable ") + (chosen.length > 1 ? "steps" : "step"),
+        description: allOff ? "It runs again" : "Kept in the agent, but skipped when it runs", shortcut: keyOf("steps.disable"), onSelect: act.disable },
       { key: "delete", label: "Delete", shortcut: keyOf("steps.delete"), onSelect: act.remove },
       { key: "up", label: "Move up", shortcut: keyOf("steps.up"), separatorBefore: true, onSelect: act.up },
       { key: "down", label: "Move down", shortcut: keyOf("steps.down"), onSelect: act.down },
@@ -507,10 +545,16 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     if (target && whole.subflows?.some((s) => s.name === target) && chosen.length === 1)
       items.push({ key: "subflow", label: "Open the subflow it runs", description: target, separatorBefore: true, onSelect: () => { setShown(target); onSelect([]); } });
     // run part of the agent: the skipped steps' variables keep the values the last run here had at this step
+    // a disabled step (or one in a disabled block) does not run: Run from here starts at the next enabled step (item 25)
+    const off = disabledState(flow.steps, step.id) ?? null;
+    const offNote = off === "self" ? "This step is disabled, so the run starts at the next enabled step"
+      : off === "inside" ? "This step is in a disabled block, so the run starts at the next enabled step after the block" : undefined;
     if (!running && chosen.length === 1 && !inHandler(flow, step.id)) items.push(   // the error handler's steps run only after an error
-      { key: "from", label: "Run from here", description: "Earlier steps are skipped; their values come from the last run", separatorBefore: true, onSelect: () => onRunFrom(step.id, false, false) },
-      { key: "from-defaults", label: "Run from here with default values", onSelect: () => onRunFrom(step.id, false, true) },
-      { key: "only", label: "Run this step only", onSelect: () => onRunFrom(step.id, true, false) },
+      { key: "from", label: "Run from here", description: offNote ?? "Earlier steps are skipped; their values come from the last run", separatorBefore: true,
+        onSelect: () => onRunFrom(step.id, false, false, offNote) },
+      { key: "from-defaults", label: "Run from here with default values", onSelect: () => onRunFrom(step.id, false, true, offNote) },
+      { key: "only", label: "Run this step only", disabled: !!off, description: off ? "Disabled steps do not run: enable it first" : undefined,
+        onSelect: () => onRunFrom(step.id, true, false) },
     );
     if (innerLists(step).length) items.push({ key: "fold", label: folded.has(step.id) ? "Unfold" : "Fold", onSelect: () => act.fold([step.id], !folded.has(step.id)) });
     return items;
@@ -551,7 +595,9 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
           {(() => { const sum = r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note ? "runs " + agentName(r.step.args.automation) : summarize(r.step, packages);
             return <span className="st-step-sum" title={sum || undefined}>{sum}</span>; })()}
           {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
-          {r.step.disabled && <span className="st-badge">OFF</span>}
+          {r.step.disabled && <span className="st-badge" title="Disabled: kept in the agent, skipped when it runs">Disabled</span>}
+          {r.step.retry?.max ? <span className="st-badge is-info" title="Tried again when it fails (If this step fails)">Retries {r.step.retry.max}×</span> : null}
+          {r.step.continueOnError && <span className="st-badge is-info" title="Logs its error and goes on (If this step fails)">Continues on error</span>}
           {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
         </button>
         <span className="st-step-tools">
@@ -587,7 +633,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             {chosen.length > 0 && <>
               <button type="button" className="st-tool" aria-label="Delete" title={withKey("Delete", "steps.delete")} onClick={act.remove}><Icon name="trash" size={16} /></button>
               <button type="button" className="st-tool" aria-label="Duplicate" title={withKey("Duplicate", "steps.duplicate")} onClick={act.duplicate}><Icon name="duplicate" size={16} /></button>
-              <button type="button" className="st-tool" aria-label={allOff ? "Switch on" : "Switch off"} title={withKey(allOff ? "Switch on" : "Switch off", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /></button>
+              <button type="button" className="st-tool" aria-label={allOff ? "Enable" : "Disable"} title={withKey(allOff ? "Enable (it runs again)" : "Disable (kept, but skipped when the agent runs)", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /></button>
             </>}
             <Menu label="More step actions" align="start" items={[
               ...(chosen.length ? [
@@ -607,6 +653,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               { key: "connections", label: "Saved connections…", description: "A connector's address and sign-in, kept once", separatorBefore: true, onSelect: () => setTool("connections") },
               { key: "connectors", label: "Custom connectors…", description: "Import an OpenAPI, Swagger or Postman file; add a step for an operation", onSelect: () => setTool("connectors") },
               { key: "sap", label: "Import SAP GUI recording…", description: "Turn a script recorded in SAP GUI into SAP GUI steps", onSelect: () => setTool("sap") },
+              { key: "mail", label: "Switch mail service…", description: "Turn the mail steps into another service's, e.g. Exchange to Microsoft 365", onSelect: () => setTool("mail") },
             ]} trigger={<button type="button" className="st-tool" aria-label="More" title="More step actions"><Icon name="more" size={16} stroke={3} /></button>} />
             {finding !== null && <span className="st-find">
               <input ref={findBox} type="search" aria-label="Find in this agent" placeholder="Find in this agent" value={finding}
@@ -709,6 +756,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               {selStep && selInfo ? <>
                 <div className="st-prop-head"><IconTile name={selInfo.mark.icon} color={selInfo.mark.color} size={28} />
                   <div><strong>{selInfo.name}</strong><div>Line {selStep.n} · {selInfo.toolkit}</div></div></div>
+                {selInfo.description && <p className="st-prop-about">{selInfo.description}</p>}
                 <StepForm step={selStep.step} packages={packages}
                   onArg={(name, v) => onEdit(setArg(flow, selStep.step.id, name, v))}
                   onNote={(n) => onEdit(setNote(flow, selStep.step.id, n))} />
@@ -718,7 +766,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               ) : selected.includes(ON_ERROR) && flow.onError ? <OnErrorProperties flow={flow} onEdit={onEdit} />
               : selected.includes(START) ? <p className="st-pad">START is selected: actions you click in the library go first, before line 1. Pasted steps go there too.</p>
                 : chosen.length > 1
-                ? <p className="st-pad">{chosen.length} steps selected. Cut, Copy, Delete, Move, Duplicate and Switch off act on all of them; select one step to change its settings.</p>
+                ? <p className="st-pad">{chosen.length} steps selected. Cut, Copy, Delete, Move, Duplicate and Disable act on all of them; select one step to change its settings.</p>
                 : <AgentProperties flow={flow} onEdit={onEdit} />}
               {!selected.length && <div className="st-pad">
                 <h3 className="st-prop-section">If an error ends the agent</h3>
@@ -801,6 +849,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
       {tool === "connections" && <SavedConnectionsDialog api={api} packages={packages} onClose={() => setTool(null)} onNotice={onNotice} onError={onError} />}
       {tool === "connectors" && <ConnectorsDialog api={api} onClose={() => setTool(null)} onNotice={onNotice} onError={onError}
         onInsert={(step) => { insertSteps(flow, [step]); onNotice("Added a Call operation step for " + String(step.note ?? "the operation") + "."); }} />}
+      {tool === "mail" && <MailSwitchDialog flow={flow} packages={packages} onClose={() => setTool(null)}
+        onApply={(f, note) => { onEdit(f); setTool(null); onNotice(note); }} />}
       {tool === "sap" && <SapImportDialog onClose={() => setTool(null)} onInsert={(steps, note) => { insertSteps(flow, steps); setTool(null); onNotice(note); }} />}
       {recording && <Dialog open title="Recording" width={460} onClose={() => { api.recordCancel().catch(() => {}); }}
         footer={<Button kind="secondary" onClick={() => { api.recordCancel().catch(() => {}); }}>Cancel</Button>}>
@@ -975,16 +1025,20 @@ function onErrorSummary(flow: Flow): string {
  */
 function OnErrorProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow, select?: string[]) => void }) {
   const h = flow.onError!;
-  const dicts = (flow.variables ?? []).filter((v) => v.type === "Dictionary" || v.type === "Any");
   const n = (h.steps ?? []).length;
   return (
     <div>
       <div className="st-prop-head"><div><strong>On error</strong><div>Runs once when an error no Try block catches ends the agent, while its windows and files are still open. Steps you click in the library go at its end{n ? ` (${n} now)` : ""}.</div></div></div>
       <div className="st-prop-fields">
-        <Field label="Keep the error in" hint="A Dictionary variable: code, message, suggestedFix, stepId, line, action and stack." layout="beside">{(fid) =>
-          <Select id={fid} value={h.as ?? ""} onChange={(e) => onEdit(setOnError(flow, { as: e.target.value }))}
-            options={[{ value: "", label: "(not kept)" }, ...dicts.map((v) => ({ value: v.name, label: "$" + v.name })),
-              ...(h.as && !dicts.some((v) => v.name === h.as) ? [{ value: h.as, label: "$" + h.as + " (not a Dictionary variable)" }] : [])]} />}</Field>
+        <Field label="Keep the error message in" hint="A text variable, for a log line or an e-mail." layout="beside">{() =>
+          <VariableChooser value={h.message_to} type="String" label="Keep the error message in" nameHint="error_message"
+            onPick={(f, n) => setOnError(f, { message_to: n ?? "" })} />}</Field>
+        <Field label="Keep the line number in" hint="A number variable: the line that failed." layout="beside">{() =>
+          <VariableChooser value={h.line_to} type="Number" label="Keep the line number in" nameHint="error_line"
+            onPick={(f, n) => setOnError(f, { line_to: n ?? "" })} />}</Field>
+        <Field label="Keep the whole error in" hint="A Dictionary variable: code, message, suggestedFix, stepId, line, action and stack." layout="beside">{() =>
+          <VariableChooser value={h.as} type="Dictionary" label="Keep the whole error in" nameHint="error"
+            onPick={(f, n) => setOnError(f, { as: n ?? "" })} />}</Field>
         <Field label="Then" hint="Fail keeps the original error, so One CommandCenter, retries and parent agents see the real cause." layout="beside">{() =>
           <div className="st-seg" role="radiogroup" aria-label="After the error steps">
             {([["fail", "Fail the run"], ["succeed", "Succeed with a warning"]] as const).map(([k, t]) =>
@@ -1000,6 +1054,34 @@ function OnErrorProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow, 
   );
 }
 
+/**
+ * A Catch part's settings in AA's order (usage review item 19, 9 Nov 2026): the errors it catches, whether its steps go
+ * on after one of them fails, where the error message and line number go; then ours: the whole error, a screenshot,
+ * and raising the error again after its steps.
+ */
+function CatchFields({ flow, id, k, onEdit }: { flow: Flow; id: string; k: number; onEdit: (next: Flow, select?: string[]) => void }) {
+  const c = findStep(flow, id)?.step.catch?.[k];
+  if (!c) return null;
+  const codes = c.codes ?? [];
+  return <>
+    <Field label="Errors it catches" hint="Error codes or kinds (NOT_FOUND, TIMEOUT, FILE.*), separated by commas. Empty catches every error." layout="beside">{(fid) =>
+      <CommitInput key={id + k + codes.join(",")} id={fid} mono initial={codes.join(", ")} placeholder="Any error"
+        onCommit={(t) => onEdit(setCatchCodes(flow, id, k, t.split(",").map((x) => x.trim()).filter(Boolean)))} />}</Field>
+    <label className="st-check-line"><input type="checkbox" checked={!!c.continueOnError} onChange={(e) => onEdit(setCatch(flow, id, k, { continueOnError: e.target.checked }))} />
+      On error, continue with the next step (every step of this Catch runs, even when one fails)</label>
+    <Field label="Keep the error message in" hint="A text variable, for a log line or an e-mail." layout="beside">{() =>
+      <VariableChooser value={c.message_to} type="String" label="Keep the error message in" nameHint="error_message" onPick={(f, n) => setCatch(f, id, k, { message_to: n })} />}</Field>
+    <Field label="Keep the line number in" hint="A number variable: the line that failed." layout="beside">{() =>
+      <VariableChooser value={c.line_to} type="Number" label="Keep the line number in" nameHint="error_line" onPick={(f, n) => setCatch(f, id, k, { line_to: n })} />}</Field>
+    <Field label="Keep the whole error in" hint="A Dictionary variable: code, message, suggestedFix, stepId, line, action and stack." layout="beside">{() =>
+      <VariableChooser value={c.as} type="Dictionary" label="Keep the whole error in" nameHint="error" onPick={(f, n) => setCatch(f, id, k, { as: n })} />}</Field>
+    <label className="st-check-line"><input type="checkbox" checked={!!c.screenshot} onChange={(e) => onEdit(setCatch(flow, id, k, { screenshot: e.target.checked }))} />
+      Take a screenshot when it catches an error (saved under screenshots/)</label>
+    <label className="st-check-line"><input type="checkbox" checked={!!c.rethrow} onChange={(e) => onEdit(setCatch(flow, id, k, { rethrow: e.target.checked }))} />
+      Raise the error again after these steps (an outer Try or On error then handles it)</label>
+  </>;
+}
+
 /** Settings of a selected block part: an Else if's condition, the errors a Catch takes; and removing the part. */
 function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: string; id: string; part: Part; onEdit: (next: Flow, select?: string[]) => void }) {
   const step = findStep(flow, id)?.step;
@@ -1013,9 +1095,7 @@ function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: 
       <div className="st-prop-fields">
         {kind === "elseIf" && <Field label="Condition">{() =>
           <ConditionEditor key={id + part} value={step.elseIf?.[+k]?.condition} onCommit={(v) => onEdit(setElseIfCondition(flow, id, +k, v))} />}</Field>}
-        {kind === "catch" && <Field label="Errors it catches" hint="Error codes, separated by commas. Empty catches every error." layout="beside">{(fid) =>
-          <CommitInput key={id + part + (step.catch?.[+k]?.codes ?? []).join(",")} id={fid} mono initial={(step.catch?.[+k]?.codes ?? []).join(", ")} placeholder="Any error"
-            onCommit={(t) => onEdit(setCatchCodes(flow, id, +k, t.split(",").map((x) => x.trim()).filter(Boolean)))} />}</Field>}
+        {kind === "catch" && <CatchFields flow={flow} id={id} k={+k} onEdit={onEdit} />}
         {kind === "cases" && <Field label={step.args?.match === "expression" ? "Conditions (any one selects this case)" : "Values (any one selects this case)"}
           hint="Cases are tried from the top; only the first that matches runs.">{() => <CaseValues flow={flow} id={id} k={+k} onEdit={onEdit} />}</Field>}
         {kind === "entry" && <StateFields key={id + part} flow={flow} id={id} k={+k} onEdit={onEdit} />}

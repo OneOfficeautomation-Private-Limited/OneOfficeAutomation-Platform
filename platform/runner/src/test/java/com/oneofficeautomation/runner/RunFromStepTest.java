@@ -88,6 +88,30 @@ class RunFromStepTest {
         assertEquals("-", r.outputs().get("e"));
     }
 
+    /** The flow with these steps disabled (switched off in Studio). */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> withDisabled(String... ids) {
+        Map<String, Object> f = flow();
+        Set<String> off = Set.of(ids);
+        for (Map<String, Object> step : Steps.walkFlow(f)) if (off.contains(String.valueOf(step.get("id")))) step.put("disabled", true);
+        return f;
+    }
+
+    @Test void runFromADisabledStepStartsAtTheNextEnabledOne() {
+        RunResult r = Runner.builder(RunnerTest.registry()).build().run(withDisabled("s6"), Map.of(), new Runner.RunOptions().startAt("s6"));
+        assertTrue(r.ok(), String.valueOf(r.error()));
+        assertEquals("-", r.outputs().get("d"), "the disabled start step does not run");
+        assertEquals(new java.math.BigDecimal("3"), r.outputs().get("n"), "the run goes on from the next enabled step");
+    }
+
+    @Test void runFromInsideADisabledBlockStartsAfterTheBlock() {
+        RunResult r = Runner.builder(RunnerTest.registry()).build().run(withDisabled("s2"), Map.of(), new Runner.RunOptions().startAt("s3"));
+        assertTrue(r.ok(), String.valueOf(r.error()));
+        assertEquals("-", r.outputs().get("b"), "nothing in the disabled If runs");
+        assertEquals("-", r.outputs().get("c"));
+        assertEquals("end", r.outputs().get("d"), "the run starts at the next enabled step after the block");
+    }
+
     @Test void unknownStartStepFails() {
         RunResult r = run(new Runner.RunOptions().startAt("nope"));
         assertFalse(r.ok());

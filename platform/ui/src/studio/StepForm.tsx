@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
-import { ConditionEditor } from "./ConditionEditor";
-import { fieldOrder, findAction, labelsInScope, parseLoose, setArg, showValue } from "./flowEdit";
+import { ConditionEditor, SpecFields } from "./ConditionEditor";
+import { StepErrorFields } from "./ErrorPolicy";
+import { enumWord } from "./enumWords";
+import { ColumnField, knownColumns, knownSessions, MoreConditions, SessionField } from "./TableFields";
+import { DatePatternField, DelimiterField, EncodingField, LocaleField, SizeField, TimeZoneField } from "./PickerFields";
+import { fieldOrder, findAction, groupFields, labelsInScope, loopLabelsAround, parseLoose, setArg, setStepPolicy, showValue, type PanelGroup } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
 import {
@@ -11,8 +15,9 @@ import {
 } from "./stepKinds";
 import { AssignmentsEditor, AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
-import { BoolField, CollectionField, CredentialField, DateField, FileField, WindowField } from "./FieldKinds";
+import { BoolField, CollectionField, CredentialField, DateField, FileField, MODEL_STEPS, ModelConnectionField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
 import { pickerFor } from "./Pickers";
+import { hasReadState, readState, readStateArgs, READ_STATES, type ReadState } from "./mailFields";
 
 export { CommitInput };
 
@@ -20,6 +25,9 @@ export { CommitInput };
 const typedText = (step: FlowStep, name: string) => (step.action === "ooa.browser/type_text" && name === "text")
   || (step.action === "ooa.browser/element_action" && name === "value" && /^(set_text|append_text)$/.test(String(step.args?.action ?? "")))
   || (step.action === "ooa.desktop_ui/object_action" && name === "text");
+
+/** Mouse steps whose point can be measured from a window (M2). */
+export const MOUSE_IN_WINDOW = /^ooa\.desktop\/(mouse_click|mouse_move|mouse_scroll)$/;
 
 // the Basic / Advanced choice of the time-out box is kept while Studio is open, as in Classic
 let timeoutAdvanced = false;
@@ -42,6 +50,19 @@ export function StepForm({ step, packages, onArg, onNote }:
   const [showConn, setShowConn] = useState(false);
   const [advanced, setAdvanced] = useState(timeoutAdvanced);
   const [, redraw] = useState(0);
+  // K8 (batch 10): a value under an input's former name moves to its current name when the step is opened
+  useEffect(() => {
+    if (!vars) return;
+    let f = vars.flow, moved = false;
+    for (const [n, s] of Object.entries(props))
+      for (const old of s["x-ooa-former-names"] ?? [])
+        if (step.args?.[old] !== undefined) {
+          if (step.args?.[n] === undefined) f = setArg(f, step.id, n, step.args[old]);
+          f = setArg(f, step.id, old, undefined);
+          moved = true;
+        }
+    if (moved) vars.edit(f);
+  }, [step.id, step.action]);   // eslint-disable-line react-hooks/exhaustive-deps
   // one element field: the captured object, or the selector when the step uses one (or the person asks for it)
   const capturable = "object" in props && step.action.startsWith("ooa.desktop_ui/") || ("object" in props && "selector" in props && step.action.startsWith("ooa.browser/"));
   const bySelector = capturable && step.action.startsWith("ooa.browser/") && step.args?.object === undefined && (step.args?.selector !== undefined || bySelectorAsked.has(step.id));
@@ -50,11 +71,15 @@ export function StepForm({ step, packages, onArg, onNote }:
   const only = elementFields(step);
   const isLoop = step.action === "core/loop";
   const mode: LoopMode = isLoop ? loopMode(step) : "each";
+  // a toolkit's loop type (C2: each row in a worksheet, each file in a folder...): its own settings instead of "Go through"
+  const iterator = String(step.args?.iterator ?? "");
+  const itSpec = isLoop && mode === "each" && iterator.includes("/")
+    ? packages.find((p) => p.id === iterator.split("/")[0])?.iterators?.find((x) => x.id === iterator.split("/")[1]) : undefined;
   // an input that applies only in some cases (Loop's count only for "N times") is shown only then; an element action
   // shows the inputs of its chosen action; a saved connection hides the inputs it supplies
   const applies = (name: string) => shownWhen(props[name]?.["x-ooa-visible-when"], (o) => step.args?.[o] ?? props[o]?.default)
     && (!only || only.has(name)) && !(step.connection && conn.has(name) && !showConn)
-    && !(isLoop && (name === "iterator" || (mode === "times" && name === "index")))
+    && !(isLoop && (name === "iterator" || (mode === "times" && name === "index") || (itSpec && (name === "over" || name === "iterator_args"))))
     && !(capturable && ((name === "selector" && !bySelector) || (name === "object" && bySelector)));
   const order = fieldOrder(spec);
   const timeouts = TIMEOUT_FIELDS.filter((n) => n in props && applies(n));
@@ -75,10 +100,22 @@ export function StepForm({ step, packages, onArg, onNote }:
 
   const each = EACH_KINDS.find((k) => k.value === step.args?.iterator);
   const labelOf = (name: string) => valueLabel(step) && name === "value" ? valueLabel(step)!
-    : isLoop && name === "over" && each ? each.over : isLoop && name === "as" ? (mode === "times" ? "Counter (optional)" : each?.as ?? LOOP_LABELS.as)
+    : isLoop && name === "over" && each ? each.over : isLoop && name === "as" ? (mode === "times" ? "Counter (optional)" : each?.as ?? (itSpec ? "Store each one in" : LOOP_LABELS.as))
     : isLoop && LOOP_LABELS[name] ? LOOP_LABELS[name] : boxed.has(name) ? TIMEOUT_LABELS[name] : props[name]?.["x-ooa-label"] ?? name.replace(/_/g, " ");
   const req = (name: string) => required.includes(name) || (isLoop && ((mode === "times" && name === "count") || (mode === "each" && name === "over") || (mode === "while" && name === "condition")));
+  /** A field shown as the catalogue describes it, under a label of our own (Delay's From and To). */
+  const plainInput = (name: string, label: string) => <InputField key={step.id + ":" + name} action={step.action} name={name} label={label} spec={props[name] ?? {}}
+    required={req(name)} value={step.args?.[name]} onCommit={(v) => onArg(name, v)} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
   const field = (name: string) => {
+    // A4: unread_only and read_only as one choice (stored as the two ticks)
+    if (name === "read_only" && hasReadState(props as Record<string, unknown>)) return null;
+    if (name === "unread_only" && hasReadState(props as Record<string, unknown>)) return <Field key={step.id + ":read_state"} label="Read state" layout="beside"
+      info="Which emails count: all of them, only unread ones, or only ones already read.">{(id) =>
+      <Select id={id} value={readState(step.args)} options={READ_STATES} onChange={(e) => {
+        if (!vars) return;
+        const t = readStateArgs(e.target.value as ReadState);
+        vars.edit(setArg(setArg(vars.flow, step.id, "unread_only", t.unread_only), step.id, "read_only", t.read_only));
+      }} />}</Field>;
     if (step.action.startsWith("core/") && name === "condition") return <Field key={step.id + ":condition"} label={isLoop ? "Repeat while" : "Condition"} info={props[name]?.description}>{() =>
       <ConditionEditor key={step.id} value={step.args?.condition} onCommit={(v) => onArg(name, v)} />}</Field>;
     if (step.action === "core/set" && name === "value") return <Field key={step.id + ":value"} label={"Value" + (req(name) ? " *" : "")} info={props[name]?.description}>{() =>
@@ -86,6 +123,49 @@ export function StepForm({ step, packages, onArg, onNote }:
     if (step.action === "core/set_many" && name === "assignments") return <Field key={step.id + ":assignments"} label={"Assignments" + (req(name) ? " *" : "")}
       info={props[name]?.description}>{() => <AssignmentsEditor step={step} />}</Field>;
     if (step.action === "core/run_bot" && name === "automation") return <RunAgentFields key={step.id + ":agent"} step={step} />;
+    // C5: Exit loop and Continue loop name a loop around them, picked from a list (AA's "Label of loop to break from")
+    if ((step.action === "core/break" || step.action === "core/continue") && name === "label") {
+      const loops = loopLabelsAround(vars?.flow.steps ?? [], step.id);
+      const value = typeof step.args?.label === "string" ? String(step.args.label) : "";
+      return <Field key={step.id + ":label"} label={step.action === "core/break" ? "Loop to leave" : "Loop to continue"} layout="beside"
+        hint={loops.length ? "The nearest loop when none is chosen." : "Name a loop (its More options) to pick it here; without a name, the nearest loop."}>{(id) =>
+        <Select id={id} value={value} onChange={(e) => onArg("label", e.target.value || undefined)}
+          options={[{ value: "", label: "The nearest loop" }, ...loops.map((l) => ({ value: l, label: l })),
+            ...(value && !loops.includes(value) ? [{ value, label: value + " (not a loop around this step)" }] : [])]} />}</Field>;
+    }
+    // D3 and D4: Filter rows' further conditions, and column names picked from the table's known columns
+    if (step.action === "ooa.datatable/filter" && name === "more_conditions") return <Field key={step.id + ":more"} label="More conditions" layout="beside"
+      hint="Each row is one more check on a column; Rows must meet says whether all of them or any one must hold.">{() =>
+      <MoreConditions value={step.args?.more_conditions} columns={vars ? knownColumns(vars.flow, step.args?.table) : []} onCommit={(v) => onArg("more_conditions", v)} />}</Field>;
+    if (step.action.startsWith("ooa.datatable/") && (name === "column" || name === "return_column") && props[name]?.["x-ooa-type"] !== "Number")
+      return <Field key={step.id + ":" + name} label={labelOf(name) + (req(name) ? " *" : "")} layout="beside" hint={props[name]?.description}>{(id) =>
+        <ColumnField id={id} value={step.args?.[name]} columns={vars ? knownColumns(vars.flow, step.args?.table) : []} onCommit={(v) => onArg(name, v)} />}</Field>;
+    // X3: a session field offers the sessions the agent's own steps of this toolkit open, and warns about one none opens
+    if (name === "session" && !props[name]?.enum && (props[name]?.["x-ooa-type"] ?? "String") === "String" && vars) {
+      const [pid, aid] = step.action.split("/");
+      return <Field key={step.id + ":session"} label={labelOf(name) + (req(name) ? " *" : "")} layout="beside"
+        hint="Which open workbook, document, connection or window this step works on; steps that work on the same one use the same name.">{(id) =>
+        <SessionField id={id} value={step.args?.session} fallback={props[name]?.default as string | undefined} opens={/^(open|connect|create|start|login|log_in|launch|attach|begin)(_|$)/.test(aid ?? "")}
+          sessions={knownSessions(vars.flow, pid)} onCommit={(v) => onArg("session", v)} />}</Field>;
+    }
+    // C6: Throw error's code from a list of the usual ones, or a code of your own (AA picks an exception from a list)
+    if (step.action === "core/throw" && name === "code") return <ThrowCode key={step.id + ":code"} value={typeof step.args?.code === "string" ? String(step.args.code) : ""} onCommit={(v) => onArg("code", v)} />;
+    // C9: Delay is Regular (a fixed time) or Random (between two times), as AA's Delay type
+    if (step.action === "core/delay" && name === "seconds") {
+      const random = step.args?.random_max !== undefined && step.args.random_max !== "";
+      return <div key={step.id + ":delay"} className="st-delay">
+        <Field label="Delay type" layout="beside">{() => <div className="st-seg" role="radiogroup" aria-label="Delay type">
+          {([["regular", "Regular"], ["random", "Random"]] as const).map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={(k === "random") === random} className="st-seg-btn"
+            onClick={() => {
+              if ((k === "random") === random) return;
+              const from = Number(step.args?.seconds ?? 1);
+              onArg("random_max", k === "random" ? (Number.isFinite(from) ? from + 5 : 5) : undefined);
+            }}>{t}</button>)}</div>}</Field>
+        {plainInput("seconds", random ? "From" : "Wait")}
+        {random && plainInput("random_max", "To")}
+      </div>;
+    }
+    if (step.action === "core/delay" && name === "random_max") return null;   // with Delay type, above
     // Run subflow: one of this agent's subflows; Go to: a label it can reach (its own list or one around it)
     if ((step.action === "core/run_subflow" && name === "subflow") || (step.action === "core/goto" && name === "label")) {
       const choices = step.action === "core/goto" ? labelsInScope(vars?.flow.steps ?? [], step.id) : (vars?.flow.subflows ?? []).map((s) => s.name);
@@ -96,7 +176,8 @@ export function StepForm({ step, packages, onArg, onNote }:
           options={[{ value: "", label: choices.length ? "Choose…" : none }, ...choices.map((c) => ({ value: c, label: c })),
             ...(value && !choices.includes(value) ? [{ value, label: value + " (not found)" }] : [])]} />}</Field>;
     }
-    if (step.action === "core/run_bot" && (name === "inputs" || name === "output_map")) return null;   // with the agent to run
+    // with the agent to run; an agent from a variable (C4) is not known here, so its inputs are a Dictionary of their own
+    if (step.action === "core/run_bot" && (name === "inputs" || name === "output_map") && !String(step.args?.automation ?? "").startsWith("$")) return null;
     if (isElementAction(step.action) && name === "action") return <Field key={step.id + ":action"} layout="beside"
       label="Action" info="The actions that suit the captured control come first; the rest are under Other actions.">{(id) =>
       <ElementActionSelect id={id} step={step} all={(props.action?.enum ?? []).map(String)} />}</Field>;
@@ -111,11 +192,36 @@ export function StepForm({ step, packages, onArg, onNote }:
       label="Window" info="The browser tab or application window the action works in.">{() => <WindowEditor step={step} />}</Field>;
     if (typedText(step, name)) return <Field key={step.id + ":" + name} label={labelOf(name) + (req(name) ? " *" : "")}
       info="A credential from the vault for passwords (never shown or logged), a variable, plain text or a calculation.">{() => <TextSource step={step} name={name} />}</Field>;
+    // M2: a window chosen for a mouse step that has no "relative to" yet measures its point from that window
+    const commit = (v: unknown) => {
+      if (vars && name === "window" && MOUSE_IN_WINDOW.test(step.action) && step.args?.relative_to === undefined && typeof v === "string" && v.trim() && !v.trim().startsWith("$"))
+        vars.edit(setArg(setArg(vars.flow, step.id, "window", v), step.id, "relative_to", "window"));
+      else onArg(name, v);
+    };
     const input = <InputField key={step.id + ":" + name} action={step.action} name={name} label={labelOf(name)} spec={props[name] ?? {}} required={req(name)}
-      value={step.args?.[name]} onCommit={(v) => onArg(name, v)} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
+      value={step.args?.[name]} onCommit={commit} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
     // a picker beside the field: SOAP operation from the WSDL, directory browser, PDF area, formatted email body
     const picker = pickerFor(step, name, props as Record<string, unknown>);
     return picker ? <div key={step.id + ":" + name + ":with-picker"} className="st-field-with-picker">{input}{picker}</div> : input;
+  };
+  /**
+   * The fields in order, a choice or tick box drawn where its first field stands (X2): a choice shows its options as
+   * buttons and only the chosen option's fields; a tick box shows its fields when ticked. Switching clears the fields
+   * left behind, so the agent never keeps a value the panel hides.
+   */
+  const grouped = (names: string[]) => {
+    const done = new Set<string>();
+    const out: ReactNode[] = [];
+    for (const n of names) {
+      if (done.has(n)) continue;
+      const g = order.groups.find((x) => groupFields(x).includes(n));
+      if (!g) { out.push(field(n)); continue; }
+      const inside = groupFields(g).filter((f) => names.includes(f));
+      inside.forEach((f) => done.add(f));
+      out.push(<PanelGroupView key={step.id + ":g:" + ("choice" in g ? g.choice : g.tick)} group={g} step={step} props={props} shown={inside} field={field}
+        clear={(fields) => { if (vars) { let f = vars.flow; for (const k of fields) f = setArg(f, step.id, k, undefined); vars.edit(f); } }} />);
+    }
+    return out;
   };
   // inputs the agent sets that the catalogue does not list (an older toolkit, a hand-edited file) stay editable
   const extra = Object.keys(step.args ?? {}).filter((n) => !(n in props));
@@ -136,19 +242,33 @@ export function StepForm({ step, packages, onArg, onNote }:
             {([["times", "N times"], ["each", "For each"], ["while", "While"]] as const).map(([m, t]) =>
               <button key={m} type="button" role="radio" aria-checked={mode === m} className="st-seg-btn" onClick={() => setMode(m)}>{t}</button>)}
           </div>}</Field>
-          {mode === "each" && <Field label="Go through" layout="beside">{(id) =>
-            <Select id={id} aria-label="Loop type" value={String(step.args?.iterator ?? "list")} onChange={(e) => onArg("iterator", e.target.value)}
+          {mode === "each" && <Field label="Go through" layout="beside" hint={itSpec?.description}>{(id) =>
+            <Select id={id} aria-label="Loop type" value={String(step.args?.iterator ?? "list")} onChange={(e) => {
+              if (!vars) { onArg("iterator", e.target.value); return; }
+              let f = setArg(vars.flow, step.id, "iterator_args", undefined);
+              if (e.target.value.includes("/")) f = setArg(f, step.id, "over", undefined);
+              vars.edit(setArg(f, step.id, "iterator", e.target.value));
+            }}
               options={[...EACH_KINDS.map((k) => ({ value: k.value, label: k.label })),
-                ...(each || !step.args?.iterator ? [] : [{ value: String(step.args.iterator), label: String(step.args.iterator) + " (a toolkit's iterator)" }])]} />}</Field>}
+                // the toolkits' loop types by toolkit, as AA's iterator list (C2)
+                ...[...packages].filter((p) => p.iterators?.length).sort((a, b) => a.name.localeCompare(b.name))
+                  .flatMap((p) => p.iterators!.map((x) => ({ value: p.id + "/" + x.id, label: x.name, group: p.name }))),
+                ...(each || itSpec || !step.args?.iterator ? [] : [{ value: iterator, label: iterator + " (a toolkit's loop type not installed)" }])]} />}</Field>}
+          {itSpec && <Field label="Settings" layout="beside">{() =>
+            <SpecFields args={(step.args?.iterator_args && typeof step.args.iterator_args === "object" ? step.args.iterator_args : {}) as Record<string, unknown>}
+              spec={itSpec} keyPrefix={step.id + iterator} onChange={(a) => {
+                const kept = Object.fromEntries(Object.entries(a).filter(([, v]) => v !== undefined && v !== ""));
+                onArg("iterator_args", Object.keys(kept).length ? kept : undefined);
+              }} />}</Field>}
         </>}
-        {main.map(field)}
+        {grouped(main)}
         {extra.map(field)}
         {!main.length && !extra.length && !isLoop && <p className="st-muted">This step has no main settings.</p>}
       </div>
       {more.length > 0 && (
         <details className="st-more">
           <summary>More options ({more.length})</summary>
-          <div className="st-prop-fields">{more.map(field)}</div>
+          <div className="st-prop-fields">{grouped(more)}</div>
         </details>
       )}
       {boxed.size > 0 && (
@@ -170,6 +290,14 @@ export function StepForm({ step, packages, onArg, onNote }:
           ))}
         </div>
       </>}
+      {/* C3: what happens when this step fails, as UiPath's ContinueOnError and Retry Scope */}
+      {vars && step.action !== "core/comment" && step.action !== "core/label" && step.action !== "core/step" && <>
+        <h3 className="st-prop-section">If this step fails</h3>
+        <div className="st-prop-fields">
+          <StepErrorFields stepId={step.id} continueOnError={step.continueOnError} retry={step.retry} canRetry={!step.action.startsWith("core/")}
+            onChange={(patch) => vars.edit(setStepPolicy(vars.flow, step.id, patch))} />
+        </div>
+      </>}
       <h3 className="st-prop-section">Comment</h3>
       <div className="st-prop-fields">
         <Field label="Shown on the step" layout="beside">{(id) =>
@@ -177,6 +305,62 @@ export function StepForm({ step, packages, onArg, onNote }:
       </div>
     </div>
   );
+}
+
+/** Which option of a choice is on: the one with a value set, else one with a default, else the first. */
+export function chosenOption(g: Extract<PanelGroup, { choice: string }>, step: FlowStep, props: Record<string, FieldSpec>): number {
+  const set = (f: string) => step.args?.[f] !== undefined && step.args[f] !== "";
+  let i = g.options.findIndex((o) => o.fields.some(set));
+  // R3 (batch 8): nothing filled in shows the option with no fields ("No sign-in", "None") before one that only has a
+  // default (OAuth's client sign-in has one, and a new Send request opened on OAuth 2.0)
+  if (i < 0) i = g.options.findIndex((o) => !o.fields.length);
+  // I1 (batch 9): an AI step with nothing set uses the default model connection, so it opens on "A saved connection"
+  // (its first option), although the provider field has a default
+  if (i < 0 && MODEL_STEPS.test(step.action)) i = 0;
+  if (i < 0) i = g.options.findIndex((o) => o.fields.some((f) => props[f]?.default !== undefined));
+  return Math.max(0, i);
+}
+
+/** A choice (buttons, then the chosen option's fields) or a tick box (its fields when ticked), as the Classic Studio drew them. */
+function PanelGroupView({ group, step, props, shown, field, clear }: { group: PanelGroup; step: FlowStep; props: Record<string, FieldSpec>; shown: string[];
+  field: (name: string) => ReactNode; clear: (fields: string[]) => void }) {
+  const has = (f: string) => step.args?.[f] !== undefined && step.args[f] !== "";
+  const [picked, setPicked] = useState<number | null>(null);
+  const [ticked, setTicked] = useState<boolean | null>(null);
+  if ("choice" in group) {
+    const on = picked ?? chosenOption(group, step, props);
+    return <div className="st-group-choice">
+      <Field label={group.choice} layout="beside">{() => <div className="st-seg" role="radiogroup" aria-label={group.choice}>
+        {group.options.map((o, i) => <button key={o.label} type="button" role="radio" aria-checked={i === on} className="st-seg-btn"
+          onClick={() => { if (i === on) return; setPicked(i); clear(group.options.filter((_, k) => k !== i).flatMap((x) => x.fields).filter(has)); }}>{o.label}</button>)}
+      </div>}</Field>
+      {group.options[on]?.fields.filter((f) => shown.includes(f)).map(field)}
+    </div>;
+  }
+  const on = ticked ?? group.fields.some(has);
+  return <div className="st-group-tick">
+    <label className="st-check-line"><input type="checkbox" checked={on} onChange={(e) => { setTicked(e.target.checked); if (!e.target.checked) clear(group.fields.filter(has)); }} /> {group.tick}</label>
+    {on && group.fields.filter((f) => shown.includes(f)).map(field)}
+  </div>;
+}
+
+/** The usual codes for Throw error (C6), in plain words; a Catch can name them, or a kind such as NOT_FOUND. */
+const THROW_CODES: [string, string][] = [
+  ["BUSINESS.ERROR", "A business rule was not met"], ["VALIDATION.FAILED", "The data is not valid"], ["DATA.NOT_FOUND", "Something needed was not found"],
+  ["DATA.DUPLICATE", "It was done or exists already"], ["SYSTEM.UNAVAILABLE", "A system is down or not answering"], ["PROCESS.TIMEOUT", "It took too long"],
+  ["ACCESS.DENIED", "Not allowed (sign-in or permission)"]];
+const OWN = "\u0000own";
+
+/** Throw error's code: one of the usual ones, or your own (letters, digits, _ and dots, e.g. BUSINESS.INVOICE_DUPLICATE). */
+function ThrowCode({ value, onCommit }: { value: string; onCommit: (v: string | undefined) => void }) {
+  const known = THROW_CODES.some(([c]) => c === value);
+  const [own, setOwn] = useState(!known && value !== "");
+  return <Field label="Error code *" layout="beside" hint="A Catch takes errors by code, by a prefix such as BUSINESS.* or by a kind such as NOT_FOUND.">{(id) => <>
+    <Select id={id} value={own ? OWN : value} onChange={(e) => { if (e.target.value === OWN) setOwn(true); else { setOwn(false); onCommit(e.target.value || undefined); } }}
+      options={[{ value: "", label: "Choose…" }, ...THROW_CODES.map(([c, words]) => ({ value: c, label: words + " (" + c + ")" })), { value: OWN, label: "A code of your own…" }]} />
+    {own && <CommitInput key={"own" + value} label="Your own error code" mono want="String" initial={known ? "" : value} placeholder="BUSINESS.INVOICE_DUPLICATE"
+      onCommit={(t) => onCommit(t.trim() || undefined)} />}
+  </>}</Field>;
 }
 
 /** File fields that take a folder (Browse… then chooses a folder). */
@@ -196,21 +380,32 @@ function InputField({ action, name, label, spec, required, value, onCommit, appl
   const fallback = spec.default !== undefined ? "Default: " + showValue(spec.default) : required ? "" : "Not set";
   const info = helpText(spec, required) || undefined;
   return (
-    <Field label={label + (required ? " *" : "")} layout="beside" info={info}>{(id) => {
+    <Field label={(name.endsWith("_bytes") ? label.replace(/ \(bytes\)$/, "") : label) + (required ? " *" : "")} layout="beside" info={info}>{(id) => {
       if (spec.enum?.length) {
         // a Number field with choices (e.g. key length 128/256) keeps the number type when a choice is picked
         return <Select id={id} value={value === undefined ? "" : String(value)} onChange={(e) => onCommit(e.target.value === "" ? undefined : isNumber(spec) ? Number(e.target.value) : e.target.value)}
-          options={[{ value: "", label: fallback || "Choose…" }, ...spec.enum.map((v) => ({ value: String(v), label: String(v).replace(/_/g, " ") }))]} />;
+          options={[{ value: "", label: spec.default !== undefined ? "Default: " + enumWord(spec.default) : fallback || "Choose…" }, ...spec.enum.map((v) => ({ value: String(v), label: enumWord(v) }))]} />;
       }
+      // pickers for what people typed and got wrong (D1, D2, D8): time zone, date pattern, language and region
+      const asText = (v: string | undefined) => onCommit(v);
+      if (name === "time_zone" && spec["x-ooa-type"] !== "Dictionary") return <TimeZoneField id={id} value={value} local={action.startsWith("ooa.datetime/")} onCommit={asText} />;
+      if (name === "pattern" && /^ooa\.datetime\/(format|parse)$/.test(action)) return <DatePatternField id={id} value={value} fallback={spec.default as string | undefined} onCommit={asText} />;
+      if (name === "locale" && (spec["x-ooa-type"] === "String" || spec["x-ooa-type"] === undefined)) return <LocaleField id={id} value={value} fallback={spec.default as string | undefined} onCommit={asText} />;
+      // F2, F3, F4: delimiter and encoding from the lists every toolkit reads, sizes with a unit
+      if (name === "delimiter" && !spec.enum) return <DelimiterField id={id} value={value} fallback={spec.default as string | undefined} onCommit={asText} />;
+      if (name === "encoding" && !spec.enum) return <EncodingField id={id} value={value} fallback={spec.default as string | undefined} detect={action.startsWith("ooa.file/read")} onCommit={asText} />;
+      if (name.endsWith("_bytes") && isNumber(spec)) return <SizeField id={id} value={value} onCommit={(v) => onCommit(v)} />;
       // by kind (docs/research/input-help-check.md): a value or a variable, Browse, the vault, the open windows
       const kind = { id, name, value, fallback, onCommit, apply };
       const ooaType = spec["x-ooa-type"];
       if (spec.type === "boolean") return <BoolField {...kind} />;
       if (ooaType === "DateTime") return <DateField {...kind} />;
+      if (name === "alternatives" && action.startsWith("ooa.window/") && ooaType === "Dictionary") return <WindowAlternativesField {...kind} />;
       if (ooaType === "List" || ooaType === "Dictionary" || ooaType === "Table") return <CollectionField {...kind} type={ooaType} />;
       if (ooaType === "Credential") return <CredentialField {...kind} />;
       if (ooaType === "File") return <FileField {...kind} folder={FOLDER_FIELD.test(name) || folderAction} />;
-      if ((name === "window" || spec["x-ooa-label"] === "Window") && (ooaType === "String" || ooaType === undefined)) return <WindowField {...kind} />;
+      if (isWindowTitle(action, name, spec) && (ooaType === "String" || ooaType === undefined)) return <WindowField {...kind} />;
+      if (name === "connection" && MODEL_STEPS.test(action) && (ooaType === "String" || ooaType === undefined)) return <ModelConnectionField {...kind} />;
       const text = isNumber(spec) ? showNumber(value) : showValue(value);
       return <CommitInput key={text} id={id} initial={text} placeholder={fallback} mono={typeof value === "string" && value.startsWith("$")}
         onCommit={(t) => onCommit(parseValue(t, spec))} want={spec["x-ooa-type"] ?? "Any"} apply={apply} nameHint={name} />;

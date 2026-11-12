@@ -1,3 +1,4 @@
+import { enumWord } from "./enumWords";
 import type { FieldSpec, FlowStep, PackageManifest } from "../api/client";
 
 /**
@@ -18,7 +19,23 @@ export function shownWhen(rule: Record<string, unknown[]> | undefined, value: (n
 export function helpText(spec: FieldSpec & { minimum?: number; maximum?: number }, required: boolean): string {
   const limits = spec.minimum !== undefined && spec.maximum !== undefined ? `From ${spec.minimum} to ${spec.maximum}.`
     : spec.minimum !== undefined ? `Smallest value: ${spec.minimum}.` : spec.maximum !== undefined ? `Largest value: ${spec.maximum}.` : "";
-  return [required ? "Required." : "", spec.description ?? "", limits].filter(Boolean).join(" ");
+  return [required ? "Required." : "", choiceWords(spec), limits].filter(Boolean).join(" ");
+}
+
+/**
+ * K8 (batch 10): help that explains each choice by its stored code ("client_credentials: ...; password: ...") names it
+ * as the list shows it ("Client credentials: ...; Password: ..."), so the help and the list say the same.
+ */
+export function choiceWords(spec: FieldSpec): string {
+  const text = spec.description ?? "";
+  if (!Array.isArray(spec.enum) || !spec.enum.length) return text;
+  let out = text;
+  for (const v of spec.enum) {
+    const code = String(v);
+    if (!/^[A-Za-z0-9_-]+$/.test(code)) continue;
+    out = out.replace(new RegExp("(^|; |\\. )" + code + ":", "g"), (_m, pre: string) => pre + enumWord(code) + ":");
+  }
+  return out;
 }
 
 // ---- element actions (web pages and desktop controls) ----
@@ -171,10 +188,28 @@ export const loopIsMore = (name: string) => LOOP_MORE.has(name);
  * The inputs a connector repeats on (nearly) every action, such as its address and sign-in: what a saved connection
  * supplies. Toolkits whose shared inputs are a file or a request (Excel, PDF, REST, Generative AI) have none.
  */
+/**
+ * R2 (batch 8): what a web connection keeps for REST and SOAP steps: the address the steps' paths are relative to,
+ * headers, the sign-in, proxy and client certificate. The address of each call stays on the step.
+ */
+export const WEB_CONNECTION_INPUTS = ["base_url", "headers", "basic_user", "basic_password", "bearer_token", "windows_auth",
+  "oauth_token_url", "oauth_client_id", "oauth_client_secret", "oauth_refresh_token", "oauth_scope", "oauth_audience", "oauth_resource", "oauth_client_auth",
+  "oauth1_consumer_key", "oauth1_consumer_secret", "oauth1_token", "oauth1_token_secret", "oauth1_signature_method",
+  "ntlm_user", "ntlm_domain", "ntlm_password", "proxy", "proxy_user", "proxy_password", "client_certificate", "client_certificate_password", "insecure_tls"];
+
 export function connectionInputs(pkg: PackageManifest | undefined): Set<string> {
-  if (!pkg || pkg.actions.length < 3 || ["ooa.excel_desktop", "ooa.powerpoint_desktop", "ooa.pdf", "ooa.rest", "ooa.genai"].includes(pkg.id)) return new Set();
+  if (pkg && (pkg.id === "ooa.rest" || pkg.id === "ooa.soap")) {
+    const has = new Set(pkg.actions.flatMap((a) => Object.keys(a.inputs?.properties ?? {})));
+    return new Set(WEB_CONNECTION_INPUTS.filter((n) => has.has(n)));
+  }
+  if (!pkg || pkg.actions.length < 3 || ["ooa.excel_desktop", "ooa.powerpoint_desktop", "ooa.pdf", "ooa.genai"].includes(pkg.id)) return new Set();
   const count = new Map<string, number>(), types = new Map<string, string | undefined>();
   for (const a of pkg.actions) for (const [k, v] of Object.entries(a.inputs?.properties ?? {})) { count.set(k, (count.get(k) ?? 0) + 1); types.set(k, v["x-ooa-type"]); }
   const common = [...count].filter(([, n]) => n >= 0.8 * pkg.actions.length).map(([k]) => k);
-  return common.some((k) => types.get(k) === "Credential") ? new Set(common) : new Set();
+  if (common.some((k) => types.get(k) === "Credential")) return new Set(common);
+  // A1: a toolkit with sessions that signs in with an access token (Email's IMAP with OAuth): its Connect step's settings
+  const connect = pkg.actions.find((a) => a.id === "connect");
+  if (connect?.inputs?.properties?.access_token?.["x-ooa-type"] === "Credential")
+    return new Set(Object.keys(connect.inputs.properties).filter((k) => k !== "session" && k !== "timeout_seconds"));
+  return new Set();
 }

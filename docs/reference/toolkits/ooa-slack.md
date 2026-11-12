@@ -23,8 +23,8 @@ Read a channel's name, topic, purpose, privacy and member count.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. |
-| Channel | `channel` | Text | Yes |  | Main | Channel id. |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Channel | `channel` | Text | Yes |  | Main | Channel id, or a channel name such as #ops-alerts (looked up first). |
 | Endpoint address | `base_url` | Text | No | `https://slack.com/api` | More options | API endpoint; change only for testing. |
 
 **Results**
@@ -45,7 +45,7 @@ Find a channel's id from its name, e.g. #ops-alerts.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Name | `name` | Text | Yes |  | Main | Channel name, with or without the leading #. Example: `ops-alerts` |
 | Include private | `include_private` | Yes/No | No | Yes | More options | Also look in private channels the agent belongs to. |
 | Include archived | `include_archived` | Yes/No | No | No | More options | Also look in archived channels. |
@@ -69,10 +69,10 @@ Read recent messages of a channel or direct conversation into a table, newest fi
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. |
-| Channel | `channel` | Text | Yes |  | Main | Channel or conversation id. |
-| Oldest | `oldest` | Text | No |  | Main | Only messages after this timestamp id (e.g. 1700000000.000100). |
-| Latest | `latest` | Text | No |  | Main | Only messages before this timestamp id. |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Channel | `channel` | Text | Yes |  | Main | Channel id, or a channel name such as #ops-alerts (looked up first). |
+| Oldest | `oldest` | Text | No |  | Main | Only messages after this time: a date (2026-11-01), a date and time in UTC (2026-11-01T09:00), or a message timestamp id (1700000000.000100). Example: `2026-11-01` |
+| Latest | `latest` | Text | No |  | Main | Only messages before this time: a date, a date and time in UTC, or a message timestamp id. |
 | Maximum messages | `max_messages` | Number | No | `200` | Main | Maximum messages to read. |
 | Thread ts | `thread_ts` | Text | No |  | More options | Read the replies of this thread instead of the channel. |
 | Inclusive | `inclusive` | Yes/No | No | No | More options | Also include the messages exactly at oldest and latest. |
@@ -99,7 +99,7 @@ Look up a person by member id or email and return their profile.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | Member id (U...) or email address. |
 | Endpoint address | `base_url` | Text | No | `https://slack.com/api` | More options | API endpoint; change only for testing. |
 
@@ -123,7 +123,7 @@ Read the workspace's id, name and domain.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Workspace ID | `workspace_id` | Text | No |  | Main | Workspace (team) id, for apps installed in several workspaces; the token's own workspace when empty. |
 | Endpoint address | `base_url` | Text | No | `https://slack.com/api` | More options | API endpoint; change only for testing. |
 
@@ -145,7 +145,7 @@ Find a workspace's id from its name or domain, among the workspaces the agent's 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Name | `name` | Text | Yes |  | Main | Workspace name or domain (not case-sensitive). |
 | Endpoint address | `base_url` | Text | No | `https://slack.com/api` | More options | API endpoint; change only for testing. |
 
@@ -169,7 +169,7 @@ Post a message to a channel (or a user's DM), optionally as a thread reply.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token (xoxb-...) from the vault. |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token (xoxb-...) from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Channel | `channel` | Text | Yes |  | Main | Channel id, a user id for a direct message, or a channel name such as #ops-alerts (looked up first). Example: `C0123456789` |
 | Text | `text` | Text | Yes |  | Main | Message text (Slack markdown). |
 | Thread ts | `thread_ts` | Text | No |  | Main | Reply in the thread of this message. |
@@ -201,7 +201,7 @@ Open a direct conversation with a person (by member id or email) and post a mess
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token (xoxb-...) from the vault. |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token (xoxb-...) from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | Member id (U...) or the person's email address; several separated by , or ; open a group conversation. Example: `ann@example.com` |
 | Text | `text` | Text | Yes |  | Main | Message text (Slack markdown). |
 | Thread ts | `thread_ts` | Text | No |  | More options | Reply in the thread of this message. |
@@ -231,8 +231,8 @@ Edit a message the agent posted, e.g. to show progress.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. |
-| Channel | `channel` | Text | Yes |  | Main | Channel id. |
+| Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Channel | `channel` | Text | Yes |  | Main | Channel id, or a channel name such as #ops-alerts (looked up first). |
 | Ts | `ts` | Text | Yes |  | Main | Timestamp id of the message. |
 | Text | `text` | Text | Yes |  | Main | New text. |
 | Blocks | `blocks` | Any | No |  | More options | New Block Kit layout: a List of blocks or its JSON text. |
@@ -251,7 +251,7 @@ Share one or more local files in a channel or direct conversation, with an optio
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Bot token | `bot_token` | Credential (vault) | Yes |  | Main | Slack bot token (xoxb-...) from the vault; needs the files:write scope. |
-| Channel | `channel` | Text | Yes |  | Main | Channel or conversation id. Example: `C0123456789` |
+| Channel | `channel` | Text | Yes |  | Main | Channel id, or a channel name such as #ops-alerts (looked up first). Example: `C0123456789` |
 | Files | `files` | List | Yes |  | Main | Local file paths. |
 | Comment | `comment` | Text | No |  | Main | Message posted with the files. |
 | Thread ts | `thread_ts` | Text | No |  | More options | Share in the thread of this message. |

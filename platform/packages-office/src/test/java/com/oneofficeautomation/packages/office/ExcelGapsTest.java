@@ -60,6 +60,18 @@ class ExcelGapsTest {
         try (InputStream in = Files.newInputStream(dir.resolve(file))) { return WorkbookFactory.create(in); }
     }
 
+    @Test void savingStoresUpToDateFormulaResultsAndAsksExcelToRecalculate() throws Exception {
+        // command review E1: the stored result of a formula follows the cells it uses, for tools that read stored results
+        xl.setFormula(ctx, "D2", "B2*2", "Data", "excel");
+        xl.save(ctx, null, "excel", null);
+        xl.setCell(ctx, "B2", 5, "Data", "excel");
+        xl.save(ctx, null, "excel", null);
+        try (XSSFWorkbook wb = new XSSFWorkbook(Files.newInputStream(dir.resolve("book.xlsx")))) {
+            assertEquals(10.0, wb.getSheet("Data").getRow(1).getCell(3).getNumericCellValue(), "the stored result, read without working the formula out");
+            assertTrue(wb.getForceFormulaRecalculation(), "Excel recalculates when it opens the file");
+        }
+    }
+
     @Test void appendWorkbookWorksheetAndCopySheets() {
         assertEquals(List.of("Other", "Data (2)"), xl.appendWorkbook(ctx, "other.xlsx", "excel").get("sheets"));
         assertEquals("y", val("Other", "A2"));

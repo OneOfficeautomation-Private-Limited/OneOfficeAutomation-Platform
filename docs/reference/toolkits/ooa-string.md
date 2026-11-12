@@ -242,11 +242,11 @@ Replace text, optionally using a regular expression.
 | --- | --- | --- | --- | --- | --- | --- |
 | Text | `text` | Text | Yes |  | Main | Source text. |
 | Find | `find` | Text | Yes |  | Main | Text or regex to find. |
-| Ignore case | `ignore_case` | Yes/No | No | No | Main | Match without regard to upper/lower case. |
-| Find is a regular expression | `regex` | Yes/No | No | No | Main | Treat 'find' as a regular expression. |
-| Start | `start` | Number | No | `0` | Main | Zero-based position to start replacing from; text before it is kept as is. Range: 0 to  |
-| Count | `count` | Number | No | `-1` | Main | Replace at most this many matches; -1 replaces all. Range: -1 to  |
 | Replace with | `replace_with` | Text | No | (empty) | Main | Replacement text. |
+| Ignore case | `ignore_case` | Yes/No | No | No | More options | Match without regard to upper/lower case. |
+| Find is a regular expression | `regex` | Yes/No | No | No | More options | Treat 'find' as a regular expression. |
+| Start | `start` | Number | No | `0` | More options | Zero-based position to start replacing from; text before it is kept as is. Range: 0 to  |
+| Count | `count` | Number | No | `-1` | More options | Replace at most this many matches; -1 replaces all. Range: -1 to  |
 
 **Results**
 

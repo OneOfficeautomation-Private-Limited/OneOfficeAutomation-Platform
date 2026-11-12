@@ -1053,7 +1053,7 @@ public final class SapPackage {
         java.nio.charset.Charset cs;
         try { cs = java.nio.charset.Charset.forName(encoding == null || encoding.isBlank() ? "UTF-8" : encoding); }
         catch (RuntimeException e) { throw new ActionException("SAP.BAD_ENCODING", "Unknown encoding '" + encoding + "'"); }
-        String d = delimiter == null || delimiter.isEmpty() ? "," : delimiter.equals("tab") ? "\t" : delimiter;
+        String d = CsvPackage.delimiterText(delimiter);
         StringBuilder sb = new StringBuilder();
         boolean existing = append && Files.isRegularFile(p) && p.toFile().length() > 0;
         if (header && !existing) sb.append(csvLine(new ArrayList<>(cols), d));

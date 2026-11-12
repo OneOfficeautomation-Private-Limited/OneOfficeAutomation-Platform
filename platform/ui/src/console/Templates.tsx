@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AgentTemplate, CrApi, CrUser, TemplateProcessResult } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { FolderIcon } from "./Repository";
 
 /**
@@ -141,7 +141,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
             {arrangeable && <Button kind="plain" onClick={() => setDialog({ kind: "move", t: open })}>Move to folder…</Button>}
             {where.length > 0 && <a className="ui-btn ui-btn-secondary cc-btn-link" href={openIn(open)}>Open in Automation</a>}
             {can("lifecycle.import") && <Button kind="primary" onClick={() => setDialog({ kind: "install", t: open })}>{where.length ? "Install again into…" : "Install"}</Button>}
-            <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the templates" onClick={() => setOpen(null)}>×</button>
+            <CloseView onClick={() => setOpen(null)} to="the templates" />
           </div>
           <div className="cc-agent-tab">
             {open.description && <p>{open.description}</p>}

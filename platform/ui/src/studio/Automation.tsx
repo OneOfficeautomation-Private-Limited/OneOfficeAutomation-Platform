@@ -4,6 +4,7 @@ import { Button, Dialog, Field, HelpButton, Icon, IconTile, is, keyOf, Menu, Sel
 import { AUTOMATION_HELP, PUBLIC_HELP } from "./studioHelp";
 import { Analysis, ColumnsDialog, labelText, sizeText, type Column } from "./columns";
 import { CreateDialog } from "./CreateDialog";
+import type { RepoRequest } from "./ControlRoom";
 import type { StudioView } from "./CommandMenu";
 import { ITEM_TYPES, displayName, typeLabel, type ItemType } from "./itemTypes";
 
@@ -54,6 +55,7 @@ const STATUS: Record<RepoState["status"], [string, string]> = {
   checked_out_edited: ["Checked out · edited", "Checked out to you, with changes not checked in yet."],
   checked_in: ["Checked in", "The same as in the repository; not checked out. Check it out on the Public tab to change it."],
   edited: ["Edited, not checked out", "Changed, but not checked out: check it out on the Public tab (your changes are kept), then check it in."],
+  cloned: ["Cloned", "A read-only copy of an agent in the repository; it follows the repository. Check it out on the Public tab to change it, or copy it to Private."],
 };
 /** The Private list's columns after the name, as AA's; the repository's ones show while signed in to One CommandCenter. */
 const COLUMNS: Column[] = [{ key: "type", label: "Type" }, { key: "status", label: "Status" }, { key: "platform", label: "Platform" }, { key: "version", label: "Version" },
@@ -62,8 +64,9 @@ const COLUMNS: Column[] = [{ key: "type", label: "Type" }, { key: "status", labe
 const FROM_REPO = ["status", "version", "label", "analysis", "by"];
 const CLASS: Record<string, string> = { type: "st-col-type", changed: "st-col-changed" };
 const KINDS: [string, string][] = [["", "Type: Any"], ["folder", "Folders"], ["bot", "Agents"], ["process", "Workflows"], ["form", "Forms"], ["document", "Document types"], ["skill", "Prompt Skills"], ["script", "Scripts"], ["file", "Other files"]];
-export function Automation({ api, view, tree, search = "", blueprints = [], publicView, repo, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
-  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; repo?: RepoHooks; onOpen: (n: WorkspaceNode) => void;
+export function Automation({ api, view, tree, search = "", blueprints = [], publicView, repo, onRepoLink, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
+  { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; repo?: RepoHooks;
+    onRepoLink?: (r: RepoRequest) => void; onOpen: (n: WorkspaceNode) => void;
     onDelete: (nodes: WorkspaceNode[]) => void; onCreated: (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => Promise<void>;
     onNewFolder: (parent: string) => void; onMoved: (from: string, to: string) => void; onChanged: () => Promise<unknown>;
     onNotice: (text: string) => void; onError: (e: unknown) => void }) {
@@ -88,11 +91,13 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const [kind, setKind] = useState("");   // Type filter
   const [place, setPlace] = usePersistent<"private" | "public">("automation.place", "private");
   // the console's Automation page opens this page on its Private tab (../studio/#private; #private/new: Create > Agent), as AA's one Automation page
+  // #public/checkout/<agent path>, #public/clone/<path> and #public/copy/<path>: the console agent page's Edit, Clone and Copy to Private
   useEffect(() => {
-    const [h, act] = location.hash.replace("#", "").split("/");
+    const [h, act, ...rest] = location.hash.replace("#", "").split("/");
     if (h !== "private" && h !== "public") return;
     setPlace(h);
     if (h === "private" && act === "new") { setCreateIn(folder); setCreating(ITEM_TYPES.find((t) => t.kind === "TaskBot") ?? null); }
+    if (h === "public" && (act === "checkout" || act === "clone" || act === "copy") && rest.length) onRepoLink?.({ act, path: decodeURIComponent(rest.join("/")) });
     history.replaceState(null, "", location.pathname);
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const isPublic = place === "public" && !!publicView && !search.trim();   // a search looks in the workspace

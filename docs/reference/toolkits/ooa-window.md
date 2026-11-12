@@ -7,6 +7,7 @@ Toolkit `ooa.window`, version 1.0.0. Find, activate, move, resize, minimise, max
 ## Contents
 
 - **Window**: Activate window, Capture window, Close window, Close all matching windows, Get active window title, Get window details, Hide window, List windows, Maximise window, Minimise window, Move and resize window, Restore window, Set window title, Show window, Wait for window
+- **Capture**: Pick a point on screen
 - **Keyboard**: Type into window in background
 - **Conditions**: Window exists, Window is active
 
@@ -22,7 +23,7 @@ Bring a window to the front (restoring it if minimised).
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
 | Process ID | `process_id` | Number | No |  | More options | Process id from Start program: use that program's main window instead of finding it by title; title, when given, then only narrows the choice. |
@@ -45,7 +46,7 @@ Save a PNG screenshot of one window.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | Path | `path` | File path | Yes |  | Main | PNG file to create. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing file; when false an existing file stops the step. |
 | Activate | `activate` | Yes/No | No | No | More options | Bring the window to the front first so nothing covers it. |
@@ -71,7 +72,7 @@ Ask a window to close (like clicking its X; the program may ask to save).
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
 | Wait until closed (seconds) | `wait_closed_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to disappear; 0 does not wait. Range: 0 to  |
@@ -95,7 +96,7 @@ Ask every visible window whose title matches to close (like clicking each X); pr
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | Yes |  | Main | Text in the window titles (case-insensitive), or a regular expression when use_regex is true. Example: ` - Notepad` |
+| Title | `title` | Text | Yes |  | Main | Text in the window titles, a pattern with * or ?, or re: and a regular expression (case-insensitive); the tick below reads the whole title as a regular expression, as older agents do. Example: ` - Notepad` |
 | Keep | `keep` | List | No |  | Main | Windows to leave open: text in their titles (case-insensitive), e.g. ["Invoices.xlsx"]. The agent's own windows are always kept. |
 | Title is a regular expression | `use_regex` | Yes/No | No | No | More options | Treat title as a regular expression. |
 
@@ -136,7 +137,7 @@ Find a window and return its title, program, class, position, size and state, e.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
 | Process ID | `process_id` | Number | No |  | More options | Process id from Start program: use that program's main window instead of finding it by title; title, when given, then only narrows the choice. |
@@ -165,7 +166,7 @@ Hide a window completely: unlike Minimise it also leaves the taskbar. The progra
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | Show at end | `show_at_end` | Yes/No | No | Yes | Main | Show the window again when the run ends (also when it fails), so no invisible windows are left behind. Turn off to keep it hidden after the run. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
@@ -205,7 +206,7 @@ Maximise a window.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
 | Process ID | `process_id` | Number | No |  | More options | Process id from Start program: use that program's main window instead of finding it by title; title, when given, then only narrows the choice. |
@@ -228,7 +229,7 @@ Minimise a window.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
 | Process ID | `process_id` | Number | No |  | More options | Process id from Start program: use that program's main window instead of finding it by title; title, when given, then only narrows the choice. |
@@ -251,7 +252,7 @@ Set a window's position and/or size in pixels; values left empty keep the window
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | X | `x` | Number | No |  | Main | Left; unchanged when empty. |
 | Y | `y` | Number | No |  | Main | Top; unchanged when empty. |
 | Width | `width` | Number | No |  | Main | Width; unchanged when empty. |
@@ -272,7 +273,7 @@ Restore a minimised or maximised window to its normal size.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
 | Process ID | `process_id` | Number | No |  | More options | Process id from Start program: use that program's main window instead of finding it by title; title, when given, then only narrows the choice. |
@@ -295,7 +296,7 @@ Change the title bar text of a window, e.g. to tell several copies of the same p
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | New title | `new_title` | Text | Yes |  | Main | New title text. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
@@ -319,7 +320,7 @@ Show a window that was hidden (by Hide window or by its program), optionally bri
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive). Hidden windows are searched first, then visible ones. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ?, or re: and a regular expression (case-insensitive). Hidden windows are searched first, then visible ones. May be empty when process_id is given. |
 | Activate | `activate` | Yes/No | No | Yes | Main | Also bring the window to the front. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | Wait up to this many seconds for the window to appear; 0 looks once. Range: 0 to  |
 | Process ID | `process_id` | Number | No |  | More options | Process id from Start program: use that program's main window instead of finding it by title; title, when given, then only narrows the choice. |
@@ -336,14 +337,14 @@ Show a window that was hidden (by Hide window or by its program), optionally bri
 
 `ooa.window/wait_for` (action)
 
-Wait until a window whose title contains the text (or the main window of a process) opens, or until it has closed.
+Wait until a window whose title matches (or the main window of a process) opens, or until it has closed.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | State | `state` | Text | No | `open` | Main | open: wait until the window is there; close: wait until no window with this title is left. One of: `open`, `close` |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `30` | Main | Maximum wait. Range: 0 to  |
 | Fail on timeout | `fail_on_timeout` | Yes/No | No | Yes | Main | Fail the step when time runs out; when off, met is false and the agent carries on. |
 | Alternatives | `alternatives` | Dictionary | No |  | More options | Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged. Shown when: `{"state": ["open"]}` |
@@ -358,6 +359,34 @@ Wait until a window whose title contains the text (or the main window of a proce
 
 *Time limit 3600 s; needs: desktop.*
 
+## Capture
+
+### Pick a point on screen
+
+`ooa.window/pick_point` (action)
+
+Design time: point at a place in any window and press Ctrl+Shift+C. Gives the point on the screen and measured from the window's top-left corner, with the window's title and size, for mouse steps (AA's Capture coordinate).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `60` | Main | How long to wait for the Ctrl+Shift+C press, in seconds. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `x` | Number | Horizontal position from the window's left edge. |
+| `y` | Number | Vertical position from the window's top edge. |
+| `screen_x` | Number | Horizontal position from the screen's left edge. |
+| `screen_y` | Number | Vertical position from the screen's top edge. |
+| `window` | Text | Title of the window under the pointer; empty over the desktop. |
+| `window_width` | Number | The window's outer width. |
+| `window_height` | Number | The window's outer height. |
+
+*Time limit 900 s; needs: desktop.*
+
 ## Keyboard
 
 ### Type into window in background
@@ -370,7 +399,7 @@ Type text and keys such as {ENTER} or {TAB} into a window without bringing it to
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Text contained in the window title (case-insensitive): the first visible window whose title contains it is used, unlike desktop objects, which need the whole title. May be empty when process_id is given. |
+| Title | `title` | Text | No |  | Main | Text in the window title, a pattern with * or ? (e.g. Invoice*- Excel), or re: and a regular expression; case-insensitive. The first visible window that matches is used. May be empty when process_id is given. |
 | Text | `text` | Any | Yes |  | Main | Text to type; {ENTER}, {TAB}, {BACKSPACE}, {DELETE}, {ESC}, arrows, {HOME}, {END}, {F1}-{F12} press those keys ({TAB 3} three times; a { inside braces types a {). A Credential is typed without being logged. |
 | Control class | `control_class` | Text | No |  | Main; choice Into = A control of a class | Window class of the control to type into, or a pattern with * and ?; the window's focused control when empty. Example: `Edit` |
 | Control index | `control_index` | Number | No | `0` | Main; choice Into = A control of a class | Which control of that class (0 is the first). Range: 0 to  |
@@ -397,22 +426,22 @@ Used in If, Loop while and Wait until steps.
 
 `ooa.window/exists` (condition)
 
-True when a visible window title contains the text.
+True when a visible window title matches (text in it, * or ? pattern, or re:).
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | Yes |  | Main | Text contained in the window title (case-insensitive). |
+| Title | `title` | Text | Yes |  | Main | Text in the window title, a pattern with * or ?, or re: and a regular expression (case-insensitive). |
 
 ### Window is active
 
 `ooa.window/is_active` (condition)
 
-True when the window in front has a title containing the text.
+True when the window in front has a matching title (text in it, * or ? pattern, or re:).
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | Yes |  | Main | Text contained in the window title (case-insensitive). |
+| Title | `title` | Text | Yes |  | Main | Text in the window title, a pattern with * or ?, or re: and a regular expression (case-insensitive). |

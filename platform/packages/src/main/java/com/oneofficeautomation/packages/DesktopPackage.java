@@ -57,6 +57,7 @@ public final class DesktopPackage {
         List<Integer> codes = new ArrayList<>();
         for (String part : combo.toUpperCase(Locale.ROOT).split("\\+")) {
             Integer c = KEYS.get(part.trim());
+            if (c == null) c = KEYS.get(KeyNames.desktop(part));   // K1: Page Up, PgUp, Del, Return, Control...
             if (c == null) throw new ActionException("DESKTOP.BAD_KEY", "Unknown key '" + part.trim() + "' in '" + combo + "'",
                     "Use names like ENTER, TAB, ESC, F5, CTRL+S, ALT+F4.");
             codes.add(c);
@@ -79,6 +80,8 @@ public final class DesktopPackage {
     // ---------- window targeting ----------
 
     private static final String D_WINDOW = "Window to bring to the front first: text in its title, a pattern with * or ?, or re:regex. Empty uses the window that is in front.";
+    private static final String D_WIN_W = "Outer width the window is given first, in pixels (with window_height), so a point measured from its corner lands where it was taken; Pick on screen fills it in.";
+    private static final String D_WIN_H = "Outer height the window is given first, in pixels (with window_width).";
     private static final String D_RELATIVE = "screen: x and y are measured from the top-left of the screen; window: from the top-left of the chosen window.";
 
     /** Screen point for x/y measured from the screen or from a window rectangle {x, y, width, height}. */
@@ -89,7 +92,27 @@ public final class DesktopPackage {
     }
 
     /** Brings the window to the front (when given) and returns its rectangle; null when no window was asked for. */
-    static int[] focusWindow(String window, boolean needBounds) {
+    static int[] focusWindow(String window, boolean needBounds) { return focusWindow(window, needBounds, null, null); }
+
+    /**
+     * As above, first giving the window the size it had when the point was taken (M2, AA's "Resize window"), so a point
+     * measured from its corner still lands on the same control. Both sizes or neither.
+     */
+    static int[] focusWindow(String window, boolean needBounds, Integer width, Integer height) {
+        if ((width == null) != (height == null))
+            throw new ActionException("DESKTOP.BAD_OPTION", "The window size needs both width and height", "Fill in both, or leave both empty to keep the window's size.");
+        if (width != null && (window == null || window.isBlank()))
+            throw new ActionException("DESKTOP.NO_WINDOW", "A window size needs the window input", "Fill in window, or leave the window size empty.");
+        if (width != null && (width < 50 || height < 50))
+            throw new ActionException("DESKTOP.BAD_OPTION", "The window size must be at least 50 x 50 pixels", "Use the size Pick on screen filled in.");
+        if (width != null) {
+            DesktopEvents d = DesktopEvents.installed().orElseThrow(() -> new ActionException("DESKTOP.WINDOW_UNAVAILABLE",
+                    "Choosing a window needs a Windows runner with the Window toolkit installed", "Leave window empty to use the window in front."));
+            if (!d.resizeWindow(window, width, height))
+                throw new ActionException("DESKTOP.WINDOW_NOT_FOUND", "Cannot give window '" + window + "' the size " + width + " x " + height,
+                        "Check the window is open (Window > List windows); some windows have a fixed size: leave the size empty for those.", true);
+            try { Thread.sleep(150); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }
         if (window == null || window.isBlank()) {
             if (needBounds) throw new ActionException("DESKTOP.NO_WINDOW", "Coordinates relative to a window need the window input", "Fill in window, or use relative_to screen.");
             return null;
@@ -107,7 +130,7 @@ public final class DesktopPackage {
 
     @Action(id = "mouse_click", name = "Mouse click", category = "Mouse", capabilities = "desktop",
             description = "Click, double-click, or press or release a mouse button at a point on the screen or in a window.",
-            panel = "window, x, y, button, button_action, double_click | relative_to, modifier_keys")
+            panel = "window, relative_to, x, y, button, button_action, double_click | modifier_keys, [Put the window back to this size first: window_width, window_height]")
     public Map<String, Object> click(ActionContext ctx,
             @Input(name = "x", type = OoaType.NUMBER, description = "Horizontal position in pixels from the left.") int x,
             @Input(name = "y", type = OoaType.NUMBER, description = "Vertical position in pixels from the top.") int y,
@@ -117,14 +140,16 @@ public final class DesktopPackage {
                     description = "click presses and releases; down only presses (hold, e.g. to start a drag); up only releases.") String buttonAction,
             @Input(name = "relative_to", type = OoaType.STRING, required = false, defaultValue = "\"screen\"", enumValues = {"screen", "window"}, description = D_RELATIVE) String relativeTo,
             @Input(name = "window", type = OoaType.STRING, required = false, description = D_WINDOW) String window,
-            @Input(name = "modifier_keys", type = OoaType.STRING, required = false, example = "CTRL", description = "Keys held during the click, e.g. CTRL, SHIFT or CTRL+SHIFT.") String modifiers) {
+            @Input(name = "modifier_keys", type = OoaType.STRING, required = false, example = "CTRL", description = "Keys held during the click, e.g. CTRL, SHIFT or CTRL+SHIFT.") String modifiers,
+            @Input(name = "window_width", type = OoaType.NUMBER, required = false, description = D_WIN_W) Integer winW,
+            @Input(name = "window_height", type = OoaType.NUMBER, required = false, description = D_WIN_H) Integer winH) {
         String act = choice("button_action", buttonAction, "click", "click", "down", "up");
         String rel = choice("relative_to", relativeTo, "screen", "screen", "window");
         String btn = choice("button", b, "left", "left", "right", "middle");
         List<Integer> mods = modifiers == null || modifiers.isBlank() ? List.of() : parseKeys(modifiers);
         UiGuard.before(ctx);
         Robot r = DesktopSupport.robot();
-        int[] p = target(x, y, rel, focusWindow(window, "window".equals(rel)));
+        int[] p = target(x, y, rel, focusWindow(window, "window".equals(rel), winW, winH));
         r.mouseMove(p[0], p[1]);
         for (int m : mods) r.keyPress(m);
         try {
@@ -141,7 +166,7 @@ public final class DesktopPackage {
     }
 
     @Action(id = "mouse_move", name = "Mouse move", category = "Mouse", capabilities = "desktop", description = "Move the pointer to a point on the screen or in a window, at once or gradually.",
-            panel = "window, relative_to, x, y, duration_ms | [Start from another point: from_x, from_y]")
+            panel = "window, relative_to, x, y, duration_ms | [Start from another point: from_x, from_y], [Put the window back to this size first: window_width, window_height]")
     public Map<String, Object> move(ActionContext ctx,
             @Input(name = "x", type = OoaType.NUMBER, description = "Horizontal position.") int x,
             @Input(name = "y", type = OoaType.NUMBER, description = "Vertical position.") int y,
@@ -150,12 +175,14 @@ public final class DesktopPackage {
             @Input(name = "duration_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Glide to the point over this many milliseconds; 0 jumps there at once.") int duration,
             @Input(name = "from_x", type = OoaType.NUMBER, required = false,
                     description = "Put the pointer at this point first (with from_y, measured like x and y), then move to x, y; e.g. after pressing a button down, for a drag.") Integer fromX,
-            @Input(name = "from_y", type = OoaType.NUMBER, required = false, description = "Vertical position of the starting point (with from_x).") Integer fromY) {
+            @Input(name = "from_y", type = OoaType.NUMBER, required = false, description = "Vertical position of the starting point (with from_x).") Integer fromY,
+            @Input(name = "window_width", type = OoaType.NUMBER, required = false, description = D_WIN_W) Integer winW,
+            @Input(name = "window_height", type = OoaType.NUMBER, required = false, description = D_WIN_H) Integer winH) {
         String rel = choice("relative_to", relativeTo, "screen", "screen", "window");
         checkFrom(fromX, fromY);
         if (duration < 0) throw new ActionException("DESKTOP.BAD_DURATION", "duration_ms must be 0 or more, not " + duration, "Use 0 to jump, or e.g. 500 to glide.");
         Robot r = DesktopSupport.robot();
-        int[] wb = focusWindow(window, "window".equals(rel));
+        int[] wb = focusWindow(window, "window".equals(rel), winW, winH);
         int[] p = target(x, y, rel, wb);
         Point cur = fromX == null && duration > 0 ? MouseInfo.getPointerInfo().getLocation() : new Point(p[0], p[1]);
         for (int[] s : movePoints(fromX, fromY, p, rel, wb, duration, cur.x, cur.y)) { r.mouseMove(s[0], s[1]); if (s[2] > 0) r.delay(s[2]); }
@@ -163,8 +190,21 @@ public final class DesktopPackage {
     }
 
     /** Mouse move without a starting point (the signature before from_x and from_y were added). */
+    /** Earlier signatures, kept for callers written before the window size (M2). */
+    public Map<String, Object> click(ActionContext ctx, int x, int y, String b, boolean dbl, String buttonAction, String relativeTo, String window, String modifiers) {
+        return click(ctx, x, y, b, dbl, buttonAction, relativeTo, window, modifiers, null, null);
+    }
+
+    public Map<String, Object> move(ActionContext ctx, int x, int y, String relativeTo, String window, int duration, Integer fromX, Integer fromY) {
+        return move(ctx, x, y, relativeTo, window, duration, fromX, fromY, null, null);
+    }
+
+    public Map<String, Object> scroll(ActionContext ctx, int amount, String direction, Integer x, Integer y, String relativeTo, String window, int delay) {
+        return scroll(ctx, amount, direction, x, y, relativeTo, window, delay, null, null);
+    }
+
     public Map<String, Object> move(ActionContext ctx, int x, int y, String relativeTo, String window, int duration) {
-        return move(ctx, x, y, relativeTo, window, duration, null, null);
+        return move(ctx, x, y, relativeTo, window, duration, null, null, null, null);
     }
 
     /** from_x and from_y go together. */
@@ -203,7 +243,7 @@ public final class DesktopPackage {
 
     @Action(id = "mouse_scroll", name = "Mouse scroll", category = "Mouse", capabilities = "desktop",
             description = "Scroll the mouse wheel up, down, left or right, optionally over a chosen point or window.",
-            panel = "direction, amount, delay_ms | x, y, window, relative_to")
+            panel = "direction, amount, delay_ms | window, relative_to, x, y, [Put the window back to this size first: window_width, window_height]")
     public Map<String, Object> scroll(ActionContext ctx,
             @Input(name = "amount", type = OoaType.NUMBER, description = "Wheel notches; negative scrolls up (or left) when direction is empty.") int amount,
             @Input(name = "direction", type = OoaType.STRING, required = false, enumValues = {"up", "down", "left", "right"},
@@ -212,13 +252,15 @@ public final class DesktopPackage {
             @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Vertical position to scroll at (with x).") Integer y,
             @Input(name = "relative_to", type = OoaType.STRING, required = false, defaultValue = "\"screen\"", enumValues = {"screen", "window"}, description = D_RELATIVE) String relativeTo,
             @Input(name = "window", type = OoaType.STRING, required = false, description = D_WINDOW) String window,
-            @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Pause between notches; 0 scrolls all notches at once.") int delay) {
+            @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Pause between notches; 0 scrolls all notches at once.") int delay,
+            @Input(name = "window_width", type = OoaType.NUMBER, required = false, description = D_WIN_W) Integer winW,
+            @Input(name = "window_height", type = OoaType.NUMBER, required = false, description = D_WIN_H) Integer winH) {
         String rel = choice("relative_to", relativeTo, "screen", "screen", "window");
         String dir = direction == null || direction.isBlank() ? null : choice("direction", direction, "down", "up", "down", "left", "right");
         int notches = wheel(amount, dir);
         UiGuard.before(ctx);
         Robot r = DesktopSupport.robot();
-        int[] bounds = focusWindow(window, "window".equals(rel) && x != null && y != null);
+        int[] bounds = focusWindow(window, "window".equals(rel) && x != null && y != null, winW, winH);
         if (x != null && y != null) { int[] p = target(x, y, rel, bounds); r.mouseMove(p[0], p[1]); }
         boolean sideways = "left".equals(dir) || "right".equals(dir);
         if (sideways) r.keyPress(KeyEvent.VK_SHIFT);
@@ -928,6 +970,7 @@ public final class DesktopPackage {
                 Map.entry("WIN", 0x5B), Map.entry("PRINTSCREEN", 0x2C), Map.entry("CAPS_LOCK", 0x14), Map.entry("NUM_LOCK", 0x90),
                 Map.entry("SCROLL_LOCK", 0x91), Map.entry("PAUSE", 0x13), Map.entry("MENU", 0x5D));
         if (special.containsKey(n)) return special.get(n);
+        if (special.containsKey(KeyNames.desktop(n))) return special.get(KeyNames.desktop(n));   // K1: other spellings
         if (n.matches("F([1-9]|1[0-9]|2[0-4])")) return 0x70 + Integer.parseInt(n.substring(1)) - 1;
         if (n.matches("[A-Z0-9]")) return (int) n.charAt(0);
         if (n.matches("NUMPAD[0-9]")) return 0x60 + (n.charAt(6) - '0');

@@ -16,15 +16,46 @@ public final class DocuSignPackage {
     static final String P = "DOCUSIGN";
     private static final Pattern GUID = Pattern.compile("^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$");
     private static final Pattern DOC_ID = Pattern.compile("^(\\d{1,9}|combined|archive|certificate|portfolio)$");
-    private static final String D_URL = "Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production.";
+    private static final String D_URL = "Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. "
+            + "Leave empty to look it up from the account (production first, then the demo environment).";
     private static final String D_ACCOUNT = "DocuSign account id (a GUID or number shown under Apps and Keys).";
-    private static final String D_TOKEN = "DocuSign OAuth access token from the vault.";
+    private static final String D_TOKEN = "DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_ENV = "Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59.";
     private static final List<String> RECIPIENT_TYPES = List.of("signers", "carbonCopies", "certifiedDeliveries", "agents", "editors", "intermediaries", "inPersonSigners", "witnesses");
 
-    private static String api(String base, String account) {
+    private static String api(ActionContext ctx, String base, String account, Object token) {
         if (account == null || account.isBlank()) throw new ActionException(P + ".BAD_ACCOUNT", "An account id is required", D_ACCOUNT);
-        return base.replaceAll("/+$", "") + "/v2.1/accounts/" + HttpJson.enc(account.trim());
+        String b = base == null || base.isBlank() ? baseFor(ctx, account.trim(), token) : base;
+        return b.replaceAll("/+$", "") + "/v2.1/accounts/" + HttpJson.enc(account.trim());
+    }
+
+    /** Where DocuSign tells which address an account uses (tests point them at a stand-in). */
+    static List<String> userInfoUrls = List.of("https://account.docusign.com/oauth/userinfo", "https://account-d.docusign.com/oauth/userinfo");
+    /** Addresses already looked up in this runner, by account and token. */
+    private static final Map<String, String> BASES = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * K6 (command review, batch 10): the account's REST address from DocuSign's userinfo (production, then demo), as AA
+     * works it out from the account id, so choosing demo or na4 is not a set-up step.
+     */
+    @SuppressWarnings("unchecked")
+    static String baseFor(ActionContext ctx, String account, Object token) {
+        String key = account + "|" + (token instanceof SecureString t ? Integer.toHexString(t.reveal().hashCode()) : String.valueOf(token));
+        String known = BASES.get(key);
+        if (known != null) return known;
+        for (String url : userInfoUrls) {
+            Map<String, Object> info;
+            try { info = req("GET", url, token).send(ctx).map(); }
+            catch (ActionException e) { if (e.code().endsWith(".AUTH_FAILED") || e.code().endsWith(".FORBIDDEN") || e.code().endsWith(".NOT_FOUND")) continue; throw e; }
+            for (Object o : (List<?>) info.getOrDefault("accounts", List.of()))
+                if (o instanceof Map<?, ?> a && account.equalsIgnoreCase(String.valueOf(a.get("account_id"))) && a.get("base_uri") instanceof String uri) {
+                    String b = uri.replaceAll("/+$", "") + "/restapi";
+                    BASES.put(key, b);
+                    return b;
+                }
+        }
+        throw new ActionException(P + ".NO_BASE_URL", "DocuSign did not say which address account " + account + " uses",
+                "Check the account id and token, or fill in base_url (e.g. https://demo.docusign.net/restapi).");
     }
 
     private static String guid(String what, String v) {
@@ -100,7 +131,7 @@ public final class DocuSignPackage {
     @Output(name = "envelope_id", type = OoaType.STRING, description = "Id of the new envelope.")
     @Output(name = "status", type = OoaType.STRING, description = "sent or created (draft).")
     public Map<String, Object> createEnvelope(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "documents", type = OoaType.LIST, description = "Local files to sign, e.g. [\"contracts/nda.pdf\"]. PDF, Word and most office formats work.") List<Object> docs,
             @Input(name = "signers", type = OoaType.LIST, description = "People who sign, in a list like [{\"name\": \"Ann Lee\", \"email\": \"ann@acme.com\"}]. Add routing_order to sign one after another.") List<Object> signers,
@@ -135,7 +166,7 @@ public final class DocuSignPackage {
         body.put("documents", documents);
         body.put("recipients", recipients);
         body.put("status", sendNow ? "sent" : "created");
-        Map<String, Object> r = send(ctx, req("POST", api(base, account) + "/envelopes", token).json(body).timeout(600)).map();
+        Map<String, Object> r = send(ctx, req("POST", api(ctx, base, account, token) + "/envelopes", token).json(body).timeout(600)).map();
         return Out.of("envelope_id", r.get("envelopeId"), "status", r.get("status"));
     }
 
@@ -145,7 +176,7 @@ public final class DocuSignPackage {
     @Output(name = "envelope_id", type = OoaType.STRING, description = "Id of the new envelope.")
     @Output(name = "status", type = OoaType.STRING, description = "sent or created (draft).")
     public Map<String, Object> fromTemplate(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "template_id", type = OoaType.STRING, description = "Template to use (see List templates).") String template,
             @Input(name = "roles", type = OoaType.LIST, description = "Who fills each role, e.g. [{\"role\": \"Client\", \"name\": \"Ann Lee\", \"email\": \"ann@acme.com\"}].") List<Object> roles,
@@ -179,18 +210,18 @@ public final class DocuSignPackage {
         body.put("templateRoles", tr);
         if (subject != null && !subject.isBlank()) body.put("emailSubject", subject);
         body.put("status", sendNow ? "sent" : "created");
-        Map<String, Object> r = send(ctx, req("POST", api(base, account) + "/envelopes", token).json(body)).map();
+        Map<String, Object> r = send(ctx, req("POST", api(ctx, base, account, token) + "/envelopes", token).json(body)).map();
         return Out.of("envelope_id", r.get("envelopeId"), "status", r.get("status"));
     }
 
     @Action(id = "send_envelope", name = "Send draft envelope", category = "Envelopes", capabilities = "network", description = "Send an envelope that was saved as a draft.",
             panel = "access_token, account_id, base_url, envelope_id")
     public Map<String, Object> sendEnvelope(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        send(ctx, req("PUT", api(base, account) + "/envelopes/" + guid("envelope", env), token).json(Map.of("status", "sent")));
+        send(ctx, req("PUT", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env), token).json(Map.of("status", "sent")));
         return Map.of();
     }
 
@@ -200,11 +231,11 @@ public final class DocuSignPackage {
     @Output(name = "status", type = OoaType.STRING, description = "created, sent, delivered, completed, declined or voided.")
     @Output(name = "envelope", type = OoaType.DICTIONARY, description = "envelope_id, status, subject, sent, delivered, completed, voided_reason, status_changed.")
     public Map<String, Object> status(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        Map<String, Object> r = send(ctx, req("GET", api(base, account) + "/envelopes/" + guid("envelope", env), token)).map();
+        Map<String, Object> r = send(ctx, req("GET", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env), token)).map();
         return Out.of("status", r.get("status"), "envelope", envelopeSummary(r));
     }
 
@@ -214,7 +245,7 @@ public final class DocuSignPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: envelope_id, status, subject, sent, delivered, completed, voided_reason, status_changed.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of envelopes returned.")
     public Map<String, Object> listEnvelopes(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "changed_since", type = OoaType.DATETIME, required = false, description = "Only envelopes changed on or after this date. Leave empty for the last 30 days.") Object from,
             @Input(name = "changed_before", type = OoaType.DATETIME, required = false, description = "Only envelopes changed before this date.") Object to,
@@ -232,7 +263,7 @@ public final class DocuSignPackage {
         while (rows.size() < max) {
             q.put("count", Math.min(100, max - rows.size()));
             q.put("start_position", start);
-            Map<String, Object> r = send(ctx, req("GET", api(base, account) + "/envelopes?" + HttpJson.query(q), token).timeout(120)).map();
+            Map<String, Object> r = send(ctx, req("GET", api(ctx, base, account, token) + "/envelopes?" + HttpJson.query(q), token).timeout(120)).map();
             List<?> page = (List<?>) r.getOrDefault("envelopes", List.of());
             for (Object o : page) { rows.add(new ArrayList<>(envelopeSummary((Map<?, ?>) o).values())); if (rows.size() >= max) break; }
             int total = intOf(r.get("totalSetSize"));
@@ -247,13 +278,13 @@ public final class DocuSignPackage {
             description = "Cancel an envelope that is still out for signature. Recipients are told why.",
             panel = "access_token, account_id, base_url, envelope_id, reason")
     public Map<String, Object> voidEnvelope(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "reason", type = OoaType.STRING, description = "Why the envelope is cancelled; recipients see this.") String reason,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
         if (reason == null || reason.isBlank()) throw new ActionException(P + ".NO_REASON", "A reason is required to void an envelope", "Fill reason.");
-        send(ctx, req("PUT", api(base, account) + "/envelopes/" + guid("envelope", env), token).json(Map.of("status", "voided", "voidedReason", reason)));
+        send(ctx, req("PUT", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env), token).json(Map.of("status", "voided", "voidedReason", reason)));
         return Map.of();
     }
 
@@ -261,11 +292,11 @@ public final class DocuSignPackage {
             description = "Send the signing reminder email again to recipients who have not finished.",
             panel = "access_token, account_id, base_url, envelope_id")
     public Map<String, Object> resend(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        send(ctx, req("PUT", api(base, account) + "/envelopes/" + guid("envelope", env) + "?resend_envelope=true", token).json(Map.of()));
+        send(ctx, req("PUT", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "?resend_envelope=true", token).json(Map.of()));
         return Map.of();
     }
 
@@ -277,11 +308,11 @@ public final class DocuSignPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: recipient_id, type, name, email, routing_order, status, delivered, signed, declined_reason.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of recipients.")
     public Map<String, Object> listRecipients(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        Map<String, Object> r = send(ctx, req("GET", api(base, account) + "/envelopes/" + guid("envelope", env) + "/recipients", token)).map();
+        Map<String, Object> r = send(ctx, req("GET", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/recipients", token)).map();
         List<Object> rows = new ArrayList<>();
         for (String type : RECIPIENT_TYPES) {
             if (!(r.get(type) instanceof List<?> l)) continue;
@@ -299,7 +330,7 @@ public final class DocuSignPackage {
             description = "Correct a recipient's name or email address, for example after a typo, and optionally send the request again.",
             panel = "access_token, account_id, base_url, envelope_id, recipient_id, new_name, new_email | recipient_type, resend")
     public Map<String, Object> updateRecipient(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "recipient_id", type = OoaType.STRING, description = "Recipient id from List recipients, e.g. 1.") String rid,
@@ -315,7 +346,7 @@ public final class DocuSignPackage {
         if (name != null && !name.isBlank()) rec.put("name", name);
         if (email != null && !email.isBlank()) rec.put("email", email);
         String key = "copy".equals(type) ? "carbonCopies" : "signers";
-        send(ctx, req("PUT", api(base, account) + "/envelopes/" + guid("envelope", env) + "/recipients?resend_envelope=" + resend, token).json(Map.of(key, List.of(rec))));
+        send(ctx, req("PUT", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/recipients?resend_envelope=" + resend, token).json(Map.of(key, List.of(rec))));
         return Map.of();
     }
 
@@ -326,11 +357,11 @@ public final class DocuSignPackage {
             panel = "access_token, account_id, base_url, envelope_id")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: document_id, name, type, pages, order.")
     public Map<String, Object> listDocuments(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        Map<String, Object> r = send(ctx, req("GET", api(base, account) + "/envelopes/" + guid("envelope", env) + "/documents", token)).map();
+        Map<String, Object> r = send(ctx, req("GET", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/documents", token)).map();
         List<Object> rows = new ArrayList<>();
         for (Object o : (List<?>) r.getOrDefault("envelopeDocuments", List.of())) {
             Map<?, ?> d = (Map<?, ?>) o;
@@ -345,7 +376,7 @@ public final class DocuSignPackage {
             panel = "access_token, account_id, base_url, envelope_id, document_id, save_as")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved file.")
     public Map<String, Object> downloadDocument(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "document_id", type = OoaType.STRING, example = "1", description = "Document number from List envelope documents, or certificate for the signing certificate, or archive for a zip of everything.") String doc,
@@ -353,7 +384,7 @@ public final class DocuSignPackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
         if (doc == null || !DOC_ID.matcher(doc.trim()).matches())
             throw new ActionException(P + ".BAD_DOCUMENT", "Invalid document id '" + doc + "'", "Use a number such as 1, or certificate, combined or archive.");
-        return save(ctx, api(base, account) + "/envelopes/" + guid("envelope", env) + "/documents/" + doc.trim(), saveAs, token);
+        return save(ctx, api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/documents/" + doc.trim(), saveAs, token);
     }
 
     @Action(id = "download_combined_pdf", name = "Download combined PDF", category = "Documents", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
@@ -361,13 +392,13 @@ public final class DocuSignPackage {
             panel = "access_token, account_id, base_url, envelope_id, save_as | include_certificate")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved PDF.")
     public Map<String, Object> downloadCombined(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "save_as", type = OoaType.FILE, description = "Where to save the PDF, e.g. signed/all.pdf. Missing folders are created.") String saveAs,
             @Input(name = "include_certificate", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Add the signing certificate as the last pages.") boolean cert,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        return save(ctx, api(base, account) + "/envelopes/" + guid("envelope", env) + "/documents/combined?certificate=" + cert, saveAs, token);
+        return save(ctx, api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/documents/combined?certificate=" + cert, saveAs, token);
     }
 
     @Action(id = "download_zip", name = "Download signed ZIP", category = "Documents", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
@@ -375,12 +406,12 @@ public final class DocuSignPackage {
             panel = "access_token, account_id, base_url, envelope_id, save_as")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved ZIP.")
     public Map<String, Object> downloadZip(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "save_as", type = OoaType.FILE, description = "Where to save the ZIP, e.g. signed/contract.zip. Missing folders are created.") String saveAs,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        return save(ctx, api(base, account) + "/envelopes/" + guid("envelope", env) + "/documents/archive", saveAs, token);
+        return save(ctx, api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/documents/archive", saveAs, token);
     }
 
     @Action(id = "add_recipients", name = "Add recipients", category = "Recipients", capabilities = "network",
@@ -388,7 +419,7 @@ public final class DocuSignPackage {
             panel = "access_token, account_id, base_url, envelope_id, recipients | resend")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of recipients added.")
     public Map<String, Object> addRecipients(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "recipients", type = OoaType.LIST,
@@ -411,14 +442,20 @@ public final class DocuSignPackage {
         Map<String, Object> body = new LinkedHashMap<>();
         if (!signers.isEmpty()) body.put("signers", signers);
         if (!copies.isEmpty()) body.put("carbonCopies", copies);
-        send(ctx, req("POST", api(base, account) + "/envelopes/" + guid("envelope", env) + "/recipients?resend_envelope=" + resend, token).json(body));
+        send(ctx, req("POST", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/recipients?resend_envelope=" + resend, token).json(body));
         return Out.of("count", java.math.BigDecimal.valueOf(signers.size() + copies.size()));
     }
 
     private static Map<String, Object> save(ActionContext ctx, String url, String saveAs, Object token) {
-        byte[] data = send(ctx, req("GET", url, token).header("Accept", "application/pdf, application/zip, */*").binaryResponse().timeout(600)).bytes();
         Path out = ctx.resolvePath(saveAs);
-        HttpJson.writeFile(out, data);
+        // K3 (batch 10): straight to the file (a combined PDF or ZIP of a large envelope can be big)
+        try { req("GET", url, token).header("Accept", "application/pdf, application/zip, */*").timeout(1800).download(ctx, out); }
+        catch (ActionException e) {
+            String m = String.valueOf(e.getMessage());
+            if (e.code().equals(P + ".REQUEST_FAILED") && (m.contains("DOES_NOT_EXIST") || m.contains("INVALID_ENVELOPE_ID")))
+                throw new ActionException(P + ".NOT_FOUND", m, "Check the id and that it belongs to this account.", false, e.details());
+            throw e;
+        }
         return Out.of("path", out.toString());
     }
 
@@ -430,7 +467,7 @@ public final class DocuSignPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: template_id, name, description, folder, last_modified.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of templates returned.")
     public Map<String, Object> listTemplates(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "search_text", type = OoaType.STRING, required = false, description = "Only templates whose name or description contains this text.") String text,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Most templates to return.") int max,
@@ -442,7 +479,7 @@ public final class DocuSignPackage {
             if (text != null && !text.isBlank()) q.put("search_text", text);
             q.put("count", Math.min(100, max - rows.size()));
             q.put("start_position", start);
-            Map<String, Object> r = send(ctx, req("GET", api(base, account) + "/templates?" + HttpJson.query(q), token)).map();
+            Map<String, Object> r = send(ctx, req("GET", api(ctx, base, account, token) + "/templates?" + HttpJson.query(q), token)).map();
             List<?> page = (List<?>) r.getOrDefault("envelopeTemplates", List.of());
             for (Object o : page) {
                 Map<?, ?> t = (Map<?, ?>) o;
@@ -462,11 +499,11 @@ public final class DocuSignPackage {
     @Output(name = "template", type = OoaType.DICTIONARY, description = "template_id, name, description, email_subject, documents.")
     @Output(name = "roles", type = OoaType.LIST, description = "Names of the roles to fill, e.g. [\"Client\", \"Manager\"].")
     public Map<String, Object> getTemplate(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "template_id", type = OoaType.STRING, description = "Template id from List templates.") String template,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        Map<String, Object> r = send(ctx, req("GET", api(base, account) + "/templates/" + guid("template", template), token)).map();
+        Map<String, Object> r = send(ctx, req("GET", api(ctx, base, account, token) + "/templates/" + guid("template", template), token)).map();
         List<Object> roles = new ArrayList<>();
         if (r.get("recipients") instanceof Map<?, ?> rec)
             for (String type : RECIPIENT_TYPES) if (rec.get(type) instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> m && m.get("roleName") != null) roles.add(Values.text(m.get("roleName")));
@@ -488,7 +525,7 @@ public final class DocuSignPackage {
             panel = "access_token, account_id, base_url, envelope_id, name, email, client_user_id, return_url | authentication_method")
     @Output(name = "url", type = OoaType.STRING, description = "Signing link; it works once and expires within minutes.")
     public Map<String, Object> signingUrl(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "name", type = OoaType.STRING, description = "Signer's name exactly as on the envelope.") String name,
@@ -503,7 +540,7 @@ public final class DocuSignPackage {
         body.put("clientUserId", clientUserId);
         body.put("returnUrl", returnUrl);
         body.put("authenticationMethod", auth);
-        Map<String, Object> r = send(ctx, req("POST", api(base, account) + "/envelopes/" + guid("envelope", env) + "/views/recipient", token).json(body)).map();
+        Map<String, Object> r = send(ctx, req("POST", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/views/recipient", token).json(body)).map();
         return Out.of("url", r.get("url"));
     }
 
@@ -514,7 +551,7 @@ public final class DocuSignPackage {
             panel = "access_token, account_id, base_url, envelope_id")
     @Output(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value.")
     public Map<String, Object> getCustomFields(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
@@ -524,7 +561,7 @@ public final class DocuSignPackage {
     }
 
     private static List<Map<?, ?>> customFields(ActionContext ctx, String base, String account, String env, Object token) {
-        Map<String, Object> r = send(ctx, req("GET", api(base, account) + "/envelopes/" + guid("envelope", env) + "/custom_fields", token)).map();
+        Map<String, Object> r = send(ctx, req("GET", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/custom_fields", token)).map();
         List<Map<?, ?>> out = new ArrayList<>();
         for (String k : List.of("textCustomFields", "listCustomFields")) if (r.get(k) instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> m) out.add(m);
         return out;
@@ -534,7 +571,7 @@ public final class DocuSignPackage {
             description = "Add or change custom fields on an envelope. Fields that already exist are updated, new ones are added.",
             panel = "access_token, account_id, base_url, envelope_id, fields | show_to_recipients")
     public Map<String, Object> setCustomFields(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value, e.g. {\"OrderNumber\": \"SO-5531\"}.") Map<String, Object> fields,
@@ -552,7 +589,7 @@ public final class DocuSignPackage {
             f.put("show", String.valueOf(show));
             (existing.containsKey(k) ? change : add).add(f);
         });
-        String url = api(base, account) + "/envelopes/" + guid("envelope", env) + "/custom_fields";
+        String url = api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/custom_fields";
         if (!change.isEmpty()) send(ctx, req("PUT", url, token).json(Map.of("textCustomFields", change)));
         if (!add.isEmpty()) send(ctx, req("POST", url, token).json(Map.of("textCustomFields", add)));
         return Map.of();
@@ -563,11 +600,11 @@ public final class DocuSignPackage {
             panel = "access_token, account_id, base_url, envelope_id")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "Field label to entered value.")
     public Map<String, Object> formData(ActionContext ctx,
-            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
             @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        Map<String, Object> r = send(ctx, req("GET", api(base, account) + "/envelopes/" + guid("envelope", env) + "/form_data", token)).map();
+        Map<String, Object> r = send(ctx, req("GET", api(ctx, base, account, token) + "/envelopes/" + guid("envelope", env) + "/form_data", token)).map();
         Map<String, Object> out = new LinkedHashMap<>();
         if (r.get("formData") instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> m) out.put(str(m, "name"), m.get("value"));
         return Out.of("values", out);

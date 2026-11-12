@@ -54,6 +54,31 @@ class Microsoft365OptionsTest {
             + "{\"id\":\"m2\",\"subject\":\"Receipt 2\",\"isRead\":true,\"from\":{\"emailAddress\":{\"address\":\"shop@globex.com\"}}},"
             + "{\"id\":\"m3\",\"subject\":\"Lunch\",\"isRead\":false,\"from\":{\"emailAddress\":{\"address\":\"bob@corp.com\"}}}]}";
 
+    /** A3 (command review, batch 7): an each-email loop as on the other mail services, giving the summary or the whole email. */
+    @Test void eachEmailLoopGivesTheSummaryOrTheWholeEmailWithoutMarkingItRead() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("GET /v1.0/me/mailFolders/inbox/messages", c -> ok("{\"value\":[{\"id\":\"m1\",\"subject\":\"Invoice 1\",\"isRead\":false,"
+                    + "\"receivedDateTime\":\"2026-11-03T09:15:00Z\",\"from\":{\"emailAddress\":{\"address\":\"ap@acme.com\"}}}]}"))
+             .on("GET /v1.0/me/messages/m1", c -> ok("{\"id\":\"m1\",\"subject\":\"Invoice 1\",\"isRead\":false,\"internetMessageId\":\"<1@acme.com>\","
+                    + "\"body\":{\"contentType\":\"html\",\"content\":\"<p>Please pay</p>\"},\"from\":{\"emailAddress\":{\"address\":\"ap@acme.com\"}}}"));
+            var p = new Microsoft365Package();
+            var ctx = PackagesTestSupport.ctx(tmp(), Map.of());
+            var tok = new com.oneofficeautomation.sdk.SecureString("tok", "t");
+            List<Object> plain = new ArrayList<>();
+            p.emails(ctx, tok, "inbox", false, false, null, null, null, null, false, false, 100, false, "me", f.url() + "/v1.0").forEach(plain::add);
+            assertEquals(1, plain.size());
+            assertEquals("m1", m(plain.get(0)).get("id"));
+            assertFalse(m(plain.get(0)).containsKey("text"), "the summary only, without with_body");
+            List<Object> whole = new ArrayList<>();
+            p.emails(ctx, tok, "inbox", false, false, null, null, null, null, false, false, 100, true, "me", f.url() + "/v1.0").forEach(whole::add);
+            Map<String, Object> e = m(whole.get(0));
+            assertEquals("Please pay", e.get("text"));
+            assertEquals("<1@acme.com>", e.get("message_id"));
+            assertEquals(true, e.get("unread"), "the loop leaves it unread");
+            assertNull(f.last("PATCH", "/v1.0/me/messages/m1"), "nothing marked read");
+        }
+    }
+
     @Test void outlookSendListAndFolderPaths() throws Exception {
         try (Fake f = new Fake()) {
             f.on("POST /v1.0/me/sendMail", c -> new Object[]{202, ""})

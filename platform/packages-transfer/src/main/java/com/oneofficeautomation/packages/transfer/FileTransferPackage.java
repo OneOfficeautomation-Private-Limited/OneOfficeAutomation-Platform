@@ -123,7 +123,7 @@ public final class FileTransferPackage {
 
     @Action(id = "connect", name = "Connect", category = "Connection", timeoutSeconds = 600, capabilities = "network",
             description = "Connect and sign in to an FTP, FTPS or SFTP server, optionally trying again when the server cannot be reached and starting in a chosen folder.",
-            panel = "host, port, protocol, user, password, private_key, key_passphrase, host_key_fingerprint, passive_mode, implicit_tls, transfer_mode, session"
+            panel = "protocol, host, port, user, password, private_key, key_passphrase, host_key_fingerprint, passive_mode, implicit_tls, transfer_mode, session"
                     + " | timeout_seconds, [Try again when connecting fails: retry_attempts, retry_delay_seconds], start_folder")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "protocol", type = OoaType.STRING, enumValues = {"sftp", "ftps", "ftp"}, description = "sftp (SSH), ftps (FTP over TLS) or plain ftp.") String protocol,
@@ -305,12 +305,24 @@ public final class FileTransferPackage {
         return Map.of();
     }
 
-    @Action(id = "create_folder", name = "Create folder", category = "Files", timeoutSeconds = 120, capabilities = "network", description = "Create a remote folder.",
+    @Action(id = "create_folder", name = "Create folder", category = "Files", timeoutSeconds = 120, capabilities = "network",
+            description = "Create a remote folder, and the folders on its path that are missing (e.g. /in/2026/11).",
             panel = "session, folder")
     public Map<String, Object> mkdir(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, description = "Remote folder.") String dir,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"transfer\"", description = "Session name.") String session) {
-        try { conn(ctx, session).mkdir(dir); } catch (Exception e) { throw fail(e, "Creating " + dir); }
+        Conn c = conn(ctx, session);
+        // S1 (batch 8): the missing folders on the path first, as a sample found /in/2026 failing when /in was not there
+        String d = dir == null ? "" : dir.replace('\\', '/');
+        StringBuilder sofar = new StringBuilder(d.startsWith("/") ? "/" : "");
+        String[] parts = d.split("/");
+        for (int i = 0; i < parts.length - 1; i++) {
+            if (parts[i].isEmpty()) continue;
+            sofar.append(parts[i]);
+            ensureFolder(c, sofar.toString());
+            sofar.append('/');
+        }
+        try { c.mkdir(dir); } catch (Exception e) { throw fail(e, "Creating " + dir); }
         return Map.of();
     }
 

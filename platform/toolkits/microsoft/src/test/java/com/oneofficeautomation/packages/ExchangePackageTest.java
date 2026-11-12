@@ -86,6 +86,12 @@ class ExchangePackageTest {
                             + message(ID1, "Invoice 42", "billing@vendor.test", "2026-11-03T09:15:00Z", false, true)
                             + message(ID2, "Lunch", "friend@other.test", "2026-11-02T12:00:00Z", true, false) + "</t:Items></m:RootFolder>");
                     case "GetItem" -> body.contains(BAD_ID) ? fail("GetItem", "ErrorItemNotFound", "The specified object was not found in the store.")
+                            : body.contains("DRAFT1") ? ok("GetItem", "<m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/>"
+                            + "<t:ToRecipients><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox><t:Mailbox><t:EmailAddress>team@acme.test</t:EmailAddress></t:Mailbox></t:ToRecipients>"
+                            + "<t:CcRecipients><t:Mailbox><t:EmailAddress>BILLING@vendor.test</t:EmailAddress></t:Mailbox></t:CcRecipients></t:Message></m:Items>")
+                            : body.contains("IncludeMimeContent") ? ok("GetItem", "<m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">"
+                            + Base64.getEncoder().encodeToString("Subject: Invoice 42\r\n\r\nPlease pay".getBytes(StandardCharsets.UTF_8))
+                            + "</t:MimeContent><t:ItemId Id=\"" + ID1 + "\" ChangeKey=\"CQAAABYA\"/><t:Subject>Invoice 42: Q4/2026</t:Subject></t:Message></m:Items>")
                             : ok("GetItem", "<m:Items><t:Message><t:ItemId Id=\"" + ID1 + "\" ChangeKey=\"CQAAABYA\"/><t:Subject>Invoice 42</t:Subject>"
                             + "<t:Body BodyType=\"HTML\">&lt;p&gt;Please pay&lt;/p&gt;</t:Body><t:TextBody BodyType=\"Text\">Please pay</t:TextBody>"
                             + "<t:Attachments><t:FileAttachment><t:AttachmentId Id=\"ATT1\"/><t:Name>inv-42.pdf</t:Name><t:ContentType>application/pdf</t:ContentType><t:Size>9</t:Size><t:IsInline>false</t:IsInline></t:FileAttachment>"
@@ -104,6 +110,8 @@ class ExchangePackageTest {
                             : body.contains("nobody@") ? fail("CreateItem", "ErrorInvalidRecipients", "At least one recipient isn't valid.")
                             : ok("CreateItem", "<m:Items/>");
                     case "SendItem" -> ok("SendItem", "");
+                    case "CreateAttachment" -> ok("CreateAttachment", "<m:Attachments><t:FileAttachment><t:AttachmentId Id=\"A1\" RootItemId=\"DRAFT1\" RootItemChangeKey=\"CK10\"/>"
+                            + "</t:FileAttachment></m:Attachments>");
                     case "FindFolder" -> body.contains("Traversal=\"Deep\"")
                             ? ok("FindFolder", "<m:RootFolder TotalItemsInView=\"3\" IncludesLastItemInRange=\"true\"><t:Folders>"
                                 + "<t:Folder><t:FolderId Id=\"INBOXID\"/><t:ParentFolderId Id=\"ROOTID\"/><t:DisplayName>Inbox</t:DisplayName></t:Folder>"
@@ -258,6 +266,52 @@ class ExchangePackageTest {
             assertEquals("BAD_ADDRESS", code(() -> ex.send(ctx(), "", "x", "", false, null, null, null, null, null, "normal", false, true, "exchange")));
             assertEquals("FILE.NOT_FOUND", assertThrows(ActionException.class, () -> ex.send(ctx(), "a@x.test", "x", "", false, null, null, List.of("missing.pdf"),
                     null, null, "normal", false, true, "exchange")).code());
+        } finally { s.stop(0); }
+    }
+
+    /** A6 (command review, batch 7): what the other mail services already had. */
+    @Test
+    void repliesWithFilesWithoutTheSenderForwardAsAttachmentAndSaveAsEml() throws Exception {
+        HttpServer s = ews();
+        try {
+            connect(s, null, false);
+            Files.writeString(ctx().workDir().resolve("answer.txt"), "OK");
+            // a reply with a file: a draft, the file added to it, then sent with the change key the file gave it
+            ops.clear(); bodies.clear();
+            ex.reply(ctx(), ID1, "See attached", false, null, null, "exchange", List.of("answer.txt"));
+            assertEquals(List.of("GetItem", "CreateItem", "CreateAttachment", "SendItem"), ops);
+            assertTrue(bodies.get(1).contains("MessageDisposition=\"SaveOnly\"") && bodies.get(1).contains("<t:ReplyToItem>"), bodies.get(1));
+            assertTrue(bodies.get(2).contains("<m:ParentItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/><m:Attachments><t:FileAttachment><t:Name>answer.txt</t:Name>"), bodies.get(2));
+            assertTrue(bodies.get(3).contains("<t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK10\"/>"), bodies.get(3));
+
+            // reply all without the sender: the draft's recipients are set again without it (any case), then sent
+            ops.clear(); bodies.clear();
+            ex.replyAll(ctx(), ID1, "Team only", false, null, null, "exchange", null, true);
+            assertEquals(List.of("GetItem", "CreateItem", "GetItem", "UpdateItem", "SendItem"), ops);
+            String upd = bodies.get(3);
+            assertTrue(upd.contains("<t:ToRecipients><t:Mailbox><t:EmailAddress>team@acme.test</t:EmailAddress></t:Mailbox></t:ToRecipients>") && !upd.contains("billing@"), upd);
+            assertTrue(upd.contains("<t:DeleteItemField><t:FieldURI FieldURI=\"message:CcRecipients\"/></t:DeleteItemField>"), upd);
+
+            // forward as attachment: a new email carrying the original's MIME content as an .eml file
+            ops.clear(); bodies.clear();
+            ex.forward(ctx(), ID1, "ap@acme.test", "FYI", false, null, null, "exchange", null, true);
+            assertEquals(List.of("GetItem", "CreateItem", "SendItem"), ops);
+            assertTrue(bodies.get(0).contains("<t:IncludeMimeContent>true</t:IncludeMimeContent>"), bodies.get(0));
+            assertTrue(bodies.get(1).contains("<t:Subject>FW: Invoice 42: Q4/2026</t:Subject>") && bodies.get(1).contains("<t:Name>Invoice 42_ Q4_2026.eml</t:Name>"), bodies.get(1));
+
+            // save as .eml: into a folder, named after the subject
+            Path out = ctx().workDir().resolve("mails");
+            Files.createDirectories(out);
+            Path saved = Path.of((String) ex.saveEmailAsEml(ctx(), ID1, "mails", true, "exchange").get("path"));
+            assertEquals(out.resolve("Invoice 42_ Q4_2026.eml"), saved);
+            assertEquals("Subject: Invoice 42\r\n\r\nPlease pay", Files.readString(saved));
+            assertEquals("FILE.EXISTS", assertThrows(ActionException.class, () -> ex.saveEmailAsEml(ctx(), ID1, saved.toString(), false, "exchange")).code());
+
+            // the body is searched by the server
+            ops.clear(); bodies.clear();
+            ex.list(ctx(), "inbox", false, null, null, null, 10, null, false, false, false, "exchange", "overdue;reminder");
+            assertTrue(bodies.get(bodies.size() - 1).contains("<t:Or><t:Contains ContainmentMode=\"Substring\" ContainmentComparison=\"IgnoreCase\"><t:FieldURI FieldURI=\"item:Body\"/>"
+                    + "<t:Constant Value=\"overdue\"/>"), bodies.get(bodies.size() - 1));
         } finally { s.stop(0); }
     }
 

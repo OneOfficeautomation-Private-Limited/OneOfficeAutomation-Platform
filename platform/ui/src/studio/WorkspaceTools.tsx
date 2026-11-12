@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ConnectorDef, ConnectorOperation, ConnectorSummary, FlowStep, PackageManifest, SavedConnection, StudioApi } from "../api/client";
 import { Button, Dialog, Field, Icon, Menu, Select, TextInput } from "../components";
 import { connectionInputs } from "./stepKinds";
+import { SignInFields, takesAccessToken } from "./SignInFields";
 
 /**
  * The workspace's saved connections: a connector's address and settings kept once under a name, with vault
@@ -56,6 +57,12 @@ export function SavedConnectionsDialog({ api, packages, pkgId, onClose, onChange
             <TextInput id={id} defaultValue={cur === undefined ? "" : String(cur)} placeholder={secret ? "vault folder/credential/attribute" : s?.default !== undefined ? String(s.default) : ""}
               onChange={(e) => set(n, secret, e.target.value)} />}</Field>;
         })}
+        {pkg && takesAccessToken(pkg.actions) && <>
+          <h3 className="st-conn-sub">Sign-in that renews itself</h3>
+          <SignInFields bags={{ values: editing.values ?? {}, credentials: editing.credentials ?? {} }}
+            onChange={(b) => setEditing({ ...editing, values: b.values, credentials: b.credentials })} />
+          <p className="st-muted">With a sign-in, leave access_token empty: the runner gets the token when a step needs it and renews it before it runs out.</p>
+        </>}
       </div>
     );
   } else {

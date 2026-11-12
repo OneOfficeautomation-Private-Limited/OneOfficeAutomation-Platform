@@ -3,6 +3,7 @@ package com.oneofficeautomation.packages;
 import com.oneofficeautomation.runner.Values;
 import com.oneofficeautomation.sdk.*;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.*;
 import java.util.*;
@@ -16,7 +17,7 @@ public final class BoxPackage {
     private static final Pattern ID = Pattern.compile("^\\d{1,30}$");
     private static final String D_URL = "Box API address. Leave the default unless your administrator gives you another.";
     private static final String D_UPLOAD = "Box upload address. Leave the default unless your administrator gives you another.";
-    private static final String D_TOKEN = "Box access token from the vault.";
+    private static final String D_TOKEN = "Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_AS_USER = "Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself.";
     private static final String DEF_API = "\"https://api.box.com\"";
     private static final String DEF_UPLOAD = "\"https://upload.box.com\"";
@@ -143,13 +144,26 @@ public final class BoxPackage {
             @Input(name = "upload_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_UPLOAD, description = D_UPLOAD) String uploadBase,
             @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base) {
         Path p = ctx.resolvePath(path);
-        byte[] data = HttpJson.readFile(p);
         String name = fileName == null || fileName.isBlank() ? p.getFileName().toString() : fileName;
+        String fid = id("folder", folder);
+        long size;
+        try { size = Files.size(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+        // K3 (batch 10): Box takes at most 50 MB in one upload; larger files go up in parts through an upload session
+        if (size > chunkedFrom) {
+            try { return Out.of("file_id", chunked(ctx, uploadApi(uploadBase) + "/files/upload_sessions", Map.of("folder_id", fid, "file_size", size, "file_name", name), p, size, token, asUser)); }
+            catch (ActionException e) {
+                if (!isConflict(e)) throw e;
+                if (!replace) throw new ActionException(P + ".ALREADY_EXISTS", "A file named '" + name + "' is already in folder " + fid, "Turn on replace_existing to upload a new version.");
+                Object existing = existingFile(ctx, fid, name, token, asUser, base);
+                if (existing == null) throw e;
+                return Out.of("file_id", chunked(ctx, uploadApi(uploadBase) + "/files/" + existing + "/upload_sessions", Map.of("file_size", size, "file_name", name), p, size, token, asUser));
+            }
+        }
+        byte[] data = HttpJson.readFile(p);
         Map<String, Object> attrMap = new LinkedHashMap<>();
         attrMap.put("name", name);
-        attrMap.put("parent", Map.of("id", id("folder", folder)));
+        attrMap.put("parent", Map.of("id", fid));
         String attrs = JsonLite.write(attrMap);
-        String fid = id("folder", folder);
         try {
             return Out.of("file_id", firstEntryId(sendUpload(ctx, uploadApi(uploadBase) + "/files/content", attrs, name, data, token, asUser)));
         } catch (ActionException e) {
@@ -163,6 +177,57 @@ public final class BoxPackage {
             if (existing == null) throw e;
             String vattrs = JsonLite.write(Map.of("name", name));
             return Out.of("file_id", firstEntryId(sendUpload(ctx, uploadApi(uploadBase) + "/files/" + existing + "/content", vattrs, name, data, token, asUser)));
+        }
+    }
+
+    /** Files larger than this (bytes) are uploaded in parts; Box's limit for one upload is 50 MB (tests make it smaller). */
+    static long chunkedFrom = 50L * 1024 * 1024;
+
+    private static Object existingFile(ActionContext ctx, String fid, String name, Object token, String asUser, String base) {
+        for (Object o : offsetPages(ctx, api(base) + "/folders/" + fid + "/items?fields=" + ITEM_FIELDS, 100_000, token, asUser)) {
+            List<?> row = (List<?>) o;
+            if ("file".equals(row.get(1)) && name.equalsIgnoreCase(String.valueOf(row.get(2)))) return row.get(0);
+        }
+        return null;
+    }
+
+    /**
+     * Box's chunked upload: open an upload session, send each part with its SHA-1, then commit with the file's SHA-1
+     * (Box may answer 202 while it puts the parts together, and is asked again after Retry-After). Returns the file id.
+     */
+    @SuppressWarnings("unchecked")
+    private static Object chunked(ActionContext ctx, String sessionUrl, Map<String, Object> open, Path p, long size, Object token, String asUser) {
+        Map<String, Object> session = req("POST", sessionUrl, token, asUser).json(open).send(ctx).map();
+        String sid = Values.text(session.get("id"));
+        long partSize = session.get("part_size") instanceof Number n ? n.longValue() : 8L * 1024 * 1024;
+        String base = sessionUrl.substring(0, sessionUrl.indexOf("/files/")) + "/files/upload_sessions/" + HttpJson.enc(sid);
+        List<Object> parts = new ArrayList<>();
+        try (java.io.RandomAccessFile f = new java.io.RandomAccessFile(p.toFile(), "r")) {
+            java.security.MessageDigest whole = java.security.MessageDigest.getInstance("SHA-1");
+            for (long off = 0; off < size; off += partSize) {
+                int len = (int) Math.min(partSize, size - off);
+                byte[] buf = new byte[len];
+                f.seek(off);
+                f.readFully(buf);
+                whole.update(buf);
+                String sha = Base64.getEncoder().encodeToString(java.security.MessageDigest.getInstance("SHA-1").digest(buf));
+                Map<String, Object> r = req("PUT", base, token, asUser).bytes(buf, "application/octet-stream")
+                        .header("Content-Range", "bytes " + off + "-" + (off + len - 1) + "/" + size).header("Digest", "sha=" + sha).timeout(600).send(ctx).map();
+                parts.add(r.get("part"));
+                ctx.info("Uploaded " + Math.min(size, off + len) / (1024 * 1024) + " of " + size / (1024 * 1024) + " MB");
+            }
+            String fileSha = Base64.getEncoder().encodeToString(whole.digest());
+            for (int attempt = 0; ; attempt++) {
+                HttpJson.Response r = req("POST", base + "/commit", token, asUser).json(Map.of("parts", parts)).header("Digest", "sha=" + fileSha).timeout(600).send(ctx);
+                if (r.status() != 202 || attempt >= 30) {
+                    if (r.status() == 202) throw new ActionException(P + ".UPLOAD_NOT_READY", "Box has not finished putting the file together", "Try the upload again later.", true);
+                    return firstEntryId(r.map());
+                }
+                long wait = HttpJson.retryAfterMillis(r.header("Retry-After"), attempt);
+                HttpJson.pause(ctx, wait < 0 ? 2000 : wait);
+            }
+        } catch (IOException | java.security.NoSuchAlgorithmException e) {
+            throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), "Check the file.", true);
         }
     }
 
@@ -196,8 +261,8 @@ public final class BoxPackage {
         Path out = ctx.resolvePath(saveAs);
         if (!overwrite && Files.exists(out))
             throw new ActionException(P + ".FILE_EXISTS", "A file already exists at " + out, "Choose another save_as path or turn on overwrite.");
-        byte[] data = req("GET", api(base) + "/files/" + fid + "/content", token, asUser).binaryResponse().timeout(1800).send(ctx).bytes();
-        HttpJson.writeFile(out, data);
+        // K3 (batch 10): straight to the file, so a file of any size does not pass through memory
+        req("GET", api(base) + "/files/" + fid + "/content", token, asUser).timeout(3600).download(ctx, out);
         return Out.of("path", out.toString());
     }
 

@@ -28,7 +28,7 @@ Post a comment on a task, as plain or rich text, optionally pinned to the top.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Text | `text` | Text | Yes |  | Main | Comment text. Example: `Invoice approved by the finance agent.` |
 | Text format | `text_format` | Text | No | `plain` | More options | plain sends the text as it is; html sends Asana rich text, wrapped in <body>...</body>, e.g. <body>Paid <strong>today</strong></body>. One of: `plain`, `html` |
@@ -53,7 +53,7 @@ Delete a comment (only the comment's author can).
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Comment ID | `comment_id` | Text | Yes |  | Main | Comment id, from Add comment or List comments. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -69,7 +69,7 @@ Read one comment (or other task story) by its id.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Comment ID | `comment_id` | Text | Yes |  | Main | Comment id, from Add comment or List comments. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -91,7 +91,7 @@ Read the comments on a task, oldest first. System messages such as assignment ch
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -114,7 +114,7 @@ Change the text of a comment (only the comment's author can), or pin or unpin it
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Comment ID | `comment_id` | Text | Yes |  | Main | Comment id, from Add comment or List comments. |
 | Text | `text` | Text | No |  | Main | New comment text; leave empty to keep the text and only pin or unpin. |
 | Text format | `text_format` | Text | No | `plain` | More options | plain sends the text as it is; html sends Asana rich text, wrapped in <body>...</body>, e.g. <body>Paid <strong>today</strong></body>. One of: `plain`, `html` |
@@ -135,7 +135,7 @@ Add people as followers so they are notified about the task.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Followers | `followers` | List | Yes |  | Main | Users to add: ids, emails or me, e.g. ["ana@contoso.com"]. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
@@ -152,10 +152,10 @@ Also show a task in another project, optionally in a given section.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
-| Project ID | `project_id` | Text | Yes |  | Main | Project id: the long number in the project's link, e.g. 1207000000000001. |
-| Section ID | `section_id` | Text | No |  | Main | Section of that project to place the task in. |
+| Project ID | `project_id` | Text | Yes |  | Main | The project: its name, or its id (the long number in its link, e.g. 1207000000000001). |
+| Section ID | `section_id` | Text | No |  | Main | Section of that project to place the task in: its name or id. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 *Time limit 60 s; needs: network.*
@@ -170,9 +170,9 @@ Place a task in a section of a project it belongs to, e.g. to move it to another
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
-| Section ID | `section_id` | Text | Yes |  | Main | Target section id, from List sections. |
+| Section ID | `section_id` | Text | Yes |  | Main | Target section: its id, or Project name/Section name. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 *Time limit 60 s; needs: network.*
@@ -187,7 +187,7 @@ Create a task in a project (optionally in one of its sections), in a workspace, 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Workspace ID | `workspace_id` | Text | No |  | Main | Workspace, when the task belongs to no project. |
 | Name | `name` | Text | Yes |  | Main | Task name. Example: `Approve invoice INV-2041` |
 | Project ID | `project_id` | Text | No |  | Main | Project to add the task to. Give this or workspace_id. |
@@ -196,7 +196,7 @@ Create a task in a project (optionally in one of its sections), in a workspace, 
 | Notes | `notes` | Text | No |  | Main | Task description. |
 | Parent task ID | `parent_task_id` | Text | No |  | More options | Create the task as a subtask of this task; then project_id and workspace_id may stay empty. |
 | Completed | `completed` | Yes/No | No | No | More options | Create the task already marked complete, e.g. to record work that is done. |
-| Section ID | `section_id` | Text | No |  | More options | Section of the project to place the task in. |
+| Section ID | `section_id` | Text | No |  | More options | Section of the project to place the task in: its name or id. |
 | Tag IDs | `tag_ids` | List | No |  | More options | Tag ids to add. |
 | Follower IDs | `follower_ids` | List | No |  | More options | Users to follow the task: ids, emails or me. |
 | Custom fields | `custom_fields` | Dictionary | No |  | More options | Custom field id to value, e.g. {"1201234567890": "High"}. For drop-downs use the option id. |
@@ -221,7 +221,7 @@ Delete a task. It goes to the trash of the user who owns the token and can be re
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -237,7 +237,7 @@ Copy a task with a new name, choosing what is copied along (notes, assignee, sub
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Name | `name` | Text | Yes |  | Main | Name of the copy. |
 | Include | `include` | List | No |  | Main | What to copy: any of notes, assignee, subtasks, attachments, tags, followers, projects, dates; notes, assignee and projects when empty. |
@@ -261,7 +261,7 @@ Read a task with its assignee, dates, projects, tags and custom fields.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -284,12 +284,12 @@ List the tasks of a project, of a section, or assigned to a user in a workspace.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Workspace ID | `workspace_id` | Text | No |  | Main | Workspace, used together with assignee. |
 | Project ID | `project_id` | Text | No |  | Main | List the tasks of this project. |
 | Assignee | `assignee` | Text | No |  | Main | Or list tasks assigned to this user (id, email or me); also needs workspace_id. |
 | Modified since | `modified_since` | Text | No |  | Main | Only tasks changed at or after this time (ISO 8601). Example: `2026-10-01T00:00:00Z` |
-| Section ID | `section_id` | Text | No |  | More options | Or list the tasks of this section. |
+| Section ID | `section_id` | Text | No |  | More options | Or list the tasks of this section: its id, or Project name/Section name. |
 | Only open | `only_open` | Yes/No | No | No | More options | Leave out completed tasks. |
 | Maximum results | `max_results` | Number | No | `500` | More options | Most items to return; pages are read until this many are found. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
@@ -313,7 +313,7 @@ Stop people from following a task.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Followers | `followers` | List | Yes |  | Main | Users to remove: ids, emails or me. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
@@ -330,7 +330,7 @@ Search a workspace for tasks by text, assignee, project or completion (needs a p
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Workspace id, from List workspaces. |
 | Text | `text` | Text | No |  | Main | Words to look for in task names and descriptions. Example: `invoice` |
 | Assignee | `assignee` | Text | No |  | Main | Only tasks assigned to this user (id or me). |
@@ -358,7 +358,7 @@ Change a task's name, notes, assignee, due date, completion, custom fields or pa
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Name | `name` | Text | No |  | Main | New name. |
 | Assignee | `assignee` | Text | No |  | Main | New assignee: user id, email or me; none to unassign. |
@@ -383,9 +383,9 @@ Put a tag on a task.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
-| Tag ID | `tag_id` | Text | Yes |  | Main | Tag id, from List tags. |
+| Tag ID | `tag_id` | Text | Yes |  | Main | The tag: its name or id. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 *Time limit 60 s; needs: network.*
@@ -400,7 +400,7 @@ Create a tag in a workspace.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Workspace id, from List workspaces. |
 | Name | `name` | Text | Yes |  | Main | Tag name. Example: `needs-review` |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
@@ -423,7 +423,7 @@ List the tags of a workspace.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Workspace id, from List workspaces. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -446,9 +446,9 @@ Take a tag off a task.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
-| Tag ID | `tag_id` | Text | Yes |  | Main | Tag id. |
+| Tag ID | `tag_id` | Text | Yes |  | Main | The tag: its name or id. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 *Time limit 60 s; needs: network.*
@@ -465,7 +465,7 @@ Create a project in a workspace. Organization workspaces also need a team.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Name | `name` | Text | Yes |  | Main | Project name. Example: `Q1 2027 month-end close` |
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Workspace id, from List workspaces. |
 | Team ID | `team_id` | Text | No |  | Main | Team id; required in organization workspaces. |
@@ -491,8 +491,8 @@ Add a section (board column) to a project.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
-| Project ID | `project_id` | Text | Yes |  | Main | Project id: the long number in the project's link, e.g. 1207000000000001. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project ID | `project_id` | Text | Yes |  | Main | The project: its name, or its id (the long number in its link, e.g. 1207000000000001). |
 | Name | `name` | Text | Yes |  | Main | Section name. Example: `Waiting for approval` |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -514,8 +514,8 @@ Delete a project; its tasks stay in other projects they belong to. Needs confirm
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
-| Project ID | `project_id` | Text | Yes |  | Main | Project id: the long number in the project's link, e.g. 1207000000000001. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project ID | `project_id` | Text | Yes |  | Main | The project: its name, or its id (the long number in its link, e.g. 1207000000000001). |
 | Confirm | `confirm` | Yes/No | Yes |  | Main | Must be true: a safeguard against deleting by mistake. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -531,8 +531,8 @@ Read a project's details.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
-| Project ID | `project_id` | Text | Yes |  | Main | Project id: the long number in the project's link, e.g. 1207000000000001. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project ID | `project_id` | Text | Yes |  | Main | The project: its name, or its id (the long number in its link, e.g. 1207000000000001). |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 **Results**
@@ -553,7 +553,7 @@ List the projects in a workspace, optionally only those of one team.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | No |  | Main | Only projects of this team id. |
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Workspace id, from List workspaces. |
 | Include archived | `include_archived` | Yes/No | No | No | Main | Also list archived projects. |
@@ -579,8 +579,8 @@ List the sections (board columns) of a project.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
-| Project ID | `project_id` | Text | Yes |  | Main | Project id: the long number in the project's link, e.g. 1207000000000001. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project ID | `project_id` | Text | Yes |  | Main | The project: its name, or its id (the long number in its link, e.g. 1207000000000001). |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 **Results**
@@ -602,8 +602,8 @@ Change a project's name, notes, colour, owner, due date or archived state; empty
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
-| Project ID | `project_id` | Text | Yes |  | Main | Project id: the long number in the project's link, e.g. 1207000000000001. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project ID | `project_id` | Text | Yes |  | Main | The project: its name, or its id (the long number in its link, e.g. 1207000000000001). |
 | Name | `name` | Text | No |  | Main | New name. |
 | Owner | `owner` | Text | No |  | Main | User id, an email address, or me for the token's own user. |
 | Notes | `notes` | Text | No |  | Main | New description. |
@@ -626,7 +626,7 @@ Add a subtask under a task.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Parent task ID | `parent_task_id` | Text | Yes |  | Main | Id of the parent task. |
 | Name | `name` | Text | Yes |  | Main | Subtask name. |
 | Assignee | `assignee` | Text | No |  | Main | User id, an email address, or me for the token's own user. |
@@ -653,7 +653,7 @@ List the subtasks of a task.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Id of the parent task. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -678,7 +678,7 @@ Create a team in an organization workspace.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Name | `name` | Text | Yes |  | Main | Team name. |
 | Team description | `team_description` | Text | No |  | Main | What the team is for. |
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Organization (workspace) id, from List workspaces. |
@@ -702,7 +702,7 @@ Read a team's name, description, organization and link.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | Yes |  | Main | Team id. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -724,7 +724,7 @@ List the teams of an organization workspace that the token's user can see.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Organization (workspace) id, from List workspaces. |
 | Maximum results | `max_results` | Number | No | `500` | More options | Most items to return; pages are read until this many are found. Range: 1 to  |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
@@ -748,7 +748,7 @@ List the teams a person belongs to in an organization workspace.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | No | `me` | Main | User id, an email address, or me for the token's own user. |
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Organization (workspace) id, from List workspaces. |
 | Maximum results | `max_results` | Number | No | `500` | More options | Most items to return; pages are read until this many are found. Range: 1 to  |
@@ -773,7 +773,7 @@ Rename a team or change its description.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | Yes |  | Main | Team id. |
 | Name | `name` | Text | No |  | Main | New name. |
 | Team description | `team_description` | Text | No |  | Main | New description. |
@@ -793,7 +793,7 @@ Remove an attachment from its task.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Attachment ID | `attachment_id` | Text | Yes |  | Main | Attachment id. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -809,7 +809,7 @@ Save an attachment of a task to a local folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Attachment ID | `attachment_id` | Text | Yes |  | Main | Attachment id, from Upload attachment or the task's attachments. |
 | Folder | `folder` | File path | No | `.` | Main | Folder to save into. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace a file of the same name; otherwise a number is added. |
@@ -833,7 +833,7 @@ List the files attached to a task, with their size and download link.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Maximum results | `max_results` | Number | No | `100` | More options | Most items to return; pages are read until this many are found. Range: 1 to  |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
@@ -857,7 +857,7 @@ Attach a local file to a task.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Path | `path` | File path | Yes |  | Main | Local file to attach (Asana accepts up to 100 MB). Example: `out/INV-2041.pdf` |
 | File name | `file_name` | Text | No |  | More options | Name to give the attachment; the local file name when empty. |
@@ -884,7 +884,7 @@ Read a person's name, email and workspaces; use me to check which account the to
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | No | `me` | Main | User id, an email address, or me for the token's own user. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -907,7 +907,7 @@ List the people in a workspace.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Workspace ID | `workspace_id` | Text | Yes |  | Main | Workspace id, from List workspaces. |
 | Maximum results | `max_results` | Number | No | `2000` | More options | Most items to return; pages are read until this many are found. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
@@ -933,7 +933,7 @@ List the workspaces and organizations the token can see.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 **Results**

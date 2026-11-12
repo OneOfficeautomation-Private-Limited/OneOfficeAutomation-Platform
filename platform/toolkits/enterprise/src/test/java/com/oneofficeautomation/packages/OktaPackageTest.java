@@ -42,6 +42,11 @@ class OktaPackageTest {
             assertEquals("S3cret!pw", ((Map<?, ?>) ((Map<?, ?>) body.get("credentials")).get("password")).get("value"));
             assertEquals(List.of(GID), body.get("groupIds"));
 
+            // K5 (batch 10): groups by name, as Add user to group takes them
+            f.on("GET /api/v1/groups", q -> ok("[{\"id\":\"" + GID + "\",\"profile\":{\"name\":\"Finance\"}}]"));
+            pkg.createUser(ctx, f.url(), "Ann", "Lee", "ann.lee@acme.com", null, null, null, List.of("finance"), true, TOKEN, null);
+            assertEquals(List.of(GID), f.last("POST", "/api/v1/users").json().get("groupIds"));
+
             Map<String, Object> g = pkg.getUser(ctx, f.url(), "ann.lee@acme.com", TOKEN, null);
             Map<?, ?> u = (Map<?, ?>) g.get("user");
             assertEquals("Ann", u.get("first_name"));
@@ -81,6 +86,20 @@ class OktaPackageTest {
             assertEquals(List.of("GET /api/v1/users/" + UID, "POST /api/v1/users/" + UID + "/lifecycle/deactivate", "DELETE /api/v1/users/" + UID), seq,
                     "an active user is deactivated before the delete");
             fails("OKTA.BAD_USER", () -> pkg.suspend(ctx, f.url(), " ", TOKEN, null));
+
+            // K7 (batch 10): offboarding and help-desk steps
+            f.on("DELETE /api/v1/users/" + UID + "/sessions", c -> new Object[]{204, ""});
+            pkg.clearSessions(ctx, f.url(), UID, true, TOKEN, null);
+            assertEquals("oauthTokens=true", f.last("DELETE", ".*/sessions").query());
+            pkg.unlock(ctx, f.url(), UID, TOKEN, null);
+            assertNotNull(f.last("POST", ".*/lifecycle/unlock"));
+            assertEquals(Map.of(), pkg.expirePassword(ctx, f.url(), UID, false, TOKEN, null));
+        }
+        try (Fake f = new Fake()) {
+            f.on("POST /api/v1/users/" + UID + "/lifecycle/expire_password", c -> ok("{\"tempPassword\":\"Tmp-123\"}"));
+            Object tmp = pkg.expirePassword(ctx(PackagesTest.tmp()), f.url(), UID, true, TOKEN, null).get("temporary_password");
+            assertEquals("tempPassword=true", f.last("POST", ".*/expire_password").query());
+            assertEquals("Tmp-123", ((SecureString) tmp).reveal(), "kept as a secret");
         }
     }
 

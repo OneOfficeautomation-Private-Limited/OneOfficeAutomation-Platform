@@ -9,8 +9,9 @@ Toolkit `ooa.google`, version 1.0.0. Read and write Google Sheets, upload and do
 - **Calendar**: Create Google Calendar event, Delete Google Calendar event, List Google Calendar events, Update Google Calendar event
 - **Docs**: Add text to Google Doc, Create Google Doc, Read Google Doc text, Replace text in Google Doc
 - **Drive**: Check Drive permission, Copy Drive file, Copy Drive folder, Create Drive folder, Share Drive item, Delete Drive item, Remove Drive permission, Download from Drive, Export Google file, Find Drive items, Get Drive item info, List Drive files, List Drive permissions, Move Drive item, Rename Drive item, Change Drive permission, Upload to Drive
-- **Gmail**: Delete all matching Gmail messages, Delete Gmail message, Forward Gmail message, Read Gmail message, Check Gmail label exists, List Gmail messages, Change Gmail message status, Move all matching Gmail messages, Move Gmail message, Reply all to Gmail message, Reply to Gmail message, Save attachments of all matching Gmail messages, Save Gmail attachments, Save Gmail message as .eml, Send Gmail
+- **Gmail**: Delete all emails (Gmail), Delete email (Gmail), Forward email (Gmail), Read email (Gmail), Check label exists (Gmail), Find emails (Gmail), Change email status (Gmail), Move all emails (Gmail), Move email (Gmail), Reply all to email (Gmail), Reply to email (Gmail), Save attachments of all matching emails (Gmail), Save email attachments (Gmail), Save email as EML (Gmail), Send email (Gmail)
 - **Sheets**: Add sheet, Append rows to sheet, Autofit columns, Autofit rows, Clear range, Copy range, Create spreadsheet, Delete columns, Delete range, Delete rows, Delete sheet, Find cells, Format cells, Get cell value, Get cell colour, Get range values, Hide sheet, Insert columns, Insert range, Insert rows, List sheets, Read sheet range, Read column, Read formula, Read row, Rename sheet, Get used row count, Set cell value, Set formula, Show sheet, Write to sheet, Write data table
+- **Loop types**: Each email in Gmail
 
 ## Calendar
 
@@ -24,7 +25,7 @@ Create an event, optionally inviting attendees.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Subject | `subject` | Text | Yes |  | Main | Title of the event. |
 | Location | `location` | Text | No |  | Main | Location. |
 | Attendees | `attendees` | Any | No |  | Main | Attendee address(es). |
@@ -37,12 +38,12 @@ Create an event, optionally inviting attendees.
 | Description | `description` | Text | No |  | Main | Description. |
 | End time zone | `end_time_zone` | Text | No |  | More options | IANA time zone of end when it differs from start's, for example a flight that lands in another zone; time_zone when empty. Example: `America/New_York` |
 | Optional attendees | `optional_attendees` | Any | No |  | More options | Address(es) invited as optional. |
-| Calendar ID | `calendar_id` | Text | No | `primary` | More options | Calendar id. |
+| Calendar | `calendar` | Text | No | `primary` | More options | Calendar id. |
 | Notify | `notify` | Yes/No | No | Yes | More options | Email the invitation to the attendees. |
 | Add meet link | `add_meet_link` | Yes/No | No | No | More options | Add a Google Meet video link. |
 | Reminder (minutes) | `reminder_minutes` | Number | No |  | More options | Popup reminder this many minutes before; the calendar's default reminders when empty. |
 | Show as | `show_as` | Text | No | `busy` | More options | Whether the time shows as busy. One of: `busy`, `free` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -64,11 +65,11 @@ Delete an event from a calendar, optionally telling the attendees.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id. |
 | Notify | `notify` | Yes/No | No | Yes | More options | Email the attendees that the event is cancelled. |
-| Calendar ID | `calendar_id` | Text | No | `primary` | More options | Calendar id. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Calendar | `calendar` | Text | No | `primary` | More options | Calendar id. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -82,14 +83,14 @@ List the events of a calendar between two times, earliest first, with recurring 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Start | `start` | DateTime | Yes |  | Main | Events ending after this time. |
 | End | `end` | DateTime | Yes |  | Main | Events starting before this time. |
 | Search | `search` | Text | No |  | Main | Only events containing this text. |
 | Time zone | `time_zone` | Text | No | `UTC` | More options | IANA time zone of start, end and the returned times. |
 | Maximum results | `max_results` | Number | No | `250` | More options | Maximum events returned. |
-| Calendar ID | `calendar_id` | Text | No | `primary` | More options | Calendar id. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Calendar | `calendar` | Text | No | `primary` | More options | Calendar id. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -110,7 +111,7 @@ Change the title, time, description, location or attendees of an event; empty in
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id. |
 | Subject | `subject` | Text | No |  | Main | New title. |
 | Location | `location` | Text | No |  | Main | New location. |
@@ -121,10 +122,10 @@ Change the title, time, description, location or attendees of an event; empty in
 | Description | `description` | Text | No |  | Main | New description. |
 | End time zone | `end_time_zone` | Text | No |  | More options | IANA time zone of end when it differs from start's; time_zone when empty. Example: `America/New_York` |
 | Notify | `notify` | Yes/No | No | Yes | More options | Email the attendees about the change. |
-| Calendar ID | `calendar_id` | Text | No | `primary` | More options | Calendar id. |
+| Calendar | `calendar` | Text | No | `primary` | More options | Calendar id. |
 | Visibility | `visibility` | Text | No |  | More options | Who can see the event's details; unchanged when empty. One of: `default`, `public`, `private` |
 | Reminder (minutes) | `reminder_minutes` | Number | No |  | More options | Popup reminder this many minutes before; unchanged when empty. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -146,11 +147,11 @@ Add text at the end of a Google Docs document.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Document ID | `document_id` | Text | Yes |  | Main | The document: its id, or its full link (https://docs.google.com/document/d/...). |
 | Text | `text` | Text | Yes |  | Main | Text to add. |
 | New paragraph | `new_paragraph` | Yes/No | No | Yes | Main | Start the text on a new line when the document already has text; when false it continues the last paragraph. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -164,11 +165,11 @@ Create a new Google Docs document, optionally with starting text and in a Drive 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Title | `title` | Text | Yes |  | Main | Document title. |
 | Text | `text` | Text | No |  | Main | Text to put in the new document; empty when not given. |
 | Folder ID | `folder_id` | Text | No |  | Main | Drive folder to put the document in; My Drive when empty. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -189,9 +190,9 @@ Read all the text of a Google Docs document as plain text, table cells included.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Document ID | `document_id` | Text | Yes |  | Main | The document: its id, or its full link (https://docs.google.com/document/d/...). |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -212,11 +213,11 @@ Replace every occurrence of one or more texts in a Google Docs document, such as
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Document ID | `document_id` | Text | Yes |  | Main | The document: its id, or its full link (https://docs.google.com/document/d/...). |
 | Replacements | `replacements` | Dictionary | Yes |  | Main | Text to find as each key, and the text to put in its place as the value. Example: `{"{{name}}": "Ann", "{{date}}": "3 Nov 2026"}` |
 | Match case | `match_case` | Yes/No | No | No | Main | Only replace text with the same upper and lower case. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -238,11 +239,11 @@ Check whether a person (or their domain, or anyone with the link) can read, comm
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
 | Access | `access` | Text | No | `read` | Main | The access to check. One of: `read`, `comment`, `write` |
 | Email | `email` | Text | Yes |  | Main | The person's email address. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -263,13 +264,13 @@ Make a copy of a Drive file, optionally renamed or in another folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | File ID | `file_id` | Text | No |  | Main; choice Pick the file by = Id | File to copy; or give item_path instead. |
 | Item path | `item_path` | Text | No |  | Main; choice Pick the file by = Path | Path of the file under My Drive, used instead of file_id. Example: `Reports/2026/summary.pdf` |
 | Folder ID | `folder_id` | Text | No |  | Main; choice Put the copy in = A folder id | Folder for the copy; next to the original when empty. |
 | Destination path | `destination_path` | Text | No |  | Main; choice Put the copy in = A folder path | Path of the folder for the copy under My Drive, used instead of folder_id. Example: `Reports/2026` |
 | Name | `name` | Text | No |  | Main; tick Give the copy a new name | Name of the copy; Drive's default when empty. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -289,13 +290,13 @@ Copy a folder with all its files and subfolders into another folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Folder ID | `folder_id` | Text | No |  | Main; choice Pick the folder by = Id | Folder to copy; or give folder_path instead. |
 | Folder path | `folder_path` | Text | No |  | Main; choice Pick the folder by = Path | Path of the folder to copy under My Drive, used instead of folder_id. Example: `Reports/2026` |
 | Destination ID | `destination_id` | Text | No |  | Main; choice Put the copy in = A folder id | Folder that receives the copy; next to the original when empty. |
 | Destination path | `destination_path` | Text | No |  | Main; choice Put the copy in = A folder path | Path of the folder that receives the copy under My Drive, used instead of destination_id. Example: `Archive` |
 | Name | `name` | Text | No |  | More options | Name of the copy; the original name when empty. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -316,10 +317,10 @@ Create a folder in Drive.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| Parent ID | `parent_id` | Text | No |  | Main | Parent folder id; My Drive root when empty. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Parent ID | `parent_id` | Text | No |  | Main | Parent folder id; My Drive root when empty. A path under My Drive starting with / also works, e.g. /Reports/2026. |
 | Name | `name` | Text | Yes |  | Main | Folder name. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -340,8 +341,8 @@ Give a user, group, domain or anyone with the link access to a file or folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
 | Role | `role` | Text | No | `reader` | Main | Access level. One of: `reader`, `commenter`, `writer`, `fileOrganizer`, `organizer` |
 | Share with | `share_with` | Text | No | `user` | Main | Who receives access. One of: `user`, `group`, `domain`, `anyone` |
 | Email | `email` | Text | No |  | Main | User or group address (for user and group). |
@@ -349,7 +350,7 @@ Give a user, group, domain or anyone with the link access to a file or folder.
 | Notify | `notify` | Yes/No | No | Yes | More options | Send a notification email (user and group only). |
 | Message | `message` | Text | No |  | More options | Text added to the notification email. |
 | Expires | `expires` | DateTime | No |  | More options | When the access ends (UTC; users and groups only, Google Workspace accounts). |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -369,11 +370,11 @@ Move a file or folder to the Drive trash, or delete it permanently.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item ID | `item_id` | Text | No |  | Main; choice Pick the item by = Id | File or folder id; or give item_path instead. |
 | Item path | `item_path` | Text | No |  | Main; choice Pick the item by = Path | Path of the file or folder under My Drive, used instead of item_id. Example: `Old/report.pdf` |
 | Permanent | `permanent` | Yes/No | No | No | More options | Delete for good instead of moving to the trash. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -387,10 +388,10 @@ Take away a permission from a file or folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
 | Permission ID | `permission_id` | Text | Yes |  | Main | Permission id from List Drive permissions. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -404,11 +405,11 @@ Download a Drive file by id (Google Docs/Sheets are exported to PDF/XLSX automat
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| File ID | `file_id` | Text | Yes |  | Main | File id. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| File ID | `file_id` | Text | Yes |  | Main | File id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
 | Local path | `local_path` | File path | Yes |  | Main | Where to save it. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing local file; when false a number such as (2) is added to the name. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -428,13 +429,13 @@ Save a Google Doc, Sheet or Slides file in an office format such as PDF, XLSX or
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| File ID | `file_id` | Text | Yes |  | Main | Id of the Google Doc, Sheet or Slides file. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| File ID | `file_id` | Text | Yes |  | Main | Id of the Google Doc, Sheet or Slides file. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
 | Local path | `local_path` | File path | Yes |  | Main | Where to save it; the folder to save into when file_name is given. |
 | Format | `format` | Text | No | `pdf` | Main | Output format. One of: `pdf`, `xlsx`, `docx`, `pptx`, `csv`, `txt`, `html`, `odt`, `ods` |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing local file; when false a number such as (2) is added to the name. |
 | File name | `file_name` | Text | No |  | More options | Name for the saved file inside the local_path folder; the format's extension is added when the name has none. Example: `Q4 report` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -454,7 +455,7 @@ Find files and folders by name, folder, type or a raw Drive query.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item type | `item_type` | Text | No | `any` | Main | Files, folders or both. One of: `any`, `file`, `folder` |
 | Folder ID | `folder_id` | Text | No |  | Main; choice Look in = A folder id | Only items directly inside this folder. |
 | Folder path | `folder_path` | Text | No |  | Main; choice Look in = A folder path | Only items directly inside the folder at this path under My Drive; used instead of folder_id. Example: `Reports/2026` |
@@ -464,7 +465,7 @@ Find files and folders by name, folder, type or a raw Drive query.
 | Extra query | `extra_query` | Text | No |  | More options | Further Drive query terms joined with and. Example: `modifiedTime > '2026-01-01T00:00:00'` |
 | Include trashed | `include_trashed` | Yes/No | No | No | More options | Also return items in the trash. |
 | Maximum results | `max_results` | Number | No | `1000` | More options | Maximum items returned. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -485,9 +486,9 @@ Read the details of a file or folder: name, type, size, dates, owners, parents a
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -507,16 +508,17 @@ List files in a Drive folder (or matching a Drive search query).
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| Folder ID | `folder_id` | Text | No |  | Main | Folder id; all files when empty. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Folder ID | `folder_id` | Text | No |  | Main | Folder id; all files when empty. A path under My Drive starting with / also works, e.g. /Reports/2026. |
 | Name contains | `name_contains` | Text | No |  | Main | Only names containing this text. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, mime_type, size, modified. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -530,15 +532,16 @@ List who has access to a file or folder and with which role.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: permission_id, type, role, email, domain, display_name. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -552,12 +555,12 @@ Move a file or folder into another folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item ID | `item_id` | Text | No |  | Main; choice Pick the item by = Id | File or folder id; or give item_path instead. |
 | Item path | `item_path` | Text | No |  | Main; choice Pick the item by = Path | Path of the file or folder under My Drive, used instead of item_id. Example: `Inbox/invoice.pdf` |
 | Folder ID | `folder_id` | Text | No |  | Main; choice Move into = A folder id | Destination folder id; or give destination_path instead. |
 | Destination path | `destination_path` | Text | No |  | Main; choice Move into = A folder path | Path of the destination folder under My Drive, used instead of folder_id. Example: `Archive/2026` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -571,11 +574,11 @@ Give a file or folder a new name.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item ID | `item_id` | Text | No |  | Main; choice Pick the item by = Id | File or folder id; or give item_path instead. |
 | Item path | `item_path` | Text | No |  | Main; choice Pick the item by = Path | Path of the file or folder under My Drive, used instead of item_id. Example: `Reports/draft.docx` |
 | New name | `new_name` | Text | Yes |  | Main | New name. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -589,11 +592,11 @@ Change the role of an existing permission on a file or folder, e.g. from reader 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
-| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Item ID | `item_id` | Text | Yes |  | Main | File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf. |
 | Permission ID | `permission_id` | Text | Yes |  | Main | Permission id from List Drive permissions or Share Drive item. |
 | Role | `role` | Text | Yes |  | Main | New access level. One of: `reader`, `commenter`, `writer`, `fileOrganizer`, `organizer` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -607,13 +610,13 @@ Upload a local file to a Drive folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Local path | `local_path` | File path | Yes |  | Main | File to upload. |
-| Folder ID | `folder_id` | Text | No |  | Main | Target folder id; My Drive root when empty. |
+| Folder ID | `folder_id` | Text | No |  | Main | Target folder id; My Drive root when empty. A path under My Drive starting with / also works, e.g. /Reports/2026. |
 | Overwrite | `overwrite` | Yes/No | No | No | Main | Replace the content of a file with the same name in the folder (keeping its id and links) instead of adding a second file. |
 | Name | `name` | Text | No |  | More options | Name in Drive; the local name when empty. |
 | Description | `description` | Text | No |  | More options | Description stored with the file. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -621,11 +624,11 @@ Upload a local file to a Drive folder.
 | --- | --- | --- |
 | `file_id` | Text | New file id. |
 
-*Time limit 600 s; needs: network, filesystem.*
+*Time limit 3600 s; needs: network, filesystem.*
 
 ## Gmail
 
-### Delete all matching Gmail messages
+### Delete all emails (Gmail)
 
 `ooa.google/gmail_delete_all` (action)
 
@@ -635,7 +638,7 @@ Trash, or permanently delete, every Gmail message that matches a search.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Status | `status` | Text | No | `any` | Main | Only unread or only read messages. One of: `any`, `unread`, `read` |
 | Label | `label` | Text | No |  | Main | Only messages with this label, e.g. INBOX or Invoices. |
 | Subject contains | `subject_contains` | Text | No |  | Main | Subject contains these words; separate several with ; to match any of them. |
@@ -645,7 +648,7 @@ Trash, or permanently delete, every Gmail message that matches a search.
 | Query | `query` | Text | No |  | More options | Gmail search selecting the messages; a search or at least one filter is required so a mailbox is never emptied by accident. Example: `from:alerts@acme.com older_than:30d` |
 | Permanent | `permanent` | Yes/No | No | No | More options | Delete for good instead of moving to the trash. |
 | Maximum messages | `max_messages` | Number | No | `500` | More options | Upper limit of messages handled in one run. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -655,7 +658,7 @@ Trash, or permanently delete, every Gmail message that matches a search.
 
 *Time limit 600 s; needs: network.*
 
-### Delete Gmail message
+### Delete email (Gmail)
 
 `ooa.google/gmail_delete_message` (action)
 
@@ -665,14 +668,14 @@ Move a Gmail message to the trash, or delete it permanently.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Message ID | `message_id` | Text | Yes |  | Main | Gmail message id from List Gmail messages. |
 | Permanent | `permanent` | Yes/No | No | No | More options | Delete for good instead of moving to the trash (needs full mail access). |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
-### Forward Gmail message
+### Forward email (Gmail)
 
 `ooa.google/gmail_forward_message` (action)
 
@@ -682,7 +685,7 @@ Forward a Gmail message with a note, either inline with its attachments or as an
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Message ID | `message_id` | Text | Yes |  | Main | Gmail message id from List Gmail messages. |
 | To | `to` | Any | Yes |  | Main | Recipient address(es). |
 | Cc | `cc` | Any | No |  | Main | CC address(es). |
@@ -692,7 +695,7 @@ Forward a Gmail message with a note, either inline with its attachments or as an
 | Body is HTML | `html` | Yes/No | No | No | Main; tick Add a note above the message | Note is HTML. |
 | As attachment | `as_attachment` | Yes/No | No | No | More options | Attach the original as an .eml file instead of quoting it. |
 | Include attachments | `include_attachments` | Yes/No | No | Yes | More options | Inline mode: also forward the original attachments. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -702,7 +705,7 @@ Forward a Gmail message with a note, either inline with its attachments or as an
 
 *Time limit 60 s; needs: network.*
 
-### Read Gmail message
+### Read email (Gmail)
 
 `ooa.google/gmail_get_message` (action)
 
@@ -712,20 +715,20 @@ Read one Gmail message: headers, text and HTML body, labels and attachment names
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Message ID | `message_id` | Text | Yes |  | Main | Gmail message id from List Gmail messages. |
 | Mark read | `mark_read` | Yes/No | No | No | Main | Mark the message as read. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `email` | Dictionary | id, thread_id, from, to, cc, subject, date, message_id, text, html, attachments, labels. |
+| `email` | Dictionary | id, thread_id, from, to, cc, subject, date, message_id, text, html, attachments, labels. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
-### Check Gmail label exists
+### Check label exists (Gmail)
 
 `ooa.google/gmail_label_exists` (action)
 
@@ -735,9 +738,9 @@ Check whether a Gmail label exists, by name (not case-sensitive) or id, and retu
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Label | `label` | Text | Yes |  | Main | Label name or id. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -748,7 +751,7 @@ Check whether a Gmail label exists, by name (not case-sensitive) or id, and retu
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
-### List Gmail messages
+### Find emails (Gmail)
 
 `ooa.google/gmail_list_messages` (action)
 
@@ -758,7 +761,7 @@ Find Gmail messages with a Gmail search such as from:billing@acme.com is:unread 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Status | `status` | Text | No | `any` | Main | Only unread or only read messages. One of: `any`, `unread`, `read` |
 | Label | `label` | Text | No |  | Main | Only messages with this label, e.g. INBOX or Invoices. |
 | Subject contains | `subject_contains` | Text | No |  | Main | Subject contains these words; separate several with ; to match any of them. |
@@ -769,18 +772,18 @@ Find Gmail messages with a Gmail search such as from:billing@acme.com is:unread 
 | Query | `query` | Text | No |  | More options | Gmail search text; all messages when empty. Example: `from:billing@acme.com has:attachment newer_than:7d` |
 | Maximum results | `max_results` | Number | No | `100` | More options | Maximum messages returned. |
 | Include spam trash | `include_spam_trash` | Yes/No | No | No | More options | Also search Spam and Trash. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `table` | Table | Columns: id, thread_id, from, to, subject, date, snippet, unread, labels. |
+| `table` | Table | Columns: id, thread_id, from, to, subject, date, snippet, unread, labels, received (date and time, UTC). |
 | `count` | Number | Number of messages. |
 
 *Time limit 300 s; safe to repeat; needs: network.*
 
-### Change Gmail message status
+### Change email status (Gmail)
 
 `ooa.google/gmail_mark_message` (action)
 
@@ -790,14 +793,14 @@ Mark a Gmail message as read, unread, starred, not starred, important or not imp
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Message ID | `message_id` | Text | Yes |  | Main | Gmail message id from List Gmail messages. |
 | Status | `status` | Text | No | `read` | Main | New status. One of: `read`, `unread`, `starred`, `unstarred`, `important`, `not_important` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
-### Move all matching Gmail messages
+### Move all emails (Gmail)
 
 `ooa.google/gmail_move_all` (action)
 
@@ -807,7 +810,7 @@ Add and remove labels on every Gmail message that matches a search or the filter
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remove labels | `remove_labels` | Any | No | `INBOX` | Main | Label name(s) or id(s) to remove; INBOX by default. |
 | Add labels | `add_labels` | Any | No |  | Main | Label name(s) or id(s) to add. |
 | Status | `status` | Text | No | `any` | Main | Only unread or only read messages. One of: `any`, `unread`, `read` |
@@ -818,7 +821,7 @@ Add and remove labels on every Gmail message that matches a search or the filter
 | Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
 | Query | `query` | Text | No |  | More options | Gmail search selecting the messages. Example: `from:billing@acme.com` |
 | Maximum messages | `max_messages` | Number | No | `500` | More options | Upper limit of messages handled in one run. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -828,7 +831,7 @@ Add and remove labels on every Gmail message that matches a search or the filter
 
 *Time limit 600 s; needs: network.*
 
-### Move Gmail message
+### Move email (Gmail)
 
 `ooa.google/gmail_move_message` (action)
 
@@ -838,12 +841,12 @@ Move a Gmail message between labels, e.g. add Processed and remove INBOX.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Message ID | `message_id` | Text | Yes |  | Main | Gmail message id from List Gmail messages. |
 | Remove labels | `remove_labels` | Any | No | `INBOX` | Main | Label name(s) or id(s) to remove; INBOX by default, which archives the message. |
 | Add labels | `add_labels` | Any | No |  | Main | Label name(s) or id(s) to add: text separated by , or a List. |
 | Keep other labels | `keep_other_labels` | Yes/No | No | Yes | Main | When false, every label except the added ones and the read, starred and important marks is removed. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -853,7 +856,7 @@ Move a Gmail message between labels, e.g. add Processed and remove INBOX.
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
-### Reply all to Gmail message
+### Reply all to email (Gmail)
 
 `ooa.google/gmail_reply_all` (action)
 
@@ -863,7 +866,7 @@ Reply to the sender and every other recipient of a Gmail message in the same thr
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Message ID | `message_id` | Text | Yes |  | Main | Gmail message id from List Gmail messages. |
 | Cc | `cc` | Any | No |  | Main | More CC address(es). |
 | Bcc | `bcc` | Any | No |  | Main | BCC address(es). |
@@ -873,7 +876,7 @@ Reply to the sender and every other recipient of a Gmail message in the same thr
 | Body | `body` | Text | No | (empty) | Main | Reply text. |
 | Body is HTML | `html` | Yes/No | No | No | Main | Body is HTML. |
 | Include the original message | `include_original` | Yes/No | No | Yes | More options | Quote the original message below the reply. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -884,7 +887,7 @@ Reply to the sender and every other recipient of a Gmail message in the same thr
 
 *Time limit 60 s; needs: network.*
 
-### Reply to Gmail message
+### Reply to email (Gmail)
 
 `ooa.google/gmail_reply_message` (action)
 
@@ -894,7 +897,7 @@ Reply to the sender of a Gmail message in the same conversation thread.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Message ID | `message_id` | Text | Yes |  | Main | Gmail message id from List Gmail messages. |
 | Cc | `cc` | Any | No |  | Main | More CC address(es). |
 | Bcc | `bcc` | Any | No |  | Main | BCC address(es). |
@@ -902,7 +905,7 @@ Reply to the sender of a Gmail message in the same conversation thread.
 | Body | `body` | Text | No | (empty) | Main | Reply text. |
 | Body is HTML | `html` | Yes/No | No | No | Main | Body is HTML. |
 | Include the original message | `include_original` | Yes/No | No | Yes | More options | Quote the original message below the reply. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -913,7 +916,7 @@ Reply to the sender of a Gmail message in the same conversation thread.
 
 *Time limit 60 s; needs: network.*
 
-### Save attachments of all matching Gmail messages
+### Save attachments of all matching emails (Gmail)
 
 `ooa.google/gmail_save_all_attachments` (action)
 
@@ -923,7 +926,7 @@ Save the attachments of every Gmail message that matches a search or the filters
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Status | `status` | Text | No | `any` | Main | Only unread or only read messages. One of: `any`, `unread`, `read` |
 | Label | `label` | Text | No |  | Main | Only messages with this label, e.g. INBOX or Invoices. |
 | Subject contains | `subject_contains` | Text | No |  | Main | Subject contains these words; separate several with ; to match any of them. |
@@ -936,7 +939,7 @@ Save the attachments of every Gmail message that matches a search or the filters
 | Query | `query` | Text | No |  | More options | Gmail search selecting the messages; all messages with attachments when empty. Example: `from:billing@acme.com` |
 | Mark read | `mark_read` | Yes/No | No | No | More options | Mark each matching message as read afterwards. |
 | Maximum messages | `max_messages` | Number | No | `100` | More options | Upper limit of messages handled in one run. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -947,7 +950,7 @@ Save the attachments of every Gmail message that matches a search or the filters
 
 *Time limit 600 s; needs: network, filesystem.*
 
-### Save Gmail attachments
+### Save email attachments (Gmail)
 
 `ooa.google/gmail_save_attachments` (action)
 
@@ -957,12 +960,12 @@ Save a Gmail message's attachments to a folder, optionally only names matching a
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Message ID | `message_id` | Text | Yes |  | Main | Gmail message id from List Gmail messages. |
 | Target folder | `target_folder` | File path | Yes |  | Main | Folder to save into. |
 | Overwrite | `overwrite` | Yes/No | No | No | Main | Replace files of the same name instead of adding a number such as (2). |
 | Name pattern | `name_pattern` | Text | No | `*` | More options | Only names matching this pattern, e.g. *.pdf. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -972,7 +975,7 @@ Save a Gmail message's attachments to a folder, optionally only names matching a
 
 *Time limit 60 s; needs: network, filesystem.*
 
-### Save Gmail message as .eml
+### Save email as EML (Gmail)
 
 `ooa.google/gmail_save_message_as_eml` (action)
 
@@ -982,11 +985,11 @@ Save a complete Gmail message, with attachments, as an .eml file that mail progr
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Message ID | `message_id` | Text | Yes |  | Main | Gmail message id from List Gmail messages. |
 | Local path | `local_path` | File path | Yes |  | Main | Where to save the .eml file; a path ending in / or an existing folder gets a file named after the subject. Example: `mail/message.eml` |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing file; when false a number such as (2) is added to the name. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -996,7 +999,7 @@ Save a complete Gmail message, with attachments, as an .eml file that mail progr
 
 *Time limit 60 s; needs: network, filesystem.*
 
-### Send Gmail
+### Send email (Gmail)
 
 `ooa.google/gmail_send` (action)
 
@@ -1006,7 +1009,7 @@ Send a plain-text or HTML email from Gmail with optional CC, BCC, attachments, r
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | To | `to` | Any | Yes |  | Main | Recipient address(es). |
 | Cc | `cc` | Any | No |  | Main | CC address(es). |
 | Bcc | `bcc` | Any | No |  | Main | BCC address(es). |
@@ -1016,7 +1019,7 @@ Send a plain-text or HTML email from Gmail with optional CC, BCC, attachments, r
 | Body | `body` | Text | No | (empty) | Main | Body. |
 | From | `from` | Text | No |  | More options | Send from this address, which must be one of the account's Gmail send-as aliases. |
 | Reply to | `reply_to` | Any | No |  | More options | Address(es) that replies go to, when not the sender. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1038,11 +1041,11 @@ Add a new empty sheet (tab) to a spreadsheet.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | Yes |  | Main | Name for the new sheet. |
 | Position | `position` | Number | No |  | Main | Tab position starting at 1; added last when empty. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1062,11 +1065,11 @@ Add a table's rows after the last row of a sheet.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Range | `range` | Text | Yes |  | Main | Sheet (and table start) to append to. Example: `Sheet1!A1` |
 | Table | `table` | Table | Yes |  | Main | Rows to append (column names are not written). |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1086,12 +1089,12 @@ Resize columns to fit their content.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main | Sheet (tab) name; the first sheet when empty. |
 | From column | `from_column` | Text | No |  | Main | First column (letter or number); all columns when empty. |
 | To column | `to_column` | Text | No |  | Main | Last column (letter or number); the first column when only that is given. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1105,12 +1108,12 @@ Resize rows to fit their content.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main | Sheet (tab) name; the first sheet when empty. |
 | From row | `from_row` | Number | No |  | Main | First row from 1; all rows when empty. |
 | To row | `to_row` | Number | No |  | Main | Last row; the first row when only that is given. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1124,10 +1127,10 @@ Remove the values in a range while keeping its formatting and the cell layout.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Range | `range` | Text | Yes |  | Main | A1 range, optionally with the sheet name, e.g. Sheet1!A1:C10; the first sheet when no sheet is named. Example: `Sheet1!A2:D100` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1141,13 +1144,13 @@ Copy a range to another place, in the same or another sheet of the spreadsheet: 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Source | `source` | Text | Yes |  | Main | Range to copy. A1 range, optionally with the sheet name, e.g. Sheet1!A1:C10; the first sheet when no sheet is named. Example: `Sheet1!A1:C10` |
 | Destination | `destination` | Text | Yes |  | Main | Top-left cell (or range) to paste into, optionally with the sheet name. Example: `Sheet2!E1` |
 | Paste | `paste` | Text | No | `all` | Main | What to paste. One of: `all`, `values`, `formats`, `formulas`, `no_borders` |
 | Transpose | `transpose` | Yes/No | No | No | Main | Turn rows into columns. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -1161,11 +1164,11 @@ Create a new Google spreadsheet, optionally with named sheets. Other spreadsheet
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Title | `title` | Text | Yes |  | Main | Spreadsheet title. |
 | Sheet names | `sheet_names` | List | No |  | Main | Names of the sheets to create; one default sheet when empty. |
 | Folder ID | `folder_id` | Text | No |  | Main | Drive folder to put the spreadsheet in; My Drive when empty. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1186,12 +1189,12 @@ Delete columns starting at a column; columns to the right move left.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main | Sheet (tab) name; the first sheet when empty. |
 | Column | `column` | Text | Yes |  | Main | First column to delete (letter or number from 1). Example: `C` |
 | Count | `count` | Number | No | `1` | Main | Number of columns. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -1205,11 +1208,11 @@ Delete the cells of a range and shift the neighbouring cells up or left to fill 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Range | `range` | Text | Yes |  | Main | A1 range, optionally with the sheet name, e.g. Sheet1!A1:C10; the first sheet when no sheet is named. Example: `Sheet1!B2:C4` |
 | Shift | `shift` | Text | No | `up` | Main | Direction the remaining cells move. One of: `up`, `left` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -1223,12 +1226,12 @@ Delete rows starting at a row number; rows below move up.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main | Sheet (tab) name; the first sheet when empty. |
 | Row | `row` | Number | Yes |  | Main | First row to delete (1 = top). |
 | Count | `count` | Number | No | `1` | Main | Number of rows. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -1242,11 +1245,11 @@ Delete a sheet (tab) and all its content.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main; choice Sheet by = Name | Name of the sheet to delete; or give position instead. |
 | Position | `position` | Number | No |  | Main; choice Sheet by = Position | Tab position of the sheet to delete, starting at 1; used instead of sheet. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -1260,13 +1263,13 @@ Search a sheet or range for text and return the addresses of the matching cells.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Range | `range` | Text | No |  | Main | Sheet name or range to search, e.g. Sheet1 or Sheet1!A1:F200; the first sheet when empty. |
 | Text | `text` | Text | Yes |  | Main | Text to look for. |
 | Match case | `match_case` | Yes/No | No | No | Main | Upper and lower case must match. |
 | Whole cell | `whole_cell` | Yes/No | No | No | Main | The whole cell must equal the text, not just contain it. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1287,7 +1290,7 @@ Apply bold, italic, font size, text and fill colours, alignment and number forma
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Range | `range` | Text | Yes |  | Main | A1 range, optionally with the sheet name, e.g. Sheet1!A1:C10; the first sheet when no sheet is named. Example: `Sheet1!A1:D1` |
 | Font family | `font_family` | Text | No |  | Main; tick Change the font | Font name; unchanged when empty. Example: `Roboto` |
@@ -1306,7 +1309,7 @@ Apply bold, italic, font size, text and fill colours, alignment and number forma
 | Number format type | `number_format_type` | Text | No | `NUMBER` | More options | Kind of number format the pattern describes. One of: `NUMBER`, `CURRENCY`, `PERCENT`, `DATE`, `TIME`, `DATE_TIME`, `SCIENTIFIC`, `TEXT` |
 | Border style | `border_style` | Text | No |  | More options | Style of every border of the range, inside and out; unchanged when empty. One of: `none`, `solid`, `solid_medium`, `solid_thick`, `dashed`, `dotted`, `double` |
 | Border color | `border_color` | Text | No |  | More options | Border colour as #RRGGBB; black when empty. Example: `#000000` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1320,11 +1323,11 @@ Read the value of one cell.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Cell | `cell` | Text | Yes |  | Main | One cell in A1 notation, optionally with the sheet name, e.g. Sheet1!B2. Example: `Sheet1!B2` |
 | Formatted | `formatted` | Yes/No | No | No | Main | Return the text as displayed (e.g. 12.5%) instead of the raw value. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1344,11 +1347,11 @@ Read the fill and text colour of one cell as #RRGGBB or as the nearest basic col
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Cell | `cell` | Text | Yes |  | Main | One cell in A1 notation, optionally with the sheet name, e.g. Sheet1!B2. Example: `Sheet1!B2` |
 | Format | `format` | Text | No | `hex` | Main | hex gives #RRGGBB; name gives the nearest of black, white, grey, red, orange, yellow, green, cyan, blue, purple, magenta, pink or brown. One of: `hex`, `name` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1369,13 +1372,13 @@ Read a range as a list of rows and, optionally, as a data table with the first r
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Range | `range` | Text | No |  | Main; choice Read = A range | A1 range, optionally with the sheet name, e.g. Sheet1!A1:C10; the first sheet when no sheet is named. Leave empty to read all cells of a sheet. Example: `Sheet1!A1:D20` |
 | Sheet | `sheet` | Text | No |  | Main; choice Read = All cells of a sheet | When no range is given: the sheet (tab) whose cells are all read; the first sheet when empty. |
 | First row is the header | `header` | Yes/No | No | Yes | Main | Table only: the first row holds column names. |
 | Formatted | `formatted` | Yes/No | No | No | Main | Return values as displayed instead of raw values. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1396,10 +1399,10 @@ Hide a sheet (tab) from view without deleting it.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | Yes |  | Main | Sheet to hide. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1413,12 +1416,12 @@ Insert empty columns before a column.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main | Sheet (tab) name; the first sheet when empty. |
 | Column | `column` | Text | Yes |  | Main | The new columns are inserted before this column (letter or number from 1). Example: `C` |
 | Count | `count` | Number | No | `1` | Main | Number of columns. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -1432,11 +1435,11 @@ Insert empty cells at a range, pushing the existing cells down or right.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Range | `range` | Text | Yes |  | Main | A1 range, optionally with the sheet name, e.g. Sheet1!A1:C10; the first sheet when no sheet is named. Example: `Sheet1!B2:C4` |
 | Shift | `shift` | Text | No | `down` | Main | Direction the existing cells move. One of: `down`, `right` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -1450,12 +1453,12 @@ Insert empty rows before a row number.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main | Sheet (tab) name; the first sheet when empty. |
 | Row | `row` | Number | Yes |  | Main | The new rows are inserted before this row (1 = top). |
 | Count | `count` | Number | No | `1` | Main | Number of rows. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; needs: network.*
 
@@ -1469,10 +1472,10 @@ List the sheets (tabs) of a spreadsheet with their size and visibility.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Exclude hidden | `exclude_hidden` | Yes/No | No | No | Main | Leave hidden sheets out. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1494,12 +1497,12 @@ Read a range such as Sheet1!A1:D100, or all cells of a sheet, into a table.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Range | `range` | Text | No |  | Main; choice Read = A range | A1 range; leave empty to read all cells of a sheet. Example: `Sheet1!A1:D100` |
 | Sheet | `sheet` | Text | No |  | Main; choice Read = All cells of a sheet | When no range is given: the sheet (tab) whose cells are all read; the first sheet when empty. |
 | First row is the header | `header` | Yes/No | No | Yes | Main | First row holds column names. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1519,11 +1522,11 @@ Read all values of one column as a list.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main | Sheet (tab) name; the first sheet when empty. |
 | Column | `column` | Text | Yes |  | Main | Column letter or number from 1. Example: `B` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1543,10 +1546,10 @@ Read the formula of one cell (the plain value when the cell has no formula).
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Cell | `cell` | Text | Yes |  | Main | One cell in A1 notation, optionally with the sheet name, e.g. Sheet1!B2. Example: `Sheet1!D2` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1566,11 +1569,11 @@ Read all values of one row as a list.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main | Sheet (tab) name; the first sheet when empty. |
 | Row | `row` | Number | Yes |  | Main | Row number (1 = top). |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1590,12 +1593,12 @@ Give a sheet (tab) a new name.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main; choice Sheet by = Name | Current sheet name; or give position instead. |
 | Position | `position` | Number | No |  | Main; choice Sheet by = Position | Tab position of the sheet to rename, starting at 1; used instead of sheet. |
 | New name | `new_name` | Text | Yes |  | Main | New sheet name. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1609,11 +1612,11 @@ Count the rows and columns in use on a sheet, up to the last filled cell.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main | Sheet (tab) name; the first sheet when empty. |
 | Non empty only | `non_empty_only` | Yes/No | No | No | Main | Count only rows that hold a value, instead of the number of the last filled row. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1634,11 +1637,11 @@ Write a value into one cell; text is interpreted as if typed by a user.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Cell | `cell` | Text | Yes |  | Main | One cell in A1 notation, optionally with the sheet name, e.g. Sheet1!B2. Example: `Sheet1!B2` |
 | Value | `value` | Any | Yes |  | Main | Value to write; empty clears the cell. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1652,11 +1655,11 @@ Put a formula into one cell.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Cell | `cell` | Text | Yes |  | Main | One cell in A1 notation, optionally with the sheet name, e.g. Sheet1!B2. Example: `Sheet1!D2` |
 | Formula | `formula` | Text | Yes |  | Main | Formula; a leading = is added when missing. Example: `=SUM(B2:C2)` |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1670,10 +1673,10 @@ Make a hidden sheet (tab) visible again.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | Yes |  | Main | Sheet to show. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1687,12 +1690,12 @@ Write a table into a sheet starting at a cell, overwriting existing values.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Range | `range` | Text | Yes |  | Main | Top-left cell or range. Example: `Sheet1!A1` |
 | Table | `table` | Table | Yes |  | Main | Data to write. |
 | Include header | `include_header` | Yes/No | No | Yes | Main | Write column names first. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1712,14 +1715,14 @@ Write a data table to a sheet from a start cell, optionally clearing the sheet f
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Sheet | `sheet` | Text | No |  | Main; choice Worksheet = A named sheet | Sheet (tab) name; the first sheet when empty. |
 | Table | `table` | Table | Yes |  | Main | Data to write. |
 | Start cell | `start_cell` | Text | No | `A1` | Main | Top-left cell of the data. |
 | Include header | `include_header` | Yes/No | No | Yes | Main | Write column names as the first row. |
 | Clear sheet first | `clear_sheet_first` | Yes/No | No | No | More options | Remove all values on the sheet before writing. |
-| Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
+| Endpoint address | `base_url` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
@@ -1729,3 +1732,30 @@ Write a data table to a sheet from a start cell, optionally clearing the sheet f
 | `updated_cells` | Number | Cells written. |
 
 *Time limit 60 s; needs: network.*
+
+## Loop types
+
+Used as the kind of loop in a Loop step.
+
+### Each email in Gmail
+
+`ooa.google/gmail_messages` (loop type)
+
+Go through the messages matching the Find emails (Gmail) filters, one per turn: id, thread_id, from, to, subject, date, snippet, unread, labels, received, or the whole email.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Query | `query` | Text | No |  | Main | Gmail search text; all messages when empty. Example: `from:billing@acme.com has:attachment newer_than:7d` |
+| Label | `label` | Text | No |  | Main | Only messages with this label, e.g. INBOX or Invoices. |
+| Status | `status` | Text | No | `any` | Main | Only unread or only read messages. One of: `any`, `unread`, `read` |
+| From contains | `from_contains` | Text | No |  | Main | Sender contains this text; separate several with ; to match any of them. |
+| Subject contains | `subject_contains` | Text | No |  | Main | Subject contains these words; separate several with ; to match any of them. |
+| Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
+| Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
+| Has attachments only | `has_attachments_only` | Yes/No | No | No | Main | Only messages with attachments. |
+| Maximum results | `max_results` | Number | No | `100` | Main | Stop after this many messages. |
+| With body | `with_body` | Yes/No | No | No | Main | Give each email whole: text, HTML, recipients and attachment names (one more request per email); the email stays unread. Without it each email has id, from, subject, received, unread and has_attachments. |
+| Endpoint address | `base_url` | Text | No |  | Main | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |

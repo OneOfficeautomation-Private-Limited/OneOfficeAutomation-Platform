@@ -23,24 +23,25 @@ const BY_TOOLKIT: [RegExp, Mark][] = [
   [/datatable|dictionary|list|json|xml|string|number|boolean|datetime|currency|fuzzy|global_values|run_context/, { color: "#1e40af", icon: "code" }],
 ];
 
+// the catalogue's names (command review C11): the same name before and after the catalogue loads
 const CORE: Record<string, { name: string; mark: Mark }> = {
   "core/if": { name: "If", mark: { color: "#b45309", icon: "branch" } },
   "core/switch": { name: "Switch", mark: { color: "#b45309", icon: "branch" } },
   "core/state_machine": { name: "State machine", mark: { color: "#b45309", icon: "process" } },
   "core/loop": { name: "Loop", mark: { color: "#0e7490", icon: "loop" } },
   "core/try": { name: "Try", mark: { color: "#b91c1c", icon: "bug" } },
-  "core/parallel": { name: "Run at the same time", mark: { color: "#0e7490", icon: "process" } },
-  "core/step": { name: "Step group", mark: { color: "#334155", icon: "folder" } },
-  "core/run_bot": { name: "Run agent", mark: { color: "#2f6fde", icon: "play" } },
-  "core/set": { name: "Set value", mark: { color: "#334155", icon: "code" } },
-  "core/set_many": { name: "Set several values", mark: { color: "#334155", icon: "code" } },
-  "core/log": { name: "Write to log", mark: { color: "#334155", icon: "doc" } },
+  "core/parallel": { name: "Parallel", mark: { color: "#0e7490", icon: "process" } },
+  "core/step": { name: "Step", mark: { color: "#334155", icon: "folder" } },
+  "core/run_bot": { name: "Run Agent", mark: { color: "#2f6fde", icon: "play" } },
+  "core/set": { name: "Assign variable", mark: { color: "#334155", icon: "code" } },
+  "core/set_many": { name: "Assign several variables", mark: { color: "#334155", icon: "code" } },
+  "core/log": { name: "Log message", mark: { color: "#334155", icon: "doc" } },
   "core/comment": { name: "Comment", mark: { color: "#475569", icon: "doc" } },
-  "core/delay": { name: "Wait", mark: { color: "#475569", icon: "pulse" } },
-  "core/wait_until": { name: "Wait until", mark: { color: "#475569", icon: "pulse" } },
-  "core/throw": { name: "Raise an error", mark: { color: "#b91c1c", icon: "bug" } },
-  "core/break": { name: "Leave the loop", mark: { color: "#0e7490", icon: "loop" } },
-  "core/continue": { name: "Next round of the loop", mark: { color: "#0e7490", icon: "loop" } },
+  "core/delay": { name: "Delay", mark: { color: "#475569", icon: "pulse" } },
+  "core/wait_until": { name: "Wait for condition", mark: { color: "#475569", icon: "pulse" } },
+  "core/throw": { name: "Throw error", mark: { color: "#b91c1c", icon: "bug" } },
+  "core/break": { name: "Exit loop", mark: { color: "#0e7490", icon: "loop" } },
+  "core/continue": { name: "Continue loop", mark: { color: "#0e7490", icon: "loop" } },
   "core/run_subflow": { name: "Run subflow", mark: { color: "#2f6fde", icon: "play" } },
   "core/exit_subflow": { name: "Exit subflow", mark: { color: "#2f6fde", icon: "up" } },
   "core/label": { name: "Label", mark: { color: "#b45309", icon: "star" } },
@@ -55,14 +56,16 @@ export function toolkitMark(toolkitId: string): Mark {
 }
 
 /** Display name and mark of a step's action: core blocks by name, toolkit actions from the toolkit catalogue. */
-export function describeAction(action: string, packages: PackageManifest[]): { name: string; toolkit: string; mark: Mark } {
+export function describeAction(action: string, packages: PackageManifest[]): { name: string; toolkit: string; mark: Mark; description?: string } {
   const [toolkitId, actionId] = action.split("/");
   const pkg = packages.find((p) => p.id === toolkitId);
   const a = pkg?.actions.find((x) => x.id === actionId);
   // the catalogue's name, as the action library shows it; ours only when the catalogue has not loaded
   const core = CORE[action];
-  if (core) return { name: a?.name ?? core.name, toolkit: "Flow", mark: core.mark };
-  return { name: a?.name ?? (actionId ?? action).replace(/_/g, " "), toolkit: pkg?.name ?? toolkitId, mark: toolkitMark(toolkitId) };
+  // the catalogue's one-line description, shown under the name in the step's panel (usage review item 24)
+  const description = a?.description?.trim() || undefined;
+  if (core) return { name: a?.name ?? core.name, toolkit: "Flow", mark: core.mark, description };
+  return { name: a?.name ?? (actionId ?? action).replace(/_/g, " "), toolkit: pkg?.name ?? toolkitId, mark: toolkitMark(toolkitId), description };
 }
 
 /** Every action a list of steps uses, blocks included. */
@@ -169,6 +172,8 @@ export function conditionText(c: unknown, packages: PackageManifest[] = []): str
   if (typeof c.expr === "string") return c.expr;
   if (Array.isArray(c.all)) return c.all.map((x) => conditionText(x, packages)).join(" and ");
   if (Array.isArray(c.any)) return c.any.map((x) => conditionText(x, packages)).join(" or ");
+  // a toolkit condition turned round reads as the builder shows it: "File exists (…) is not true"
+  if (isObj(c.not) && typeof c.not.condition === "string") return conditionText(c.not, packages) + " is not true";
   if (c.not !== undefined) return "not (" + conditionText(c.not, packages) + ")";
   if (typeof c.condition === "string") {
     const [pid, cid] = c.condition.split("/");
@@ -222,6 +227,13 @@ export function summarize(step: FlowStep, packages: PackageManifest[] = []): str
   if (step.action === "core/state_machine") {
     const n = step.states?.length ?? 0;
     return n + (n === 1 ? " state" : " states") + (n ? ", starts in " + startState(step) : "");
+  }
+  // a loop over a toolkit's loop type says it in words: "Each file in folder (C:/In) → $file" (C2)
+  if (step.action === "core/loop" && typeof step.args?.iterator === "string" && step.args.iterator.includes("/")) {
+    const [pid, iid] = step.args.iterator.split("/");
+    const name = packages.find((p) => p.id === pid)?.iterators?.find((x) => x.id === iid)?.name ?? step.args.iterator;
+    const args = Object.values(isObj(step.args.iterator_args) ? step.args.iterator_args : {}).filter((v) => v !== undefined && v !== "").map((v) => plainValue(v, 40));
+    return name + (args.length ? " (" + args.join(", ") + ")" : "") + (typeof step.args.as === "string" && step.args.as ? " → $" + step.args.as : "");
   }
   if (step.action === "core/set_many" && Array.isArray(step.args?.assignments))
     return (step.args!.assignments as { variable?: string; value?: unknown }[]).map((r) => "$" + (r.variable ?? "?") + " = " + plainValue(r.value)).join(" · ");

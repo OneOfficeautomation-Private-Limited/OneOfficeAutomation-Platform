@@ -1,6 +1,6 @@
 # Terminal emulator (TN3270, TN5250, VT over SSH)
 
-Toolkit `ooa.terminal`, version 1.2.0. Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text.
+Toolkit `ooa.terminal`, version 1.2.0. Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. 3270 needs the free wc3270 engine on the runner (wc3270 installer); 5250 and SSH need nothing.
 
 [All toolkits](README.md)
 
@@ -30,7 +30,7 @@ Erase all input fields locally, or send the Clear key to the host.
 
 `ooa.terminal/connect` (action)
 
-Connect to a TN3270 or TN5250 host, or sign in to a VT100/ANSI host over SSH, and wait for the first screen.
+Connect to a TN3270 or TN5250 host, or sign in to a VT100/ANSI host over SSH, and wait for the first screen. 3270 needs the free wc3270 engine installed on the runner; 5250 and SSH need nothing.
 
 **Settings**
 
@@ -364,7 +364,7 @@ Read one field, found by a screen position inside it or by the label just before
 | Row | `row` | Number | No |  | Main; choice Find the field by = Position | Row of any position in the field (1-based). |
 | Column | `column` | Number | No |  | Main; choice Find the field by = Position | Column of that position (1-based). |
 | Label | `label` | Text | No |  | Main; choice Find the field by = Label | Label text shown before the field; used instead of row and column. |
-| Index | `index` | Number | No |  | Main; choice Find the field by = Field number | Field number as listed by Get all fields (1-based); used instead of position or label. |
+| Index | `index` | Number | No |  | Main; choice Find the field by = Field number | Field number as listed by Get all fields, counted from 1 (AA counts from 0: add 1); used instead of position or label. |
 
 **Results**
 
@@ -417,9 +417,10 @@ Replace the contents of an input field, found by position, label or field number
 | Row | `row` | Number | No |  | Main; choice Find the field by = Position | Row of any position in the field (1-based). |
 | Column | `column` | Number | No |  | Main; choice Find the field by = Position | Column of that position (1-based). |
 | Label | `label` | Text | No |  | Main; choice Find the field by = Label | Label text shown before the field; the next input field after it is used. |
-| Index | `index` | Number | No |  | Main; choice Find the field by = Field number | Field number as listed by Get all fields (1-based); used instead of position or label. |
+| Index | `index` | Number | No |  | Main; choice Find the field by = Field number | Field number as listed by Get all fields, counted from 1 (AA counts from 0: add 1); used instead of position or label. |
 | Text | `text` | Any | Yes |  | Main | Text, or a Credential variable for passwords. |
 | Press key | `press_key` | Text | No |  | Main; tick Press a key after filling | Key to press after filling the field; none when empty. Example: `Enter` |
+| Wait for text | `wait_for_text` | Text | No |  | Main; tick Wait for text afterwards | Text that must appear on the screen afterwards, e.g. the next screen's title (waits up to timeout_seconds); no check when empty. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `30` | More options | Seconds to wait for the host to unlock the keyboard after the key. |
 
 *Time limit 120 s.*

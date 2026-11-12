@@ -25,6 +25,8 @@ public final class FilePackage {
         String e = enc.strip().toLowerCase(Locale.ROOT);
         if (e.equals("ansi") || e.equals("default")) return Charset.defaultCharset();
         if (e.equals("unicode")) return java.nio.charset.StandardCharsets.UTF_16LE;
+        // F3: the picker's UTF-8 with BOM reads as UTF-8 here (writing the mark is up to the toolkits that write files)
+        if (e.equals("utf-8-bom") || e.equals("utf-8 bom") || e.equals("utf8bom")) return java.nio.charset.StandardCharsets.UTF_8;
         try { return Charset.forName(e); }
         catch (IllegalArgumentException x) { throw new ActionException("FILE.BAD_ENCODING", "Unknown encoding '" + enc + "'", "Use utf-8, utf-16le, windows-1252 or ansi."); }
     }
@@ -110,7 +112,7 @@ public final class FilePackage {
     }
 
     @Action(id = "write_text", name = "Write text", category = "Files", capabilities = "filesystem", description = "Write text to a file, overwriting or appending.",
-            panel = "path, fail_if_exists, text, append | encoding")
+            panel = "path, text, append | fail_if_exists, encoding")
     public Map<String, Object> writeText(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
             @Input(name = "text", type = OoaType.STRING, description = "Text to write.") String text,

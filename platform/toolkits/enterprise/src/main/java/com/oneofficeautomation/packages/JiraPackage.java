@@ -36,7 +36,7 @@ public final class JiraPackage {
             @Input(name = "extra_fields", type = OoaType.DICTIONARY, required = false, description = "More fields, e.g. {\"priority\": {\"name\": \"High\"}, \"customfield_10010\": \"Gold\"}.") Map<String, Object> extra,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat,
             @Input(name = "priority", type = OoaType.STRING, required = false, example = "High", description = "Priority name, e.g. Highest, High, Medium, Low, Lowest.") String priority,
             @Input(name = "assignee", type = OoaType.STRING, required = false, description = "Assignee: an email address (looked up), a Cloud account id, or a Data Center user name; the project default when empty.") String assignee,
             @Input(name = "labels", type = OoaType.LIST, required = false, description = "Labels, e.g. [\"invoice\", \"urgent\"].") List<Object> labels,
@@ -96,7 +96,7 @@ public final class JiraPackage {
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat,
             @Input(name = "extra_fields", type = OoaType.LIST, required = false, description = "More fields to return in issue, e.g. [\"labels\", \"duedate\", \"customfield_10010\"].") List<Object> extraFields) {
         Map<String, Object> r = auth(HttpJson.req(P, "GET", api(site) + "/issue/" + key(k)), email, apiToken, pat).send(ctx).map();
         Map<String, Object> s = summarize(r);
@@ -139,24 +139,43 @@ public final class JiraPackage {
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Maximum issues.") int max,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat,
             @Input(name = "extra_fields", type = OoaType.LIST, required = false, description = "More fields to add as columns, e.g. [\"labels\", \"duedate\", \"reporter\"].") List<Object> extraFields) {
         List<String> more = new ArrayList<>();
         if (extraFields != null) for (Object f : extraFields) { String n = Values.text(f).strip(); if (!n.matches("^[A-Za-z0-9_.]{1,80}$")) throw new ActionException(P + ".BAD_FIELD", "Invalid field name '" + n + "'"); more.add(n); }
         List<Object> want = new ArrayList<>(List.of("summary", "status", "assignee", "priority", "updated"));
         for (String m : more) if (!want.contains(m.split("\\.")[0])) want.add(m.split("\\.")[0]);
         List<Object> rows = new ArrayList<>();
+        // K6 (batch 10): Jira Cloud retired /rest/api/2/search; it searches with /rest/api/3/search/jql, paged by
+        // nextPageToken. Data Center (a personal access token) keeps /rest/api/2/search, paged by startAt; a site that
+        // does not know the new endpoint (404) is asked the old way.
+        boolean cloud = !(pat instanceof SecureString);
+        if (cloud) {
+            try {
+                String token = null;
+                while (rows.size() < max) {
+                    Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("jql", jql);
+                    body.put("maxResults", Math.min(100, max - rows.size()));
+                    body.put("fields", want);
+                    if (token != null) body.put("nextPageToken", token);
+                    Map<String, Object> r = auth(HttpJson.req(P, "POST", site.replaceAll("/+$", "") + "/rest/api/3/search/jql"), email, apiToken, pat).json(body).timeout(120).send(ctx).map();
+                    List<?> issues = (List<?>) r.getOrDefault("issues", List.of());
+                    for (Object o : issues) rows.add(row((Map<?, ?>) o, more));
+                    token = r.get("nextPageToken") instanceof String t && !t.isBlank() ? t : null;
+                    if (issues.isEmpty() || token == null || Boolean.TRUE.equals(r.get("isLast"))) break;
+                }
+            } catch (ActionException e) {
+                if (!e.code().endsWith(".NOT_FOUND") || !rows.isEmpty()) throw e;
+                cloud = false;
+            }
+        }
         int start = 0;
-        while (rows.size() < max) {
+        while (!cloud && rows.size() < max) {
             Map<String, Object> body = Map.of("jql", jql, "startAt", start, "maxResults", Math.min(100, max - rows.size()), "fields", want);
             Map<String, Object> r = auth(HttpJson.req(P, "POST", api(site) + "/search"), email, apiToken, pat).json(body).timeout(120).send(ctx).map();
             List<?> issues = (List<?>) r.getOrDefault("issues", List.of());
-            for (Object o : issues) {
-                Map<String, Object> s = summarize((Map<?, ?>) o);
-                List<Object> row = new ArrayList<>(Arrays.asList(s.get("key"), s.get("summary"), s.get("status"), s.get("assignee"), s.get("priority"), s.get("updated")));
-                for (String m : more) row.add(simple(HttpJson.path(((Map<?, ?>) o).get("fields"), m)));
-                rows.add(row);
-            }
+            for (Object o : issues) rows.add(row((Map<?, ?>) o, more));
             int total = r.get("total") instanceof BigDecimal t ? t.intValue() : 0;
             start += issues.size();
             if (issues.isEmpty() || start >= total) break;
@@ -164,6 +183,13 @@ public final class JiraPackage {
         List<String> cols = new ArrayList<>(List.of("key", "summary", "status", "assignee", "priority", "updated"));
         cols.addAll(more);
         return Map.of("table", Values.table(cols, rows), "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    private static List<Object> row(Map<?, ?> issue, List<String> more) {
+        Map<String, Object> s = summarize(issue);
+        List<Object> row = new ArrayList<>(Arrays.asList(s.get("key"), s.get("summary"), s.get("status"), s.get("assignee"), s.get("priority"), s.get("updated")));
+        for (String m : more) row.add(simple(HttpJson.path(issue.get("fields"), m)));
+        return row;
     }
 
     /** Earlier signature, kept for callers written before extra_fields. */
@@ -180,7 +206,7 @@ public final class JiraPackage {
             @Input(name = "text", type = OoaType.STRING, description = "Comment text.") String text,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat,
             @Input(name = "visible_to_role", type = OoaType.STRING, required = false, example = "Administrators", description = "Only members of this project role can see the comment.") String role,
             @Input(name = "visible_to_group", type = OoaType.STRING, required = false, example = "jira-servicedesk-users", description = "Only members of this group can see the comment (instead of a role).") String group) {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -204,7 +230,7 @@ public final class JiraPackage {
             @Input(name = "transition", type = OoaType.STRING, example = "Done", description = "Transition or target status name.") String name,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat,
             @Input(name = "comment", type = OoaType.STRING, required = false, description = "Comment to add with the move.") String comment,
             @Input(name = "fields", type = OoaType.DICTIONARY, required = false, description = "Fields the transition screen asks for, e.g. {\"resolution\": {\"name\": \"Fixed\"}}.") Map<String, Object> fields) {
         String url = api(site) + "/issue/" + key(k) + "/transitions";
@@ -238,7 +264,7 @@ public final class JiraPackage {
             @Input(name = "path", type = OoaType.FILE, description = "File to attach.") String path,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat) {
         Path p = ctx.resolvePath(path);
         byte[] data;
         try { data = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
@@ -266,7 +292,7 @@ public final class JiraPackage {
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Maximum comments to read.") int max,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat) {
         List<Object> rows = new ArrayList<>();
         int start = 0;
         while (rows.size() < max) {
@@ -293,7 +319,7 @@ public final class JiraPackage {
             @Input(name = "text", type = OoaType.STRING, description = "New comment text.") String text,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat) {
         auth(HttpJson.req(P, "PUT", api(site) + "/issue/" + key(k) + "/comment/" + commentId(id)), email, apiToken, pat).json(Map.of("body", text)).send(ctx);
         return Map.of();
     }
@@ -306,7 +332,7 @@ public final class JiraPackage {
             @Input(name = "comment_id", type = OoaType.STRING, description = "Comment id, from Get comments.") String id,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat) {
         auth(HttpJson.req(P, "DELETE", api(site) + "/issue/" + key(k) + "/comment/" + commentId(id)), email, apiToken, pat).send(ctx);
         return Map.of();
     }
@@ -320,7 +346,7 @@ public final class JiraPackage {
             @Input(name = "notify_users", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Send the usual change notifications to watchers.") boolean notify,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat,
             @Input(name = "summary", type = OoaType.STRING, required = false, description = "New summary; unchanged when empty.") String summary,
             @Input(name = "description", type = OoaType.STRING, required = false, description = "New description; unchanged when empty.") String description,
             @Input(name = "priority", type = OoaType.STRING, required = false, description = "New priority name; unchanged when empty.") String priority,
@@ -350,7 +376,7 @@ public final class JiraPackage {
             @Input(name = "delete_subtasks", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also delete its sub-tasks (required when it has any).") boolean subtasks,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat) {
         auth(HttpJson.req(P, "DELETE", api(site) + "/issue/" + key(k) + "?deleteSubtasks=" + subtasks), email, apiToken, pat).send(ctx);
         return Map.of();
     }
@@ -370,7 +396,7 @@ public final class JiraPackage {
             @Input(name = "project_description", type = OoaType.STRING, required = false, description = "Project description.") String description,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat) {
         if ((leadId == null || leadId.isBlank()) && (leadName == null || leadName.isBlank()))
             throw new ActionException(P + ".NO_LEAD", "A project lead is required", "Give lead_account_id (Cloud) or lead_user_name (Data Center).");
         Map<String, Object> body = new LinkedHashMap<>();
@@ -392,7 +418,7 @@ public final class JiraPackage {
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat,
             @Input(name = "query", type = OoaType.STRING, required = false, description = "Only projects whose key or name contains this text.") String query,
             @Input(name = "project_type", type = OoaType.STRING, required = false, enumValues = {"software", "business", "service_desk"}, description = "Only projects of this type.") String type,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Maximum projects.") int max,
@@ -423,7 +449,7 @@ public final class JiraPackage {
             @Input(name = "fields", type = OoaType.DICTIONARY, required = false, description = "Project field to new value, e.g. {\"name\": \"Operations\", \"description\": \"...\"}.") Map<String, Object> fields,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat,
             @Input(name = "project_name", type = OoaType.STRING, required = false, description = "New name; unchanged when empty.") String newName,
             @Input(name = "project_description", type = OoaType.STRING, required = false, description = "New description; unchanged when empty.") String description,
             @Input(name = "lead", type = OoaType.STRING, required = false, description = "New lead: an email address (looked up), a Cloud account id or a Data Center user name.") String lead,
@@ -459,7 +485,7 @@ public final class JiraPackage {
             @Input(name = "project_key", type = OoaType.STRING, description = "Project key.") String pk,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat) {
         auth(HttpJson.req(P, "DELETE", api(site) + "/project/" + projectKey(pk)), email, apiToken, pat).send(ctx);
         return Map.of();
     }

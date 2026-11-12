@@ -161,10 +161,18 @@ class DataOptionsTest {
         assertEquals("Cid", ((List<Object>) ((List<Object>) sorted.get("rows")).get(0)).get(1));
         Map<String, Object> caseSorted = (Map<String, Object>) t.sort(ctx(), tb, "name", false, null, false, null).get("table");
         assertEquals("bob", ((List<Object>) ((List<Object>) caseSorted.get("rows")).get(2)).get(1), "upper case sorts first when case matters");
-        num(1, t.filter(ctx(), tb, "name", "ends_with", "B", false).get("count"));
-        num(0, t.filter(ctx(), tb, "name", "ends_with", "B", true).get("count"));
-        num(1, t.filter(ctx(), tb, "name", "matches", "^[AB]", true).get("count"));
-        num(1, t.filter(ctx(), tb, "city", "not_contains", "pu", false).get("count"));
+        num(1, t.filter(ctx(), tb, "name", "ends_with", "B", false, null, null, null, null).get("count"));
+        num(0, t.filter(ctx(), tb, "name", "ends_with", "B", true, null, null, null, null).get("count"));
+        num(1, t.filter(ctx(), tb, "name", "matches", "^[AB]", true, null, null, null, null).get("count"));
+        num(1, t.filter(ctx(), tb, "city", "not_contains", "pu", false, null, null, null, null).get("count"));
+        // command review D3: more conditions, all or any, keep or remove, only some columns
+        Map<String, Object> f2 = t.filter(ctx(), tb, "city", "eq", "pune", false, List.of(Map.of("column", "id", "operator", "gt", "value", 1)), "all", null, List.of("name", "id"));
+        num(1, f2.get("count"));
+        assertEquals(List.of("name", "id"), ((Map<String, Object>) f2.get("table")).get("columns"));
+        assertEquals("[Cid, 3]", String.valueOf(((List<Object>) ((Map<String, Object>) f2.get("table")).get("rows")).get(0)));
+        num(3, t.filter(ctx(), tb, "city", "eq", "pune", false, List.of(Map.of("column", "name", "operator", "eq", "value", "bob")), "any", null, null).get("count"));
+        num(1, t.filter(ctx(), tb, "city", "eq", "pune", false, null, null, "not_matching", null).get("count"));
+        assertEquals("TABLE.BAD_CONDITION", code(() -> t.filter(ctx(), tb, "city", "eq", "x", false, List.of(Map.of("column", "id", "operator", "near")), null, null, null)));
         Map<String, Object> f = t.find(ctx(), tb, "pune", null, "equals", false);
         num(2, f.get("count"));
         num(0, f.get("first_row"));
@@ -205,12 +213,32 @@ class DataOptionsTest {
 
     // ---- Date and time ----
 
+    @Test void delimiterAndEncodingWordsReadTheSameEverywhere() {
+        // command review F2, F3: the pickers' words work in every toolkit that reads a delimiter or an encoding
+        assertEquals("	", CsvPackage.delimiterText("tab"));
+        assertEquals("	", CsvPackage.delimiterText("\t"));
+        assertEquals(";", CsvPackage.delimiterText("semicolon"));
+        assertEquals("|", CsvPackage.delimiterText("pipe"));
+        assertEquals(",", CsvPackage.delimiterText(""));
+        assertEquals("||", CsvPackage.delimiterText("||"), "anything else as written");
+        assertTrue(List.of(",", ";").contains(CsvPackage.delimiterText("regional")));
+        assertEquals(java.nio.charset.StandardCharsets.UTF_8, FilePackage.charset("utf-8-bom"));
+        assertEquals(java.nio.charset.StandardCharsets.UTF_16LE, CsvPackage.encoding("unicode").charset());
+        assertEquals(java.nio.charset.Charset.defaultCharset(), CsvPackage.encoding("default").charset(), "CSV now knows the File toolkit's names too");
+    }
+
     @Test void dateTimeOptions() {
         DateTimePackage d = new DateTimePackage();
         LocalDateTime a = LocalDateTime.of(2026, 10, 19, 8, 0), b = LocalDateTime.of(2026, 10, 19, 22, 30);
         assertFalse(d.isEqual(ctx(), a, b, true, "UTC"));
         assertTrue(d.isEqual(ctx(), a, b, false, "UTC"));
         assertFalse(d.isEqual(ctx(), a, b, false, "Asia/Kolkata"), "22:30 UTC is the next day in India");
+        // command review D1: "local" is the runner's own time zone, as AA's dates
+        java.time.ZoneId here = java.time.ZoneId.systemDefault();
+        assertEquals(here, DateTimePackage.zone("local"));
+        assertEquals(here, DateTimePackage.zone(" Local "));
+        assertEquals(b.atOffset(java.time.ZoneOffset.UTC).atZoneSameInstant(here).toLocalDate().toString(),
+                d.format(ctx(), b, "yyyy-MM-dd", "local", "en", null).get("text"));
         assertTrue(d.isBetween(ctx(), a, a.minusDays(1), b, true, "UTC"));
         assertEquals(false, d.isAfterAction(ctx(), b, a, false, "UTC").get("result"));
         assertEquals(LocalDateTime.of(2026, 10, 19, 8, 0, 0, 250_000_000), d.add(ctx(), a, 250, "milliseconds").get("result"));

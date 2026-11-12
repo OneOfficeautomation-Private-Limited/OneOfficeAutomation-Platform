@@ -13,17 +13,20 @@ import java.util.*;
 @OoaPackage(id = "ooa.genai", name = "Generative AI", version = "1.1.0",
         description = "Prompt large language models (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Vertex AI, self-hosted) to answer, read pictures, draw pictures and analyse text.")
 public final class GenAiPackage {
-    static final String D_PROVIDER = "openai, azure_openai, anthropic, openai_compatible (LiteLLM, vLLM, Ollama), huggingface (Hugging Face router or your own TGI server), "
-            + "aws_bedrock_sagemaker (a model on an Amazon SageMaker endpoint), aws_bedrock (Amazon Bedrock) or google_vertex (Gemini on Google Vertex AI).";
-    static final String D_MODEL = "Model name; the deployment name for Azure OpenAI; the endpoint name for aws_bedrock_sagemaker; the model or inference profile id for aws_bedrock.";
-    static final String D_KEY = "API key or access token from the vault (not needed for some self-hosted endpoints). For aws_bedrock and aws_bedrock_sagemaker: the AWS secret access key "
-            + "(or ACCESS_KEY_ID:SECRET). For google_vertex: a service-account JSON key or an access token.";
+    static final String D_PROVIDER = "Who runs the model: OpenAI, Azure OpenAI, Anthropic, OpenAI-compatible (LiteLLM, vLLM, Ollama), Hugging Face (its router or your own TGI server), "
+            + "AWS SageMaker (a model on an Amazon SageMaker endpoint), AWS Bedrock or Google Vertex AI (Gemini).";
+    static final String D_MODEL = "Model name; the deployment name for Azure OpenAI; the endpoint name for AWS SageMaker; the model or inference profile id for AWS Bedrock.";
+    static final String D_KEY = "API key or access token from the vault (not needed for some self-hosted endpoints). For AWS Bedrock and AWS SageMaker: the AWS secret access key "
+            + "(or ACCESS_KEY_ID:SECRET). For Google Vertex AI: a service-account JSON key or an access token.";
     static final String D_BASE = "Endpoint; required for Azure OpenAI, Vertex AI (https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION) and self-hosted models "
             + "(for a TGI server, e.g. http://tgi-host:8080/v1).";
     static final String D_MASK = "Replace emails, phone and card numbers, IBANs and similar before sending; restored in the answer.";
 
-    static final String D_AWS_KEY_ID = "aws_bedrock and aws_bedrock_sagemaker only: AWS access key id from the vault (api_key then holds the secret access key).";
-    static final String D_AWS_REGION = "aws_bedrock and aws_bedrock_sagemaker only: AWS region, e.g. eu-west-1.";
+    static final String D_AWS_KEY_ID = "AWS Bedrock and AWS SageMaker only: AWS access key id from the vault (api_key then holds the secret access key).";
+    static final String D_AWS_REGION = "AWS Bedrock and AWS SageMaker only: AWS region, e.g. eu-west-1.";
+    static final String D_TOP_K = "Only pick from this many most likely words (Anthropic models).";
+    static final String D_SEED = "Same seed and settings give the same answer where the provider supports it.";
+    static final String D_FORMAT = "json: ask for one JSON object and also return it parsed.";
     static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker", "aws_bedrock", "google_vertex");
 
     static LlmClient.Config cfg(String provider, String model, Object key, String base, double temp, int max, boolean mask) {
@@ -72,11 +75,11 @@ public final class GenAiPackage {
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
             @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
             @Input(name = "top_p", type = OoaType.NUMBER, required = false, description = D_TOP_P) Double topP,
-            @Input(name = "top_k", type = OoaType.NUMBER, required = false, description = "Only pick from this many most likely words (Anthropic models).") Integer topK,
+            @Input(name = "top_k", type = OoaType.NUMBER, required = false, description = D_TOP_K) Integer topK,
             @Input(name = "stop_sequences", type = OoaType.LIST, required = false, description = D_STOP) List<Object> stop,
             @Input(name = "presence_penalty", type = OoaType.NUMBER, required = false, description = D_PRESENCE) Double presence,
             @Input(name = "frequency_penalty", type = OoaType.NUMBER, required = false, description = D_FREQUENCY) Double frequency,
-            @Input(name = "seed", type = OoaType.NUMBER, required = false, description = "Same seed and settings give the same answer where the provider supports it.") Integer seed,
+            @Input(name = "seed", type = OoaType.NUMBER, required = false, description = D_SEED) Integer seed,
             @Input(name = "number_of_responses", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "How many alternative answers to ask for, 1 to 10 (OpenAI-style providers).") int n,
             @Input(name = "response_format", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "json"}, description = "json: ask for one JSON object and also return it parsed.") String format,
             @Input(name = "end_user", type = OoaType.STRING, required = false, description = "An id for the person the answer is for, passed on for the provider's abuse monitoring (OpenAI-style providers).") String endUser,
@@ -113,8 +116,9 @@ public final class GenAiPackage {
 
     @Action(id = "chat", name = "Chat", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"},
             description = "Send a message in a conversation that remembers earlier messages of the same chat session until End chat.",
-            panel = "message, chat_session, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region), images | temperature, max_tokens, mask_pii, history_limit, top_p, stop_sequences, presence_penalty, frequency_penalty, timeout_seconds")
+            panel = "message, chat_session, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region), images | temperature, max_tokens, response_format, mask_pii, history_limit, top_p, top_k, stop_sequences, presence_penalty, frequency_penalty, seed, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "The model's reply.")
+    @Output(name = "json", description = "The reply parsed as JSON, when response_format is json.")
     @Output(name = "turns", type = OoaType.NUMBER, description = "Number of messages now held in the session (yours and the model's).")
     @Output(name = "input_tokens", type = OoaType.NUMBER, description = "Tokens in the request.")
     @Output(name = "output_tokens", type = OoaType.NUMBER, description = "Tokens in the reply.")
@@ -138,32 +142,43 @@ public final class GenAiPackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
             @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
-            @Input(name = "images", type = OoaType.LIST, required = false, description = "Pictures sent with this message (file paths: .png, .jpg, .gif, .webp); the model must accept pictures.") List<Object> images) {
+            @Input(name = "images", type = OoaType.LIST, required = false, description = "Pictures sent with this message (file paths: .png, .jpg, .gif, .webp); the model must accept pictures.") List<Object> images,
+            @Input(name = "top_k", type = OoaType.NUMBER, required = false, description = D_TOP_K) Integer topK,
+            @Input(name = "seed", type = OoaType.NUMBER, required = false, description = D_SEED) Integer seed,
+            @Input(name = "response_format", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "json"}, description = D_FORMAT) String format) {
         if (message == null || message.isBlank()) throw new ActionException("AI.EMPTY_MESSAGE", "The message is empty");
         if (limit < 2 || limit > 500) throw new ActionException("AI.BAD_OPTION", "history_limit must be between 2 and 500");
         String k = chatKey(session);
         ChatSession cs = ctx.sessions().get(k) instanceof ChatSession existing ? existing : new ChatSession();
         if (system != null && !system.isBlank()) cs.system = system;
         LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion)
-                .with(LlmClient.Options.of(topP, null, stop, presence, frequency, null, null, null, timeout));
+                .with(LlmClient.Options.of(topP, topK, stop, presence, frequency, seed, null, null, timeout));
+        boolean json = "json".equals(format);
         List<Map<String, Object>> m = new ArrayList<>();
         if (cs.system != null) m.add(Map.of("role", "system", "content", cs.system));
         m.addAll(cs.messages);
         Object content = withImages(ctx, message, images);
         m.add(Map.of("role", "user", "content", content));
-        LlmClient.Reply r = LlmClient.chat(ctx, c, m, null, false, "chat");
+        LlmClient.Reply r = LlmClient.chat(ctx, c, m, null, json, "chat");
         String text = r.text() == null ? "" : r.text();
         cs.messages.add(Map.of("role", "user", "content", content));
         cs.messages.add(Map.of("role", "assistant", "content", text));
         while (cs.messages.size() > limit) cs.messages.remove(0);
         ctx.sessions().put(k, cs);
-        return Out.of("text", text, "turns", BigDecimal.valueOf(cs.messages.size()), "input_tokens", BigDecimal.valueOf(r.inTokens()), "output_tokens", BigDecimal.valueOf(r.outTokens()));
+        return Out.of("text", text, "json", json && !text.isEmpty() ? LlmClient.parseJson(text) : null, "turns", BigDecimal.valueOf(cs.messages.size()), "input_tokens", BigDecimal.valueOf(r.inTokens()), "output_tokens", BigDecimal.valueOf(r.outTokens()));
     }
 
     /** Earlier signature, kept for callers written before pictures in chats. */
     public Map<String, Object> chat(ActionContext ctx, String message, String session, String system, String provider, String connection, String model, Object key, String base,
                                     double temp, int max, boolean mask, int limit, Double topP, List<Object> stop, Double presence, Double frequency, int timeout, Object awsKeyId, String awsRegion) {
         return chat(ctx, message, session, system, provider, connection, model, key, base, temp, max, mask, limit, topP, stop, presence, frequency, timeout, awsKeyId, awsRegion, null);
+    }
+
+    /** Earlier signature, kept for callers written before response format, seed and top K on chats. */
+    public Map<String, Object> chat(ActionContext ctx, String message, String session, String system, String provider, String connection, String model, Object key, String base,
+                                    double temp, int max, boolean mask, int limit, Double topP, List<Object> stop, Double presence, Double frequency, int timeout, Object awsKeyId, String awsRegion,
+                                    List<Object> images) {
+        return chat(ctx, message, session, system, provider, connection, model, key, base, temp, max, mask, limit, topP, stop, presence, frequency, timeout, awsKeyId, awsRegion, images, null, null, "text");
     }
 
     /** The text alone, or the text followed by the pictures as parts. */
@@ -178,7 +193,7 @@ public final class GenAiPackage {
 
     @Action(id = "prompt_with_images", name = "Prompt with pictures", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"},
             description = "Ask about one or more pictures (a scanned form, a screenshot, a photo of a meter) and return the model's answer.",
-            panel = "prompt, images, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | temperature, max_tokens, response_format, mask_pii, timeout_seconds")
+            panel = "prompt, images, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | temperature, max_tokens, response_format, mask_pii, top_p, top_k, stop_sequences, presence_penalty, frequency_penalty, seed, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "Answer.")
     @Output(name = "json", description = "The answer parsed as JSON, when response_format is json.")
     @Output(name = "input_tokens", type = OoaType.NUMBER, description = "Tokens in the request (pictures included).")
@@ -198,10 +213,16 @@ public final class GenAiPackage {
             @Input(name = "temperature", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "0 = consistent, higher = more creative.") double temp,
             @Input(name = "max_tokens", type = OoaType.NUMBER, required = false, defaultValue = "1024", description = "Maximum answer length in tokens.") int max,
             @Input(name = "response_format", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "json"}, description = "json: ask for one JSON object and also return it parsed.") String format,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout,
+            @Input(name = "top_p", type = OoaType.NUMBER, required = false, description = D_TOP_P) Double topP,
+            @Input(name = "top_k", type = OoaType.NUMBER, required = false, description = D_TOP_K) Integer topK,
+            @Input(name = "stop_sequences", type = OoaType.LIST, required = false, description = D_STOP) List<Object> stop,
+            @Input(name = "presence_penalty", type = OoaType.NUMBER, required = false, description = D_PRESENCE) Double presence,
+            @Input(name = "frequency_penalty", type = OoaType.NUMBER, required = false, description = D_FREQUENCY) Double frequency,
+            @Input(name = "seed", type = OoaType.NUMBER, required = false, description = D_SEED) Integer seed) {
         if (images == null || images.isEmpty()) throw new ActionException("AI.NO_IMAGES", "Give at least one picture");
         LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion)
-                .with(LlmClient.Options.of(null, null, null, null, null, null, null, null, timeout));
+                .with(LlmClient.Options.of(topP, topK, stop, presence, frequency, seed, null, null, timeout));
         boolean json = "json".equals(format);
         List<Map<String, Object>> m = new ArrayList<>();
         if (system != null && !system.isBlank()) m.add(Map.of("role", "system", "content", system));
@@ -210,6 +231,13 @@ public final class GenAiPackage {
         if (r.text() == null) throw new ActionException("AI.EMPTY", "The model returned no text", "Retry or raise max_tokens.", true);
         return Out.of("text", r.text(), "json", json ? LlmClient.parseJson(r.text()) : null,
                 "input_tokens", BigDecimal.valueOf(r.inTokens()), "output_tokens", BigDecimal.valueOf(r.outTokens()));
+    }
+
+    /** Earlier signature, kept for callers written before the sampling options on pictures. */
+    public Map<String, Object> promptWithImages(ActionContext ctx, String prompt, List<Object> images, String system, String provider, String connection, String model, Object key,
+                                                String base, boolean mask, Object awsKeyId, String awsRegion, double temp, int max, String format, int timeout) {
+        return promptWithImages(ctx, prompt, images, system, provider, connection, model, key, base, mask, awsKeyId, awsRegion, temp, max, format, timeout,
+                null, null, null, null, null, null);
     }
 
     @Action(id = "generate_image", name = "Generate picture", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai", "filesystem"},

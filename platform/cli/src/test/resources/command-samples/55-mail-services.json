@@ -1,0 +1,6470 @@
+[
+ {
+  "command": "ooa.microsoft365/get_mail",
+  "name": "reads one email: the same keys on every mail service, text from the HTML body",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/get_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "id": "m1",
+     "mark_read": false
+    },
+    "out": {
+     "email": "e"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "text",
+     "value": "$e.text"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "mid",
+     "value": "$e.message_id"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "files",
+     "value": "$e.attachments"
+    }
+   }
+  ],
+  "expect": {
+   "text": "Please pay",
+   "mid": "<7@acme.test>",
+   "files": [
+    "inv-7.pdf"
+   ]
+  }
+ },
+ {
+  "command": "ooa.microsoft365/mark_mail",
+  "name": "marks an email read",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/mark_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "id": "m1",
+     "status": "read"
+    }
+   }
+  ],
+  "expect": {},
+  "expectRequests": [
+   "PATCH /me/messages/m1 isRead"
+  ]
+ },
+ {
+  "command": "ooa.microsoft365/move_mail",
+  "name": "moves an email to a folder and gives its new id",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/move_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "id": "m1",
+     "to_folder": "Inbox/Processed"
+    },
+    "out": {
+     "new_id": "nid"
+    }
+   }
+  ],
+  "expect": {
+   "nid": "m1-moved"
+  }
+ },
+ {
+  "command": "ooa.microsoft365/delete_mail",
+  "name": "deletes an email (to Deleted Items)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/delete_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "id": "m1"
+    }
+   }
+  ],
+  "expect": {}
+ },
+ {
+  "command": "ooa.microsoft365/reply_mail",
+  "name": "replies to the sender",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/reply_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "id": "m1",
+     "comment": "Paid today."
+    }
+   }
+  ],
+  "expect": {},
+  "expectRequests": [
+   "POST /me/messages/m1/reply Paid today."
+  ]
+ },
+ {
+  "command": "ooa.microsoft365/reply_all_mail",
+  "name": "replies to everyone",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/reply_all_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "id": "m1",
+     "comment": "Thanks all."
+    }
+   }
+  ],
+  "expect": {},
+  "expectRequests": [
+   "POST /me/messages/m1/replyAll Thanks all."
+  ]
+ },
+ {
+  "command": "ooa.microsoft365/forward_mail",
+  "name": "forwards an email with a comment",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/forward_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "id": "m1",
+     "to": "boss@corp.test",
+     "comment": "FYI"
+    }
+   }
+  ],
+  "expect": {},
+  "expectRequests": [
+   "POST /me/messages/m1/forward boss@corp.test"
+  ]
+ },
+ {
+  "command": "ooa.microsoft365/save_mail_attachments",
+  "name": "saves an email's attachments into a folder",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/save_mail_attachments",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "id": "m1",
+     "target_folder": "{tmp}/in"
+    },
+    "out": {
+     "files": "f"
+    }
+   },
+   {
+    "action": "ooa.list/size",
+    "args": {
+     "list": "$f"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  },
+  "expectFiles": {
+   "in/inv-7.pdf": true
+  }
+ },
+ {
+  "command": "ooa.microsoft365/save_mail_as_eml",
+  "name": "saves a whole email as an .eml file",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/save_mail_as_eml",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "id": "m1",
+     "local_path": "{tmp}/mail.eml"
+    }
+   }
+  ],
+  "expect": {},
+  "expectFiles": {
+   "mail.eml": true
+  }
+ },
+ {
+  "command": "ooa.microsoft365/save_mail_as_msg",
+  "name": "saves a whole email as an Outlook .msg file",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/save_mail_as_msg",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "id": "m1",
+     "local_path": "{tmp}/mail.msg"
+    }
+   }
+  ],
+  "expect": {},
+  "expectFiles": {
+   "mail.msg": true
+  }
+ },
+ {
+  "command": "ooa.microsoft365/mail_folder_exists",
+  "name": "tells whether a mail folder exists",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/mail_folder_exists",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "name": "Inbox/Processed"
+    },
+    "out": {
+     "exists": "ok"
+    }
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "command": "ooa.microsoft365/move_all_mail",
+  "name": "moves every matching email",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/move_all_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "to_folder": "Inbox/Processed",
+     "subject_contains": "Invoice"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 2
+  }
+ },
+ {
+  "command": "ooa.microsoft365/delete_all_mail",
+  "name": "deletes every matching email",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/delete_all_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "subject_contains": "Invoice"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 2
+  }
+ },
+ {
+  "command": "ooa.microsoft365/save_all_mail_attachments",
+  "name": "saves the attachments of every matching email",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/save_all_mail_attachments",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "target_folder": "{tmp}/all",
+     "subject_contains": "Invoice"
+    },
+    "out": {
+     "files": "f"
+    }
+   },
+   {
+    "action": "ooa.list/size",
+    "args": {
+     "list": "$f"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  },
+  "expectFiles": {
+   "all/inv-7.pdf": true
+  }
+ },
+ {
+  "command": "ooa.microsoft365/emails",
+  "name": "each email loop: the whole email each turn, left unread",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/attachments",
+    "body": {
+     "value": [
+      {
+       "@odata.type": "#microsoft.graph.fileAttachment",
+       "id": "a1",
+       "name": "inv-7.pdf",
+       "isInline": false,
+       "contentBytes": "JVBERi0xLjc="
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2/attachments",
+    "body": {
+     "value": []
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1/$value",
+    "body": "From: ap@acme.test\r\nSubject: Invoice 7\r\n\r\nPlease pay"
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m1",
+    "body": {
+     "id": "m1",
+     "subject": "Invoice 7",
+     "isRead": false,
+     "hasAttachments": true,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/messages/m2",
+    "body": {
+     "id": "m2",
+     "subject": "Invoice 8",
+     "isRead": false,
+     "hasAttachments": false,
+     "internetMessageId": "<7@acme.test>",
+     "receivedDateTime": "2026-11-03T09:15:00Z",
+     "from": {
+      "emailAddress": {
+       "address": "ap@acme.test"
+      }
+     },
+     "toRecipients": [
+      {
+       "emailAddress": {
+        "address": "me@corp.test"
+       }
+      }
+     ],
+     "ccRecipients": [],
+     "body": {
+      "contentType": "html",
+      "content": "<p>Please pay</p>"
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/messages",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice 7",
+       "isRead": false,
+       "hasAttachments": true,
+       "receivedDateTime": "2026-11-03T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      },
+      {
+       "id": "m2",
+       "subject": "Invoice 8",
+       "isRead": false,
+       "hasAttachments": false,
+       "receivedDateTime": "2026-11-02T09:15:00Z",
+       "from": {
+        "emailAddress": {
+         "address": "ap@acme.test"
+        }
+       }
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/inbox/childFolders",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "F-PROC",
+       "displayName": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "PATCH",
+    "path": "/me/messages/*",
+    "body": {}
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m1/move",
+    "body": {
+     "id": "m1-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/m2/move",
+    "body": {
+     "id": "m2-moved"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/me/messages/*",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/me/messages/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "vars": {
+   "subjects": ""
+  },
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "ooa.microsoft365/emails",
+     "iterator_args": {
+      "base_url": "{mock}",
+      "access_token": "$tok",
+      "with_body": true
+     },
+     "as": "e"
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "subjects",
+       "value": {
+        "expr": "$subjects + $e.subject + ':' + $e.text + ';'"
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "subjects": "Invoice 7:Please pay;Invoice 8:Please pay;"
+  }
+ },
+ {
+  "command": "ooa.google/gmail_send",
+  "name": "sends an email through Gmail",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_send",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "to": "a@x.test",
+     "subject": "Report",
+     "body": "See you"
+    },
+    "out": {
+     "message_id": "id"
+    }
+   }
+  ],
+  "expect": {
+   "id": "S1"
+  }
+ },
+ {
+  "command": "ooa.google/gmail_list_messages",
+  "name": "finds emails by sender and read state",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_list_messages",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "from_contains": "acme",
+     "status": "unread"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.google/gmail_get_message",
+  "name": "reads one email: the same keys on every mail service",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_get_message",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "message_id": "G1"
+    },
+    "out": {
+     "email": "e"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "text",
+     "value": "$e.text"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "files",
+     "value": "$e.attachments"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "unread",
+     "value": "$e.unread"
+    }
+   }
+  ],
+  "expect": {
+   "text": "Hello",
+   "files": [
+    "INV-7.pdf"
+   ],
+   "unread": true
+  }
+ },
+ {
+  "command": "ooa.google/gmail_mark_message",
+  "name": "marks a message read",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_mark_message",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "message_id": "G1",
+     "status": "read"
+    }
+   }
+  ],
+  "expect": {},
+  "expectRequests": [
+   "POST /gmail/v1/users/me/messages/G1/modify UNREAD"
+  ]
+ },
+ {
+  "command": "ooa.google/gmail_move_message",
+  "name": "moves a message: adds a label and takes INBOX off",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_move_message",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "message_id": "G1",
+     "add_labels": "Processed",
+     "remove_labels": "INBOX"
+    }
+   }
+  ],
+  "expect": {}
+ },
+ {
+  "command": "ooa.google/gmail_label_exists",
+  "name": "tells whether a label exists",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_label_exists",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "label": "Processed"
+    },
+    "out": {
+     "exists": "ok"
+    }
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "command": "ooa.google/gmail_delete_message",
+  "name": "moves a message to the Bin",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_delete_message",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "message_id": "G1"
+    }
+   }
+  ],
+  "expect": {},
+  "expectRequests": [
+   "POST /gmail/v1/users/me/messages/G1/trash"
+  ]
+ },
+ {
+  "command": "ooa.google/gmail_delete_all",
+  "name": "moves every matching message to the Bin",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_delete_all",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "subject_contains": "Invoice"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.google/gmail_move_all",
+  "name": "labels every matching message",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_move_all",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "add_labels": "Processed",
+     "subject_contains": "Invoice"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.google/gmail_forward_message",
+  "name": "forwards a message with a note",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_forward_message",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "message_id": "G1",
+     "to": "boss@corp.test",
+     "note": "FYI"
+    },
+    "out": {
+     "message_id": "id"
+    }
+   }
+  ],
+  "expect": {
+   "id": "S1"
+  }
+ },
+ {
+  "command": "ooa.google/gmail_reply_message",
+  "name": "replies in the same conversation",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_reply_message",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "message_id": "G1",
+     "body": "Paid."
+    },
+    "out": {
+     "thread_id": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": "T1"
+  }
+ },
+ {
+  "command": "ooa.google/gmail_reply_all",
+  "name": "replies to everyone",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_reply_all",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "message_id": "G1",
+     "body": "Thanks all."
+    },
+    "out": {
+     "message_id": "id"
+    }
+   }
+  ],
+  "expect": {
+   "id": "S1"
+  }
+ },
+ {
+  "command": "ooa.google/gmail_save_attachments",
+  "name": "saves a message's attachments",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_save_attachments",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "message_id": "G1",
+     "target_folder": "{tmp}/in"
+    },
+    "out": {
+     "files": "f"
+    }
+   },
+   {
+    "action": "ooa.list/size",
+    "args": {
+     "list": "$f"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  },
+  "expectFiles": {
+   "in/INV-7.pdf": true
+  }
+ },
+ {
+  "command": "ooa.google/gmail_save_all_attachments",
+  "name": "saves the attachments of every matching message",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_save_all_attachments",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "target_folder": "{tmp}/all",
+     "subject_contains": "Invoice"
+    },
+    "out": {
+     "message_count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  },
+  "expectFiles": {
+   "all/INV-7.pdf": true
+  }
+ },
+ {
+  "command": "ooa.google/gmail_save_message_as_eml",
+  "name": "saves a whole message as an .eml file",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/gmail_save_message_as_eml",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "message_id": "G1",
+     "local_path": "{tmp}/g.eml"
+    }
+   }
+  ],
+  "expect": {},
+  "expectFiles": {
+   "g.eml": true
+  }
+ },
+ {
+  "command": "ooa.google/gmail_messages",
+  "name": "each Gmail message loop: the whole message each turn",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1/attachments/*",
+    "body": {
+     "data": "JVBERg==",
+     "size": 4
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages/G1",
+    "body": {
+     "id": "G1",
+     "threadId": "T1",
+     "labelIds": [
+      "INBOX",
+      "UNREAD"
+     ],
+     "snippet": "Hello",
+     "raw": "RnJvbTogQW5uIDxhbm5AYWNtZS50ZXN0Pg0KVG86IG1lQGNvcnAudGVzdA0KU3ViamVjdDogSW52b2ljZSA3DQpNZXNzYWdlLUlEOiA8ZzFAYWNtZS50ZXN0Pg0KDQpIZWxsbw==",
+     "payload": {
+      "mimeType": "multipart/mixed",
+      "headers": [
+       {
+        "name": "From",
+        "value": "Ann <ann@acme.test>"
+       },
+       {
+        "name": "To",
+        "value": "me@corp.test"
+       },
+       {
+        "name": "Subject",
+        "value": "Invoice 7"
+       },
+       {
+        "name": "Date",
+        "value": "Tue, 3 Nov 2026 10:15:00 +0100"
+       },
+       {
+        "name": "Message-ID",
+        "value": "<g1@acme.test>"
+       }
+      ],
+      "parts": [
+       {
+        "mimeType": "text/plain",
+        "body": {
+         "data": "SGVsbG8="
+        }
+       },
+       {
+        "mimeType": "application/pdf",
+        "filename": "INV-7.pdf",
+        "body": {
+         "attachmentId": "A1",
+         "size": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/messages",
+    "body": {
+     "messages": [
+      {
+       "id": "G1",
+       "threadId": "T1"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/labels",
+    "body": {
+     "labels": [
+      {
+       "id": "INBOX",
+       "name": "INBOX"
+      },
+      {
+       "id": "UNREAD",
+       "name": "UNREAD"
+      },
+      {
+       "id": "Label_9",
+       "name": "Processed"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/gmail/v1/users/me/profile",
+    "body": {
+     "emailAddress": "me@corp.test"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/send",
+    "body": {
+     "id": "S1",
+     "threadId": "T1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchModify",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/batchDelete",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/modify",
+    "body": {
+     "id": "G1",
+     "labelIds": [
+      "Label_9"
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/gmail/v1/users/me/messages/G1/trash",
+    "body": {
+     "id": "G1"
+    }
+   }
+  ],
+  "vars": {
+   "seen": ""
+  },
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "ooa.google/gmail_messages",
+     "iterator_args": {
+      "endpoint_override": "{mock}",
+      "access_token": "$tok",
+      "with_body": true
+     },
+     "as": "e"
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "seen",
+       "value": {
+        "expr": "$seen + $e.subject + ':' + $e.text"
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "seen": "Invoice 7:Hello"
+  }
+ },
+ {
+  "command": "ooa.outlook_desktop/send",
+  "name": "saves an email as a draft in Outlook (not sent)",
+  "requires": "desktop",
+  "steps": [
+   {
+    "action": "ooa.outlook_desktop/send",
+    "args": {
+     "to": "nobody@example.invalid",
+     "subject": "OOA sample draft",
+     "body": "draft",
+     "save_as_draft": true
+    },
+    "out": {
+     "draft_id": "d"
+    }
+   },
+   {
+    "action": "ooa.outlook_desktop/delete",
+    "args": {
+     "id": "$d"
+    }
+   }
+  ],
+  "expect": {}
+ },
+ {
+  "command": "ooa.outlook_desktop/get_folders",
+  "name": "lists the mailbox folders",
+  "requires": "desktop",
+  "steps": [
+   {
+    "action": "ooa.outlook_desktop/get_folders",
+    "args": {},
+    "out": {
+     "folders": "f"
+    }
+   }
+  ],
+  "expect": {}
+ },
+ {
+  "command": "ooa.outlook_desktop/list",
+  "name": "finds emails in the Inbox and gives the same table as the other services",
+  "requires": "desktop",
+  "steps": [
+   {
+    "action": "ooa.outlook_desktop/list",
+    "args": {
+     "max": 5
+    },
+    "out": {
+     "count": "n",
+     "table": "t"
+    }
+   }
+  ],
+  "expect": {}
+ },
+ {
+  "command": "ooa.exchange/reply",
+  "name": "replies with a file: saved as a draft, the file added, then sent",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "IncludeMimeContent",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">U3ViamVjdDogSW52b2ljZSA0Mg0KDQpQbGVhc2UgcGF5</t:MimeContent><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "DRAFT1",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/><t:ToRecipients><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox><t:Mailbox><t:EmailAddress>team@acme.test</t:EmailAddress></t:Mailbox></t:ToRecipients></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject><t:Body BodyType=\"Text\">Please pay</t:Body><t:IsRead>true</t:IsRead><t:From><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox></t:From></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "MessageDisposition=\"SaveOnly\"",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/></t:Message></m:Items></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items/></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateAttachment",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateAttachmentResponse><m:ResponseMessages><m:CreateAttachmentResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Attachments><t:FileAttachment><t:AttachmentId Id=\"A1\" RootItemId=\"DRAFT1\" RootItemChangeKey=\"CK10\"/></t:FileAttachment></m:Attachments></m:CreateAttachmentResponseMessage></m:ResponseMessages></m:CreateAttachmentResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:UpdateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:UpdateItemResponse><m:ResponseMessages><m:UpdateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK11\"/></t:Message></m:Items></m:UpdateItemResponseMessage></m:ResponseMessages></m:UpdateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:SendItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:SendItemResponse><m:ResponseMessages><m:SendItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode></m:SendItemResponseMessage></m:ResponseMessages></m:SendItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:FindFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:FindFolderResponse><m:ResponseMessages><m:FindFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder TotalItemsInView=\"2\" IncludesLastItemInRange=\"true\"><t:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/><t:ParentFolderId Id=\"ROOTID\"/><t:DisplayName>Inbox</t:DisplayName></t:Folder><t:Folder><t:FolderId Id=\"INVID\"/><t:ParentFolderId Id=\"INBOXID\"/><t:DisplayName>Invoices</t:DisplayName></t:Folder></t:Folders></m:RootFolder></m:FindFolderResponseMessage></m:ResponseMessages></m:FindFolderResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/reply",
+    "args": {
+     "id": "AAMkID1",
+     "body": "See attached",
+     "attachments": [
+      "{tmp}/answer.txt"
+     ]
+    }
+   },
+   {
+    "action": "ooa.exchange/disconnect"
+   }
+  ],
+  "files": {
+   "answer.txt": "OK"
+  },
+  "expect": {}
+ },
+ {
+  "command": "ooa.exchange/reply_all",
+  "name": "replies to everyone but the original sender",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "IncludeMimeContent",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">U3ViamVjdDogSW52b2ljZSA0Mg0KDQpQbGVhc2UgcGF5</t:MimeContent><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "DRAFT1",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/><t:ToRecipients><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox><t:Mailbox><t:EmailAddress>team@acme.test</t:EmailAddress></t:Mailbox></t:ToRecipients></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject><t:Body BodyType=\"Text\">Please pay</t:Body><t:IsRead>true</t:IsRead><t:From><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox></t:From></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "MessageDisposition=\"SaveOnly\"",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/></t:Message></m:Items></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items/></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateAttachment",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateAttachmentResponse><m:ResponseMessages><m:CreateAttachmentResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Attachments><t:FileAttachment><t:AttachmentId Id=\"A1\" RootItemId=\"DRAFT1\" RootItemChangeKey=\"CK10\"/></t:FileAttachment></m:Attachments></m:CreateAttachmentResponseMessage></m:ResponseMessages></m:CreateAttachmentResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:UpdateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:UpdateItemResponse><m:ResponseMessages><m:UpdateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK11\"/></t:Message></m:Items></m:UpdateItemResponseMessage></m:ResponseMessages></m:UpdateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:SendItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:SendItemResponse><m:ResponseMessages><m:SendItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode></m:SendItemResponseMessage></m:ResponseMessages></m:SendItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:FindFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:FindFolderResponse><m:ResponseMessages><m:FindFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder TotalItemsInView=\"2\" IncludesLastItemInRange=\"true\"><t:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/><t:ParentFolderId Id=\"ROOTID\"/><t:DisplayName>Inbox</t:DisplayName></t:Folder><t:Folder><t:FolderId Id=\"INVID\"/><t:ParentFolderId Id=\"INBOXID\"/><t:DisplayName>Invoices</t:DisplayName></t:Folder></t:Folders></m:RootFolder></m:FindFolderResponseMessage></m:ResponseMessages></m:FindFolderResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/reply_all",
+    "args": {
+     "id": "AAMkID1",
+     "body": "Team only",
+     "exclude_sender": true
+    }
+   },
+   {
+    "action": "ooa.exchange/disconnect"
+   }
+  ],
+  "expect": {}
+ },
+ {
+  "command": "ooa.exchange/forward",
+  "name": "forwards the original as an .eml attachment",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "IncludeMimeContent",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">U3ViamVjdDogSW52b2ljZSA0Mg0KDQpQbGVhc2UgcGF5</t:MimeContent><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "DRAFT1",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/><t:ToRecipients><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox><t:Mailbox><t:EmailAddress>team@acme.test</t:EmailAddress></t:Mailbox></t:ToRecipients></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject><t:Body BodyType=\"Text\">Please pay</t:Body><t:IsRead>true</t:IsRead><t:From><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox></t:From></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "MessageDisposition=\"SaveOnly\"",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/></t:Message></m:Items></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items/></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateAttachment",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateAttachmentResponse><m:ResponseMessages><m:CreateAttachmentResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Attachments><t:FileAttachment><t:AttachmentId Id=\"A1\" RootItemId=\"DRAFT1\" RootItemChangeKey=\"CK10\"/></t:FileAttachment></m:Attachments></m:CreateAttachmentResponseMessage></m:ResponseMessages></m:CreateAttachmentResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:UpdateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:UpdateItemResponse><m:ResponseMessages><m:UpdateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK11\"/></t:Message></m:Items></m:UpdateItemResponseMessage></m:ResponseMessages></m:UpdateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:SendItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:SendItemResponse><m:ResponseMessages><m:SendItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode></m:SendItemResponseMessage></m:ResponseMessages></m:SendItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:FindFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:FindFolderResponse><m:ResponseMessages><m:FindFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder TotalItemsInView=\"2\" IncludesLastItemInRange=\"true\"><t:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/><t:ParentFolderId Id=\"ROOTID\"/><t:DisplayName>Inbox</t:DisplayName></t:Folder><t:Folder><t:FolderId Id=\"INVID\"/><t:ParentFolderId Id=\"INBOXID\"/><t:DisplayName>Invoices</t:DisplayName></t:Folder></t:Folders></m:RootFolder></m:FindFolderResponseMessage></m:ResponseMessages></m:FindFolderResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/forward",
+    "args": {
+     "id": "AAMkID1",
+     "to": "ap@acme.test",
+     "note": "FYI",
+     "as_attachment": true
+    }
+   },
+   {
+    "action": "ooa.exchange/disconnect"
+   }
+  ],
+  "expect": {}
+ },
+ {
+  "command": "ooa.exchange/get_folders",
+  "name": "lists the mailbox folders",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "IncludeMimeContent",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">U3ViamVjdDogSW52b2ljZSA0Mg0KDQpQbGVhc2UgcGF5</t:MimeContent><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "DRAFT1",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/><t:ToRecipients><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox><t:Mailbox><t:EmailAddress>team@acme.test</t:EmailAddress></t:Mailbox></t:ToRecipients></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject><t:Body BodyType=\"Text\">Please pay</t:Body><t:IsRead>true</t:IsRead><t:From><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox></t:From></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "MessageDisposition=\"SaveOnly\"",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/></t:Message></m:Items></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items/></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateAttachment",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateAttachmentResponse><m:ResponseMessages><m:CreateAttachmentResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Attachments><t:FileAttachment><t:AttachmentId Id=\"A1\" RootItemId=\"DRAFT1\" RootItemChangeKey=\"CK10\"/></t:FileAttachment></m:Attachments></m:CreateAttachmentResponseMessage></m:ResponseMessages></m:CreateAttachmentResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:UpdateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:UpdateItemResponse><m:ResponseMessages><m:UpdateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK11\"/></t:Message></m:Items></m:UpdateItemResponseMessage></m:ResponseMessages></m:UpdateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:SendItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:SendItemResponse><m:ResponseMessages><m:SendItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode></m:SendItemResponseMessage></m:ResponseMessages></m:SendItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:FindFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:FindFolderResponse><m:ResponseMessages><m:FindFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder TotalItemsInView=\"2\" IncludesLastItemInRange=\"true\"><t:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/><t:ParentFolderId Id=\"ROOTID\"/><t:DisplayName>Inbox</t:DisplayName></t:Folder><t:Folder><t:FolderId Id=\"INVID\"/><t:ParentFolderId Id=\"INBOXID\"/><t:DisplayName>Invoices</t:DisplayName></t:Folder></t:Folders></m:RootFolder></m:FindFolderResponseMessage></m:ResponseMessages></m:FindFolderResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/get_folders",
+    "out": {
+     "folders": "f"
+    }
+   },
+   {
+    "action": "ooa.list/size",
+    "args": {
+     "list": "$f"
+    },
+    "out": {
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.exchange/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 2
+  }
+ },
+ {
+  "command": "ooa.exchange/save_email_as_eml",
+  "name": "saves a whole email as an .eml file",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetFolderResponse><m:ResponseMessages><m:GetFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/></t:Folder></m:Folders></m:GetFolderResponseMessage></m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "IncludeMimeContent",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">U3ViamVjdDogSW52b2ljZSA0Mg0KDQpQbGVhc2UgcGF5</t:MimeContent><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "DRAFT1",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/><t:ToRecipients><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox><t:Mailbox><t:EmailAddress>team@acme.test</t:EmailAddress></t:Mailbox></t:ToRecipients></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:GetItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"AAMkID1\" ChangeKey=\"CK\"/><t:Subject>Invoice 42</t:Subject><t:Body BodyType=\"Text\">Please pay</t:Body><t:IsRead>true</t:IsRead><t:From><t:Mailbox><t:EmailAddress>billing@vendor.test</t:EmailAddress></t:Mailbox></t:From></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "MessageDisposition=\"SaveOnly\"",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK9\"/></t:Message></m:Items></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateItemResponse><m:ResponseMessages><m:CreateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items/></m:CreateItemResponseMessage></m:ResponseMessages></m:CreateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:CreateAttachment",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:CreateAttachmentResponse><m:ResponseMessages><m:CreateAttachmentResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Attachments><t:FileAttachment><t:AttachmentId Id=\"A1\" RootItemId=\"DRAFT1\" RootItemChangeKey=\"CK10\"/></t:FileAttachment></m:Attachments></m:CreateAttachmentResponseMessage></m:ResponseMessages></m:CreateAttachmentResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:UpdateItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:UpdateItemResponse><m:ResponseMessages><m:UpdateItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"DRAFT1\" ChangeKey=\"CK11\"/></t:Message></m:Items></m:UpdateItemResponseMessage></m:ResponseMessages></m:UpdateItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:SendItem",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:SendItemResponse><m:ResponseMessages><m:SendItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode></m:SendItemResponseMessage></m:ResponseMessages></m:SendItemResponse></s:Body></s:Envelope>"
+   },
+   {
+    "method": "POST",
+    "path": "/EWS/Exchange.asmx",
+    "contains": "<m:FindFolder",
+    "status": 200,
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><m:FindFolderResponse><m:ResponseMessages><m:FindFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder TotalItemsInView=\"2\" IncludesLastItemInRange=\"true\"><t:Folders><t:Folder><t:FolderId Id=\"INBOXID\"/><t:ParentFolderId Id=\"ROOTID\"/><t:DisplayName>Inbox</t:DisplayName></t:Folder><t:Folder><t:FolderId Id=\"INVID\"/><t:ParentFolderId Id=\"INBOXID\"/><t:DisplayName>Invoices</t:DisplayName></t:Folder></t:Folders></m:RootFolder></m:FindFolderResponseMessage></m:ResponseMessages></m:FindFolderResponse></s:Body></s:Envelope>"
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.exchange/connect",
+    "args": {
+     "ews_url": "{mock}/EWS/Exchange.asmx",
+     "user": "ACME\\bot",
+     "password": "$pw",
+     "sign_in": "basic"
+    }
+   },
+   {
+    "action": "ooa.exchange/save_email_as_eml",
+    "args": {
+     "id": "AAMkID1",
+     "local_path": "{tmp}/mail.eml"
+    },
+    "out": {
+     "path": "p"
+    }
+   },
+   {
+    "action": "ooa.exchange/disconnect"
+   }
+  ],
+  "expect": {},
+  "expectFiles": {
+   "mail.eml": true
+  }
+ }
+]

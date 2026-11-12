@@ -23,7 +23,7 @@ Give a person or group access to a file or folder with a chosen role.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item type | `item_type` | Text | Yes |  | Main | Whether the item is a file or a folder. One of: `file`, `folder` |
 | Item ID | `item_id` | Text | Yes |  | Main | Id of the file or folder. |
 | Email | `email` | Text | No |  | Main; choice Invite = A person | Email address of the person to invite. |
@@ -51,7 +51,7 @@ Create or change the shared link of a file or folder and return the link.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item type | `item_type` | Text | Yes |  | Main | Whether the item is a file or a folder. One of: `file`, `folder` |
 | Item ID | `item_id` | Text | Yes |  | Main | Id of the file or folder. |
 | Access | `access` | Text | No | `company` | Main | Who can use the link: open (anyone with the link), company (people in your organization) or collaborators (invited people only). One of: `open`, `company`, `collaborators` |
@@ -79,7 +79,7 @@ Return who has been invited to a file or folder and their role.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item type | `item_type` | Text | Yes |  | Main | Whether the item is a file or a folder. One of: `file`, `folder` |
 | Item ID | `item_id` | Text | Yes |  | Main | Id of the file or folder. |
 | As user | `as_user` | Text | No |  | More options | Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself. |
@@ -103,7 +103,7 @@ Take away someone's access that was given by an invitation.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Collaboration ID | `collaboration_id` | Text | Yes |  | Main | Id from Invite collaborator or List collaborators. |
 | As user | `as_user` | Text | No |  | More options | Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself. |
 | Endpoint address | `base_url` | Text | No | `https://api.box.com` | More options | Box API address. Leave the default unless your administrator gives you another. |
@@ -120,7 +120,7 @@ Turn off the shared link of a file or folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item type | `item_type` | Text | Yes |  | Main | Whether the item is a file or a folder. One of: `file`, `folder` |
 | Item ID | `item_id` | Text | Yes |  | Main | Id of the file or folder. |
 | As user | `as_user` | Text | No |  | More options | Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself. |
@@ -140,7 +140,7 @@ Copy a file into a folder, optionally under a new name. Can replace a file of th
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | File ID | `file_id` | Text | Yes |  | Main | File to copy. |
 | Target folder ID | `target_folder_id` | Text | Yes |  | Main | Folder that receives the copy. |
 | New name | `new_name` | Text | No |  | Main | Name for the copy. Leave empty to keep the same name. |
@@ -167,7 +167,7 @@ Move a file to the Box trash, or delete it for good.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | File ID | `file_id` | Text | Yes |  | Main | File to delete. |
 | Permanently | `permanently` | Yes/No | No | No | More options | Also remove the file from the trash, so it cannot be restored. |
 | As user | `as_user` | Text | No |  | More options | Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself. |
@@ -185,7 +185,7 @@ Save a Box file to this machine.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | File ID | `file_id` | Text | Yes |  | Main | Box file to download. |
 | Save as | `save_as` | File path | Yes |  | Main | Where to save it, e.g. downloads/invoice.pdf. Missing folders are created. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace a local file that is already at save_as; when off, the step fails instead. |
@@ -210,7 +210,7 @@ Read a file's name, size, dates, owner and folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | File ID | `file_id` | Text | Yes |  | Main | File to look up. |
 | As user | `as_user` | Text | No |  | More options | Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself. |
 | Endpoint address | `base_url` | Text | No | `https://api.box.com` | More options | Box API address. Leave the default unless your administrator gives you another. |
@@ -233,7 +233,7 @@ Move a file to another folder. Can replace a file of the same name there, which 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | File ID | `file_id` | Text | Yes |  | Main | File to move. |
 | Target folder ID | `target_folder_id` | Text | Yes |  | Main | Folder to move it into. |
 | Overwrite | `overwrite` | Yes/No | No | No | Main | If a file of the same name is already in the target folder, move that file to the trash and then move this one. |
@@ -252,7 +252,7 @@ Give a file a new name in the same folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | File ID | `file_id` | Text | Yes |  | Main | File to rename. |
 | New name | `new_name` | Text | Yes |  | Main | New file name including the extension, e.g. Q4-report.xlsx. |
 | As user | `as_user` | Text | No |  | More options | Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself. |
@@ -270,7 +270,7 @@ Upload a local file to a Box folder. Can replace the existing file of the same n
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Folder ID | `folder_id` | Text | No | `0` | Main | Box folder to upload into. 0 is the top level of All Files. |
 | Local path | `local_path` | File path | Yes |  | Main | File on this machine to upload. |
 | File name | `file_name` | Text | No |  | Main | Name to give the file in Box. Leave empty to keep the local name. |
@@ -299,7 +299,7 @@ Create a folder inside another folder and return its id.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Parent folder ID | `parent_folder_id` | Text | No | `0` | Main | Folder to create it in. 0 is the top level of All Files. |
 | Name | `name` | Text | Yes |  | Main | Name of the new folder. |
 | Reuse existing | `reuse_existing` | Yes/No | No | Yes | More options | If a folder with this name is already there, return its id instead of failing. |
@@ -324,7 +324,7 @@ Move a folder to the Box trash. A folder that still has content is only removed 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Folder ID | `folder_id` | Text | Yes |  | Main | Folder to delete. |
 | Include contents | `include_contents` | Yes/No | No | No | Main | Also delete everything inside the folder. |
 | As user | `as_user` | Text | No |  | More options | Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself. |
@@ -342,7 +342,7 @@ Return the files, folders and web links inside a folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Folder ID | `folder_id` | Text | No | `0` | Main | Folder to look in. 0 is the top level of All Files. |
 | Maximum results | `max_results` | Number | No | `1000` | More options | Most items to return. |
 | As user | `as_user` | Text | No |  | More options | Act on behalf of this Box user id (needs an admin or service account token). Leave empty to act as yourself. |
@@ -369,7 +369,7 @@ Find files and folders by name, content or description.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Box access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Query | `query` | Text | Yes |  | Main | Words to look for. Example: `invoice 2026` |
 | File extensions | `file_extensions` | Text | No |  | Main | Only these file types, separated by commas. Example: `pdf,docx` |
 | Only in folder (ID) | `in_folder_id` | Text | No |  | Main | Only search inside this folder and its sub-folders. |

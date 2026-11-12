@@ -155,7 +155,7 @@ export type EnvironmentLock = { name: string; run_id: string; device_id?: string
   acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
 /** A toolkit that takes a connection, and the inputs one holds (credential: a vault reference). */
-export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[] };
+export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[]; sign_in?: boolean };
 export type Toolkit = { id: string; name: string; version?: string; versions?: string[]; description?: string | null; publisher?: string | null; actions: number; conditions?: number;
   enabled: boolean; used_by: number; custom?: boolean };
 export type ModelConnection = { name: string; provider: string; model?: string | null; model_type?: string | null; base_url?: string | null; key_ref?: string | null;
@@ -500,8 +500,9 @@ export class CrApi {
   async folderPermissions(folder: string) { return (await this.call<{ permissions?: { principal: string; access: string }[] }>("GET", "repo/permissions?folder=" + encodeURIComponent(folder))).permissions ?? []; }
   async saveFolderPermissions(folder: string, permissions: { principal: string; access: string }[]) { await this.call("PUT", "repo/permissions", { folder, permissions }); }
   moveAgent(path: string, folder: string) { return this.call<{ path: string }>("POST", "repo/move", { path, folder }); }
+  /** A copy straight into the repository: administrators only (builders use Copy to Private in One AgentStudio). */
   copyAgent(path: string, to: string) { return this.call<{ path?: string }>("POST", "repo/copy", { path, to }); }
-  deleteAgent(path: string) { return this.call<{ deleted: string; called_by?: string[] }>("POST", "repo/delete", { path }); }
+  deleteAgent(path: string, reason?: string) { return this.call<{ deleted: string; called_by?: string[] }>("POST", "repo/delete", reason ? { path, reason } : { path }); }
   async recoverAgent(path: string) { await this.call("POST", "repo/recover", { path }); }
   async undoCheckout(path: string) { await this.call("POST", "repo/undo-checkout", { path }); }
   async agentVersions(path: string) { return (await this.call<{ versions?: RepoVersion[] }>("GET", "repo/versions?path=" + encodeURIComponent(path))).versions ?? []; }

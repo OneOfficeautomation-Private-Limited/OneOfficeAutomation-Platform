@@ -61,7 +61,7 @@ class DatabricksPackageTest {
             assertEquals("JSON_ARRAY", b.get("format"));
             assertEquals(List.of(Map.of("name", "region", "value", "EMEA"), Map.of("name", "min", "value", "10", "type", "BIGINT")), b.get("parameters"));
             fails("DATABRICKS.NO_SQL", () -> pkg.executeSql(ctx, f.url(), "w1", "", null, null, null, 10, 10, TOKEN));
-            fails("DATABRICKS.BAD_ID", () -> pkg.executeSql(ctx, f.url(), "w/../1", "SELECT 1", null, null, null, 10, 10, TOKEN));
+            fails("DATABRICKS.NOT_FOUND", () -> pkg.executeSql(ctx, f.url(), "w/../1", "SELECT 1", null, null, null, 10, 10, TOKEN));   // K5: looked up as a name, never put in a path
         }
     }
 
@@ -136,7 +136,7 @@ class DatabricksPackageTest {
             pkg.cancelRun(ctx, f.url(), "555", TOKEN);
             assertEquals(Map.of("run_id", new BigDecimal(555)), f.last("POST", "/api/2.1/jobs/runs/cancel").json());
             fails("DATABRICKS.BAD_ID", () -> pkg.getRun(ctx, f.url(), "abc", TOKEN));
-            fails("DATABRICKS.BAD_ID", () -> pkg.runJob(ctx, f.url(), "1; x", null, false, 0, true, TOKEN));
+            fails("DATABRICKS.NOT_FOUND", () -> pkg.runJob(ctx, f.url(), "1; x", null, false, 0, true, TOKEN));   // K5: a name is looked up
         }
     }
 
@@ -175,6 +175,62 @@ class DatabricksPackageTest {
             assertEquals(starts, f.calls.stream().filter(c -> c.path().endsWith("/start")).count(), "a running cluster is not started again");
             pkg.terminateCluster(ctx, f.url(), "0923-a", TOKEN);
             assertEquals(Map.of("cluster_id", "0923-a"), f.last("POST", "/api/2.0/clusters/delete").json());
+        }
+    }
+
+    /** K7 (batch 10): the output of a run of several tasks: each task's result, error and logs. */
+    @Test void runOutputPerTask() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("GET /api/2.1/jobs/runs/get", c -> ok("{\"run_id\":10,\"state\":{\"life_cycle_state\":\"TERMINATED\",\"result_state\":\"FAILED\"},"
+                    + "\"tasks\":[{\"task_key\":\"load\",\"run_id\":11,\"state\":{\"result_state\":\"SUCCESS\"}},{\"task_key\":\"check\",\"run_id\":12,\"state\":{\"result_state\":\"FAILED\"}}]}"))
+             .on("GET /api/2.1/jobs/runs/get-output", c -> ok(q(c).contains("run_id=11")
+                    ? "{\"notebook_output\":{\"result\":\"1200 rows\"}}"
+                    : "{\"error\":\"AssertionError: totals differ\",\"error_trace\":\"Traceback ...\",\"logs\":\"checking\"}"));
+            ActionContext ctx = ctx(PackagesTest.tmp());
+            Map<String, Object> o = pkg.getRunOutput(ctx, f.url(), "10", TOKEN);
+            assertEquals("1200 rows", o.get("result"));
+            assertEquals("AssertionError: totals differ", o.get("error"));
+            assertEquals("Traceback ...", o.get("error_trace"));
+            assertEquals("checking", o.get("logs"));
+            assertEquals(Arrays.asList("check", "12", "FAILED", null, "AssertionError: totals differ", "checking"), rows(o.get("tasks")).get(1));
+        }
+    }
+
+    /** K5 (batch 10): jobs, clusters and SQL warehouses by name. */
+    @Test void jobsClustersAndWarehousesByName() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("GET /api/2.1/jobs/list", c -> ok(q(c).contains("name=Nightly ETL")
+                    ? "{\"jobs\":[{\"job_id\":42,\"settings\":{\"name\":\"Nightly ETL\"}}]}" : "{\"jobs\":[]}"))
+             .on("POST /api/2.1/jobs/run-now", c -> ok("{\"run_id\":5}"))
+             .on("GET /api/2.1/jobs/runs/get", c -> ok("{\"run_id\":5,\"state\":{\"life_cycle_state\":\"PENDING\"}}"))
+             .on("GET /api/2.0/clusters/list", c -> ok("{\"clusters\":[{\"cluster_id\":\"0923-164208-abcd1234\",\"cluster_name\":\"Shared ETL\"}]}"))
+             .on("GET /api/2.0/clusters/get", c -> ok("{\"state\":\"RUNNING\"}"))
+             .on("GET /api/2.0/sql/warehouses", c -> ok("{\"warehouses\":[{\"id\":\"0123456789abcdef\",\"name\":\"Finance BI\"}]}"));
+            ActionContext ctx = ctx(PackagesTest.tmp());
+            pkg.runJob(ctx, f.url(), "Nightly ETL", null, false, 60, true, TOKEN);
+            assertEquals(new BigDecimal(42), f.last("POST", "/api/2.1/jobs/run-now").json().get("job_id"));
+            assertEquals("RUNNING", pkg.startCluster(ctx, f.url(), "shared etl", true, 60, TOKEN).get("state"));
+            assertEquals("cluster_id=0923-164208-abcd1234", f.last("GET", "/api/2.0/clusters/get").query());
+            assertEquals("0123456789abcdef", DatabricksPackage.warehouseId(ctx, f.url(), TOKEN, "Finance BI"));
+            assertEquals("0123456789abcdef", DatabricksPackage.warehouseId(ctx, f.url(), TOKEN, "0123456789abcdef"));
+            fails("DATABRICKS.NOT_FOUND", () -> pkg.runJob(ctx, f.url(), "Weekly", null, false, 60, true, TOKEN));
+        }
+    }
+
+    /** K4 (batch 10): a wait that runs out fails with WAIT_TIMEOUT instead of carrying on as if the job were done. */
+    @Test void waitsThatRunOutFailAndStopClusterCanWait() throws Exception {
+        try (Fake f = new Fake()) {
+            AtomicInteger looks = new AtomicInteger();
+            f.on("POST /api/2.1/jobs/run-now", c -> ok("{\"run_id\":77}"))
+             .on("GET /api/2.1/jobs/runs/get", c -> ok("{\"run_id\":77,\"state\":{\"life_cycle_state\":\"RUNNING\"},\"run_page_url\":\"https://x/run/77\"}"))
+             .on("POST /api/2.0/clusters/delete", c -> ok("{}"))
+             .on("GET /api/2.0/clusters/get", c -> ok("{\"state\":\"" + (looks.incrementAndGet() < 3 ? "TERMINATING" : "TERMINATED") + "\"}"));
+            ActionContext ctx = ctx(PackagesTest.tmp());
+            var e = fails("DATABRICKS.WAIT_TIMEOUT", () -> pkg.runJob(ctx, f.url(), "5", null, true, 1, true, TOKEN));
+            assertTrue(e.getMessage().contains("RUNNING"), e.getMessage());
+            assertEquals("RUNNING", pkg.runJob(ctx, f.url(), "5", null, false, 1, true, TOKEN).get("life_cycle_state"), "without waiting it returns at once");
+            assertEquals("TERMINATED", pkg.terminateCluster(ctx, f.url(), "0923-a", TOKEN, true, 60).get("state"));
+            assertEquals(3, looks.get());
         }
     }
 

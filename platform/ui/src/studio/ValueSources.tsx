@@ -54,6 +54,7 @@ export function CommitInput({ id, initial, placeholder, mono, onCommit, want, ap
 }
 
 const NEW = "\u0000new";
+const VARIABLE = "\u0000variable";
 
 /**
  * Where a step's result is kept: only variables that can hold its type (a Number result, a Number variable), text
@@ -77,6 +78,30 @@ export function OutputChooser({ step, output, type, label }: { step: FlowStep; o
     const v = e.target.value;
     if (v === NEW) vars.newVariable({ type: type && type !== "Any" ? type : "String", name: output, then: (n, f) => setOut(f, step.id, output, n) });
     else applyNow(vars, (f) => setOut(f, step.id, output, v));
+  }} options={opts} />;
+}
+
+/**
+ * The variable a value goes into, for the Catch part and On error (usage review items 19 and 20, as AA's "Assign
+ * exception message to"): the agent's variables that hold the type, or a new one of that type. A Dictionary also goes
+ * into an Any variable; text also into an Any variable.
+ */
+export function VariableChooser({ value, type, label, nameHint, onPick }: { value?: string; type: string; label: string; nameHint: string;
+  onPick: (f: Flow, name: string | undefined) => Flow }) {
+  const vars = useVars();
+  if (!vars) return null;
+  const cur = value ?? "";
+  const all = vars.flow.variables ?? [];
+  const fit = all.filter((v) => holdsType(v.type, type) || v.type === "Any");
+  const opts = [{ value: "", label: "(not kept)" }, ...fit.map((v) => ({ value: v.name, label: "$" + v.name + " (" + v.type + ")" }))];
+  const other = cur && !fit.some((v) => v.name === cur) ? all.find((v) => v.name === cur) : undefined;
+  if (other) opts.push({ value: other.name, label: "$" + other.name + " (" + other.type + ": does not hold " + type + ")" });
+  else if (cur && !all.some((v) => v.name === cur)) opts.push({ value: cur, label: "$" + cur + " (not a variable of this agent)" });
+  opts.push({ value: NEW, label: "+ New " + type + " variable" });
+  return <Select aria-label={label} value={cur} onChange={(e) => {
+    const v = e.target.value;
+    if (v === NEW) vars.newVariable({ type, name: nameHint, then: (n, f) => onPick(f, n) });
+    else applyNow(vars, (f) => onPick(f, v || undefined));
   }} options={opts} />;
 }
 
@@ -244,15 +269,39 @@ export function RunAgentFields({ step }: { step: FlowStep }) {
     return setArg(f, step.id, "output_map", Object.keys(next).length ? next : undefined);
   };
   const others = vars.agents.filter((a) => a.id && a.id !== vars.flow.id);
+  // the agent can also come from a variable (C4, as AA's Task Bot to run > Variable): its id is read when the step runs
+  const fromVariable = id.startsWith("$");
+  /**
+   * Quick map (C4, as AA): each input and output of the child goes to the agent's variable of the same name; a missing
+   * one is made with the child's type. Values already set stay as they are.
+   */
+  const quickMap = (f: Flow): Flow => {
+    if (!child) return f;
+    const mine = [...(f.variables ?? [])];
+    const ensure = (v: FlowVariable) => { if (!mine.some((x) => x.name === v.name)) mine.push({ name: v.name, type: v.type || "Any", description: v.description }); };
+    const ins = { ...inputs }, outs = { ...outMap };
+    for (const v of (child.variables ?? []).filter(isInput)) if (ins[v.name] === undefined) { ensure(v); ins[v.name] = "$" + v.name; }
+    for (const v of (child.variables ?? []).filter(isOutput)) if (!outs[v.name]) { ensure(v); outs[v.name] = v.name; }
+    let g: Flow = { ...f, variables: mine };
+    g = setArg(g, step.id, "inputs", Object.keys(ins).length ? ins : undefined);
+    return setArg(g, step.id, "output_map", Object.keys(outs).length ? outs : undefined);
+  };
   return (
     <div className="st-run-agent">
       <label className="st-label" htmlFor={step.id + "-agent"}>Agent to run *</label>
-      <Select id={step.id + "-agent"} value={id} onChange={(e) => set("automation", e.target.value || undefined)}
+      <Select id={step.id + "-agent"} value={fromVariable ? VARIABLE : id} onChange={(e) => set("automation", e.target.value === VARIABLE ? "$" : e.target.value || undefined)}
         options={[{ value: "", label: others.length ? "Choose an agent…" : "No other agents in this workspace" },
           ...others.map((a) => ({ value: a.id, label: (a.name || a.id) + " — " + a.path })),
-          ...(id && !child ? [{ value: id, label: id + " (not in this workspace)" }] : [])]} />
+          { value: VARIABLE, label: "From a variable (its agent id)…" },
+          ...(id && !child && !fromVariable ? [{ value: id, label: id + " (not in this workspace)" }] : [])]} />
+      {fromVariable && <CommitInput key={id} label="Variable with the agent id" mono want="String" initial={id === "$" ? "" : id} placeholder="$agent_id"
+        onCommit={(t) => set("automation", t.trim() ? (t.trim().startsWith("$") ? t.trim() : "$" + t.trim()) : "$")} />}
       {child && vars.openChild && <button type="button" className="st-link" onClick={() => vars.openChild!(step.id)}>Open this agent</button>}
-      {!child ? <p className="ui-field-hint">{id ? "This agent is not in the workspace, so its inputs are not known." : "Choose the agent first."}</p> : <>
+      {!child ? <p className="ui-field-hint">{fromVariable ? "The agent is chosen when the step runs: give its inputs as a Dictionary (Inputs, below); all its outputs come back in Save results in › Outputs."
+        : id ? "This agent is not in the workspace, so its inputs are not known." : "Choose the agent first."}</p> : <>
+        <div className="st-row-tight"><Button kind="secondary" onClick={() => applyNow(vars, quickMap)}
+          title="Each input and output goes to this agent's variable of the same name; missing ones are made">Quick map</Button>
+          <span className="ui-field-hint">Same-name variables; missing ones are made.</span></div>
         <h4 className="st-sub">Input values</h4>
         {(child.variables ?? []).filter(isInput).map((v) => {
           const val = inputs[v.name];
@@ -282,6 +331,7 @@ export function RunAgentFields({ step }: { step: FlowStep }) {
           </div>;
         })}
         {!(child.variables ?? []).some(isOutput) && <p className="ui-field-hint">The agent has no output variables.</p>}
+        {(child.variables ?? []).some(isOutput) && <p className="ui-field-hint">Or keep them all in one Dictionary: Save results in › Outputs, below (each key is an output's name).</p>}
       </>}
     </div>
   );

@@ -41,7 +41,7 @@ public final class SlackPackage {
             panel = "bot_token, channel, text, thread_ts, files | reply_broadcast, blocks, unfurl_links, unfurl_media, mrkdwn, username, icon_emoji, base_url")
     @Output(name = "ts", type = OoaType.STRING, description = "Message timestamp id (use it to reply in a thread).")
     public Map<String, Object> post(ActionContext ctx,
-            @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token (xoxb-...) from the vault.") Object token,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token (xoxb-...) from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
             @Input(name = "channel", type = OoaType.STRING, example = "C0123456789", description = "Channel id, a user id for a direct message, or a channel name such as #ops-alerts (looked up first).") String channel,
             @Input(name = "text", type = OoaType.STRING, description = "Message text (Slack markdown).") String text,
             @Input(name = "thread_ts", type = OoaType.STRING, required = false, description = "Reply in the thread of this message.") String thread,
@@ -112,29 +112,52 @@ public final class SlackPackage {
             panel = "bot_token, channel, files, comment | thread_ts, base_url")
     @Output(name = "file_ids", type = OoaType.LIST, description = "Slack file ids.")
     public Map<String, Object> uploadFile(ActionContext ctx,
-            @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token (xoxb-...) from the vault; needs the files:write scope.") Object token,
-            @Input(name = "channel", type = OoaType.STRING, example = "C0123456789", description = "Channel or conversation id.") String channel,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token (xoxb-...) from the vault; needs the files:write scope.") Object token,
+            @Input(name = "channel", type = OoaType.STRING, example = "C0123456789", description = "Channel id, or a channel name such as #ops-alerts (looked up first).") String channel,
             @Input(name = "files", type = OoaType.LIST, description = "Local file paths.") List<Object> files,
             @Input(name = "comment", type = OoaType.STRING, required = false, description = "Message posted with the files.") String comment,
             @Input(name = "thread_ts", type = OoaType.STRING, required = false, description = "Share in the thread of this message.") String thread,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
         if (files == null || files.isEmpty()) throw new ActionException(P + ".NO_FILES", "Give at least one file to upload", null);
-        return Map.of("file_ids", upload(ctx, base, token, channel, files, comment, thread));
+        return Map.of("file_ids", upload(ctx, base, token, channel(ctx, token, channel, base), files, comment, thread));
     }
 
     @Action(id = "update_message", name = "Update message", category = "Messages", capabilities = "network", description = "Edit a message the agent posted, e.g. to show progress.",
             panel = "bot_token, channel, ts, text | blocks, base_url")
     public Map<String, Object> update(ActionContext ctx,
-            @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
-            @Input(name = "channel", type = OoaType.STRING, description = "Channel id.") String channel,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
+            @Input(name = "channel", type = OoaType.STRING, description = "Channel id, or a channel name such as #ops-alerts (looked up first).") String channel,
             @Input(name = "ts", type = OoaType.STRING, description = "Timestamp id of the message.") String ts,
             @Input(name = "text", type = OoaType.STRING, description = "New text.") String text,
             @Input(name = "blocks", required = false, description = "New Block Kit layout: a List of blocks or its JSON text.") Object blocks,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
-        Map<String, Object> body = new LinkedHashMap<>(Map.of("channel", channel, "ts", ts, "text", text));
+        Map<String, Object> body = new LinkedHashMap<>(Map.of("channel", channel(ctx, token, channel, base), "ts", ts, "text", text));
         messageOptions(body, blocks, null, null, true);
         call(ctx, base, "chat.update", token, body);
         return Map.of();
+    }
+
+    /** K5 (batch 10): every channel input takes #name as well as an id, as Post message did. */
+    private String channel(ActionContext ctx, Object token, String channel, String base) {
+        if (channel == null || channel.isBlank() || channel.trim().equals("#"))
+            throw new ActionException(P + ".BAD_CHANNEL", "A channel is required", "Give a channel id such as C0123456789 or a name such as #ops-alerts.");
+        String c = channel.trim();
+        return c.startsWith("#") ? String.valueOf(channelId(ctx, token, c, true, false, base).get("channel_id")) : c;
+    }
+
+    /** A time as Slack's timestamp id: a timestamp id as it is, or a date or date and time (UTC) as seconds since 1970. */
+    static String ts(String v) {
+        if (v == null || v.isBlank()) return v;
+        String t = v.strip();
+        if (t.matches("\\d+(\\.\\d+)?")) return t;
+        try {
+            java.time.Instant i = t.length() <= 10 ? java.time.LocalDate.parse(t).atStartOfDay(java.time.ZoneOffset.UTC).toInstant()
+                    : t.matches(".*([Zz]|[+-]\\d\\d:?\\d\\d)$") ? java.time.OffsetDateTime.parse(t).toInstant()
+                    : java.time.LocalDateTime.parse(t).toInstant(java.time.ZoneOffset.UTC);
+            return String.valueOf(i.getEpochSecond());
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new ActionException(P + ".BAD_TIME", "'" + v + "' is not a date, a date and time, or a message timestamp id", "Examples: 2026-11-01, 2026-11-01T09:00 or 1700000000.000100.");
+        }
     }
 
     // ---- Direct messages and lookups ----
@@ -182,7 +205,7 @@ public final class SlackPackage {
     @Output(name = "ts", type = OoaType.STRING, description = "Message timestamp id.")
     @Output(name = "channel", type = OoaType.STRING, description = "Direct conversation id.")
     public Map<String, Object> sendDirect(ActionContext ctx,
-            @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token (xoxb-...) from the vault.") Object token,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token (xoxb-...) from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
             @Input(name = "user", type = OoaType.STRING, example = "ann@example.com", description = "Member id (U...) or the person's email address; several separated by , or ; open a group conversation.") String user,
             @Input(name = "text", type = OoaType.STRING, description = "Message text (Slack markdown).") String text,
             @Input(name = "thread_ts", type = OoaType.STRING, required = false, description = "Reply in the thread of this message.") String thread,
@@ -210,7 +233,7 @@ public final class SlackPackage {
             panel = "bot_token, name | include_private, include_archived, base_url")
     @Output(name = "channel_id", type = OoaType.STRING, description = "Channel id, e.g. C0123456789.")
     public Map<String, Object> channelId(ActionContext ctx,
-            @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
             @Input(name = "name", type = OoaType.STRING, example = "ops-alerts", description = "Channel name, with or without the leading #.") String name,
             @Input(name = "include_private", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also look in private channels the agent belongs to.") boolean priv,
             @Input(name = "include_archived", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also look in archived channels.") boolean archived,
@@ -232,10 +255,10 @@ public final class SlackPackage {
             panel = "bot_token, channel | base_url")
     @Output(name = "channel", type = OoaType.DICTIONARY, description = "id, name, is_private, is_archived, topic, purpose, num_members, created.")
     public Map<String, Object> channelDetails(ActionContext ctx,
-            @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
-            @Input(name = "channel", type = OoaType.STRING, description = "Channel id.") String channel,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
+            @Input(name = "channel", type = OoaType.STRING, description = "Channel id, or a channel name such as #ops-alerts (looked up first).") String channel,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
-        Object c = form(ctx, base, "conversations.info", token, Map.of("channel", channel, "include_num_members", true)).get("channel");
+        Object c = form(ctx, base, "conversations.info", token, Map.of("channel", channel(ctx, token, channel, base), "include_num_members", true)).get("channel");
         Map<String, Object> o = new LinkedHashMap<>();
         for (String k : List.of("id", "name", "is_private", "is_archived", "is_im", "num_members", "created")) o.put(k, nested(c, k));
         o.put("topic", nested(nested(c, "topic"), "value"));
@@ -248,14 +271,18 @@ public final class SlackPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: ts, user, text, thread_ts, reply_count, subtype.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages.")
     public Map<String, Object> history(ActionContext ctx,
-            @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
-            @Input(name = "channel", type = OoaType.STRING, description = "Channel or conversation id.") String channel,
-            @Input(name = "oldest", type = OoaType.STRING, required = false, description = "Only messages after this timestamp id (e.g. 1700000000.000100).") String oldest,
-            @Input(name = "latest", type = OoaType.STRING, required = false, description = "Only messages before this timestamp id.") String latest,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
+            @Input(name = "channel", type = OoaType.STRING, description = "Channel id, or a channel name such as #ops-alerts (looked up first).") String channel,
+            @Input(name = "oldest", type = OoaType.STRING, required = false, example = "2026-11-01",
+                    description = "Only messages after this time: a date (2026-11-01), a date and time in UTC (2026-11-01T09:00), or a message timestamp id (1700000000.000100).") String oldest,
+            @Input(name = "latest", type = OoaType.STRING, required = false, description = "Only messages before this time: a date, a date and time in UTC, or a message timestamp id.") String latest,
             @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "200", description = "Maximum messages to read.") int max,
             @Input(name = "thread_ts", type = OoaType.STRING, required = false, description = "Read the replies of this thread instead of the channel.") String thread,
             @Input(name = "inclusive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also include the messages exactly at oldest and latest.") boolean inclusive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
+        channel = channel(ctx, token, channel, base);
+        oldest = ts(oldest);
+        latest = ts(latest);
         List<Object> rows = new ArrayList<>();
         String next = null;
         boolean replies = thread != null && !thread.isBlank();
@@ -280,7 +307,7 @@ public final class SlackPackage {
             panel = "bot_token, user | base_url")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "id, name, real_name, display_name, email, title, time_zone, is_bot, deleted.")
     public Map<String, Object> userDetails(ActionContext ctx,
-            @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
             @Input(name = "user", type = OoaType.STRING, description = "Member id (U...) or email address.") String user,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
         String u = user == null ? "" : user.trim();
@@ -305,7 +332,7 @@ public final class SlackPackage {
             panel = "bot_token, name | base_url")
     @Output(name = "workspace_id", type = OoaType.STRING, description = "Workspace (team) id, e.g. T0123456789.")
     public Map<String, Object> workspaceId(ActionContext ctx,
-            @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
             @Input(name = "name", type = OoaType.STRING, description = "Workspace name or domain (not case-sensitive).") String name,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
         String wanted = name.trim();
@@ -333,7 +360,7 @@ public final class SlackPackage {
             panel = "bot_token, workspace_id | base_url")
     @Output(name = "workspace", type = OoaType.DICTIONARY, description = "id, name, domain, email_domain.")
     public Map<String, Object> workspace(ActionContext ctx,
-            @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
+            @Input(name = "bot_token", type = OoaType.CREDENTIAL, signInToken = true, description = "Slack bot token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
             @Input(name = "workspace_id", type = OoaType.STRING, required = false, description = "Workspace (team) id, for apps installed in several workspaces; the token's own workspace when empty.") String team,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
         Object t = form(ctx, base, "team.info", token, team == null || team.isBlank() ? Map.of() : Map.of("team", team.trim())).get("team");

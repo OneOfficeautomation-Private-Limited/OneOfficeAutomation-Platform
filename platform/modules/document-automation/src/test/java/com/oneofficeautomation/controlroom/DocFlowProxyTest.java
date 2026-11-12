@@ -428,6 +428,57 @@ class DocFlowProxyTest {
         flowsJson = "[]";
     }
 
+    /** D1 (command review, batch 9): a running agent reads a result by id, lists finished documents and marks them collected. */
+    @Test @SuppressWarnings("unchecked")
+    void aRunningAgentPicksUpFinishedDocumentsOnce() throws Exception {
+        Map<String, Object> run = cr.startRun("admin", "admin", "Finance/Post invoice.flow.json", deviceId, Map.of(), "test", null);
+        String runId = String.valueOf(run.get("run_id"));
+        flowsJson = "[{\"id\":\"ap-results\",\"name\":\"AP results\",\"status\":\"live\"}]";
+        canned.put("GET df/documents/r1", new Object[]{200, "{\"id\":\"r1\",\"flowId\":\"ap-results\",\"status\":\"validated\",\"file_name\":\"INV-1.pdf\",\"doctype_id\":\"invoice\","
+                + "\"validated_by\":\"ann\",\"fields\":{\"total\":115,\"lines\":[{\"item\":\"Laptop\",\"qty\":3}]},\"confidence\":{\"total\":0.62}}"});
+        canned.put("GET df/documents/r2", new Object[]{200, "{\"id\":\"r2\",\"flowId\":\"ap-results\",\"status\":\"success\",\"fields\":{}}"});
+        canned.put("GET df/documents/gone", new Object[]{404, "{\"detail\":\"not found\"}"});
+        canned.put("GET df/flows/ap-results/documents", new Object[]{200, "[{\"id\":\"r1\",\"status\":\"validated\",\"file_name\":\"INV-1.pdf\",\"validated_by\":\"ann\"},"
+                + "{\"id\":\"r2\",\"status\":\"success\",\"file_name\":\"INV-2.pdf\"},{\"id\":\"r3\",\"status\":\"processing\"},{\"id\":\"r4\",\"status\":\"validation\"}]"});
+        java.util.function.Function<String, HttpResponse<String>> ask = body -> {
+            try {
+                return HTTP.send(HttpRequest.newBuilder(URI.create(base + "/api/agent/docflow/results")).header("X-OOA-Device", deviceId).header("X-OOA-Device-Secret", deviceSecret)
+                        .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body.replace("RUN", runId))).build(), HttpResponse.BodyHandlers.ofString());
+            } catch (Exception e) { throw new RuntimeException(e); }
+        };
+        try {
+            assertEquals(403, ask.apply("{\"run_id\":\"RUN\",\"op\":\"get\",\"document_id\":\"r1\"}").statusCode(), "queued, not running yet");
+            cr.db.update("UPDATE runs SET status = 'running' WHERE id = ?", runId);
+            HttpResponse<String> got = ask.apply("{\"run_id\":\"RUN\",\"op\":\"get\",\"document_id\":\"r1\"}");
+            assertEquals(200, got.statusCode(), got.body());
+            Map<String, Object> g = (Map<String, Object>) JsonLite.parse(got.body());
+            assertEquals(List.of("validated", true, true, false, "ann"), List.of(g.get("status"), g.get("done"), g.get("reviewed"), g.get("needs_review"), g.get("validated_by")));
+            assertEquals("115", String.valueOf(((Map<?, ?>) g.get("fields")).get("total")));
+            assertFalse(((Map<?, ?>) g.get("fields")).containsKey("lines"), "a list of rows is a table, not a field");
+            assertEquals(1, ((List<?>) ((Map<?, ?>) g.get("tables")).get("lines")).size());
+            assertEquals(404, ask.apply("{\"run_id\":\"RUN\",\"op\":\"get\",\"document_id\":\"gone\"}").statusCode());
+            assertEquals(400, ask.apply("{\"run_id\":\"RUN\",\"op\":\"get\",\"document_id\":\"../admin\"}").statusCode());
+
+            java.util.function.Supplier<List<Object>> ids = () -> ((List<Object>) ((Map<String, Object>) JsonLite.parse(
+                    ask.apply("{\"run_id\":\"RUN\",\"op\":\"list\",\"process\":\"ap RESULTS\",\"collector\":\"posting\"}").body())).get("documents"))
+                    .stream().map(o -> (Object) ((Map<?, ?>) o).get("document_id")).toList();
+            assertEquals(List.of("r1", "r2"), ids.get(), "only finished documents: not those being read or waiting for review");
+            HttpResponse<String> mark = ask.apply("{\"run_id\":\"RUN\",\"op\":\"collect\",\"document_ids\":[\"r1\"],\"collector\":\"posting\"}");
+            assertEquals(200, mark.statusCode(), mark.body());
+            assertEquals("1", String.valueOf(((Map<?, ?>) JsonLite.parse(mark.body())).get("marked")));
+            assertEquals(List.of("r2"), ids.get(), "a collected document is not listed again");
+            assertEquals("1", String.valueOf(((Map<?, ?>) JsonLite.parse(ask.apply("{\"run_id\":\"RUN\",\"op\":\"collect\",\"document_ids\":[\"r1\"],\"collector\":\"posting\"}").body()))
+                    .get("already_collected")), "marking twice is harmless");
+            List<Object> otherCollector = (List<Object>) ((Map<String, Object>) JsonLite.parse(ask.apply("{\"run_id\":\"RUN\",\"op\":\"list\",\"process\":\"AP results\"}").body())).get("documents");
+            assertEquals(2, otherCollector.size(), "another collector name has its own marks");
+            assertEquals(1, cr.db.query("SELECT document_id FROM docflow_collected WHERE collector = 'posting' AND collected_by = 'admin' AND process_id = 'ap-results'").size());
+            assertEquals(404, ask.apply("{\"run_id\":\"RUN\",\"op\":\"list\",\"process\":\"Nope\"}").statusCode());
+        } finally {
+            canned.clear();
+            flowsJson = "[]";
+        }
+    }
+
     @Test void inboxProblemsAreSaidPlainly() {
         Map<String, Object> email = Map.of("host", "imap.example.com", "port", 993);
         assertEquals("The mail server imap.example.com is not known: check its name", DocFlowProxy.problem(new java.net.UnknownHostException("imap.example.com"), email));

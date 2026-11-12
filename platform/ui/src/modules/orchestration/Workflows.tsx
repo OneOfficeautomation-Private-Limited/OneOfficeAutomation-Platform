@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import type { CrApi, CrUser, TaskFormField } from "../../api/cr";
 import type { WorkflowRun } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
-import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { RefreshButton, RowMenu, rowClick, when, CloseView } from "../../console/ListParts";
 import { FormField } from "../../console/Inbox";
 
 /**
@@ -195,7 +195,7 @@ function RunView({ api, id, onClose, onNotice }: { api: CrApi; id: string; onClo
         <h2>{r ? flowName(r.path) + (r.reference ? " · " + r.reference : "") : "Workflow run"}</h2>
         <HelpButton topic={HELP_RUN} />
         <span className="ov-fill" />
-        <button type="button" className="cc-list-icon" aria-label="Close" title="Close" onClick={onClose}>×</button>
+        <CloseView onClick={onClose} />
       </div>
       <div className="cc-run-body">{error && <p className="st-alert" role="alert">{error}</p>}{body}</div>
       {foot && <div className="cc-run-foot">{foot}</div>}

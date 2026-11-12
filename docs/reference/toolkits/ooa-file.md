@@ -348,9 +348,9 @@ Write text to a file, overwriting or appending.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | File path. |
-| Fail if exists | `fail_if_exists` | Yes/No | No | No | Main | Stop instead of writing when the file already exists. |
 | Text | `text` | Text | Yes |  | Main | Text to write. |
 | Append | `append` | Yes/No | No | No | Main | Append instead of overwrite. |
+| Fail if exists | `fail_if_exists` | Yes/No | No | No | More options | Stop instead of writing when the file already exists. |
 | Encoding | `encoding` | Text | No | `utf-8` | More options | Text encoding, e.g. utf-8, utf-16le, windows-1252; ansi uses the runner's default. Example: `utf-16le` |
 
 *Time limit 60 s; needs: filesystem.*

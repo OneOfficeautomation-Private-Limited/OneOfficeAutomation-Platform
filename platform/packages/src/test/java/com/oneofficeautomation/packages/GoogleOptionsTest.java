@@ -44,6 +44,60 @@ class GoogleOptionsTest {
         assertEquals("GOOGLE.BAD_INPUT", assertThrows(ActionException.class, () -> GooglePackage.rrule("fortnightly")).code());
     }
 
+    /** K3 (batch 10): a large Drive upload is resumable and streamed from disk; every Drive call works in shared drives. */
+    @Test void largeDriveUploadsAreResumableAndSharedDrivesWork() throws Exception {
+        long from = GooglePackage.resumableFrom;
+        GooglePackage.resumableFrom = 10;
+        try (Fake f = new Fake()) {
+            f.on("POST /upload/drive/v3/files", c -> new Object[]{200, "{}", Map.of("Location", f.url() + "/upload-session/U1")})
+             .on("PUT /upload-session/U1", c -> ok("{\"id\":\"F1\"}"))
+             .on("GET /drive/v3/files/F1", c -> q(c).contains("fields=") ? ok("{\"mimeType\":\"application/pdf\",\"name\":\"a.pdf\"}") : ok("%PDF streamed"));
+            var p = new GooglePackage();
+            Path w = tmp();
+            Files.writeString(w.resolve("big.bin"), "0123456789abcdefghij");
+            var ctx = PackagesTestSupport.ctx(w, Map.of());
+            var tok = new com.oneofficeautomation.sdk.SecureString("tok", "t");
+            assertEquals("F1", p.driveUpload(ctx, tok, "big.bin", "SHARED-FOLDER", null, false, null, f.url()).get("file_id"));
+            Call open = f.last("POST", "/upload/drive/v3/files");
+            assertTrue(q(open).contains("uploadType=resumable") && q(open).contains("supportsAllDrives=true"), q(open));
+            assertEquals("20", open.header("X-Upload-Content-Length"));
+            assertEquals(List.of("SHARED-FOLDER"), open.json().get("parents"));
+            assertEquals("0123456789abcdefghij", f.last("PUT", "/upload-session/U1").text());
+            assertEquals("https://www.googleapis.com/drive/v3/files?q=x&supportsAllDrives=true&includeItemsFromAllDrives=true",
+                    GooglePackage.sharedDrives("https://www.googleapis.com/drive/v3/files?q=x"));
+            assertEquals("https://www.googleapis.com/drive/v3/files/F1/export?mimeType=a", GooglePackage.sharedDrives("https://www.googleapis.com/drive/v3/files/F1/export?mimeType=a"));
+
+            // K5 (batch 10): an id input takes a path under My Drive starting with /
+            f.on("GET /drive/v3/files", c -> ok(q(c).contains("name = 'Reports'") ? "{\"files\":[{\"id\":\"FOLDER-R\",\"name\":\"Reports\"}]}"
+                    : q(c).contains("name = 'a.pdf'") && q(c).contains("'FOLDER-R' in parents") ? "{\"files\":[{\"id\":\"F1\",\"name\":\"a.pdf\"}]}" : "{\"files\":[]}"));
+            Map<String, Object> d = p.driveDownload(ctx, tok, "/Reports/a.pdf", "out/a.pdf", true, f.url());
+            assertEquals("%PDF streamed", Files.readString(Path.of((String) d.get("path"))));
+            assertEquals("F1", p.driveUpload(ctx, tok, "big.bin", "/Reports", null, false, null, f.url()).get("file_id"));
+            assertEquals(List.of("FOLDER-R"), f.last("POST", "/upload/drive/v3/files").json().get("parents"));
+        } finally { GooglePackage.resumableFrom = from; }
+    }
+
+    /** A3 (command review, batch 7): an each-email loop on Gmail, as on the other mail services. */
+    @Test void eachGmailMessageLoop() throws Exception {
+        try (Fake f = new Fake()) {
+            String gm = "/gmail/v1/users/me/";
+            f.on("GET " + gm + "messages", c -> ok("{\"messages\":[{\"id\":\"G1\"},{\"id\":\"G2\"}]}"))
+             .on("GET " + gm + "messages/G[12]", c -> ok(MSG));
+            var p = new GooglePackage();
+            var ctx = PackagesTestSupport.ctx(tmp(), Map.of());
+            var tok = new com.oneofficeautomation.sdk.SecureString("tok", "t");
+            List<Object> whole = new ArrayList<>();
+            p.gmailMessages(ctx, tok, null, "INBOX", "unread", null, null, null, null, false, 100, true, f.url()).forEach(whole::add);
+            assertEquals(2, whole.size());
+            @SuppressWarnings("unchecked") Map<String, Object> e = (Map<String, Object>) whole.get(0);
+            assertEquals("Hello", e.get("text"));
+            assertEquals(List.of("INV-7.pdf"), e.get("attachments"));
+            assertEquals(true, e.get("has_attachments"));
+            assertTrue(q(f.last("GET", gm + "messages")).contains("is:unread"), "the filters reach Gmail's search");
+            assertNull(f.last("POST", gm + "messages/G1/modify"), "nothing marked read");
+        }
+    }
+
     @Test void gmailSendListMoveDeleteForwardReplyAndAttachments() throws Exception {
         try (Fake f = new Fake()) {
             String gm = "/gmail/v1/users/me/";

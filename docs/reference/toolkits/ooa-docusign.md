@@ -25,9 +25,9 @@ Add signers or copy recipients to an envelope that is still a draft or in progre
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 | Recipients | `recipients` | List | Yes |  | Main | Recipients: each {"name", "email", "type": signer or copy, "routing_order": 1, 2 ...}, e.g. [{"name": "Ann Lee", "email": "ann@acme.test"}]. |
 | Resend | `resend` | Yes/No | No | Yes | More options | Send the request to the new recipients when the envelope is already sent. |
@@ -50,9 +50,9 @@ Return everyone on an envelope with their progress.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 
 **Results**
@@ -74,9 +74,9 @@ Correct a recipient's name or email address, for example after a typo, and optio
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 | Recipient ID | `recipient_id` | Text | Yes |  | Main | Recipient id from List recipients, e.g. 1. |
 | New name | `new_name` | Text | No |  | Main | Corrected full name. Leave empty to keep it. |
@@ -98,9 +98,9 @@ Prepare an envelope from local files and signers, then send it now or keep it as
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Email subject | `email_subject` | Text | Yes |  | Main | Subject of the signing request email. |
 | Signers | `signers` | List | Yes |  | Main | People who sign, in a list like [{"name": "Ann Lee", "email": "ann@acme.com"}]. Add routing_order to sign one after another. |
 | Documents | `documents` | List | Yes |  | Main | Local files to sign, e.g. ["contracts/nda.pdf"]. PDF, Word and most office formats work. |
@@ -128,9 +128,9 @@ Start an envelope from a saved template by filling each template role with a per
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Email subject | `email_subject` | Text | No |  | Main | Subject of the email. Leave empty to use the template's subject. |
 | Template ID | `template_id` | Text | Yes |  | Main | Template to use (see List templates). |
 | Roles | `roles` | List | Yes |  | Main | Who fills each role, e.g. [{"role": "Client", "name": "Ann Lee", "email": "ann@acme.com"}]. |
@@ -156,9 +156,9 @@ Check where an envelope is: draft, sent, delivered, completed, declined or voide
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 
 **Results**
@@ -180,9 +180,9 @@ Return envelopes changed since a date, optionally only those with a given status
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Changed since | `changed_since` | DateTime | No |  | Main | Only envelopes changed on or after this date. Leave empty for the last 30 days. |
 | Changed before | `changed_before` | DateTime | No |  | Main | Only envelopes changed before this date. |
 | Status | `status` | Text | No |  | Main | Only these statuses, separated by commas, e.g. sent,delivered. Example: `completed` |
@@ -208,9 +208,9 @@ Send the signing reminder email again to recipients who have not finished.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 
 *Time limit 60 s; needs: network.*
@@ -225,9 +225,9 @@ Send an envelope that was saved as a draft.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 
 *Time limit 60 s; needs: network.*
@@ -242,9 +242,9 @@ Cancel an envelope that is still out for signature. Recipients are told why.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 | Reason | `reason` | Text | Yes |  | Main | Why the envelope is cancelled; recipients see this. |
 
@@ -262,9 +262,9 @@ Get a short-lived link that opens the signing session for a recipient inside you
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 | Name | `name` | Text | Yes |  | Main | Signer's name exactly as on the envelope. |
 | Email | `email` | Text | Yes |  | Main | Signer's email exactly as on the envelope. |
@@ -292,9 +292,9 @@ Save all documents of an envelope as one PDF, optionally with the signing certif
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 | Save as | `save_as` | File path | Yes |  | Main | Where to save the PDF, e.g. signed/all.pdf. Missing folders are created. |
 | Include certificate | `include_certificate` | Yes/No | No | Yes | More options | Add the signing certificate as the last pages. |
@@ -317,9 +317,9 @@ Save one document from an envelope, the signing certificate, or all documents as
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 | Document ID | `document_id` | Text | Yes |  | Main | Document number from List envelope documents, or certificate for the signing certificate, or archive for a zip of everything. Example: `1` |
 | Save as | `save_as` | File path | Yes |  | Main | Where to save it, e.g. signed/contract.pdf. Missing folders are created. |
@@ -342,9 +342,9 @@ Save all documents of an envelope as separate PDFs in one ZIP file, with the sig
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 | Save as | `save_as` | File path | Yes |  | Main | Where to save the ZIP, e.g. signed/contract.zip. Missing folders are created. |
 
@@ -366,9 +366,9 @@ Return the documents inside an envelope.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 
 **Results**
@@ -391,9 +391,9 @@ Read the custom fields stored on an envelope, such as a contract or order number
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 
 **Results**
@@ -414,9 +414,9 @@ Read the values recipients typed into the envelope's fields, for example after i
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 
 **Results**
@@ -437,9 +437,9 @@ Add or change custom fields on an envelope. Fields that already exist are update
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Envelope ID | `envelope_id` | Text | Yes |  | Main | Envelope id, e.g. 4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59. |
 | Fields | `fields` | Dictionary | Yes |  | Main | Field name to value, e.g. {"OrderNumber": "SO-5531"}. |
 | Show to recipients | `show_to_recipients` | Yes/No | No | No | More options | Let recipients see these fields. |
@@ -458,9 +458,9 @@ Read a template's name, roles and documents, so you know which roles to fill.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Template ID | `template_id` | Text | Yes |  | Main | Template id from List templates. |
 
 **Results**
@@ -482,9 +482,9 @@ Return the templates you can use, optionally only those matching some text.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | DocuSign OAuth access token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Account ID | `account_id` | Text | Yes |  | Main | DocuSign account id (a GUID or number shown under Apps and Keys). |
-| Endpoint address | `base_url` | Text | Yes |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. |
+| Endpoint address | `base_url` | Text | No |  | Main | Your account's REST address, e.g. https://demo.docusign.net/restapi for testing or https://na4.docusign.net/restapi in production. Leave empty to look it up from the account (production first, then the demo environment). |
 | Search text | `search_text` | Text | No |  | Main | Only templates whose name or description contains this text. |
 | Maximum results | `max_results` | Number | No | `500` | More options | Most templates to return. |
 

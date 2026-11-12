@@ -154,9 +154,9 @@ Connect and sign in to an FTP, FTPS or SFTP server, optionally trying again when
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
+| Protocol | `protocol` | Text | Yes |  | Main | sftp (SSH), ftps (FTP over TLS) or plain ftp. One of: `sftp`, `ftps`, `ftp` |
 | Host | `host` | Text | Yes |  | Main | Server name or address. |
 | Port | `port` | Number | No |  | Main | Port; 22 for SFTP, 21 for FTP/FTPS when empty. Range: 1 to 65535 |
-| Protocol | `protocol` | Text | Yes |  | Main | sftp (SSH), ftps (FTP over TLS) or plain ftp. One of: `sftp`, `ftps`, `ftp` |
 | User | `user` | Text | Yes |  | Main | User name. |
 | Password | `password` | Credential (vault) | No |  | Main | Password from the vault. |
 | Private key | `private_key` | File path | No |  | Main | SFTP private key file (instead of a password). Shown when: `{"protocol": ["sftp"]}` |
@@ -216,7 +216,7 @@ Send one raw command, such as SITE CHMOD 644 file.txt, FEAT or SYST, to an FTP o
 
 `ooa.file_transfer/create_folder` (action)
 
-Create a remote folder.
+Create a remote folder, and the folders on its path that are missing (e.g. /in/2026/11).
 
 **Settings**
 

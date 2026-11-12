@@ -25,7 +25,7 @@ Add a comment to an issue, optionally visible only to a project role or group.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Key | `key` | Text | Yes |  | Main | Issue key. |
 | Text | `text` | Text | Yes |  | Main | Comment text. |
 | Visible to role | `visible_to_role` | Text | No |  | More options; choice Who can see it = A project role | Only members of this project role can see the comment. Example: `Administrators` |
@@ -54,7 +54,7 @@ Attach a local file to an issue.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Key | `key` | Text | Yes |  | Main | Issue key. |
 | Path | `path` | File path | Yes |  | Main | File to attach. |
 
@@ -73,7 +73,7 @@ Create an issue and return its key.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project key. Example: `OPS` |
 | Issue type | `issue_type` | Text | No | `Task` | Main | Issue type name, e.g. Task, Bug, Story. |
 | Parent key | `parent_key` | Text | No |  | Main | Parent issue key, for a sub-task. Example: `OPS-12` |
@@ -109,7 +109,7 @@ Permanently delete an issue, optionally with its sub-tasks.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Key | `key` | Text | Yes |  | Main | Issue key. |
 | Delete subtasks | `delete_subtasks` | Yes/No | No | No | Main | Also delete its sub-tasks (required when it has any). |
 
@@ -128,7 +128,7 @@ Read an issue's main fields, and optionally more fields by name.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Key | `key` | Text | Yes |  | Main | Issue key. |
 | Extra fields | `extra_fields` | List | No |  | More options | More fields to return in issue, e.g. ["labels", "duedate", "customfield_10010"]. |
 
@@ -154,7 +154,7 @@ Find issues with a JQL query.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | JQL | `jql` | Text | Yes |  | Main | JQL query. Example: `project = OPS AND status = "To Do" ORDER BY created DESC` |
 | Maximum results | `max_results` | Number | No | `100` | Main | Maximum issues. |
 | Extra fields | `extra_fields` | List | No |  | More options | More fields to add as columns, e.g. ["labels", "duedate", "reporter"]. |
@@ -181,7 +181,7 @@ Move an issue through its workflow by transition name, e.g. In Progress or Done,
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Key | `key` | Text | Yes |  | Main | Issue key. |
 | Transition | `transition` | Text | Yes |  | Main | Transition or target status name. Example: `Done` |
 | Comment | `comment` | Text | No |  | Main | Comment to add with the move. |
@@ -202,7 +202,7 @@ Change fields of an issue, such as summary, priority, labels or assignee.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Key | `key` | Text | Yes |  | Main | Issue key. |
 | Summary | `summary` | Text | No |  | Main | New summary; unchanged when empty. |
 | Description | `description` | Text | No |  | Main | New description; unchanged when empty. |
@@ -230,7 +230,7 @@ Create a project with a key, name, type and project lead.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project key | `project_key` | Text | Yes |  | Main | New project key (upper-case letters and digits). Example: `OPS` |
 | Project name | `project_name` | Text | Yes |  | Main | Project name. |
 | Project type | `project_type` | Text | No | `software` | Main | Project type key. One of: `software`, `business`, `service_desk` |
@@ -261,7 +261,7 @@ Delete a project and the issues in it (Cloud keeps it in the trash for a while).
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project key | `project_key` | Text | Yes |  | Main | Project key. |
 
 *Time limit 60 s; needs: network.*
@@ -279,7 +279,7 @@ List the projects the account can see as a table.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Query | `query` | Text | No |  | Main | Only projects whose key or name contains this text. |
 | Project type | `project_type` | Text | No |  | Main | Only projects of this type. One of: `software`, `business`, `service_desk` |
 | Maximum results | `max_results` | Number | No | `1000` | Main | Maximum projects. |
@@ -307,7 +307,7 @@ Change project details such as its name, lead, description, default assignee or 
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project key | `project_key` | Text | Yes |  | Main | Project key. |
 | Project name | `project_name` | Text | No |  | Main | New name; unchanged when empty. |
 | Project description | `project_description` | Text | No |  | Main | New description; unchanged when empty. |
@@ -333,7 +333,7 @@ Remove a comment from an issue.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Key | `key` | Text | Yes |  | Main | Issue key. |
 | Comment ID | `comment_id` | Text | Yes |  | Main | Comment id, from Get comments. |
 
@@ -352,7 +352,7 @@ List the comments on an issue, oldest first, as a table.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Key | `key` | Text | Yes |  | Main | Issue key. |
 | Maximum results | `max_results` | Number | No | `500` | Main | Maximum comments to read. |
 
@@ -378,7 +378,7 @@ Replace the text of an existing comment.
 | Site address (URL) | `site_url` | Text | Yes |  | Main | Site URL, e.g. https://yourcompany.atlassian.net. |
 | Email | `email` | Text | No |  | Main; choice Sign in with = Cloud email and API token | Account email (Cloud). |
 | API token | `api_token` | Credential (vault) | No |  | Main; choice Sign in with = Cloud email and API token | API token from the vault (Cloud). |
-| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). |
+| Personal access token | `personal_access_token` | Credential (vault) | No |  | Main; choice Sign in with = Data Center access token | Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Key | `key` | Text | Yes |  | Main | Issue key. |
 | Comment ID | `comment_id` | Text | Yes |  | Main | Comment id, from Get comments. |
 | Text | `text` | Text | Yes |  | Main | New comment text. |

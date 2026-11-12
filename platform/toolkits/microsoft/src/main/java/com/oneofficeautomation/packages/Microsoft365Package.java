@@ -17,7 +17,7 @@ import java.util.*;
         description = "Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph.")
 public final class Microsoft365Package {
     static final String P = "M365";
-    private static final String D_TOKEN = "Microsoft Graph access token from the vault.";
+    private static final String D_TOKEN = "Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_BASE = "Graph endpoint; change only for national clouds or testing.";
     private static final String D_MAILBOX = "Mailbox: me, or a user's email address (needs application permission).";
 
@@ -118,9 +118,32 @@ public final class Microsoft365Package {
         return Map.of("table", Values.table(List.of("id", "from", "subject", "received", "unread", "has_attachments"), rows), "count", BigDecimal.valueOf(rows.size()));
     }
 
+    @LoopIterator(id = "emails", name = "Each email in a mailbox (Outlook)",
+            description = "Go through the emails matching the Find emails filters, one per turn: id, from, subject, received, unread, has_attachments, or the whole email.")
+    @SuppressWarnings("unchecked")
+    public Iterable<Object> emails(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = "Folder id or well-known name: inbox, archive, sentitems, deleteditems.") String folder,
+            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = D_FROM) String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
+            @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The oldest emails first instead of the newest.") boolean oldestFirst,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Stop after this many emails.") int max,
+            @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = MailRecord.D_WITH_BODY) boolean withBody,
+            @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        Object table = listMail(ctx, token, folder, unread, from, subject, max, readOnly, since, before, withAtts, oldestFirst, mailbox, base).get("table");
+        return MailRecord.each(MailRecord.rows(table), withBody,
+                row -> (Map<String, Object>) getMail(ctx, token, String.valueOf(row.get("id")), false, false, mailbox, base).get("email"));
+    }
+
     @Action(id = "get_mail", name = "Read email (Outlook)", category = "Mail", capabilities = "network", description = "Read one email's details and body; optionally mark it read.",
             panel = "access_token, id, mark_read, body_as_text | mailbox, base_url")
-    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id.")
+    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> getMail(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id from Find emails.") String id,
@@ -153,8 +176,17 @@ public final class Microsoft365Package {
         e.put("categories", new ArrayList<>(list(m.get("categories"))));
         e.put("conversation_id", m.get("conversationId"));
         e.put("internet_message_id", m.get("internetMessageId"));
+        e.put("unread", !Boolean.TRUE.equals(m.get("isRead")) && !markRead);
+        // the attachments' names, as the other mail services give them (one more request, only when there are some)
+        List<Object> names = new ArrayList<>();
+        if (Boolean.TRUE.equals(m.get("hasAttachments"))) {
+            Map<String, Object> list = HttpJson.req(P, "GET", url + "/attachments?$select=name,isInline").bearer(token).send(ctx).map();
+            if (list.get("value") instanceof List<?> l)
+                for (Object a : l) if (a instanceof Map<?, ?> am && !Boolean.TRUE.equals(am.get("isInline"))) names.add(am.get("name"));
+        }
+        e.put("attachments", names);
         if (markRead && !Boolean.TRUE.equals(m.get("isRead"))) HttpJson.req(P, "PATCH", url).bearer(token).json(Map.of("isRead", true)).send(ctx);
-        return Map.of("email", e);
+        return Map.of("email", MailRecord.withCommonKeys(e));
     }
 
     @Action(id = "save_mail_attachments", name = "Save email attachments (Outlook)", category = "Mail", capabilities = {"network", "filesystem"},
@@ -407,35 +439,64 @@ public final class Microsoft365Package {
     }
 
     @Action(id = "list_events", name = "Get calendar events", category = "Calendar", idempotent = true, capabilities = "network", description = "List events between two dates.",
-            panel = "access_token, from, to, subject_contains | time_zone, calendar_id, mailbox, base_url")
+            panel = "access_token, start, end, subject_contains | max_results, time_zone, calendar, mailbox, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, subject, start, end, location, organizer.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listEvents(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "from", type = OoaType.DATETIME, description = "Start of the period (UTC).") LocalDateTime from,
-            @Input(name = "to", type = OoaType.DATETIME, description = "End of the period (UTC).") LocalDateTime to,
+            @Input(name = "start", type = OoaType.DATETIME, formerNames = "from", description = "Start of the period (UTC).") LocalDateTime from,
+            @Input(name = "end", type = OoaType.DATETIME, formerNames = "to", description = "End of the period (UTC).") LocalDateTime to,
             @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Only events whose title contains this text.") String subject,
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone of the returned start and end times, e.g. Europe/London.") String tz,
-            @Input(name = "calendar_id", type = OoaType.STRING, required = false, description = "Read this calendar instead of the default one.") String calendar,
+            @Input(name = "calendar", type = OoaType.STRING, required = false, formerNames = "calendar_id", description = "Read this calendar instead of the default one.") String calendar,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 0,
+                    description = "At most this many events (0: every event in the period).") int max) {
         String cal = calendar == null || calendar.isBlank() ? "" : "/calendars/" + HttpJson.enc(calendar);
         String url = root(base, mailbox) + cal + "/calendarView?" + HttpJson.query(Map.of("startDateTime", from + "Z", "endDateTime", to + "Z", "$top", 500, "$orderby", "start/dateTime"));
         String zone = tz == null || tz.isBlank() ? "UTC" : tz.replace("\"", "");
         List<Object> rows = new ArrayList<>();
-        for (Object o : (List<?>) HttpJson.req(P, "GET", url).bearer(token).header("Prefer", "outlook.timezone=\"" + zone + "\"").send(ctx).map().getOrDefault("value", List.of())) {
+        // K4 (batch 10): every page of the period (Graph gives at most 500 a page), the subject filter on each
+        pages:
+        while (url != null) {
+            Map<String, Object> page = HttpJson.req(P, "GET", url).bearer(token).header("Prefer", "outlook.timezone=\"" + zone + "\"").send(ctx).map();
+            for (Object o : (List<?>) page.getOrDefault("value", List.of())) {
             Map<?, ?> e = (Map<?, ?>) o;
             if (!anyContains(s(e.get("subject")), subject)) continue;
+            if (max > 0 && rows.size() >= max) { ctx.info("Stopped at " + max + " events (max_results); there are more in the period"); break pages; }
             rows.add(new ArrayList<>(Arrays.asList(e.get("id"), e.get("subject"),
                     e.get("start") instanceof Map<?, ?> s ? s.get("dateTime") : null, e.get("end") instanceof Map<?, ?> en ? en.get("dateTime") : null,
                     e.get("location") instanceof Map<?, ?> l ? l.get("displayName") : null,
                     e.get("organizer") instanceof Map<?, ?> og && og.get("emailAddress") instanceof Map<?, ?> ea ? ea.get("address") : null)));
+            }
+            url = (String) page.get("@odata.nextLink");
         }
-        return Map.of("table", Values.table(List.of("id", "subject", "start", "end", "location", "organizer"), rows));
+        return Map.of("table", Values.table(List.of("id", "subject", "start", "end", "location", "organizer"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
-    private static String drive(String drive, String base) {
-        String d = drive == null || drive.isBlank() ? "me/drive" : drive.replaceAll("^/+|/+$", "");
-        return base.replaceAll("/+$", "") + "/" + d;
+    /** Earlier signature, kept for callers written before max_results (K4, batch 10). */
+    public Map<String, Object> listEvents(ActionContext ctx, Object token, LocalDateTime from, LocalDateTime to, String subject, String tz, String calendar, String mailbox, String base) {
+        return listEvents(ctx, token, from, to, subject, tz, calendar, mailbox, base, 1000);
+    }
+
+    private static String drive(String drive, String base) { return base.replaceAll("/+$", "") + "/" + driveRef(drive); }
+
+    /**
+     * K5 (batch 10): which drive, as builders name it: me/drive, a person (ann@acme.com or users/ann@acme.com), a
+     * SharePoint site's own library (contoso.sharepoint.com:/sites/Finance), a library of a site by its name
+     * (contoso.sharepoint.com:/sites/Finance:/Invoices), or Graph's own forms (sites/{site-id}/drive, drives/{id}).
+     */
+    static String driveRef(String drive) {
+        String d = drive == null || drive.isBlank() ? "me/drive" : drive.strip().replaceAll("^/+|/+$", "");
+        if (d.matches("[^/@\\s]+@[^/@\\s]+")) return "users/" + HttpJson.enc(d) + "/drive";
+        if (d.matches("users/[^/]+")) return d + "/drive";
+        java.util.regex.Matcher site = java.util.regex.Pattern.compile("^(?:sites/)?([A-Za-z0-9.-]+\\.sharepoint\\.(?:com|us|de|cn)):(/[^:]+)(?::/([^:/][^:]*))?$").matcher(d);
+        if (site.matches()) {
+            String root = "sites/" + site.group(1) + ":/" + HttpJson.encPath(site.group(2)) + ":";
+            return site.group(3) == null ? root + "/drive" : root + "/lists/" + HttpJson.enc(site.group(3).strip()) + "/drive";
+        }
+        return d;
     }
 
     /** Query part setting Graph's conflict behaviour, empty for the given default. */
@@ -445,7 +506,8 @@ public final class Microsoft365Package {
         return v.equals(dflt) ? "" : "?@microsoft.graph.conflictBehavior=" + v;
     }
 
-    private static final String D_DRIVE = "me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}.";
+    private static final String D_DRIVE = "Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), "
+            + "a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site.";
 
     public Map<String, Object> upload(ActionContext ctx, Object token, String local, String remote, String ifExists, String drive, String base) {
         return upload(ctx, token, local, remote, ifExists, drive, base, 10);
@@ -588,17 +650,17 @@ public final class Microsoft365Package {
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
-        byte[] data = HttpJson.req(P, "GET", drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":/content").bearer(token).binaryResponse().timeout(600).send(ctx).bytes();
         Path p = ctx.resolvePath(local);
         if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
-        try { if (p.getParent() != null) Files.createDirectories(p.getParent()); Files.write(p, data); }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        // K3 (batch 10): straight to the file, so a file of any size does not pass through memory
+        HttpJson.req(P, "GET", drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":/content").bearer(token).timeout(3600).download(ctx, p);
         return Map.of("path", p.toString());
     }
 
     @Action(id = "list_files", name = "List files (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network", description = "List the files and folders in a drive folder.",
             panel = "access_token, folder | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, type, size, modified, web_url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listFiles(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Folder path; the root when empty.") String folder,
@@ -614,7 +676,7 @@ public final class Microsoft365Package {
             }
             url = (String) page.get("@odata.nextLink");
         }
-        return Map.of("table", Values.table(List.of("id", "name", "type", "size", "modified", "web_url"), rows));
+        return Map.of("table", Values.table(List.of("id", "name", "type", "size", "modified", "web_url"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     public Map<String, Object> teamsMessage(ActionContext ctx, Object token, String team, String channel, String message, boolean html, String subject,
@@ -1485,6 +1547,7 @@ public final class Microsoft365Package {
             description = "List who can open or edit a file or folder, including sharing links.",
             panel = "access_token, item | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, roles, granted_to, link_type, link_scope, link_url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listPermissions(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
@@ -1497,7 +1560,7 @@ public final class Microsoft365Package {
             rows.add(new ArrayList<>(Arrays.asList(p.get("id"), String.join(",", list(p.get("roles")).stream().map(o -> String.valueOf(o)).toList()),
                     String.join(";", who), at(p, "link", "type"), at(p, "link", "scope"), at(p, "link", "webUrl"))));
         }
-        return Map.of("table", Values.table(List.of("id", "roles", "granted_to", "link_type", "link_scope", "link_url"), rows));
+        return Map.of("table", Values.table(List.of("id", "roles", "granted_to", "link_type", "link_scope", "link_url"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     @Action(id = "check_permissions", name = "Check file permission (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network",
@@ -1582,10 +1645,10 @@ public final class Microsoft365Package {
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite) {
-        byte[] data = HttpJson.req(P, "GET", item(drive, base, ref, "/content") + "?format=pdf").bearer(token).binaryResponse().timeout(600).send(ctx).bytes();
         Path p = ctx.resolvePath(local);
         if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
-        return Map.of("path", writeLocal(ctx, p.toString(), data).toString());
+        HttpJson.req(P, "GET", item(drive, base, ref, "/content") + "?format=pdf").bearer(token).timeout(1800).download(ctx, p);
+        return Map.of("path", p.toString());
     }
 
     @Action(id = "restore_version", name = "Restore file version (OneDrive/SharePoint)", category = "Files", capabilities = "network",
@@ -2525,6 +2588,7 @@ public final class Microsoft365Package {
             description = "List the Excel tables in a workbook, or on one worksheet.",
             panel = "access_token, remote_path, [Only one worksheet: sheet] | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, style, show_headers.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> excelListTables(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
@@ -2535,7 +2599,7 @@ public final class Microsoft365Package {
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> t : pages(ctx, token, book(drive, base, remote, path), 0, null))
             rows.add(new ArrayList<>(Arrays.asList(t.get("id"), t.get("name"), t.get("style"), t.get("showHeaders"))));
-        return Map.of("table", Values.table(List.of("id", "name", "style", "show_headers"), rows));
+        return Map.of("table", Values.table(List.of("id", "name", "style", "show_headers"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     @Action(id = "excel_create_table", name = "Create table (Excel online)", category = "Excel online", capabilities = "network",
@@ -2642,9 +2706,34 @@ public final class Microsoft365Package {
         List<Object> g = tableMatrix(table, headers);
         if (g.isEmpty() || list(g.get(0)).isEmpty()) throw new ActionException(P + ".NO_VALUES", "The Data Table is empty", "Check that the table has columns and rows.");
         String address = spanFrom(start, g);
-        HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet) + rangePath(address))).bearer(token).json(Map.of("values", g)).send(ctx);
+        int cols = list(g.get(0)).size();
+        int block = Math.max(1, cellsPerRequest / cols);
+        if (g.size() <= block) {
+            HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet) + rangePath(address))).bearer(token).json(Map.of("values", g)).send(ctx);
+            return Map.of("address", address);
+        }
+        // K3 (batch 10): a large table goes in blocks of rows (Graph limits a request's size), inside one workbook
+        // session so the blocks are saved together and the workbook is not reopened for each
+        String session = Values.text(HttpJson.req(P, "POST", book(drive, base, remote, "/workbook/createSession")).bearer(token)
+                .json(Map.of("persistChanges", true)).send(ctx).map().get("id"));
+        int[] s0 = cell(start.split(":")[0]);
+        try {
+            for (int from = 0; from < g.size(); from += block) {
+                List<Object> part = g.subList(from, Math.min(g.size(), from + block));
+                String at = spanFrom(colName(s0[0]) + (s0[1] + from), part);
+                HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet) + rangePath(at))).bearer(token).header("workbook-session-id", session)
+                        .json(Map.of("values", part)).timeout(300).send(ctx);
+                ctx.info("Wrote rows " + (from + 1) + " to " + (from + part.size()) + " of " + g.size());
+            }
+        } finally {
+            try { HttpJson.req(P, "POST", book(drive, base, remote, "/workbook/closeSession")).bearer(token).header("workbook-session-id", session).json(Map.of()).send(ctx); }
+            catch (ActionException ignored) { /* the session ends by itself after a few minutes */ }
+        }
         return Map.of("address", address);
     }
+
+    /** Cells written in one request by Write Data Table (Graph refuses large requests; tests make it smaller). */
+    static int cellsPerRequest = 20_000;
 
     // ------------------------------------------ Calendar -----------------------------------------
 
@@ -2896,15 +2985,15 @@ public final class Microsoft365Package {
 
     @Action(id = "find_meeting_times", name = "Find free meeting times", category = "Calendar", idempotent = true, capabilities = "network",
             description = "Suggest time slots in a period when the attendees are free for a meeting of the given length.",
-            panel = "access_token, attendees, duration_minutes, from, to | include_outside_working_hours, time_zone, max_results, mailbox, base_url")
+            panel = "access_token, attendees, duration_minutes, start, end | include_outside_working_hours, time_zone, max_results, mailbox, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: start, end, confidence, organizer_availability.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of suggestions.")
     @Output(name = "reason", type = OoaType.STRING, description = "Why there are no suggestions, when there are none.")
     public Map<String, Object> findMeetingTimes(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "attendees", description = "Attendee address(es).") Object attendees,
-            @Input(name = "from", type = OoaType.DATETIME, description = "Start of the search period.") LocalDateTime from,
-            @Input(name = "to", type = OoaType.DATETIME, description = "End of the search period.") LocalDateTime to,
+            @Input(name = "start", type = OoaType.DATETIME, formerNames = "from", description = "Start of the search period.") LocalDateTime from,
+            @Input(name = "end", type = OoaType.DATETIME, formerNames = "to", description = "End of the search period.") LocalDateTime to,
             @Input(name = "duration_minutes", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Meeting length in minutes.") int minutes,
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone of from, to and the results.") String tz,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "Most suggestions.") int max,
@@ -2951,13 +3040,14 @@ public final class Microsoft365Package {
             description = "List the Microsoft Teams teams the user belongs to.",
             panel = "access_token, user | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listTeams(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = "me, or a user's id or email address.") String user,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> t : joinedTeams(ctx, token, base, user)) rows.add(new ArrayList<>(Arrays.asList(t.get("id"), t.get("displayName"), t.get("description"))));
-        return Map.of("table", Values.table(List.of("id", "name", "description"), rows));
+        return Map.of("table", Values.table(List.of("id", "name", "description"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     @Action(id = "get_team_by_name", name = "Get team by name (Teams)", category = "Teams", idempotent = true, capabilities = "network",
@@ -2976,6 +3066,7 @@ public final class Microsoft365Package {
             description = "List the channels of a team.",
             panel = "access_token, team_id | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description, membership_type.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listChannels(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
@@ -2983,7 +3074,7 @@ public final class Microsoft365Package {
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> c : channels(ctx, token, base, team))
             rows.add(new ArrayList<>(Arrays.asList(c.get("id"), c.get("displayName"), c.get("description"), c.get("membershipType"))));
-        return Map.of("table", Values.table(List.of("id", "name", "description", "membership_type"), rows));
+        return Map.of("table", Values.table(List.of("id", "name", "description", "membership_type"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     public Map<String, Object> channelByName(ActionContext ctx, Object token, String team, String name, String base) {
@@ -3132,6 +3223,7 @@ public final class Microsoft365Package {
             description = "List the lists and libraries of a SharePoint site.",
             panel = "access_token, site | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, display_name, template, web_url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listLists(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
@@ -3139,13 +3231,13 @@ public final class Microsoft365Package {
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> l : pages(ctx, token, site(base, site) + "/lists", 0, null))
             rows.add(new ArrayList<>(Arrays.asList(l.get("id"), l.get("name"), l.get("displayName"), at(l, "list", "template"), l.get("webUrl"))));
-        return Map.of("table", Values.table(List.of("id", "name", "display_name", "template", "web_url"), rows));
+        return Map.of("table", Values.table(List.of("id", "name", "display_name", "template", "web_url"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     @Action(id = "get_list_items", name = "Get SharePoint list items", category = "SharePoint", idempotent = true, capabilities = "network",
             description = "Read the items of a SharePoint list as a Data Table, optionally filtered and limited to some columns.",
-            panel = "access_token, site, list, [Filter the items: filter], columns | max_results, base_url")
-    @Output(name = "table", type = OoaType.TABLE, description = "Column id, then one column per list field.")
+            panel = "access_token, site, list, [Filter the items: filter], columns, use_display_names | max_results, base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Column id, then one column per list field (named as people see them when use_display_names is on).")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of items.")
     public Map<String, Object> getListItems(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -3154,7 +3246,21 @@ public final class Microsoft365Package {
             @Input(name = "filter", type = OoaType.STRING, required = false, example = "fields/Status eq 'Open'", description = "OData filter on fields, e.g. fields/Status eq 'Open'.") String filter,
             @Input(name = "columns", type = OoaType.LIST, required = false, description = "Field names to return; all when empty.") List<Object> columns,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Maximum items.") int max,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "use_display_names", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Name the table's columns as people see them in SharePoint (Status, not Status0 or field_1); columns may then be given that way too.") boolean display) {
+        // K7 (batch 10): SharePoint's internal column names (field_1, Status0) as people see them, and back
+        Map<String, String> label = new LinkedHashMap<>(), internal = new HashMap<>();
+        if (display)
+            for (Map<String, Object> c : pages(ctx, token, spList(base, site, list) + "/columns?$select=name,displayName", 5000, null)) {
+                label.put(Values.text(c.get("name")), Values.text(c.get("displayName")));
+                internal.put(Values.text(c.get("displayName")).toLowerCase(Locale.ROOT), Values.text(c.get("name")));
+            }
+        if (display && columns != null) {
+            List<Object> named = new ArrayList<>();
+            for (Object c : columns) named.add(internal.getOrDefault(Values.text(c).toLowerCase(Locale.ROOT), Values.text(c)));
+            columns = named;
+        }
         Map<String, Object> q = new LinkedHashMap<>();
         boolean pick = columns != null && !columns.isEmpty();
         q.put("$expand", pick ? "fields($select=" + String.join(",", columns.stream().map(Values::text).toList()) + ")" : "fields");
@@ -3173,7 +3279,14 @@ public final class Microsoft365Package {
             for (String c : cols) row.add(c.equals("id") ? it.get("id") : f.get(c));
             rows.add(row);
         }
-        return Map.of("table", Values.table(new ArrayList<>(cols), rows), "count", num(rows.size()));
+        List<String> names = new ArrayList<>();
+        for (String c : cols) names.add(display && !c.equals("id") ? label.getOrDefault(c, c) : c);
+        return Map.of("table", Values.table(names, rows), "count", num(rows.size()));
+    }
+
+    /** Earlier signature, kept for callers written before use_display_names (K7, batch 10). */
+    public Map<String, Object> getListItems(ActionContext ctx, Object token, String site, String list, String filter, List<Object> columns, int max, String base) {
+        return getListItems(ctx, token, site, list, filter, columns, max, base, false);
     }
 
     @Action(id = "create_list_item", name = "Create SharePoint list item", category = "SharePoint", capabilities = "network",

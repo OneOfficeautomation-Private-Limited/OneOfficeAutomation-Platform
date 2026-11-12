@@ -50,6 +50,9 @@ dependencies {
     testRuntimeOnly(project(":adapters-jackson"))
     // in-memory SMTP/IMAP server for the email sample tasks (CommandSamplesTest)
     testImplementation("com.icegreen:greenmail:2.1.2")
+    testImplementation("org.apache.sshd:sshd-core:2.14.0")   // in-process SSH host for the terminal command samples (T3)
+    testImplementation("org.apache.sshd:sshd-sftp:2.14.0")   // and SFTP on it, for the file transfer samples (S1)
+    testImplementation("org.apache.ftpserver:ftpserver-core:1.2.0")   // in-process FTP server for the file transfer samples (S1)
     // in-memory LDAP directory for the Active Directory sample tasks
     testImplementation("com.unboundid:unboundid-ldapsdk:7.0.1")
     // in-memory database for the database sample tasks
@@ -114,9 +117,9 @@ tasks.named<CreateStartScripts>("startScripts") {
 }
 
 // the sample tasks run whole agents (browser, OCR on screen images, mail and directory servers) in the test JVM
-// 3g since the gap branches were merged (665 samples): the cases with child agents or credentials each build their
-// own registry, and about 100 of them stay reachable until the test class ends (a registry and a runner on their own
-// are freed, so it is something these cases' toolkits keep; see MERGE-1 in the gap tracker)
+// 3g since the gap branches were merged (665 samples). The cases with child agents or credentials used to build their
+// own registry each, and about 100 stayed reachable until the class ended (MERGE-1); since 12 Nov 2026 every case
+// shares one registry (CommandSamplesTest.registry()), as the mail samples of batch 7 took the JVM past 3g
 tasks.named<Test>("test") {
     maxHeapSize = "3g"
     // the whole-product tests read the repository itself (module map, every module's sources, docs, installer, CI

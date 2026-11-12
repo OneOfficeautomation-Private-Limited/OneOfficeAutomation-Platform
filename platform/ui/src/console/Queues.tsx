@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ItemModel, RunnerPool, WorkItem, WorkQueue } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 
 /**
  * Manage > Work queues, built as AA's Workload queues (checked against AA's docs, UiPath's queues and Blue Prism's work
@@ -228,7 +228,7 @@ function QueueView({ api, id, version, can, poolName, onClose, onNotice, onEdit 
   useEffect(() => { const t = setTimeout(load, 200); return () => clearTimeout(t); }, [load]);
   useEffect(() => { const t = setInterval(() => { if (!sub) load(); }, 10_000); return () => clearInterval(t); }, [load, sub]);
   const act = (fn: () => Promise<unknown>, done: string) => fn().then(() => { if (done) onNotice(done); setSelected([]); setSub(null); load(); }, (e) => setError(message(e)));
-  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the work queues" onClick={onClose}>×</button>;
+  const close = <CloseView onClick={onClose} to="the work queues" />;
   if (!x) return <div className="cc-agent" role="dialog" aria-modal="false" aria-label="Work queue"><div className="cc-agent-head"><h1>Work queue</h1><span className="ov-fill" />{close}</div>
     {error ? <p className="st-alert" role="alert">{error}</p> : <p className="cc-none cc-agent-pad" role="status">Loading…</p>}</div>;
   const work = can("queues.work"), manage = can("queues.manage");

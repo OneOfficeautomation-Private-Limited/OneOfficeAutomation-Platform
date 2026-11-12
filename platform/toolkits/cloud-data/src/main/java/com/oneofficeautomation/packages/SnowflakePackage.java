@@ -21,7 +21,7 @@ public final class SnowflakePackage {
     private static final Pattern HANDLE = Pattern.compile("^[0-9A-Za-z-]{16,64}$");
     private static final Pattern PLAIN_IDENT = Pattern.compile("^[A-Za-z_][A-Za-z0-9_$]*$");
     private static final String D_URL = "Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com.";
-    private static final String D_TOKEN = "Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token.";
+    private static final String D_TOKEN = "Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_TOKEN_TYPE = "Kind of token in the vault: OAUTH, KEYPAIR_JWT or PROGRAMMATIC_ACCESS_TOKEN.";
     private static final String D_ROLE = "Role to run as. Leave empty for the user's default role.";
     private static final String D_WH = "Warehouse that runs the query. Leave empty for the user's default warehouse.";
@@ -231,7 +231,7 @@ public final class SnowflakePackage {
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
             @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", description = "How long to wait for the statement to finish before returning with status running.") int wait,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Most rows to bring back into the table.") int max,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         Result r = waitFor(ctx, account, token, tokenType, submit(ctx, account, token, tokenType, sql, binds, warehouse, database, schema, role, Math.max(wait, 0) + 3600), wait);
         if (r.running())
@@ -252,7 +252,7 @@ public final class SnowflakePackage {
     public Map<String, Object> status(ActionContext ctx,
             @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "statement_handle", type = OoaType.STRING, description = "Handle from Run SQL statement.") String h,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         try {
             Result r = poll(ctx, account, token, tokenType, h, null);
@@ -270,7 +270,7 @@ public final class SnowflakePackage {
     public Map<String, Object> cancel(ActionContext ctx,
             @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "statement_handle", type = OoaType.STRING, description = "Handle from Run SQL statement.") String h,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         req("POST", api(account) + "/" + handle(h) + "/cancel", token, tokenType).send(ctx);
         return Map.of();
@@ -286,7 +286,7 @@ public final class SnowflakePackage {
             @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "statement_handle", type = OoaType.STRING, description = "Handle from Run SQL statement.") String h,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Most rows to bring back.") int max,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         Result r = poll(ctx, account, token, tokenType, h, null);
         if (r.running()) throw new ActionException(P + ".STILL_RUNNING", "The statement is still running", "Wait, then try again, or check it with Get statement status.", true);
@@ -316,7 +316,7 @@ public final class SnowflakePackage {
             @Input(name = "schema", type = OoaType.STRING, required = false, description = "Schema to use for names that are not fully written out.") String schema,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
             @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = "How long to wait for the statement to finish.") int wait,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         String fmt = format == null || format.isBlank() ? "csv" : format.strip().toLowerCase(Locale.ROOT);
         if (!List.of("csv", "tsv", "json_lines").contains(fmt)) throw new ActionException(P + ".BAD_FORMAT", "Unknown format '" + format + "'", "Use csv, tsv or json_lines.");
@@ -379,7 +379,7 @@ public final class SnowflakePackage {
     public Map<String, Object> listDatabases(ActionContext ctx,
             @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         return show(ctx, account, token, tokenType, role, "SHOW DATABASES");
     }
@@ -393,7 +393,7 @@ public final class SnowflakePackage {
             @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "database", type = OoaType.STRING, description = "Database to look in.") String database,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         return show(ctx, account, token, tokenType, role, "SHOW SCHEMAS IN DATABASE " + ident(database));
     }
@@ -408,7 +408,7 @@ public final class SnowflakePackage {
             @Input(name = "database", type = OoaType.STRING, description = "Database to look in.") String database,
             @Input(name = "schema", type = OoaType.STRING, description = "Schema to look in, e.g. PUBLIC.") String schema,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         return show(ctx, account, token, tokenType, role, "SHOW TABLES IN SCHEMA " + ident(database) + "." + ident(schema));
     }
@@ -422,7 +422,7 @@ public final class SnowflakePackage {
             @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "table_name", type = OoaType.STRING, example = "SALES.PUBLIC.ORDERS", description = "Table, written as DATABASE.SCHEMA.TABLE.") String table,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         return show(ctx, account, token, tokenType, role, "DESCRIBE TABLE " + qualified(table));
     }
@@ -435,7 +435,7 @@ public final class SnowflakePackage {
     public Map<String, Object> listWarehouses(ActionContext ctx,
             @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         return show(ctx, account, token, tokenType, role, "SHOW WAREHOUSES");
     }
@@ -455,7 +455,7 @@ public final class SnowflakePackage {
             @Input(name = "database", type = OoaType.STRING, required = false, description = "Database of the table when table_name has no database.") String database,
             @Input(name = "schema", type = OoaType.STRING, required = false, description = "Schema of the table when table_name has no schema.") String schema,
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
-            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
         List<String> cols = DataTablePackage.cols(data);
         List<List<Object>> rows = DataTablePackage.rows(data);

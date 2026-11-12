@@ -1,3 +1,4 @@
+import { SignInFields, type SignInBags } from "../studio/SignInFields";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConnectionKind, CrApi, CrUser, SavedConnection } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
@@ -109,9 +110,14 @@ function ConnectionForm({ api, c, kinds, onClose, onSaved }: { api: CrApi; c: Sa
   const [v, setV] = useState<Record<string, string>>(() => Object.fromEntries([...Object.entries(c?.values ?? {}).map(([n, x]) => [n, String(x)]), ...Object.entries(c?.credentials ?? {})]));
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
+  // A1: the sign-in that renews the access token, kept with sign_in_ names next to the toolkit's own settings
+  const [signIn, setSignIn] = useState<SignInBags>(() => ({
+    values: Object.fromEntries(Object.entries(c?.values ?? {}).filter(([n]) => n.startsWith("sign_in_"))),
+    credentials: Object.fromEntries(Object.entries(c?.credentials ?? {}).filter(([n]) => n.startsWith("sign_in_"))) }));
   const save = () => {
     const values: Record<string, string> = {}, credentials: Record<string, string> = {};
     for (const i of k?.inputs ?? []) { const x = (v[i.name] ?? "").trim(); if (x) (i.credential ? credentials : values)[i.name] = x; }
+    if (k?.sign_in) { for (const [n, x] of Object.entries(signIn.values)) values[n] = String(x); Object.assign(credentials, signIn.credentials); }
     api.saveConnection(name.trim(), { package: pkg, description: description.trim(), values, credentials }).then(() => onSaved("Saved the connection " + name.trim() + "."), (e) => setError(message(e)));
   };
   return (
@@ -132,6 +138,9 @@ function ConnectionForm({ api, c, kinds, onClose, onSaved }: { api: CrApi; c: Sa
       {k ? <div className="cc-grid2">{k.inputs.map((i) => <Field key={i.name} label={i.name + (i.credential ? " (vault reference)" : "")}>{(id) =>
         <TextInput id={id} value={v[i.name] ?? ""} placeholder={i.credential ? "vault folder/credential/attribute" : i.description ?? ""} title={i.description} onChange={(e) => setV({ ...v, [i.name]: e.target.value })} />}</Field>)}</div>
         : <p className="st-muted">No toolkit takes a connection.</p>}
+      {k?.sign_in && <><h3 className="cc-log-title">Sign-in that renews itself</h3>
+        <SignInFields bags={signIn} onChange={setSignIn} />
+        <p className="cc-list-hint">With a sign-in, leave access_token empty: the runner gets the token when a step needs it and renews it before it runs out.</p></>}
       <p className="cc-list-hint">Leave a setting empty to set it on each step instead. Secrets are read from the vault when the agent runs, as the person it runs as.</p>
     </Dialog>
   );

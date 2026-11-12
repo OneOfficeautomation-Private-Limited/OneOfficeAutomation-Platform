@@ -3,7 +3,7 @@ import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFol
 import type { FlowStep } from "../api/client";
 import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
 import { Analysis, ColumnsDialog, PUBLIC_COLUMNS, PUBLIC_HIDDEN, PUBLIC_HIDDEN_KEY, sizeText } from "../studio/columns";
 
@@ -54,12 +54,12 @@ const HELP: HelpTopic = { title: "Automation",
 
 const HELP_AGENT: HelpTopic = { title: "Agent",
   about: "One agent, workflow or form: its steps, inputs, versions, runs and dependencies. Everything here is read-only; to change the agent, "
-    + "Edit checks it out to your Private workspace, where you change it and check it in.",
+    + "Edit checks it out to your Private workspace in One AgentStudio, where you change it and check it in. Close (or Escape) goes back to the folder.",
   items: [
     { name: "Steps", text: "Every line of the chosen version. Pick a line to see its settings at the right; Find in the steps marks matching lines, and "
       + "Open all or Close all unfolds or folds blocks." },
-    { name: "Inputs and details", text: "Where the agent is, its live and latest versions, who changed it last, your access, and the inputs and outputs of "
-      + "the live version." },
+    { name: "Inputs and details", text: "Where the agent is, its live and latest versions, who changed it last and your access; then the inputs and "
+      + "outputs of the version you pick (the live one first)." },
     { name: "Versions", text: "Every checked-in version with its comment, author and labels. Tick two and press Compare to see what changed line by line." },
     { name: "Make live", text: "Makes a version the one that runs; runners, schedules and triggers use it from their next run. "
       + "When approval is on, Ask to make live sends it to someone else to approve." },
@@ -67,8 +67,12 @@ const HELP_AGENT: HelpTopic = { title: "Agent",
     { name: "Runs and Dependencies", text: "The latest runs of the agent, and the agents it calls, the agents that call it and the toolkits it uses." },
     { name: "Findings", text: "What code analysis found in the agent, measured against the rules set in Manage, Code analysis." },
     { name: "Run", text: "Runs the live version on a runner or pool with its inputs; follow it in Agent Activity." },
-    { name: "Move…, Copy… and Delete…", text: "In the ⋯ menu: move the agent to another folder, copy its latest version as a new agent, or delete it. "
-      + "Deleted agents can be recovered." },
+    { name: "Copy to Private… and Clone to Private", text: "In the ⋯ menu. Copy makes a new agent of your own from the latest version, in your "
+      + "Private workspace; Clone makes a read-only copy there to look at, which follows the repository. Both open One AgentStudio. "
+      + "Copies are never made here, in the repository." },
+    { name: "Move… and Delete…", text: "Move takes the agent to another folder (administrators; builders move agents in Private before checking "
+      + "them in). Delete asks for an optional reason for the audit log and is refused while a schedule, trigger, queue or other agent uses "
+      + "the agent. Deleted agents can be recovered." },
     { name: "Undo check-out", text: "Releases the agent when the person who checked it out will not check it in. Shown to that person and to those who may "
       + "make versions live." },
   ] };
@@ -303,13 +307,17 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
   const [versions, setVersions] = useState<RepoVersion[] | null>(null);
   const [picks, setPicks] = useState<number[]>([]);
   const [diff, setDiff] = useState<null | { a: number; b: number; lines: [string, string][]; added: number; removed: number }>(null);
-  const [ask, setAsk] = useState<null | { kind: "label" | "live" | "move" | "copy" | "delete"; version?: number }>(null);
+  const [ask, setAsk] = useState<null | { kind: "label" | "live" | "move" | "delete"; version?: number }>(null);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const loadVersions = useCallback(() => api.agentVersions(a.path).then(setVersions, (e) => setError(message(e))), [api, a.path]);
+  // Inputs and details show the inputs of any version (item 23): the live one first, else the latest
+  const [ioVersion, setIoVersion] = useState<number>(a.production_version ?? a.latest_version);
   useEffect(() => {
-    if (a.production_version) api.agentFlow(a.path, "production").then((r) => setVars(r.flow.variables ?? []), () => setVars([]));
-    else setVars([]);
+    setVars(null);
+    api.agentFlow(a.path, ioVersion).then((r) => setVars(r.flow.variables ?? []), () => setVars([]));
+  }, [api, a.path, ioVersion]);
+  useEffect(() => {
     api.dependencies(a.path).then(setDeps, () => {});
     if (can("runs.view")) api.runs({ limit: "8", bot: a.path }).then((r) => setRuns(r.runs), () => {});
     loadVersions();
@@ -329,8 +337,7 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
     if (ask.kind === "live") api.setProduction(a.path, v, approvalOn ? text.trim() : undefined)
       .then((r) => onDone(r.production_request ? "Sent v" + v + " of " + agentName(a.path) + " for approval." : "v" + v + " of " + agentName(a.path) + " is live."), fail);
     if (ask.kind === "move") api.moveAgent(a.path, text).then((r) => onDone("Moved to " + r.path + "."), fail);
-    if (ask.kind === "copy") api.copyAgent(a.path, text.trim() + a.path.slice(a.path.search(/\.(flow|process|form)\.json$/))).then((r) => onDone("Copied to " + agentName(r.path ?? text) + "."), fail);
-    if (ask.kind === "delete") api.deleteAgent(a.path).then((r) => onDone("Deleted " + agentName(a.path) + "." + (r.called_by?.length ? " " + r.called_by.map(agentName).join(", ") + " still call it." : "")), fail);
+    if (ask.kind === "delete") api.deleteAgent(a.path, text.trim()).then(() => onDone("Deleted " + agentName(a.path) + ". It can be recovered from Deleted agents."), fail);
   };
   const inputs = (vars ?? []).filter((v) => v.direction === "input" || v.direction === "in_out");
   const outputs = (vars ?? []).filter((v) => v.direction === "output" || v.direction === "in_out");
@@ -342,11 +349,16 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
   const pick = picked ? rows.find((r) => r.kind === "step" && r.step.id === picked) : undefined;
   const sel = pick?.kind === "step" ? pick.step : null;
   const crumbs = folderOf(a.path) ? folderOf(a.path).split("/") : [];
+  // as AA (item 21, 9 Nov 2026): the repository is for running and versions. Copies and clones are made in the
+  // builder's Private workspace (One AgentStudio); moving a single agent here is for administrators.
+  const toStudio = (act: "checkout" | "clone" | "copy") => "../studio/#public/" + act + "/" + encodeURIComponent(a.path);
   const more = [
-    ...(can("repo.checkin") && editable ? [{ key: "move", label: "Move…", onSelect: () => { setText(folderOf(a.path)); setAsk({ kind: "move" }); } }] : []),
-    ...(can("repo.checkin") ? [{ key: "copy", label: "Copy…", onSelect: () => { setText((folderOf(a.path) ? folderOf(a.path) + "/" : "") + agentName(a.path) + " (copy)"); setAsk({ kind: "copy" }); } }] : []),
+    ...(studio && can("repo.checkin") ? [
+      { key: "copy", label: "Copy to Private…", description: "A new agent of your own, in One AgentStudio", onSelect: () => { location.href = toStudio("copy"); } },
+      { key: "clone", label: "Clone to Private", description: "A read-only copy to look at; it follows the repository", onSelect: () => { location.href = toStudio("clone"); } }] : []),
+    ...(can("repo.production") && editable ? [{ key: "move", label: "Move…", description: "Administrators: to another folder of the repository", onSelect: () => { setText(folderOf(a.path)); setAsk({ kind: "move" }); } }] : []),
     ...(a.locked_by && (a.locked_by === user.username || can("repo.production")) ? [{ key: "undo", label: "Undo check-out", onSelect: () => { api.undoCheckout(a.path).then(() => onDone("Undid the check-out of " + agentName(a.path) + "."), fail); } }] : []),
-    ...(can("repo.delete") && editable ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => setAsk({ kind: "delete" }) }] : []),
+    ...(can("repo.delete") && editable ? [{ key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => { setText(""); setAsk({ kind: "delete" }); } }] : []),
   ];
   const TABS: [typeof tab, string][] = [["steps", "Steps" + (flow ? " (" + rows.filter((r) => r.kind === "step").length + ")" : "")], ["about", "Inputs and details"],
     ["versions", "Versions" + (versions ? " (" + versions.length + ")" : "")], ["runs", "Runs" + (runs.length ? " (" + runs.length + ")" : "")], ["deps", "Dependencies"],
@@ -354,7 +366,8 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
   return (
     <div className="cc-agent" role="dialog" aria-modal="false" aria-label={agentName(a.path)}>
       <div className="cc-agent-head">
-        <span className="cc-crumbs-path"><button type="button" className="cc-link" onClick={() => onFolder("")}>Automation</button>
+        <span className="cc-crumbs-path"><button type="button" className="cc-link cc-back" onClick={onClose} title="Back to the folder">‹ Back</button>
+          <button type="button" className="cc-link" onClick={() => onFolder("")}>Automation</button>
           {crumbs.map((c, i) => <span key={i}> › <button type="button" className="cc-link" onClick={() => onFolder(crumbs.slice(0, i + 1).join("/"))}>{c}</button></span>)} ›</span>
         <h1>{agentName(a.path)}</h1>
         <HelpButton topic={HELP_AGENT} />
@@ -362,23 +375,24 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
         <span className="cc-none">{a.locked_by ? "Checked out by " + a.locked_by : "Checked in"} · latest v{a.latest_version}</span>
         <span className="ov-fill" />
         {can("runs.start") && a.production_version && kind === "Workflow" && <a className="ui-btn ui-btn-secondary cc-btn-link" href="#/workflows">Start in Workflow</a>}
-        {studio && can("repo.checkin") && <a className="ui-btn ui-btn-secondary cc-btn-link" href="../studio/#public" title="Check the agent out to your Private workspace, then change it there">Edit</a>}
+        {studio && can("repo.checkin") && <a className="ui-btn ui-btn-secondary cc-btn-link" href={toStudio("checkout")}
+          title={a.locked_by && a.locked_by !== user.username ? "Checked out by " + a.locked_by + ": One AgentStudio offers Clone or Copy to Private instead" : "Check this agent out to your Private workspace in One AgentStudio, change it there, then check it in"}>Edit</a>}
         {can("runs.start") && a.production_version && kind === "Agent" && <Button kind="primary" onClick={onRun}>Run</Button>}
         {more.length > 0 && <RowMenu label={"More for " + agentName(a.path)} items={more} />}
-        <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the folder" onClick={onClose}>×</button>
+        <CloseView onClick={onClose} to="the folder" />
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {ask && <div className="st-alert cc-inline" role="alert">
-        {ask.kind === "delete" && <span>Delete {agentName(a.path)}? It is no longer listed and cannot run; its versions are kept and it can be recovered from Deleted agents.</span>}
+        {ask.kind === "delete" && <><span>Delete {agentName(a.path)}? It is no longer listed and cannot run; its versions are kept and it can be recovered from Deleted agents.</span>
+          <Field label="Reason (optional, kept in the audit log)">{(id) => <TextInput id={id} value={text} onChange={(e) => setText(e.target.value)} />}</Field></>}
         {ask.kind === "label" && <Field label={"Label for v" + ask.version + " (moves from the version that has it)"}>{(id) => <TextInput id={id} value={text} placeholder="UAT" onChange={(e) => setText(e.target.value)} />}</Field>}
         {ask.kind === "live" && (approvalOn
           ? <Field label={"Ask for v" + ask.version + " to go live: what changed, for the approver"}>{(id) => <TextInput id={id} value={text} onChange={(e) => setText(e.target.value)} />}</Field>
           : <span>Make v{ask.version} the live version? Runners, schedules and triggers use it from their next run.</span>)}
         {ask.kind === "move" && <Field label="Move to folder">{(id) => <Select id={id} value={text} onChange={(e) => setText(e.target.value)}
           options={[{ value: "", label: "(top)" }, ...folders.map((f) => ({ value: f.path, label: f.path }))]} />}</Field>}
-        {ask.kind === "copy" && <Field label="New name, with its folder (the latest version becomes v1 of a new agent)">{(id) => <TextInput id={id} value={text} onChange={(e) => setText(e.target.value)} />}</Field>}
-        <Button kind={ask.kind === "delete" ? "danger" : "primary"} disabled={["label", "copy"].includes(ask.kind) && !text.trim()} onClick={confirm}>
-          {{ delete: "Delete", label: "Save label", live: approvalOn ? "Ask" : "Make live", move: "Move", copy: "Copy" }[ask.kind]}</Button>
+        <Button kind={ask.kind === "delete" ? "danger" : "primary"} disabled={ask.kind === "label" && !text.trim()} onClick={confirm}>
+          {{ delete: "Delete", label: "Save label", live: approvalOn ? "Ask" : "Make live", move: "Move" }[ask.kind]}</Button>
         <Button kind="plain" onClick={() => setAsk(null)}>Cancel</Button>
       </div>}
       <div className="ov-tabs cc-list-tabs cc-agent-tabs" role="tablist" aria-label="About this agent">
@@ -441,26 +455,41 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
       <div className="cc-agent-tab" hidden={tab === "steps"}>
       {tab === "about" && <>
       {a.description && <p>{a.description}</p>}
-      <dl className="cc-facts cc-facts-wide">
-        <dt>Kind</dt><dd>{kind}</dd><dt>Folder</dt><dd>{folderOf(a.path) || "(top)"}</dd>
-        <dt>Live</dt><dd>{a.production_version ? "v" + a.production_version : "Not live yet"}</dd><dt>Latest</dt><dd>v{a.latest_version}</dd>
-        <dt>Status</dt><dd>{a.locked_by ? "Checked out by " + a.locked_by : "Checked in"}</dd><dt>Updated</dt><dd>{when(a.updated)}{a.updated_by ? " by " + a.updated_by : ""}</dd>
-        {a.bot_id && <><dt>Agent id</dt><dd className="ui-mono">{a.bot_id}</dd></>}<dt>Your access</dt><dd>{a.access ?? ""}</dd>
-      </dl>
-      {a.production_version ? <>
-        <h3 className="cc-log-title">Inputs of the live version</h3>
-        {inputs.length ? <table className="st-table" aria-label="Inputs"><tbody>{inputs.map((v) => <tr key={v.name}><td className="ui-mono">{v.name}</td><td>{v.type}</td><td>{v.required ? "Required" : ""}</td><td>{v.description ?? ""}</td></tr>)}</tbody></table>
-          : <p className="st-muted">{vars ? "No inputs." : "Loading…"}</p>}
-        {outputs.length > 0 && <><h3 className="cc-log-title">Outputs</h3>
-          <table className="st-table" aria-label="Outputs"><tbody>{outputs.map((v) => <tr key={v.name}><td className="ui-mono">{v.name}</td><td>{v.type}</td><td>{v.description ?? ""}</td></tr>)}</tbody></table></>}
-      </> : null}
+      <section className="cc-card cc-details" aria-label="Details">
+        <h3 className="cc-log-title">Details</h3>
+        <dl className="cc-facts cc-facts-wide">
+          <dt>Kind</dt><dd>{kind}</dd><dt>Folder</dt><dd>{folderOf(a.path) || "(top)"}</dd>
+          <dt>Status</dt><dd>{a.locked_by ? "Checked out by " + a.locked_by : "Checked in"}</dd><dt>Live version</dt><dd>{a.production_version ? "v" + a.production_version : "Not live yet"}</dd>
+          <dt>Latest version</dt><dd>v{a.latest_version}</dd><dt>Updated</dt><dd>{when(a.updated)}{a.updated_by ? " by " + a.updated_by : ""}</dd>
+          {a.bot_id && <><dt>Agent id</dt><dd className="ui-mono">{a.bot_id}</dd></>}<dt>Your access</dt><dd>{a.access ?? ""}</dd>
+        </dl>
+      </section>
+      <div className="cc-bar">
+        <h3 className="cc-log-title">Inputs and outputs</h3>
+        <label className="cc-inline-field">Version <select className="ui-input" value={ioVersion} onChange={(e) => setIoVersion(Number(e.target.value))}>
+          {Array.from({ length: a.latest_version }, (_, i) => a.latest_version - i).map((v) => <option key={v} value={v}>v{v}{v === a.production_version ? " (live)" : v === a.latest_version ? " (latest)" : ""}</option>)}
+        </select></label>
+      </div>
+      <table className="st-table" aria-label="Inputs">
+        <thead><tr><th scope="col">Input</th><th scope="col">Type</th><th scope="col">Required</th><th scope="col">Default</th><th scope="col">Description</th></tr></thead>
+        <tbody>{vars === null ? <tr className="is-static"><td colSpan={5} className="cc-none">Loading…</td></tr>
+          : inputs.length ? inputs.map((v) => <tr key={v.name} className="is-static"><td className="ui-mono">{v.name}</td><td>{v.type}</td><td>{v.required ? "Yes" : "No"}</td>
+            <td className="ui-mono">{v.default === undefined || v.default === null || v.default === "" ? "" : typeof v.default === "object" ? JSON.stringify(v.default) : String(v.default)}</td><td>{v.description ?? ""}</td></tr>)
+          : <tr className="is-static"><td colSpan={5} className="cc-none">This version takes no inputs.</td></tr>}</tbody>
+      </table>
+      <table className="st-table" aria-label="Outputs">
+        <thead><tr><th scope="col">Output</th><th scope="col">Type</th><th scope="col">Description</th></tr></thead>
+        <tbody>{vars !== null && outputs.length ? outputs.map((v) => <tr key={v.name} className="is-static"><td className="ui-mono">{v.name}</td><td>{v.type}</td><td>{v.description ?? ""}</td></tr>)
+          : <tr className="is-static"><td colSpan={3} className="cc-none">{vars === null ? "Loading…" : "This version gives back no outputs."}</td></tr>}</tbody>
+      </table>
       </>}
       {tab === "deps" && (deps ? <dl className="cc-facts">
         <dt>Calls</dt><dd>{deps.agents.length ? deps.agents.map((d) => <span key={d.bot_id} className={d.found ? "cc-tag" : "cc-risk"} title={d.found ? undefined : "Not in this One CommandCenter"}>{d.path ? agentName(d.path) : d.bot_id}</span>) : "No other agent"}</dd>
         <dt>Called by</dt><dd>{deps.called_by.length ? deps.called_by.map((p) => <span key={p} className="cc-tag">{agentName(p)}</span>) : "No other agent"}</dd>
         <dt>Toolkits</dt><dd>{deps.toolkits.length ? deps.toolkits.map((t) => <span key={t} className="cc-tag">{t}</span>) : "Built-in actions only"}</dd></dl> : <p className="cc-none" role="status">Loading…</p>)}
       {tab === "findings" && kind !== "File" && <AgentAnalysis api={api} path={a.path} />}
-      {tab === "runs" && (runs.length > 0 ? <table className="st-table" aria-label="Recent runs"><tbody>{runs.map((r) => <tr key={r.id}><td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{when(r.created)}</a></td><td>v{r.version}</td>
+      {tab === "runs" && (runs.length > 0 ? <table className="st-table" aria-label="Recent runs">
+        <thead><tr><th scope="col">When</th><th scope="col">Version</th><th scope="col">Status</th><th scope="col">Runner</th><th scope="col">Started by</th></tr></thead><tbody>{runs.map((r) => <tr key={r.id}><td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{when(r.created)}</a></td><td>v{r.version}</td>
           <td className={"cc-status is-" + r.status}>{r.status}</td><td>{r.device_name ?? ""}</td><td>{r.requested_by}</td></tr>)}</tbody></table> : <p className="cc-none">No runs yet.</p>)}
       {tab === "versions" && <>
       <div className="cc-bar"><span className="st-muted">Tick two versions to compare them.</span><Button kind="secondary" disabled={picks.length !== 2} onClick={compare}>Compare</Button></div>

@@ -181,6 +181,19 @@ class StudioServerRoutesTest {
         assertEquals(List.of(), vault.get("credentials"));
     }
 
+    @Test void checkNowNotesA3270ConnectWhenThisComputerHasNoEngine() {
+        Map<String, Object> flow = Map.of("steps", List.of(
+                Map.of("id", "s1", "action", "ooa.terminal/connect", "args", Map.of("host", "mf")),
+                Map.of("id", "s2", "action", "core/try", "children", List.of(
+                        Map.of("id", "s3", "action", "ooa.terminal/connect", "args", Map.of("host", "as400", "terminal_type", "tn5250")),
+                        Map.of("id", "s4", "action", "ooa.terminal/connect", "args", Map.of("host", "mf", "terminal_type", "tn3270"))))));
+        List<Map<String, Object>> notes = StudioServer.onThisComputer(flow);
+        if (com.oneofficeautomation.packages.TerminalPackage.engine3270Present()) { assertTrue(notes.isEmpty()); return; }
+        // the default type (tn3270e) and a nested tn3270 step are noted; 5250 needs no engine
+        assertEquals(List.of("s1", "s4"), notes.stream().map(n -> n.get("stepId")).toList());
+        assertTrue(String.valueOf(notes.get(0).get("suggestedFix")).contains("wc3270"));
+    }
+
     static String enc(String s) { return java.net.URLEncoder.encode(s, java.nio.charset.StandardCharsets.UTF_8); }
 
     static Map<String, Object> call(String base, String method, String path, Object body) throws Exception { return StudioControlRoomTest.call(base, method, path, body, null); }

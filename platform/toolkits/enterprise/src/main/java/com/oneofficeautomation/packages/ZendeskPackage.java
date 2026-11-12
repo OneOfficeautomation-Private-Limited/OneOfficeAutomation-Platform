@@ -22,7 +22,7 @@ public final class ZendeskPackage {
     private static final String D_SITE = "Your Zendesk address, e.g. https://acme.zendesk.com, or just the subdomain acme.";
     private static final String D_EMAIL = "Email of the agent the API token belongs to. Leave empty when using an OAuth token.";
     private static final String D_TOKEN = "Zendesk API token from the vault (used with email).";
-    private static final String D_OAUTH = "OAuth access token from the vault, instead of email and API token.";
+    private static final String D_OAUTH = "OAuth access token from the vault, instead of email and API token. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_TICKET = "Ticket number, e.g. 35436.";
     private static final String D_MAX = "Most items to return; pages are read until this many are found.";
     private static final String[] TICKET_COLS = {"id", "subject", "status", "priority", "type", "requester_id", "assignee_id", "group_id", "updated_at"};
@@ -79,6 +79,48 @@ public final class ZendeskPackage {
         return out;
     }
 
+    // ---------- people, groups and fields by name (K5, batch 10) ----------
+
+    /** Custom fields by id or by their title as agents see it (looked up once per call). */
+    static List<Map<String, Object>> customFields(ActionContext ctx, String site, Map<String, Object> custom, String email, Object apiToken, Object oauth) {
+        Map<String, Object> byId = new LinkedHashMap<>();
+        List<Map<String, Object>> fields = null;
+        for (Map.Entry<String, Object> e : custom.entrySet()) {
+            String k = e.getKey().strip();
+            if (ID.matcher(k).matches()) { byId.put(k, e.getValue()); continue; }
+            if (fields == null) fields = pages(ctx, site, "/ticket_fields", "ticket_fields", 5000, email, apiToken, oauth, false);
+            Object found = null;
+            for (Map<String, Object> f : fields) if (k.equalsIgnoreCase(String.valueOf(f.get("title"))) || k.equalsIgnoreCase(String.valueOf(f.get("title_in_portal")))) { found = f.get("id"); break; }
+            if (found == null) throw new ActionException(P + ".FIELD_NOT_FOUND", "There is no ticket field named '" + k + "'", "Use the field's title as agents see it, or its id (see List ticket fields).");
+            byId.put(Values.text(found), e.getValue());
+        }
+        return customFields(byId);
+    }
+
+    /** An agent by id, email or name. */
+    static BigDecimal userId(ActionContext ctx, String site, String who, String email, Object apiToken, Object oauth) {
+        String w = who.strip();
+        if (ID.matcher(w).matches()) return new BigDecimal(w);
+        List<Map<String, Object>> found = pages(ctx, site, "/users/search?" + HttpJson.query(Map.of("query", w.contains("@") ? "email:" + w : "\"" + w.replace("\"", "") + "\"")), "users", 50, email, apiToken, oauth, false);
+        List<Map<String, Object>> exact = new ArrayList<>();
+        for (Map<String, Object> u : found)
+            if (w.equalsIgnoreCase(String.valueOf(u.get("email"))) || w.equalsIgnoreCase(String.valueOf(u.get("name")))) exact.add(u);
+        exact.sort(Comparator.comparing(u -> "end-user".equals(u.get("role")) ? 1 : 0));   // agents and admins first
+        if (exact.isEmpty()) throw new ActionException(P + ".USER_NOT_FOUND", "No Zendesk user '" + w + "'", "Use the agent's email, full name or user id.");
+        if (exact.size() > 1 && !w.contains("@") && !"end-user".equals(exact.get(1).get("role")))
+            throw new ActionException(P + ".AMBIGUOUS_USER", "More than one agent is named '" + w + "'", "Use the agent's email or user id.");
+        return Values.toNumber(exact.get(0).get("id"));
+    }
+
+    /** A group by id or name. */
+    static BigDecimal groupId(ActionContext ctx, String site, String group, String email, Object apiToken, Object oauth) {
+        String g = group.strip();
+        if (ID.matcher(g).matches()) return new BigDecimal(g);
+        for (Map<String, Object> m : pages(ctx, site, "/groups", "groups", 5000, email, apiToken, oauth, true))
+            if (g.equalsIgnoreCase(String.valueOf(m.get("name")))) return Values.toNumber(m.get("id"));
+        throw new ActionException(P + ".GROUP_NOT_FOUND", "No Zendesk group named '" + g + "'", "Use the group's name or id (see List groups).");
+    }
+
     static Map<String, Object> ticket(String site, Map<?, ?> t) {
         Map<String, Object> custom = new LinkedHashMap<>();
         for (Map<String, Object> cf : HttpJson.maps(t.get("custom_fields"))) custom.put(Values.text(cf.get("id")), cf.get("value"));
@@ -92,14 +134,14 @@ public final class ZendeskPackage {
 
     @Action(id = "create_ticket", name = "Create ticket", category = "Tickets", capabilities = "network",
             description = "Open a ticket with a first comment, requester, priority, tags and custom fields.",
-            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), subject, description, priority, requester_email, custom_fields | requester_name, type, status, assignee_id, group_id, tags, public, upload_tokens")
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), subject, description, priority, requester_email, custom_fields | requester_name, type, status, assignee, group, tags, public, upload_tokens")
     @Output(name = "ticket_id", type = OoaType.NUMBER, description = "Number of the new ticket.")
     @Output(name = "url", type = OoaType.STRING, description = "Agent web address of the ticket.")
     public Map<String, Object> createTicket(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "subject", type = OoaType.STRING, example = "Refund not received for order 88123", description = "Ticket subject.") String subject,
             @Input(name = "description", type = OoaType.STRING, description = "Text of the first comment.") String description,
             @Input(name = "requester_email", type = OoaType.STRING, required = false, example = "pat@customer.com", description = "Email of the person asking; a user is created if needed. Empty means the signed-in agent.") String requesterEmail,
@@ -107,10 +149,10 @@ public final class ZendeskPackage {
             @Input(name = "priority", type = OoaType.STRING, required = false, enumValues = {"low", "normal", "high", "urgent"}, description = "low, normal, high or urgent.") String priority,
             @Input(name = "type", type = OoaType.STRING, required = false, enumValues = {"problem", "incident", "question", "task"}, description = "problem, incident, question or task.") String type,
             @Input(name = "status", type = OoaType.STRING, required = false, enumValues = {"new", "open", "pending", "hold", "solved"}, description = "Starting status, e.g. new or open.") String status,
-            @Input(name = "assignee_id", type = OoaType.NUMBER, required = false, description = "Agent user id to assign.") String assignee,
-            @Input(name = "group_id", type = OoaType.NUMBER, required = false, description = "Group id to assign, from List groups.") String group,
+            @Input(name = "assignee", type = OoaType.ANY, required = false, formerNames = "assignee_id", example = "sam@acme.com", description = "Agent to assign: an email, a name, or a user id.") String assignee,
+            @Input(name = "group", type = OoaType.ANY, required = false, formerNames = "group_id", example = "Billing", description = "Group to assign: its name or id (see List groups).") String group,
             @Input(name = "tags", type = OoaType.LIST, required = false, description = "Tags, e.g. [\"refund\", \"agent\"].") Object tags,
-            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field id to value, e.g. {\"360012345678\": \"order_88123\"}. Ids come from List ticket fields.") Map<String, Object> custom,
+            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field (its title as agents see it, or its id) to value, e.g. {\"Order number\": \"order_88123\"}. Ids come from List ticket fields.") Map<String, Object> custom,
             @Input(name = "public", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Whether the first comment is visible to the requester.") boolean isPublic,
             @Input(name = "upload_tokens", type = OoaType.LIST, required = false, description = "Tokens from Upload attachment, to attach files to the first comment.") Object uploads) {
         Map<String, Object> comment = new LinkedHashMap<>();
@@ -129,10 +171,10 @@ public final class ZendeskPackage {
         if (priority != null) t.put("priority", priority);
         if (type != null) t.put("type", type);
         if (status != null) t.put("status", status);
-        if (assignee != null && !assignee.isBlank()) t.put("assignee_id", new BigDecimal(id("assignee", assignee)));
-        if (group != null && !group.isBlank()) t.put("group_id", new BigDecimal(id("group", group)));
+        if (assignee != null && !assignee.isBlank()) t.put("assignee_id", userId(ctx, site, assignee, email, apiToken, oauth));
+        if (group != null && !group.isBlank()) t.put("group_id", groupId(ctx, site, group, email, apiToken, oauth));
         if (tags != null) t.put("tags", HttpJson.addressList(tags));
-        if (custom != null && !custom.isEmpty()) t.put("custom_fields", customFields(custom));
+        if (custom != null && !custom.isEmpty()) t.put("custom_fields", customFields(ctx, site, custom, email, apiToken, oauth));
         Map<String, Object> r = call(ctx, "POST", api(site) + "/tickets", email, apiToken, oauth, Map.of("ticket", t));
         Object tid = HttpJson.path(r, "ticket.id");
         return Out.of("ticket_id", tid, "url", site(site) + "/agent/tickets/" + Values.text(tid));
@@ -146,7 +188,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "ticket_id", type = OoaType.NUMBER, description = D_TICKET) String ticket) {
         Map<?, ?> t = (Map<?, ?>) call(ctx, "GET", api(site) + "/tickets/" + id("ticket", ticket), email, apiToken, oauth, null).getOrDefault("ticket", Map.of());
         Map<String, Object> o = ticket(site, t);
@@ -155,30 +197,30 @@ public final class ZendeskPackage {
 
     @Action(id = "update_ticket", name = "Update ticket", category = "Tickets", capabilities = "network",
             description = "Change a ticket's status, priority, assignee, group, tags or custom fields. Only the inputs you fill in are changed.",
-            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), ticket_id, status, priority, assignee_id, custom_fields | type, subject, group_id, tags")
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), ticket_id, status, priority, assignee, custom_fields | type, subject, group, tags")
     public Map<String, Object> updateTicket(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "ticket_id", type = OoaType.NUMBER, description = D_TICKET) String ticket,
             @Input(name = "status", type = OoaType.STRING, required = false, enumValues = {"new", "open", "pending", "hold", "solved", "closed"}, description = "New status.") String status,
             @Input(name = "priority", type = OoaType.STRING, required = false, enumValues = {"low", "normal", "high", "urgent"}, description = "New priority.") String priority,
             @Input(name = "type", type = OoaType.STRING, required = false, enumValues = {"problem", "incident", "question", "task"}, description = "New type.") String type,
             @Input(name = "subject", type = OoaType.STRING, required = false, description = "New subject.") String subject,
-            @Input(name = "assignee_id", type = OoaType.NUMBER, required = false, description = "Agent user id to assign.") String assignee,
-            @Input(name = "group_id", type = OoaType.NUMBER, required = false, description = "Group id to assign.") String group,
+            @Input(name = "assignee", type = OoaType.ANY, required = false, formerNames = "assignee_id", example = "sam@acme.com", description = "Agent to assign: an email, a name, or a user id.") String assignee,
+            @Input(name = "group", type = OoaType.ANY, required = false, formerNames = "group_id", example = "Billing", description = "Group to assign: its name or id (see List groups).") String group,
             @Input(name = "tags", type = OoaType.LIST, required = false, description = "Replace all tags with these. To add tags without removing others use Add tags.") Object tags,
-            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field id to new value.") Map<String, Object> custom) {
+            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field (its title as agents see it, or its id) to new value.") Map<String, Object> custom) {
         Map<String, Object> t = new LinkedHashMap<>();
         if (status != null) t.put("status", status);
         if (priority != null) t.put("priority", priority);
         if (type != null) t.put("type", type);
         if (subject != null) t.put("subject", subject);
-        if (assignee != null && !assignee.isBlank()) t.put("assignee_id", new BigDecimal(id("assignee", assignee)));
-        if (group != null && !group.isBlank()) t.put("group_id", new BigDecimal(id("group", group)));
+        if (assignee != null && !assignee.isBlank()) t.put("assignee_id", userId(ctx, site, assignee, email, apiToken, oauth));
+        if (group != null && !group.isBlank()) t.put("group_id", groupId(ctx, site, group, email, apiToken, oauth));
         if (tags != null) t.put("tags", HttpJson.addressList(tags));
-        if (custom != null && !custom.isEmpty()) t.put("custom_fields", customFields(custom));
+        if (custom != null && !custom.isEmpty()) t.put("custom_fields", customFields(ctx, site, custom, email, apiToken, oauth));
         if (t.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "No changes were given", "Fill in at least one field to change.");
         call(ctx, "PUT", api(site) + "/tickets/" + id("ticket", ticket), email, apiToken, oauth, Map.of("ticket", t));
         return Map.of();
@@ -191,7 +233,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "ticket_id", type = OoaType.NUMBER, description = D_TICKET) String ticket) {
         call(ctx, "DELETE", api(site) + "/tickets/" + id("ticket", ticket), email, apiToken, oauth, null);
         return Map.of();
@@ -210,7 +252,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "requester_id", type = OoaType.NUMBER, required = false, description = "Only tickets requested by this user id.") String requester,
             @Input(name = "organization_id", type = OoaType.NUMBER, required = false, description = "Only tickets of this organization id.") String org,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max,
@@ -273,7 +315,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "query", type = OoaType.STRING, example = "status<solved requester:pat@customer.com", description = "Search terms; type:ticket is added for you.") String query,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = D_MAX) int max) {
         Map<String, Object> q = new LinkedHashMap<>();
@@ -290,7 +332,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "ticket_id", type = OoaType.NUMBER, description = D_TICKET) String ticket,
             @Input(name = "text", type = OoaType.STRING, example = "Your refund was issued today.", description = "Comment text.") String text,
             @Input(name = "public", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "true for a reply the requester sees, false for an internal note.") boolean isPublic,
@@ -317,7 +359,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "ticket_id", type = OoaType.NUMBER, description = D_TICKET) String ticket,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max) {
         return result(pages(ctx, site, "/tickets/" + id("ticket", ticket) + "/comments", "comments", max, email, apiToken, oauth, true),
@@ -331,7 +373,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "ticket_id", type = OoaType.NUMBER, description = D_TICKET) String ticket,
             @Input(name = "tags", type = OoaType.LIST, description = "Tags to add, e.g. [\"vip\", \"escalated\"].") Object tags) {
         Map<String, Object> r = call(ctx, "PUT", api(site) + "/tickets/" + id("ticket", ticket) + "/tags", email, apiToken, oauth, Map.of("tags", HttpJson.addressList(tags)));
@@ -348,7 +390,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "name", type = OoaType.STRING, example = "Pat Kim", description = "Full name.") String userName,
             @Input(name = "user_email", type = OoaType.STRING, required = false, example = "pat@customer.com", description = "Email of the new user.") String userEmail,
             @Input(name = "role", type = OoaType.STRING, required = false, defaultValue = "\"end-user\"", enumValues = {"end-user", "agent", "admin"}, description = "end-user, agent or admin.") String role,
@@ -393,7 +435,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "query", type = OoaType.STRING, required = false, example = "pat@customer.com", description = "Name, email, or search terms such as role:agent; may be empty when role or organization_id is given.") String query,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = D_MAX) int max,
             @Input(name = "role", type = OoaType.STRING, required = false, enumValues = {"end-user", "agent", "admin"}, description = "Only users with this role.") String role,
@@ -418,7 +460,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "user_id", type = OoaType.NUMBER, description = "User id.") String user) {
         Map<String, Object> u = call(ctx, "GET", api(site) + "/users/" + id("user", user), email, apiToken, oauth, null);
         Object d = u.get("user");
@@ -435,7 +477,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "user_id", type = OoaType.NUMBER, description = "User id.") String user,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String userName,
             @Input(name = "user_email", type = OoaType.STRING, required = false, description = "New primary email.") String userEmail,
@@ -465,7 +507,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "name", type = OoaType.STRING, example = "Northwind Traders", description = "Organization name (must be unique).") String orgName,
             @Input(name = "domain_names", type = OoaType.LIST, required = false, description = "Email domains, e.g. [\"northwind.com\"].") Object domains,
             @Input(name = "details", type = OoaType.STRING, required = false, description = "Details such as an address.") String details,
@@ -496,7 +538,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "organization_id", type = OoaType.NUMBER, description = "Organization id.") long orgId,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String orgName,
             @Input(name = "domain_names", type = OoaType.LIST, required = false, description = "Email domains (replaces the list).") Object domains,
@@ -523,7 +565,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "organization_id", type = OoaType.NUMBER, description = "Organization id.") String org) {
         Object o = call(ctx, "GET", api(site) + "/organizations/" + id("organization", org), email, apiToken, oauth, null).get("organization");
         Map<String, Object> out = new LinkedHashMap<>();
@@ -541,7 +583,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = D_MAX) int max) {
         return result(pages(ctx, site, "/organizations", "organizations", max, email, apiToken, oauth, true), "id", "name", "domain_names", "external_id", "created_at");
     }
@@ -554,7 +596,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth) {
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth) {
         return result(pages(ctx, site, "/groups", "groups", 5000, email, apiToken, oauth, true), "id", "name", "description", "default");
     }
 
@@ -569,7 +611,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "path", type = OoaType.FILE, example = "out/receipt-88123.pdf", description = "Local file to upload.") String path,
             @Input(name = "add_to_token", type = OoaType.STRING, required = false, description = "Token of an earlier upload, to group several files under one token.") String existing,
             @Input(name = "file_name", type = OoaType.STRING, required = false, description = "Name to give the attachment; the local file name when empty.") String fileName) {
@@ -596,7 +638,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "attachment_id", type = OoaType.NUMBER, description = "Attachment id, from List comments.") long attachmentId,
             @Input(name = "folder", type = OoaType.FILE, required = false, defaultValue = "\".\"", description = "Folder to save into.") String folder,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file of the same name; otherwise a number is added.") boolean overwrite) {
@@ -621,7 +663,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth) {
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth) {
         return result(pages(ctx, site, "/views/active", "views", 5000, email, apiToken, oauth, true), "id", "title", "position", "updated_at");
     }
 
@@ -634,7 +676,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "view_id", type = OoaType.NUMBER, description = "View id, from List views.") String view,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max) {
         return result(pages(ctx, site, "/views/" + id("view", view) + "/tickets", "tickets", max, email, apiToken, oauth, true), TICKET_COLS);
@@ -649,7 +691,7 @@ public final class ZendeskPackage {
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth) {
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth) {
         return result(pages(ctx, site, "/ticket_fields", "ticket_fields", 5000, email, apiToken, oauth, true), "id", "title", "type", "active", "required");
     }
 }

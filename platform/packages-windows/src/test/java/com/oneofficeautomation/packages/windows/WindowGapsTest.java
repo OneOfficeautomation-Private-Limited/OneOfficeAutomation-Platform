@@ -29,6 +29,31 @@ class WindowGapsTest {
         assertTrue(WindowPackage.matcher("notepad", false).test("Untitled - Notepad"));
         assertTrue(WindowPackage.matcher("^Invoice \\d+ - Excel$", true).test("Invoice 42 - Excel"));
         assertFalse(WindowPackage.matcher("^Invoice \\d+ - Excel$", true).test("Invoice x - Excel"));
+        assertEquals("WINDOW.PATTERN_TOO_BROAD", assertThrows(ActionException.class, () -> WindowPackage.matcher("**", false)).code());
+    }
+
+    @Test void aPickedPointOverNoWindowIsMeasuredFromTheScreen() {
+        Map<String, Object> p = WindowPackage.pointIn(120, 45, List.of());
+        assertEquals("", p.get("window"));
+        assertEquals(0, new java.math.BigDecimal(120).compareTo((java.math.BigDecimal) p.get("x")));
+        assertEquals(0, new java.math.BigDecimal(45).compareTo((java.math.BigDecimal) p.get("screen_y")));
+        assertFalse(p.containsKey("window_width"));
+    }
+
+    @Test void titlesMatchTheSameWayAsWindowFieldsElsewhere() {
+        // contained text, as before
+        assertTrue(WindowPackage.titleRule("notepad").test("Untitled - Notepad"));
+        // wildcards over the whole title, and re: for a regular expression (case never matters)
+        assertTrue(WindowPackage.titleRule("Invoice*- Excel").test("invoice 42.xlsx - excel"));
+        assertFalse(WindowPackage.titleRule("Invoice*- Excel").test("Invoice 42.xlsx - Word"));
+        assertTrue(WindowPackage.titleRule("re:^Invoice \\d+").test("Invoice 42 - Excel"));
+        assertFalse(WindowPackage.titleRule("re:^Invoice \\d+").test("Old Invoice 42 - Excel"));
+        // older agents: a * or ? in the title is still found as text in it
+        assertTrue(WindowPackage.titleRule("*Untitled").test("*Untitled - Notepad"));
+        assertTrue(WindowPackage.titleRule("Save changes?").test("Notepad - Save changes?"));
+        assertEquals("WINDOW.BAD_PATTERN", assertThrows(ActionException.class, () -> WindowPackage.titleRule("re:([a")).code());
+        // Close all keeps its "regular expression" tick for older agents, and now takes patterns without it
+        assertTrue(WindowPackage.matcher("* - Notepad", false).test("a.txt - Notepad"));
     }
 
     @Test void windowAndDllOptions() throws Exception {

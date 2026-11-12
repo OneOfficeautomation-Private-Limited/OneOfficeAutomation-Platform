@@ -118,6 +118,33 @@ public final class AwsAiPackage {
         return Out.of("entities", CloudAi.table(List.of("text", "type", "score", "begin_offset", "end_offset"), rows), "count", BigDecimal.valueOf(rows.size()));
     }
 
+    /** I3 (command review, batch 9): AA's AWS Comprehend Key Phrases, on Amazon Comprehend itself. */
+    @Action(id = "comprehend_key_phrases", name = "Key phrases", category = "Comprehend (text)", idempotent = true, capabilities = "network",
+            description = "Find the main noun phrases of a text, such as \"the monthly invoice\" or \"three new laptops\" (Amazon Comprehend).",
+            panel = "session, text, language | min_score")
+    @Output(name = "phrases", type = OoaType.LIST, description = "The phrases, most likely first.")
+    @Output(name = "key_phrases", type = OoaType.TABLE, description = "Columns: text, score, begin_offset, end_offset.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many phrases were found.")
+    public Map<String, Object> comprehendKeyPhrases(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"aws_ai\"", description = D_SESSION) String session,
+            @Input(name = "text", type = OoaType.STRING, description = "The text to read, at most 100,000 bytes.") String text,
+            @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"en\"", description = D_LANG) String language,
+            @Input(name = "min_score", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 1, description = "Leave out phrases scored below this (0 to 1).") double minScore) {
+        AwsAiSession s = ctx.sessionOrOnly(session, "aws_ai", AwsAiSession.class);
+        Map<String, Object> a = call(ctx, s, "comprehend", "Comprehend_20171127.DetectKeyPhrases",
+                Out.of("Text", CloudAi.text(P, text, 100_000, false, "Comprehend key phrases"), "LanguageCode", language(language)));
+        List<Map<String, Object>> found = new ArrayList<>(CloudAi.maps(a.get("KeyPhrases")));
+        found.removeIf(k -> CloudAi.num(k.get("Score")) != null && CloudAi.num(k.get("Score")).doubleValue() < minScore);
+        found.sort((x, y) -> { BigDecimal sx = CloudAi.num(x.get("Score")), sy = CloudAi.num(y.get("Score"));
+            return sy == null ? -1 : sx == null ? 1 : sy.compareTo(sx); });
+        List<Object> rows = new ArrayList<>(), phrases = new ArrayList<>();
+        for (Map<String, Object> k : found) {
+            phrases.add(CloudAi.str(k.get("Text")));
+            rows.add(CloudAi.row(CloudAi.str(k.get("Text")), CloudAi.num(k.get("Score")), CloudAi.num(k.get("BeginOffset")), CloudAi.num(k.get("EndOffset"))));
+        }
+        return Out.of("phrases", phrases, "key_phrases", CloudAi.table(List.of("text", "score", "begin_offset", "end_offset"), rows), "count", BigDecimal.valueOf(rows.size()));
+    }
+
     @Action(id = "comprehend_detect_language", name = "Detect language", category = "Comprehend (text)", idempotent = true, capabilities = "network",
             description = "Find which language a text is written in (Amazon Comprehend).", panel = "session, text")
     @Output(name = "language", type = OoaType.STRING, description = "Code of the most likely language, e.g. en, de or fr.")

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CodePolicy, CrApi, CrUser, ModelConnection, RepoFolder } from "../../api/cr";
 import type { Policy } from "./consoleApi";
 import { Button, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../../components";
-import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
+import { RefreshButton, RowMenu, rowClick, CloseView } from "../../console/ListParts";
 import { CodeRules, codeReportCsv, ruleText, rulesToSave } from "../../console/RepoTools";
 
 /**
@@ -175,7 +175,7 @@ function PolicyPage({ api, policy, kind, edit, taken, onClose, onSaved, onDelete
         <span className="ov-fill" />
         {edit && <Button kind="primary" disabled={(kind === "code" && !pol) || (!builtIn && !name.trim())} onClick={save}>{policy ? "Save changes" : "Create policy"}</Button>}
         {edit && policy && !builtIn && <RowMenu label={"More for " + policy.name} items={[{ key: "delete", label: "Delete…", onSelect: () => onDelete(policy) }]} />}
-        <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the policies" onClick={onClose}>×</button>
+        <CloseView onClick={onClose} to="the policies" />
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="ov-tabs cc-list-tabs cc-agent-tabs" role="tablist" aria-label="About this policy">

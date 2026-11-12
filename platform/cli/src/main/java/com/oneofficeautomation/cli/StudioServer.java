@@ -226,6 +226,8 @@ public final class StudioServer {
                 sendJson(ex, 200, Map.of("path", rel, "flow", json.parse(Files.readString(p))));
             } else if (method.equals("PUT")) {
                 if (!Files.isDirectory(p.getParent())) throw new OoaException("STUDIO.NOT_FOUND", "Folder not found for " + rel);
+                if (cr.isClone(rel)) throw new OoaException("STUDIO.CLONE_READ_ONLY", rel + " is a clone, which is read-only",
+                        "Check it out on the Public tab to change it, or use Copy to Private for a copy of your own.");
                 Map<String, Object> flow = (Map<String, Object>) body(ex);
                 Path tmp = p.resolveSibling("." + p.getFileName() + ".tmp");
                 Files.writeString(tmp, json.write(flow, true));
@@ -288,7 +290,10 @@ public final class StudioServer {
         } else if (method.equals("POST") && route.equals("condition/test")) {
             sendJson(ex, 200, testCondition((Map<String, Object>) body(ex)));
         } else if (method.equals("POST") && route.equals("validate")) {
-            sendJson(ex, 200, Map.of("problems", validator().validate((Map<String, Object>) body(ex))));
+            Map<String, Object> checked = (Map<String, Object>) body(ex);
+            List<Object> problems = new ArrayList<>(validator().validate(checked));
+            problems.addAll(onThisComputer(checked));
+            sendJson(ex, 200, Map.of("problems", problems));
         } else if (method.equals("POST") && route.equals("run")) {
             Map<String, Object> req = (Map<String, Object>) body(ex);
             EventSink.ListSink sink = new EventSink.ListSink();
@@ -318,6 +323,9 @@ public final class StudioServer {
             else if (method.equals("GET") && r.equals("states")) sendJson(ex, 200, cr.states(json));
             // a step's Credential field: the vault credentials the person may use (names only, never values)
             else if (method.equals("GET") && r.equals("credentials")) sendJson(ex, 200, Map.of("connected", cr.connected(), "credentials", cr.connected() ? cr.credentials() : List.of()));
+            else if (method.equals("GET") && r.equals("files")) sendJson(ex, 200, Map.of("files", cr.repoFiles()));
+            else if (method.equals("POST") && r.equals("clone")) sendJson(ex, 200, cr.cloneBot((String) ((Map<String, Object>) body(ex)).get("path"), json));
+            else if (method.equals("POST") && r.equals("copy")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.copyToPrivate((String) b.get("path"), (String) b.get("to"), json)); }
             else if (method.equals("POST") && r.equals("revert")) sendJson(ex, 200, cr.revert((String) ((Map<String, Object>) body(ex)).get("local"), json));
             else if (method.equals("POST") && r.equals("undo-checkout")) { cr.undoCheckout((String) ((Map<String, Object>) body(ex)).get("path")); sendJson(ex, 200, Map.of("ok", true)); }
             else send(ex, 404, "text/plain", "Unknown API route");
@@ -460,6 +468,8 @@ public final class StudioServer {
             else sendJson(ex, 200, r.outputs());
         } else if (method.equals("POST") && route.equals("capture-desktop")) {
             captureDesktop(ex);
+        } else if (method.equals("POST") && route.equals("pick-point")) {
+            pickPoint(ex);
         } else if (method.equals("GET") && route.equals("windows")) {
             listWindows(ex);
         } else if (method.equals("GET") && route.equals("fs/list")) {
@@ -546,6 +556,29 @@ public final class StudioServer {
     }
 
     /**
+     * POST pick-point {timeout_seconds?: 60}: runs ooa.window/pick_point, where a person points at a place in any window and
+     * presses Ctrl+Shift+C (M1). 200 {x, y, screen_x, screen_y, window, window_width, window_height}; 400 {error} on timeout.
+     */
+    @SuppressWarnings("unchecked")
+    private void pickPoint(HttpExchange ex) throws IOException {
+        Map<String, Object> req = body(ex) instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+        if (registry.allManifests().stream().noneMatch(man -> "ooa.window".equals(man.get("id"))))
+            throw new OoaException("STUDIO.NO_DESKTOP_MODULE", "The Window toolkit is not installed", "Add packages-windows to ooa.optionalModules in gradle.properties and run Studio on Windows.");
+        Map<String, Object> args = new LinkedHashMap<>();
+        if (req.get("timeout_seconds") != null) args.put("timeout_seconds", req.get("timeout_seconds"));
+        List<String> outs = List.of("x", "y", "screen_x", "screen_y", "window", "window_width", "window_height");
+        Map<String, Object> flow = new LinkedHashMap<>();
+        flow.put("kind", "TaskBot"); flow.put("id", "studio_pick_point"); flow.put("name", "One AgentStudio pick a point");
+        flow.put("variables", outs.stream().map(o -> (Object) Map.of("name", o, "type", o.equals("window") ? "String" : "Number", "direction", "output")).toList());
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (String o : outs) out.put(o, o);
+        flow.put("steps", List.of(Map.of("id", "pick", "action", "ooa.window/pick_point", "args", args, "out", out)));
+        RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(900));
+        if (!r.ok()) sendJson(ex, 400, Map.of("error", r.error()));
+        else sendJson(ex, 200, r.outputs());
+    }
+
+    /**
      * POST capture-desktop {timeout_seconds?: 60, screenshot?: true, highlight?: true}: runs ooa.desktop_ui/pick_object, where a
      * person points at a control in any Windows application and presses Ctrl+Shift+C. 200 {object: {...captured object...}};
      * 400 {error: {code, message, hint}} on timeout or failure.
@@ -619,6 +652,39 @@ public final class StudioServer {
     }
 
     private FlowValidator validator() { return new FlowValidator(registry, schema); }
+
+    /**
+     * What Check now adds about this computer, not the agent (T2): a 3270 Connect step when no 3270 engine is
+     * installed here. It never stops a save; runners with the engine run the step.
+     */
+    static List<Map<String, Object>> onThisComputer(Map<String, Object> flow) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        List<String> tn3270 = new ArrayList<>();
+        stepsOf(flow, s -> {
+            if (!"ooa.terminal/connect".equals(s.get("action"))) return;
+            Object type = s.get("args") instanceof Map<?, ?> a ? a.get("terminal_type") : null;
+            String t = type == null ? "tn3270e" : String.valueOf(type);
+            if (t.startsWith("tn3270") && s.get("id") != null) tn3270.add(String.valueOf(s.get("id")));
+        });
+        if (!tn3270.isEmpty() && !com.oneofficeautomation.packages.TerminalPackage.engine3270Present())
+            for (String id : tn3270) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("stepId", id); m.put("path", "args.terminal_type");
+                m.put("message", "On this computer: no 3270 terminal engine is installed, so this Connect step can't run here");
+                m.put("suggestedFix", "Install the free wc3270 on each runner that runs it (and here to try it); 5250 and SSH need nothing.");
+                out.add(m);
+            }
+        return out;
+    }
+
+    /** Every step of a flow, nested ones and subflows included. */
+    @SuppressWarnings("unchecked")
+    static void stepsOf(Object node, java.util.function.Consumer<Map<String, Object>> each) {
+        if (node instanceof Map<?, ?> m) {
+            if (m.get("action") instanceof String) each.accept((Map<String, Object>) m);
+            for (Map.Entry<?, ?> e : m.entrySet()) if (!"args".equals(e.getKey())) stepsOf(e.getValue(), each);
+        } else if (node instanceof List<?> l) for (Object o : l) stepsOf(o, each);
+    }
 
     /** The recording in progress, for its live count and Cancel. */
     record Recording(EventSink.ListSink sink, java.util.concurrent.atomic.AtomicBoolean cancel) {}

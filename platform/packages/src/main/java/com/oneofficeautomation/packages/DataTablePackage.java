@@ -70,8 +70,9 @@ public final class DataTablePackage {
         return Out.of("records", out);
     }
 
-    @Action(id = "filter", name = "Filter rows", category = "Table", idempotent = true, description = "Keep rows where a column satisfies a comparison.",
-            panel = "table, column, operator, value, match_case")
+    @Action(id = "filter", name = "Filter rows", category = "Table", idempotent = true,
+            description = "Keep (or remove) the rows that meet one or more conditions on their columns, and keep only the columns you need.",
+            panel = "table, column, operator, value, match_case, more_conditions, match, keep | columns")
     @Output(name = "table", type = OoaType.TABLE, description = "Filtered table.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Rows kept.")
     public Map<String, Object> filter(ActionContext ctx,
@@ -80,11 +81,50 @@ public final class DataTablePackage {
             @Input(name = "operator", type = OoaType.STRING, enumValues = {"eq", "ne", "gt", "ge", "lt", "le", "contains", "not_contains", "starts_with", "ends_with", "matches", "empty", "not_empty"},
                     description = "Comparison; matches takes a regular expression.") String op,
             @Input(name = "value", required = false, visibleWhen = "operator!=empty|not_empty", description = "Value to compare with (not needed for empty/not_empty).") Object value,
-            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "operator=eq|ne|contains|not_contains|starts_with|ends_with|matches", description = "Compare text with upper/lower case taken into account.") boolean matchCase) {
-        int c = col(table, column);
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "operator=eq|ne|contains|not_contains|starts_with|ends_with|matches", description = "Compare text with upper/lower case taken into account.") boolean matchCase,
+            // command review D3 (10 Nov 2026), as UiPath's Filter Data Table: more conditions, all or any, keep or remove, some columns
+            @Input(name = "more_conditions", type = OoaType.LIST, required = false, description = "More conditions, each a column, a comparison and a value (column, operator, value, match_case).") List<Object> more,
+            @Input(name = "match", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "any"},
+                    description = "With more conditions: a row must meet all of them, or any one.") String match,
+            @Input(name = "keep", type = OoaType.STRING, required = false, defaultValue = "\"matching\"", enumValues = {"matching", "not_matching"},
+                    description = "Keep the rows that meet the conditions, or remove them and keep the rest.") String keep,
+            @Input(name = "columns", type = OoaType.LIST, required = false, description = "Only these columns in the result, in this order; all of them when empty.") List<Object> columns) {
+        List<Object[]> checks = new ArrayList<>();
+        checks.add(new Object[] { col(table, column), op, value, matchCase });
+        if (more != null) for (int i = 0; i < more.size(); i++) {
+            if (!(more.get(i) instanceof Map<?, ?> m)) throw new ActionException("TABLE.BAD_CONDITION", "Condition " + (i + 2) + " is not a column, a comparison and a value",
+                    "Give each a column, an operator and a value.");
+            String o = m.get("operator") == null ? "eq" : Values.text(m.get("operator"));
+            if (!FILTER_OPS.contains(o)) throw new ActionException("TABLE.BAD_CONDITION", "Condition " + (i + 2) + " has an unknown comparison '" + o + "'", "Use one of " + String.join(", ", FILTER_OPS) + ".");
+            checks.add(new Object[] { col(table, m.get("column") == null ? null : Values.text(m.get("column"))), o, m.get("value"), Boolean.TRUE.equals(m.get("match_case")) });
+        }
+        boolean any = "any".equalsIgnoreCase(match == null ? "" : match.strip());
+        boolean removing = "not_matching".equalsIgnoreCase(keep == null ? "" : keep.strip());
         List<List<Object>> kept = new ArrayList<>();
-        for (List<Object> r : rows(table)) if (matches(cell(r, c), op, value, matchCase)) kept.add(r);
-        return Out.of("table", copy(table, kept), "count", BigDecimal.valueOf(kept.size()));
+        for (List<Object> r : rows(table)) {
+            boolean hit = !any;
+            for (Object[] k : checks) {
+                boolean m = matches(cell(r, (Integer) k[0]), (String) k[1], k[2], (Boolean) k[3]);
+                if (any && m) { hit = true; break; }
+                if (!any && !m) { hit = false; break; }
+            }
+            if (hit != removing) kept.add(r);
+        }
+        Map<String, Object> out = copy(table, kept);
+        if (columns != null && !columns.isEmpty()) out = only(out, columns);
+        return Out.of("table", out, "count", BigDecimal.valueOf(kept.size()));
+    }
+
+    static final List<String> FILTER_OPS = List.of("eq", "ne", "gt", "ge", "lt", "le", "contains", "not_contains", "starts_with", "ends_with", "matches", "empty", "not_empty");
+
+    /** The table with only these columns, in this order. */
+    static Map<String, Object> only(Map<String, Object> t, List<Object> names) {
+        List<Integer> at = new ArrayList<>();
+        List<String> header = new ArrayList<>();
+        for (Object n : names) { int i = col(t, Values.text(n)); at.add(i); header.add(cols(t).get(i)); }
+        List<Object> rs = new ArrayList<>();
+        for (List<Object> r : rows(t)) { List<Object> row = new ArrayList<>(); for (int i : at) row.add(cell(r, i)); rs.add(row); }
+        return Values.table(header, rs);
     }
 
     static boolean matches(Object cell, String op, Object value) { return matches(cell, op, value, false); }
@@ -787,7 +827,7 @@ public final class DataTablePackage {
         if (fmt.equals("json")) {
             text = JsonLite.write(Values.toJsonable(toRecords(ctx, table).get("records")));
         } else if (fmt.equals("csv")) {
-            String d = delimiter == null || delimiter.isEmpty() ? "," : delimiter.equals("\\t") ? "\t" : delimiter;
+            String d = CsvPackage.delimiterText(delimiter);
             if (d.length() != 1) throw new ActionException("TABLE.BAD_DELIMITER", "Delimiter must be one character, got '" + d + "'", "Use , ; | or a tab.");
             char dc = d.charAt(0);
             StringBuilder sb = new StringBuilder();
@@ -822,7 +862,7 @@ public final class DataTablePackage {
     // ---------- text forms, replace, empty rows and column to list (gap G06, 3 Nov 2026) ----------
 
     private static char oneDelimiter(String delimiter) {
-        String d = delimiter == null || delimiter.isEmpty() ? "," : delimiter.equals("\\t") || delimiter.equalsIgnoreCase("tab") ? "\t" : delimiter;
+        String d = CsvPackage.delimiterText(delimiter);
         if (d.length() != 1) throw new ActionException("TABLE.BAD_DELIMITER", "Delimiter must be one character, got '" + d + "'", "Use , ; | or tab.");
         return d.charAt(0);
     }

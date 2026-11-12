@@ -15,7 +15,7 @@ public final class OktaPackage {
     private static final Pattern OKTA_ID = Pattern.compile("^[0-9A-Za-z]{20}$");
     private static final String D_URL = "Your Okta address, e.g. https://yourcompany.okta.com.";
     private static final String D_TOKEN = "Okta API token from the vault. Leave empty when you use an access token instead.";
-    private static final String D_ACCESS = "OAuth access token from the vault, used instead of an API token.";
+    private static final String D_ACCESS = "OAuth access token from the vault, used instead of an API token. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_USER = "The person's Okta user id, or their sign-in name (login), e.g. ann.lee@acme.com.";
     private static final List<String> USER_COLS = List.of("id", "status", "login", "email", "first_name", "last_name", "created", "last_login");
     private static final List<String> GROUP_COLS = List.of("id", "name", "description", "type");
@@ -86,7 +86,7 @@ public final class OktaPackage {
 
     @Action(id = "create_user", name = "Create user", category = "Users", capabilities = "network",
             description = "Add a new person to Okta, optionally with a starting password and group memberships.",
-            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), login, password, email, first_name, last_name, activate | profile_fields, group_ids")
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), login, password, email, first_name, last_name, activate, groups | profile_fields")
     @Output(name = "user_id", type = OoaType.STRING, description = "Okta id of the new user.")
     @Output(name = "status", type = OoaType.STRING, description = "Account status, e.g. ACTIVE, PROVISIONED or STAGED.")
     public Map<String, Object> createUser(ActionContext ctx,
@@ -97,7 +97,7 @@ public final class OktaPackage {
             @Input(name = "login", type = OoaType.STRING, required = false, description = "Sign-in name. Leave empty to use the email address.") String login,
             @Input(name = "profile_fields", type = OoaType.DICTIONARY, required = false, description = "More profile values, e.g. {\"department\": \"Finance\", \"mobilePhone\": \"+1 555 0100\"}.") Map<String, Object> extra,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Starting password from the vault. Leave empty to let the person set one when they activate.") Object password,
-            @Input(name = "group_ids", type = OoaType.LIST, required = false, description = "Ids of groups the person should join straight away.") List<Object> groups,
+            @Input(name = "groups", type = OoaType.LIST, required = false, formerNames = "group_ids", example = "[\"Finance\", \"VPN users\"]", description = "Groups the person should join straight away, by name or id.") List<Object> groups,
             @Input(name = "activate", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Activate the account now. When off, the account is created in a staged state.") boolean activate,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
@@ -110,7 +110,7 @@ public final class OktaPackage {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("profile", profile);
         if (password instanceof SecureString s) body.put("credentials", Map.of("password", Map.of("value", s.reveal())));
-        if (groups != null && !groups.isEmpty()) { List<String> ids = new ArrayList<>(); for (Object g : groups) ids.add(Values.text(g)); body.put("groupIds", ids); }
+        if (groups != null && !groups.isEmpty()) { List<String> ids = new ArrayList<>(); for (Object g : groups) ids.add(groupId(ctx, org, Values.text(g), apiToken, accessToken)); body.put("groupIds", ids); }
         Map<String, Object> r = req("POST", api(org) + "/users?activate=" + activate, apiToken, accessToken).json(body).send(ctx).map();
         return Out.of("user_id", r.get("id"), "status", r.get("status"));
     }
@@ -180,6 +180,50 @@ public final class OktaPackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
         lifecycle(ctx, org, u, "suspend", Map.of(), apiToken, accessToken);
         return Map.of();
+    }
+
+    // ----- offboarding and help-desk steps (K7, command review batch 10) -----
+
+    @Action(id = "clear_sessions", name = "Clear user sessions", category = "User status", capabilities = "network",
+            description = "Sign a person out everywhere: end their Okta sessions and, if you like, revoke the tokens apps were given for them (offboarding).",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, revoke_app_tokens")
+    public Map<String, Object> clearSessions(ActionContext ctx,
+            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
+            @Input(name = "revoke_app_tokens", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Also revoke the OpenID Connect and OAuth tokens apps hold for the person.") boolean tokens,
+            @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        req("DELETE", api(org) + "/users/" + user(u) + "/sessions?oauthTokens=" + tokens, apiToken, accessToken).send(ctx);
+        return Map.of();
+    }
+
+    @Action(id = "unlock_user", name = "Unlock user", category = "User status", capabilities = "network",
+            description = "Let a person whose account was locked by too many wrong passwords sign in again.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
+    public Map<String, Object> unlock(ActionContext ctx,
+            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
+            @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        lifecycle(ctx, org, u, "unlock", Map.of(), apiToken, accessToken);
+        return Map.of();
+    }
+
+    @Action(id = "expire_password", name = "Expire password", category = "User status", capabilities = "network",
+            description = "Make a person choose a new password the next time they sign in; optionally give them a temporary one.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, [Give a temporary password: temporary_password]")
+    @Output(name = "temporary_password", type = OoaType.CREDENTIAL, description = "The temporary password, when one was asked for (kept secret in logs).")
+    public Map<String, Object> expirePassword(ActionContext ctx,
+            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
+            @Input(name = "temporary_password", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Have Okta make a temporary password to give the person.") boolean temp,
+            @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        Map<String, Object> r = lifecycle(ctx, org, u, "expire_password", temp ? Map.of("tempPassword", true) : Map.of(), apiToken, accessToken);
+        Object t = r.get("tempPassword");
+        return t == null ? Map.of() : Map.of("temporary_password", new SecureString(Values.text(t), "okta/temporary_password"));
     }
 
     @Action(id = "unsuspend_user", name = "Unsuspend user", category = "User status", capabilities = "network",

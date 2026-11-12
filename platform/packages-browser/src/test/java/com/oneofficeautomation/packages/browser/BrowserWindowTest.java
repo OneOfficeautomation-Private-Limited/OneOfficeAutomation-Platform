@@ -46,6 +46,13 @@ class BrowserWindowTest {
         return (String) b.getText(c, null, "#h", 3000, "browser", null, window).get("text");
     }
 
+    @Test void attachPrefersAWebPageOverTheBrowsersOwnPages() {
+        for (String own : List.of("edge://welcome-new", "chrome://newtab/", "about:blank", "devtools://devtools/x", ""))
+            assertTrue(BrowserWindows.browserOwnPage(own), own);
+        for (String web : List.of("http://127.0.0.1:8080/hello.html", "https://example.com/", "file:///C:/a.html"))
+            assertFalse(BrowserWindows.browserOwnPage(web), web);
+    }
+
     @Test void matchingRulesAndBrowserSuffix() {
         assertTrue(BrowserWindows.matches("Invoice 42 - Shop", "invoice * - SHOP", "wildcard"));
         assertFalse(BrowserWindows.matches("Invoice 42 - Shop", "Invoice *", "equals"));

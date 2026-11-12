@@ -6,7 +6,7 @@ Toolkit `ooa.databricks`, version 1.0.0. Run SQL on a Databricks SQL warehouse, 
 
 ## Contents
 
-- **Jobs**: Cancel job run, Get job run, List jobs, Run job now
+- **Jobs**: Cancel job run, Get job run, Get job run output, List jobs, Run job now
 - **SQL**: Cancel statement, Run SQL statement, Get statement results, Get statement status
 - **Files**: Delete file, Download file, Upload file
 - **Clusters**: List clusters, Start cluster, Stop cluster
@@ -24,7 +24,7 @@ Stop a job run that is queued or running.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Run ID | `run_id` | Text | Yes |  | Main | Run id from Run job now. |
 
 *Time limit 60 s; needs: network.*
@@ -40,7 +40,7 @@ Check the progress and outcome of a job run.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Run ID | `run_id` | Text | Yes |  | Main | Run id from Run job now. |
 
 **Results**
@@ -53,6 +53,32 @@ Check the progress and outcome of a job run.
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
+### Get job run output
+
+`ooa.databricks/get_run_output` (action)
+
+Read what a finished job run produced: the notebook's result, the error and its trace, and the logs, for each task of the run.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Run ID | `run_id` | Text | Yes |  | Main | Run id from Run job now. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The notebook's exit value (dbutils.notebook.exit); for several tasks, the first task's that has one. |
+| `error` | Text | Why the run failed, when it failed. |
+| `error_trace` | Text | The error's stack trace, when there is one. |
+| `logs` | Text | Output of a Python, JAR or spark-submit task (the last 5 MB). |
+| `tasks` | Table | One row per task: task_key, run_id, result_state, result, error, logs. |
+
+*Time limit 300 s; safe to repeat; needs: network.*
+
 ### List jobs
 
 `ooa.databricks/list_jobs` (action)
@@ -64,7 +90,7 @@ Return the jobs in the workspace, optionally only those with a given name.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Maximum results | `max_results` | Number | No | `1000` | Main | Most jobs to return. |
 | Name | `name` | Text | No |  | More options | Only the job with exactly this name. |
 
@@ -88,12 +114,12 @@ Start a job right away, optionally with parameters, and wait for it to finish if
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
-| Job ID | `job_id` | Text | Yes |  | Main | Job to start (see List jobs). |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Job ID | `job_id` | Text | Yes |  | Main | Job to start: its name or id (see List jobs). |
 | Job parameters | `job_parameters` | Dictionary | No |  | Main | Job parameter values, e.g. {"run_date": "2026-10-20"}. |
-| Wait until finished | `wait_until_finished` | Yes/No | No | No | More options | Wait for the run to end before going on. |
-| Wait (seconds) | `wait_seconds` | Number | No | `3600` | More options | Longest time to wait when waiting is on. |
-| Fail if run fails | `fail_if_run_fails` | Yes/No | No | Yes | More options | When waiting, stop the agent with an error if the run does not succeed. |
+| Wait | `wait` | Yes/No | No | No | Main; tick Wait until it ends | Wait for the run to end before going on. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `3600` | Main; tick Wait until it ends | Stop waiting after this many seconds and fail with WAIT_TIMEOUT (the run goes on in Databricks). Range: 1 to 86400; Shown when: `{"wait": ["true"]}` |
+| Fail if run fails | `fail_if_run_fails` | Yes/No | No | Yes | Main; tick Wait until it ends | When waiting, stop the agent with an error if the run does not succeed. |
 
 **Results**
 
@@ -119,7 +145,7 @@ Stop a SQL statement that is still running.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Statement ID | `statement_id` | Text | Yes |  | Main | Id from Run SQL statement. |
 
 *Time limit 60 s; needs: network.*
@@ -135,8 +161,8 @@ Run SQL on a SQL warehouse and return the rows as a data table. Use :name in the
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
-| Warehouse ID | `warehouse_id` | Text | Yes |  | Main | SQL warehouse that runs the statement (from its Connection details). |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Warehouse ID | `warehouse_id` | Text | Yes |  | Main | SQL warehouse that runs the statement: its name or its id (from its Connection details). |
 | SQL statement | `sql` | Text | Yes |  | Main | SQL to run. Example: `SELECT * FROM sales.orders WHERE region = :region` |
 | Parameters | `parameters` | Dictionary | No |  | Main | Values for :name markers in the SQL, e.g. {"region": "EMEA"}. |
 | Maximum rows | `max_rows` | Number | No | `100000` | Main | Most rows to bring back into the table. |
@@ -166,7 +192,7 @@ Read the rows of a finished SQL statement into a data table, chunk by chunk.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Statement ID | `statement_id` | Text | Yes |  | Main | Id from Run SQL statement. |
 | Maximum rows | `max_rows` | Number | No | `100000` | Main | Most rows to bring back. |
 | Wait (seconds) | `wait_seconds` | Number | No | `0` | Main | How long to wait for a running statement to finish; 0 fails at once if it is still running. Range: 0 to  |
@@ -192,7 +218,7 @@ Check whether a SQL statement that was left running has finished.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Statement ID | `statement_id` | Text | Yes |  | Main | Id from Run SQL statement. |
 
 **Results**
@@ -218,7 +244,7 @@ Delete a file from a Unity Catalog volume, the workspace, or DBFS (a DBFS folder
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | File to delete. Example: `/Volumes/main/finance/inbox/old.csv` |
 | Recursive | `recursive` | Yes/No | No | No | More options | DBFS only: also delete a folder with everything in it. |
 
@@ -235,7 +261,7 @@ Save a file from a Unity Catalog volume, the workspace, or DBFS to this machine.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | File to download, e.g. /Volumes/catalog/schema/volume/file.csv or dbfs:/FileStore/file.csv. Example: `/Volumes/main/finance/outbox/result.csv` |
 | Save as | `save_as` | File path | Yes |  | Main | Where to save it on this machine. Missing folders are created. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace a file already at save_as; when off, the action stops instead and nothing is downloaded. |
@@ -260,7 +286,7 @@ Copy a local file into a Unity Catalog volume, the workspace, or DBFS.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Local path | `local_path` | File path | Yes |  | Main | File on this machine to upload. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Destination, e.g. /Volumes/catalog/schema/volume/file.csv or dbfs:/FileStore/file.csv. Example: `/Volumes/main/finance/inbox/report.csv` |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace a file that is already there. |
@@ -286,7 +312,7 @@ Return the workspace's clusters and their state.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 
 **Results**
 
@@ -308,10 +334,10 @@ Start a stopped cluster, and wait until it is running if you like. Nothing happe
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
-| Cluster ID | `cluster_id` | Text | Yes |  | Main | Cluster to start (see List clusters). |
-| Wait until running | `wait_until_running` | Yes/No | No | Yes | More options | Wait until the cluster is ready before going on. |
-| Wait (seconds) | `wait_seconds` | Number | No | `1200` | More options | Longest time to wait. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Cluster ID | `cluster_id` | Text | Yes |  | Main | Cluster to start: its name or id (see List clusters). |
+| Wait | `wait` | Yes/No | No | Yes | Main; tick Wait until running | Wait until the cluster is ready before going on. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `1200` | Main; tick Wait until running | Stop waiting after this many seconds and fail with WAIT_TIMEOUT. Range: 1 to 3600; Shown when: `{"wait": ["true"]}` |
 
 **Results**
 
@@ -325,14 +351,22 @@ Start a stopped cluster, and wait until it is running if you like. Nothing happe
 
 `ooa.databricks/terminate_cluster` (action)
 
-Stop a running cluster to save cost. Its settings are kept so it can be started again.
+Stop a running cluster to save cost. Its settings are kept so it can be started again. Optionally wait until it has stopped.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workspace address (URL) | `workspace_url` | Text | Yes |  | Main | Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com. |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. |
-| Cluster ID | `cluster_id` | Text | Yes |  | Main | Cluster to stop. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Cluster ID | `cluster_id` | Text | Yes |  | Main | Cluster to stop: its name or id. |
+| Wait | `wait` | Yes/No | No | No | Main; tick Wait until stopped | Wait until the cluster has stopped before going on. |
+| Timeout (seconds) | `timeout_seconds` | Number | No | `1200` | Main; tick Wait until stopped | Stop waiting after this many seconds and fail with WAIT_TIMEOUT. Range: 1 to 3600; Shown when: `{"wait": ["true"]}` |
 
-*Time limit 60 s; needs: network.*
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `state` | Text | Cluster state afterwards, e.g. TERMINATING or TERMINATED. |
+
+*Time limit 3700 s; needs: network.*

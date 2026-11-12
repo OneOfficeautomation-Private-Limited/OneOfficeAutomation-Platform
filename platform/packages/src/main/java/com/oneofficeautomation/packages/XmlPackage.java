@@ -151,7 +151,7 @@ public final class XmlPackage {
         return getValue(ctx, xpath, xml, path, attribute, returnValue, null);
     }
 
-    @Action(id = "get_value", name = "Get single node", category = "XML", idempotent = true, description = "Return the text of the first node matching an XPath.",
+    @Action(id = "get_value", name = "Get single node", category = "XML", idempotent = true, description = "Read the text of the first element a path such as //order/id finds.",
             panel = "(Source: An XML file = path / XML text = xml), xpath, attribute | return_value, namespaces")
     @Output(name = "value", type = OoaType.STRING, description = "Node text, empty when nothing matches.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a node matched.")
@@ -167,7 +167,7 @@ public final class XmlPackage {
         return Out.of("value", n.getLength() > 0 ? describe(n.item(0), attribute, returnValue) : "", "found", n.getLength() > 0);
     }
 
-    @Action(id = "get_nodes", name = "Get multiple nodes", category = "XML", idempotent = true, description = "Return the text of every node matching an XPath.",
+    @Action(id = "get_nodes", name = "Get multiple nodes", category = "XML", idempotent = true, description = "Read the text of every element a path such as //order/id finds.",
             panel = "(Source: An XML file = path / XML text = xml), xpath, return_value, attribute | namespaces")
     @Output(name = "values", type = OoaType.LIST, description = "Texts of matching nodes.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches.")
@@ -207,7 +207,7 @@ public final class XmlPackage {
     }
 
     @Action(id = "to_dictionary", name = "Convert to dictionary", category = "XML", idempotent = true,
-            description = "Convert XML (or the part matched by an XPath) to a Dictionary; attributes become @name keys.",
+            description = "Turn XML (or the part a path finds) into a Dictionary; attributes become keys starting with @.",
             panel = "(Source: An XML file = path / XML text = xml), xpath")
     @Output(name = "value", description = "Dictionary or text.")
     public Map<String, Object> toDictionary(ActionContext ctx,
@@ -224,7 +224,7 @@ public final class XmlPackage {
         return Out.of("value", XmlSupport.toValue(e));
     }
 
-    @Action(id = "set_value", name = "Update node", category = "XML", capabilities = "filesystem", description = "Set the text (or an attribute) of every node matching an XPath, in a file or in XML text.",
+    @Action(id = "set_value", name = "Update node", category = "XML", capabilities = "filesystem", description = "Change the text (or an attribute) of every element a path finds, in a file or in XML text.",
             panel = "(Source: An XML file = path, save_to / XML text = xml), xpath, value, attribute | attributes, namespaces")
     @Output(name = "count", type = OoaType.NUMBER, description = "Nodes changed.")
     @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
@@ -266,7 +266,7 @@ public final class XmlPackage {
         return setValue(ctx, path, xpath, value, saveTo, attribute, xml, attributes, null);
     }
 
-    @Action(id = "insert_node", name = "Insert node", category = "XML", capabilities = "filesystem", description = "Add an element (with text and attributes) under, before or after every node matching an XPath.",
+    @Action(id = "insert_node", name = "Insert node", category = "XML", capabilities = "filesystem", description = "Add an element, with its text and attributes, under, before or after every element a path finds.",
             panel = "(Source: An XML file = path, save_to / XML text = xml), parent_xpath, name, text, if_exists, position, attributes | reference_child, namespaces")
     @Output(name = "count", type = OoaType.NUMBER, description = "Elements inserted.")
     @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
@@ -344,7 +344,7 @@ public final class XmlPackage {
         return insertNode(ctx, path, parentXpath, name, text, attrs, saveTo, position, ifExists, xml, null, null);
     }
 
-    @Action(id = "delete_nodes", name = "Delete nodes", category = "XML", capabilities = "filesystem", description = "Remove every node (or one attribute of every node) matching an XPath, in a file or in XML text.",
+    @Action(id = "delete_nodes", name = "Delete nodes", category = "XML", capabilities = "filesystem", description = "Remove every element (or one attribute of each) that a path such as //order/note finds, in a file or in XML text.",
             panel = "(Source: An XML file = path, save_to / XML text = xml), xpath, attribute | namespaces")
     @Output(name = "count", type = OoaType.NUMBER, description = "Nodes (or attributes) removed.")
     @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
@@ -370,7 +370,7 @@ public final class XmlPackage {
     }
 
     @Action(id = "validate", name = "Validate XML", category = "XML", idempotent = true,
-            description = "Check that an XML document is well-formed and, when an XSD schema is given, valid against it; returns the result instead of failing.",
+            description = "Check that XML is well written and, if you give an XSD schema, that it follows it; gives the result instead of failing.",
             panel = "(Source: An XML file = path / XML text = xml), [Check against a schema: xsd_path]")
     @Output(name = "valid", type = OoaType.BOOLEAN, description = "True when the document is valid.")
     @Output(name = "errors", type = OoaType.LIST, description = "Validation errors with line numbers.")
@@ -411,7 +411,7 @@ public final class XmlPackage {
     }
 
     @Action(id = "xpath_function", name = "Evaluate XPath", category = "XML", idempotent = true,
-            description = "Evaluate an XPath expression such as count(//line) or sum(//amount) and return text, a number or true/false.",
+            description = "Work something out from XML with an XPath function, such as count(//line) or sum(//amount): text, a number or true/false.",
             panel = "expression, (Source: An XML file = path / XML text = xml), result_type | namespaces")
     @Output(name = "result", description = "Result of the expression as String, Number or Boolean.")
     public Map<String, Object> xpathFunction(ActionContext ctx,
@@ -460,7 +460,7 @@ public final class XmlPackage {
     }
 
     @Action(id = "save_file", name = "Save XML file", category = "XML", capabilities = "filesystem",
-            description = "Check that XML text is well-formed and write it to a file, optionally indented.",
+            description = "Check that XML text is well written and save it to a file, indented if you want.",
             panel = "xml, path, indent, overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the written file.")
     public Map<String, Object> saveFile(ActionContext ctx,

@@ -20,7 +20,7 @@ public final class DatabricksPackage {
     private static final Pattern TEXT_ID = Pattern.compile("^[0-9A-Za-z._-]{1,100}$");
     private static final int DBFS_BLOCK = 1024 * 1024;
     private static final String D_URL = "Workspace address, e.g. https://adb-1234567890123456.7.azuredatabricks.net or https://dbc-a1b2c3d4-e5f6.cloud.databricks.com.";
-    private static final String D_TOKEN = "Databricks personal access token or OAuth token from the vault.";
+    private static final String D_TOKEN = "Databricks personal access token or OAuth token from the vault. Or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final Set<String> NUMERIC = Set.of("BYTE", "SHORT", "INT", "LONG", "TINYINT", "SMALLINT", "BIGINT", "INTEGER", "FLOAT", "DOUBLE", "DECIMAL");
 
     private static String ws(String url) { return url.replaceAll("/+$", ""); }
@@ -34,6 +34,58 @@ public final class DatabricksPackage {
     private static String textId(String what, String v) {
         if (v == null || !TEXT_ID.matcher(v.trim()).matches()) throw new ActionException(P + ".BAD_ID", "Invalid " + what + " id '" + v + "'", "Copy the id from the " + what + "'s details page.");
         return v.trim();
+    }
+
+    // ----- jobs, clusters and warehouses by name (K5, batch 10) -----
+
+    private static final Pattern CLUSTER_ID = Pattern.compile("^\\d{4}-\\d{6}-[0-9A-Za-z]+$");
+    private static final Pattern WAREHOUSE_ID = Pattern.compile("^[0-9a-f]{16}$");
+
+    /** A job by id, or by its exact name (Databricks filters the job list by name). */
+    static String jobId(ActionContext ctx, String url, Object token, String v) {
+        if (v != null && NUM_ID.matcher(v.trim()).matches()) return v.trim();
+        if (v == null || v.isBlank()) throw new ActionException(P + ".BAD_ID", "Give the job", "Its name or id (see List jobs).");
+        List<Object> found = new ArrayList<>();
+        for (Map<String, Object> j : HttpJson.maps(req("GET", ws(url) + "/api/2.1/jobs/list?" + HttpJson.query(Map.of("name", v.trim(), "limit", 100)), token).send(ctx).map().get("jobs")))
+            if (v.trim().equalsIgnoreCase(String.valueOf(HttpJson.path(j, "settings.name")))) found.add(j.get("job_id"));
+        return one(found, "job", v);
+    }
+
+    /** A cluster by id, or by its name. */
+    static String clusterId(ActionContext ctx, String url, Object token, String v) {
+        if (v != null && CLUSTER_ID.matcher(v.trim()).matches()) return v.trim();
+        if (v == null || v.isBlank()) throw new ActionException(P + ".BAD_ID", "Give the cluster", "Its name or id (see List clusters).");
+        List<Object> found = new ArrayList<>();
+        String token2 = null;
+        do {
+            Map<String, Object> r;
+            try { r = req("GET", ws(url) + "/api/2.0/clusters/list" + (token2 == null ? "" : "?page_token=" + HttpJson.enc(token2)), token).send(ctx).map(); }
+            catch (ActionException e) { if (e.code().endsWith(".NOT_FOUND") && TEXT_ID.matcher(v.trim()).matches()) return v.trim(); throw e; }
+            for (Map<String, Object> c : HttpJson.maps(r.get("clusters"))) if (v.trim().equalsIgnoreCase(String.valueOf(c.get("cluster_name")))) found.add(c.get("cluster_id"));
+            token2 = r.get("next_page_token") instanceof String t && !t.isBlank() ? t : null;
+        } while (token2 != null);
+        if (found.isEmpty() && TEXT_ID.matcher(v.trim()).matches()) return v.trim();   // an id in another form
+        return one(found, "cluster", v);
+    }
+
+    /** A SQL warehouse by id, or by its name. */
+    static String warehouseId(ActionContext ctx, String url, Object token, String v) {
+        if (v != null && WAREHOUSE_ID.matcher(v.trim()).matches()) return v.trim();
+        if (v == null || v.isBlank()) throw new ActionException(P + ".BAD_ID", "Give the SQL warehouse", "Its name or id.");
+        List<Object> found = new ArrayList<>();
+        Map<String, Object> listed;
+        try { listed = req("GET", ws(url) + "/api/2.0/sql/warehouses", token).send(ctx).map(); }
+        catch (ActionException e) { if (e.code().endsWith(".NOT_FOUND") && TEXT_ID.matcher(v.trim()).matches()) return v.trim(); throw e; }
+        for (Map<String, Object> w : HttpJson.maps(listed.get("warehouses")))
+            if (v.trim().equalsIgnoreCase(String.valueOf(w.get("name")))) found.add(w.get("id"));
+        if (found.isEmpty() && TEXT_ID.matcher(v.trim()).matches()) return v.trim();
+        return one(found, "SQL warehouse", v);
+    }
+
+    private static String one(List<Object> found, String what, String name) {
+        if (found.isEmpty()) throw new ActionException(P + ".NOT_FOUND", "No " + what + " named '" + name.trim() + "'", "Check the name, or use the " + what + "'s id.");
+        if (found.size() > 1) throw new ActionException(P + ".AMBIGUOUS_NAME", found.size() + " " + what + "s are named '" + name.trim() + "'", "Use the " + what + "'s id.");
+        return Values.text(found.get(0));
     }
 
     // ----- SQL -----
@@ -120,7 +172,7 @@ public final class DatabricksPackage {
     @Output(name = "status", type = OoaType.STRING, description = "SUCCEEDED, or PENDING / RUNNING when it did not finish within the wait time.")
     public Map<String, Object> executeSql(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
-            @Input(name = "warehouse_id", type = OoaType.STRING, description = "SQL warehouse that runs the statement (from its Connection details).") String warehouse,
+            @Input(name = "warehouse_id", type = OoaType.STRING, description = "SQL warehouse that runs the statement: its name or its id (from its Connection details).") String warehouse,
             @Input(name = "sql", type = OoaType.STRING, example = "SELECT * FROM sales.orders WHERE region = :region", description = "SQL to run.") String sql,
             @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, description = "Values for :name markers in the SQL, e.g. {\"region\": \"EMEA\"}.") Map<String, Object> params,
             @Input(name = "catalog", type = OoaType.STRING, required = false, description = "Catalog for names that are not fully written out.") String catalog,
@@ -131,7 +183,7 @@ public final class DatabricksPackage {
         if (sql == null || sql.isBlank()) throw new ActionException(P + ".NO_SQL", "The SQL statement is empty", "Write the SQL to run.");
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("statement", sql);
-        body.put("warehouse_id", textId("warehouse", warehouse));
+        body.put("warehouse_id", warehouseId(ctx, url, token, warehouse));
         if (catalog != null && !catalog.isBlank()) body.put("catalog", catalog);
         if (schema != null && !schema.isBlank()) body.put("schema", schema);
         List<Map<String, Object>> ps = parameters(params);
@@ -267,21 +319,22 @@ public final class DatabricksPackage {
 
     @Action(id = "run_job", name = "Run job now", category = "Jobs", timeoutSeconds = 86400, capabilities = "network",
             description = "Start a job right away, optionally with parameters, and wait for it to finish if you like.",
-            panel = "workspace_url, access_token, job_id, job_parameters | wait_until_finished, wait_seconds, fail_if_run_fails")
+            panel = "workspace_url, access_token, job_id, job_parameters, [Wait until it ends: wait, timeout_seconds, fail_if_run_fails]")
     @Output(name = "run_id", type = OoaType.STRING, description = "Id of the job run.")
     @Output(name = "life_cycle_state", type = OoaType.STRING, description = "Where the run is, e.g. PENDING, RUNNING or TERMINATED.")
     @Output(name = "result_state", type = OoaType.STRING, description = "SUCCESS, FAILED, TIMEDOUT or CANCELED once it has finished; empty before that.")
     @Output(name = "run_page_url", type = OoaType.STRING, description = "Link to the run in the Databricks workspace.")
     public Map<String, Object> runJob(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
-            @Input(name = "job_id", type = OoaType.STRING, description = "Job to start (see List jobs).") String jobId,
+            @Input(name = "job_id", type = OoaType.STRING, description = "Job to start: its name or id (see List jobs).") String jobId,
             @Input(name = "job_parameters", type = OoaType.DICTIONARY, required = false, description = "Job parameter values, e.g. {\"run_date\": \"2026-10-20\"}.") Map<String, Object> params,
-            @Input(name = "wait_until_finished", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait for the run to end before going on.") boolean wait,
-            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "3600", description = "Longest time to wait when waiting is on.") int waitSeconds,
+            @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", formerNames = "wait_until_finished", description = "Wait for the run to end before going on.") boolean wait,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "3600", min = 1, max = 86400, formerNames = "wait_seconds", visibleWhen = "wait=true",
+                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT (the run goes on in Databricks).") int waitSeconds,
             @Input(name = "fail_if_run_fails", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "When waiting, stop the agent with an error if the run does not succeed.") boolean failOnError,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("job_id", new BigDecimal(numId("job", jobId)));
+        body.put("job_id", new BigDecimal(jobId(ctx, url, token, jobId)));
         if (params != null && !params.isEmpty()) { Map<String, Object> jp = new LinkedHashMap<>(); params.forEach((k, v) -> jp.put(k, Values.text(v))); body.put("job_parameters", jp); }
         Map<String, Object> started = req("POST", ws(url) + "/api/2.1/jobs/run-now", token).json(body).send(ctx).map();
         String runId = Values.text(started.get("run_id"));
@@ -291,6 +344,10 @@ public final class DatabricksPackage {
             HttpJson.pause(ctx, pollMillis);
             s = runSummary(getRunRaw(ctx, url, token, runId));
         }
+        // K4 (batch 10): a wait that runs out says so, instead of returning a run that is still going as if it were done
+        if (wait && !runFinished(s))
+            throw new ActionException(P + ".WAIT_TIMEOUT", "Job run " + runId + " is still " + s.get("life_cycle_state") + " after " + waitSeconds + " s",
+                    "Raise timeout_seconds, or check the run later with Get job run: " + s.get("run_page_url"), false, Map.of("run_id", runId));
         if (wait && failOnError && runFinished(s) && !"SUCCESS".equals(s.get("result_state")))
             throw new ActionException(P + ".RUN_FAILED", "Job run " + runId + " ended with " + s.get("result_state") + ": " + s.get("state_message"),
                     "Open the run page for details: " + s.get("run_page_url"));
@@ -308,6 +365,45 @@ public final class DatabricksPackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
         Map<String, Object> s = runSummary(getRunRaw(ctx, url, token, runId));
         return Out.of("life_cycle_state", s.get("life_cycle_state"), "result_state", s.get("result_state"), "run", s);
+    }
+
+    /**
+     * K7 (command review, batch 10): what a finished run produced, as AA's Get job run output gives it: the notebook's
+     * exit value (dbutils.notebook.exit), the error and its trace, and the logs; for a job of several tasks, each task's.
+     */
+    @Action(id = "get_run_output", name = "Get job run output", category = "Jobs", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+            description = "Read what a finished job run produced: the notebook's result, the error and its trace, and the logs, for each task of the run.",
+            panel = "workspace_url, access_token, run_id")
+    @Output(name = "result", type = OoaType.STRING, description = "The notebook's exit value (dbutils.notebook.exit); for several tasks, the first task's that has one.")
+    @Output(name = "error", type = OoaType.STRING, description = "Why the run failed, when it failed.")
+    @Output(name = "error_trace", type = OoaType.STRING, description = "The error's stack trace, when there is one.")
+    @Output(name = "logs", type = OoaType.STRING, description = "Output of a Python, JAR or spark-submit task (the last 5 MB).")
+    @Output(name = "tasks", type = OoaType.TABLE, description = "One row per task: task_key, run_id, result_state, result, error, logs.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getRunOutput(ActionContext ctx,
+            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "run_id", type = OoaType.STRING, description = "Run id from Run job now.") String runId,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+        Map<String, Object> run = getRunRaw(ctx, url, token, runId);
+        List<Map<String, Object>> tasks = HttpJson.maps(run.get("tasks"));
+        List<Object> rows = new ArrayList<>();
+        String result = null, error = null, trace = null, logs = null;
+        List<Map<String, Object>> each = new ArrayList<>();
+        if (tasks.isEmpty()) each.add(Map.of("run_id", numId("run", runId)));
+        else each.addAll(tasks);
+        for (Map<String, Object> t : each) {
+            String tid = Values.text(t.get("run_id"));
+            Map<String, Object> o = req("GET", ws(url) + "/api/2.1/jobs/runs/get-output?run_id=" + HttpJson.enc(numId("run", tid)), token).send(ctx).map();
+            String r = HttpJson.path(o, "notebook_output.result") == null ? null : Values.text(HttpJson.path(o, "notebook_output.result"));
+            String e = o.get("error") == null ? null : Values.text(o.get("error"));
+            String l = o.get("logs") == null ? null : Values.text(o.get("logs"));
+            if (result == null) result = r;
+            if (error == null) { error = e; trace = o.get("error_trace") == null ? null : Values.text(o.get("error_trace")); }
+            if (logs == null) logs = l;
+            rows.add(new ArrayList<>(Arrays.asList(t.get("task_key"), tid, HttpJson.path(t, "state.result_state") != null ? HttpJson.path(t, "state.result_state") : HttpJson.path(o, "metadata.state.result_state"), r, e, l)));
+        }
+        return Out.of("result", result, "error", error, "error_trace", trace, "logs", logs,
+                "tasks", Values.table(List.of("task_key", "run_id", "result_state", "result", "error", "logs"), rows));
     }
 
     @Action(id = "cancel_run", name = "Cancel job run", category = "Jobs", capabilities = "network", description = "Stop a job run that is queued or running.",
@@ -349,15 +445,16 @@ public final class DatabricksPackage {
 
     @Action(id = "start_cluster", name = "Start cluster", category = "Clusters", timeoutSeconds = 3600, capabilities = "network",
             description = "Start a stopped cluster, and wait until it is running if you like. Nothing happens if it is already running.",
-            panel = "workspace_url, access_token, cluster_id | wait_until_running, wait_seconds")
+            panel = "workspace_url, access_token, cluster_id, [Wait until running: wait, timeout_seconds]")
     @Output(name = "state", type = OoaType.STRING, description = "Cluster state afterwards, e.g. PENDING or RUNNING.")
     public Map<String, Object> startCluster(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
-            @Input(name = "cluster_id", type = OoaType.STRING, description = "Cluster to start (see List clusters).") String clusterId,
-            @Input(name = "wait_until_running", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Wait until the cluster is ready before going on.") boolean wait,
-            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1200", description = "Longest time to wait.") int waitSeconds,
+            @Input(name = "cluster_id", type = OoaType.STRING, description = "Cluster to start: its name or id (see List clusters).") String clusterId,
+            @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "true", formerNames = "wait_until_running", description = "Wait until the cluster is ready before going on.") boolean wait,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1200", min = 1, max = 3600, formerNames = "wait_seconds", visibleWhen = "wait=true",
+                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int waitSeconds,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        String id = textId("cluster", clusterId);
+        String id = clusterId(ctx, url, token, clusterId);
         String state = clusterState(ctx, url, token, id);
         if (!state.equals("RUNNING") && !state.equals("PENDING") && !state.equals("RESIZING"))
             req("POST", ws(url) + "/api/2.0/clusters/start", token).json(Map.of("cluster_id", id)).send(ctx);
@@ -369,18 +466,38 @@ public final class DatabricksPackage {
             HttpJson.pause(ctx, pollMillis);
             state = clusterState(ctx, url, token, id);
         }
+        if (wait && !state.equals("RUNNING"))
+            throw new ActionException(P + ".WAIT_TIMEOUT", "Cluster " + id + " is still " + state + " after " + waitSeconds + " s", "Raise timeout_seconds, or check the cluster in Databricks.");
         return Out.of("state", state);
     }
 
-    @Action(id = "terminate_cluster", name = "Stop cluster", category = "Clusters", capabilities = "network",
-            description = "Stop a running cluster to save cost. Its settings are kept so it can be started again.",
-            panel = "workspace_url, access_token, cluster_id")
+    @Action(id = "terminate_cluster", name = "Stop cluster", category = "Clusters", timeoutSeconds = 3700, capabilities = "network",
+            description = "Stop a running cluster to save cost. Its settings are kept so it can be started again. Optionally wait until it has stopped.",
+            panel = "workspace_url, access_token, cluster_id, [Wait until stopped: wait, timeout_seconds]")
+    @Output(name = "state", type = OoaType.STRING, description = "Cluster state afterwards, e.g. TERMINATING or TERMINATED.")
     public Map<String, Object> terminateCluster(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
-            @Input(name = "cluster_id", type = OoaType.STRING, description = "Cluster to stop.") String clusterId,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
-        req("POST", ws(url) + "/api/2.0/clusters/delete", token).json(Map.of("cluster_id", textId("cluster", clusterId))).send(ctx);
-        return Map.of();
+            @Input(name = "cluster_id", type = OoaType.STRING, description = "Cluster to stop: its name or id.") String clusterId,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until the cluster has stopped before going on.") boolean wait,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1200", min = 1, max = 3600, visibleWhen = "wait=true",
+                    description = "Stop waiting after this many seconds and fail with WAIT_TIMEOUT.") int waitSeconds) {
+        String id = clusterId(ctx, url, token, clusterId);
+        req("POST", ws(url) + "/api/2.0/clusters/delete", token).json(Map.of("cluster_id", id)).send(ctx);
+        String state = clusterState(ctx, url, token, id);
+        long deadline = System.currentTimeMillis() + waitSeconds * 1000L;
+        while (wait && !state.equals("TERMINATED") && System.currentTimeMillis() < deadline) {
+            HttpJson.pause(ctx, pollMillis);
+            state = clusterState(ctx, url, token, id);
+        }
+        if (wait && !state.equals("TERMINATED"))
+            throw new ActionException(P + ".WAIT_TIMEOUT", "Cluster " + id + " is still " + state + " after " + waitSeconds + " s", "Raise timeout_seconds, or check the cluster in Databricks.");
+        return Out.of("state", state);
+    }
+
+    /** Earlier signature, kept for callers written before waiting (K4, batch 10). */
+    public Map<String, Object> terminateCluster(ActionContext ctx, String url, String clusterId, Object token) {
+        return terminateCluster(ctx, url, clusterId, token, false, 1200);
     }
 
     // ----- files -----

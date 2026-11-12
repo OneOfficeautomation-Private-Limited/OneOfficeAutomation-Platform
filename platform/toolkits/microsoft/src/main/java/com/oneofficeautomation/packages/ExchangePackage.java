@@ -40,6 +40,7 @@ public final class ExchangePackage {
     static final String NS_TYPES = "http://schemas.microsoft.com/exchange/services/2006/types";
     static final String NS_MESSAGES = "http://schemas.microsoft.com/exchange/services/2006/messages";
     private static final String D_SESSION = "Session name of the open Exchange mailbox.";
+    private static final String D_RESPONSE_FILES = "Files to attach (paths); the reply is then saved as a draft, given the files and sent.";
     private static final String D_ID = "Email id from Find emails (an EWS item id).";
     private static final String D_FOLDER = "Folder: a well-known name (inbox, sentitems, deleteditems, drafts, junkemail, archive), a path such as Inbox/Invoices, or a folder id.";
 
@@ -87,7 +88,7 @@ public final class ExchangePackage {
     // ------------------------------------------------------------------ connect
 
     @Action(id = "connect", name = "Connect to Exchange mailbox", category = "Mailbox", capabilities = "network",
-            description = "Sign in to an on-premises Exchange Server mailbox through Exchange Web Services (EWS) as a named session; checks the sign-in by opening the inbox.",
+            description = "Sign in to an on-premises Exchange Server mailbox through Exchange Web Services (EWS) as a named session; checks the sign-in by opening the inbox. For Exchange Online (Microsoft 365) use the Microsoft 365 toolkit instead: Microsoft is retiring EWS there.",
             panel = "ews_url, user, password, sign_in, [Open another person's or a shared mailbox: mailbox, impersonate] | timeout_seconds, insecure_tls, session")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "ews_url", type = OoaType.STRING, label = "Exchange web services address (URL)", example = "https://mail.example.com/EWS/Exchange.asmx",
@@ -145,7 +146,7 @@ public final class ExchangePackage {
 
     @Action(id = "list", name = "Find emails", category = "Mailbox", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "List emails in an Exchange folder, newest first, filtered by unread, sender, subject and date; loop over the table to process them.",
-            panel = "folder, unread_only, read_only, from_contains, subject_contains, since, before, max_results | has_attachments_only, oldest_first, session")
+            panel = "folder, unread_only, read_only, from_contains, subject_contains, since, before, max_results | body_contains, has_attachments_only, oldest_first, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, from, subject, received, unread, has_attachments.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails.")
     public Map<String, Object> list(ActionContext ctx,
@@ -159,9 +160,10 @@ public final class ExchangePackage {
             @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
             @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
             @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the oldest emails first instead of the newest.") boolean oldestFirst,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session,
+            @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "Body contains this text (searched by the server); separate several with ; to match any of them.") String bodyContains) {
         List<Object> rows = new ArrayList<>();
-        for (Map<String, Object> e : find(ctx, es(ctx, session), folder, unread, readOnly, from, subject, since, before, withAtts, oldestFirst, max))
+        for (Map<String, Object> e : find(ctx, es(ctx, session), folder, unread, readOnly, from, subject, since, before, withAtts, oldestFirst, max, bodyContains))
             rows.add(new ArrayList<>(e.values()));
         return Map.of("table", Values.table(SUMMARY_COLUMNS, rows), "count", BigDecimal.valueOf(rows.size()));
     }
@@ -175,14 +177,36 @@ public final class ExchangePackage {
             @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text; separate several with ; to match any of them.") String subject,
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 1, description = "Stop after this many emails.") int max,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
+            @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The oldest emails first instead of the newest.") boolean oldestFirst,
+            @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "Body contains this text (searched by the server); separate several with ; to match any of them.") String bodyContains,
+            @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = MailRecord.D_WITH_BODY) boolean withBody) {
         // the list is taken before the loop starts, so emails can be moved or deleted inside it
-        return new ArrayList<>(find(ctx, es(ctx, session), folder, unread, false, from, subject, since, null, false, false, max));
+        List<Map<String, Object>> found = find(ctx, es(ctx, session), folder, unread, readOnly, from, subject, since, before, withAtts, oldestFirst, max, bodyContains);
+        return MailRecord.each(found, withBody, row -> (Map<String, Object>) get(ctx, String.valueOf(row.get("id")), false, session).get("email"));
+    }
+
+    /** Earlier signatures, kept for callers written before body_contains and the loop's extra filters (A6). */
+    public Map<String, Object> list(ActionContext ctx, String folder, boolean unread, String from, String subject, LocalDateTime since, int max, LocalDateTime before,
+                                    boolean readOnly, boolean withAtts, boolean oldestFirst, String session) {
+        return list(ctx, folder, unread, from, subject, since, max, before, readOnly, withAtts, oldestFirst, session, null);
+    }
+
+    public Iterable<Object> emails(ActionContext ctx, String folder, boolean unread, String from, String subject, LocalDateTime since, int max, String session) {
+        return emails(ctx, folder, unread, from, subject, since, max, session, null, false, false, false, null, false);
     }
 
     /** The emails matching the filters, each keyed by SUMMARY_COLUMNS. Subject, dates and flags are filtered by the server; the sender here. */
     static List<Map<String, Object>> find(ActionContext ctx, ExchangeSession s, String folder, boolean unread, boolean readOnly, String from, String subject,
                                           LocalDateTime since, LocalDateTime before, boolean withAtts, boolean oldestFirst, int max) {
+        return find(ctx, s, folder, unread, readOnly, from, subject, since, before, withAtts, oldestFirst, max, null);
+    }
+
+    static List<Map<String, Object>> find(ActionContext ctx, ExchangeSession s, String folder, boolean unread, boolean readOnly, String from, String subject,
+                                          LocalDateTime since, LocalDateTime before, boolean withAtts, boolean oldestFirst, int max, String bodyContains) {
         if (unread && readOnly) throw new ActionException(P + ".BAD_INPUT", "unread_only and read_only cannot both be true", "Choose one of them.");
         int limit = Math.max(1, max);
         List<String> terms = new ArrayList<>();
@@ -194,6 +218,10 @@ public final class ExchangePackage {
         for (String v : parts(subject))
             subj.add("<t:Contains ContainmentMode=\"Substring\" ContainmentComparison=\"IgnoreCase\"><t:FieldURI FieldURI=\"item:Subject\"/><t:Constant Value=\"" + x(v) + "\"/></t:Contains>");
         if (subj.size() == 1) terms.add(subj.get(0)); else if (subj.size() > 1) terms.add("<t:Or>" + String.join("", subj) + "</t:Or>");
+        List<String> inBody = new ArrayList<>();
+        for (String v : parts(bodyContains))
+            inBody.add("<t:Contains ContainmentMode=\"Substring\" ContainmentComparison=\"IgnoreCase\"><t:FieldURI FieldURI=\"item:Body\"/><t:Constant Value=\"" + x(v) + "\"/></t:Contains>");
+        if (inBody.size() == 1) terms.add(inBody.get(0)); else if (inBody.size() > 1) terms.add("<t:Or>" + String.join("", inBody) + "</t:Or>");
         String restriction = terms.isEmpty() ? "" : "<m:Restriction>" + (terms.size() == 1 ? terms.get(0) : "<t:And>" + String.join("", terms) + "</t:And>") + "</m:Restriction>";
         List<String> senders = parts(from);
         // the sender is matched here, as EWS cannot search the From address as text; pages are then larger
@@ -233,7 +261,7 @@ public final class ExchangePackage {
     @Action(id = "get", name = "Read email", category = "Mailbox", idempotent = true, capabilities = "network",
             description = "Read one email: sender, recipients, subject, text, HTML and attachment names.",
             panel = "id, mark_read | session")
-    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size, unread, conversation_id.")
+    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size, unread, conversation_id. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String id,
             @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Mark the email as read.") boolean markRead,
@@ -271,7 +299,7 @@ public final class ExchangePackage {
         e.put("unread", wasUnread && !markRead);
         e.put("conversation_id", attr(child(it, "ConversationId"), "Id"));
         if (markRead && wasUnread) setFields(ctx, s, id, isRead(true));
-        return Map.of("email", e);
+        return Map.of("email", MailRecord.withCommonKeys(e));
     }
 
     @Action(id = "save_attachments", name = "Save attachments", category = "Mailbox", capabilities = {"network", "filesystem"},
@@ -384,35 +412,49 @@ public final class ExchangePackage {
 
     @Action(id = "reply", name = "Reply to email", category = "Send", timeoutSeconds = 120, capabilities = "network",
             description = "Reply to the sender of an email, keeping it in the same conversation with the original quoted below.",
-            panel = "id, body, html | cc, bcc, session")
+            panel = "id, body, html, attachments | cc, bcc, session")
     public Map<String, Object> reply(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String id,
             @Input(name = "body", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Reply text, shown above the original.") String body,
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Body is HTML.") boolean html,
             @Input(name = "cc", required = false, description = "Extra CC address(es).") Object cc,
             @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session) {
-        respond(ctx, es(ctx, session), "ReplyToItem", id, null, cc, bcc, body, html);
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session,
+            @Input(name = "attachments", type = OoaType.LIST, required = false, description = D_RESPONSE_FILES) List<Object> attachments) {
+        respond(ctx, es(ctx, session), "ReplyToItem", id, null, cc, bcc, body, html, attachments, false);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before attachments. */
+    public Map<String, Object> reply(ActionContext ctx, String id, String body, boolean html, Object cc, Object bcc, String session) {
+        return reply(ctx, id, body, html, cc, bcc, session, null);
     }
 
     @Action(id = "reply_all", name = "Reply to all", category = "Send", timeoutSeconds = 120, capabilities = "network",
             description = "Reply to the sender and all other recipients of an email, keeping it in the same conversation with the original quoted below.",
-            panel = "id, body, html | cc, bcc, session")
+            panel = "id, body, html, attachments | cc, bcc, exclude_sender, session")
     public Map<String, Object> replyAll(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String id,
             @Input(name = "body", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Reply text, shown above the original.") String body,
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Body is HTML.") boolean html,
             @Input(name = "cc", required = false, description = "Extra CC address(es).") Object cc,
             @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session) {
-        respond(ctx, es(ctx, session), "ReplyAllToItem", id, null, cc, bcc, body, html);
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session,
+            @Input(name = "attachments", type = OoaType.LIST, required = false, description = D_RESPONSE_FILES) List<Object> attachments,
+            @Input(name = "exclude_sender", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Leave the original sender out, replying only to the other recipients (e.g. to tell the team, not the customer).") boolean excludeSender) {
+        respond(ctx, es(ctx, session), "ReplyAllToItem", id, null, cc, bcc, body, html, attachments, excludeSender);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before attachments and exclude_sender. */
+    public Map<String, Object> replyAll(ActionContext ctx, String id, String body, boolean html, Object cc, Object bcc, String session) {
+        return replyAll(ctx, id, body, html, cc, bcc, session, null, false);
     }
 
     @Action(id = "forward", name = "Forward email", category = "Send", timeoutSeconds = 120, capabilities = "network",
             description = "Forward an email, with its attachments, and a note shown above the original.",
-            panel = "id, to, cc, bcc, note, html | session")
+            panel = "id, to, cc, bcc, note, html, attachments | as_attachment, session")
     public Map<String, Object> forward(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String id,
             @Input(name = "to", description = "Recipient address(es).") Object to,
@@ -420,22 +462,131 @@ public final class ExchangePackage {
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The note is HTML.") boolean html,
             @Input(name = "cc", required = false, description = "CC address(es).") Object cc,
             @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session,
+            @Input(name = "attachments", type = OoaType.LIST, required = false, description = D_RESPONSE_FILES) List<Object> attachments,
+            @Input(name = "as_attachment", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Attach the original email as an .eml file instead of quoting it below the note.") boolean asAttachment) {
         List<String> recipients = HttpJson.addressList(to);
         if (recipients.isEmpty()) throw new ActionException(P + ".BAD_ADDRESS", "Give at least one recipient in to", "Fill in to.");
-        respond(ctx, es(ctx, session), "ForwardItem", id, recipients, cc, bcc, note, html);
+        ExchangeSession s = es(ctx, session);
+        if (asAttachment) forwardAsAttachment(ctx, s, id, recipients, cc, bcc, note, html, attachments);
+        else respond(ctx, s, "ForwardItem", id, recipients, cc, bcc, note, html, attachments, false);
         return Map.of();
     }
 
-    /** Reply, reply all or forward: a response object that points at the original (with its change key, which EWS asks for). */
-    private static void respond(ActionContext ctx, ExchangeSession s, String kind, String id, List<String> to, Object cc, Object bcc, String text, boolean html) {
-        Element original = item(ctx, s, id, "<t:BaseShape>IdOnly</t:BaseShape>");
-        String body = "<m:CreateItem MessageDisposition=\"SendAndSaveCopy\"><m:SavedItemFolderId>" + s.distinguished("sentitems") + "</m:SavedItemFolderId><m:Items><t:" + kind + ">"
+    /** Earlier signature, kept for callers written before attachments and as_attachment. */
+    public Map<String, Object> forward(ActionContext ctx, String id, Object to, String note, boolean html, Object cc, Object bcc, String session) {
+        return forward(ctx, id, to, note, html, cc, bcc, session, null, false);
+    }
+
+    /** A new email with the original attached as an .eml file (its full MIME content), sent through a draft. */
+    private static void forwardAsAttachment(ActionContext ctx, ExchangeSession s, String id, List<String> to, Object cc, Object bcc, String note, boolean html,
+                                            List<Object> attachments) {
+        Element original = item(ctx, s, id, "<t:BaseShape>IdOnly</t:BaseShape><t:IncludeMimeContent>true</t:IncludeMimeContent>"
+                + "<t:AdditionalProperties><t:FieldURI FieldURI=\"item:Subject\"/></t:AdditionalProperties>");
+        String subject = text(original, "Subject"), mime = text(original, "MimeContent");
+        if (mime.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "Exchange did not give the email's content", "Forward it without as_attachment.");
+        String extra = attachmentsXml(ctx, attachments);
+        String files = "<t:FileAttachment><t:Name>" + x(emlName(subject)) + "</t:Name><t:Content>" + x(mime) + "</t:Content></t:FileAttachment>"
+                + (extra.isEmpty() ? "" : extra.substring("<t:Attachments>".length(), extra.length() - "</t:Attachments>".length()));
+        String m = "<t:Message><t:Subject>" + x("FW: " + subject) + "</t:Subject><t:Body BodyType=\"" + (html ? "HTML" : "Text") + "\">" + x(note == null ? "" : note) + "</t:Body>"
+                + "<t:Attachments>" + files + "</t:Attachments>"
+                + mailboxes("ToRecipients", to) + mailboxes("CcRecipients", HttpJson.addressList(cc)) + mailboxes("BccRecipients", HttpJson.addressList(bcc)) + "</t:Message>";
+        Element made = call(ctx, s, "CreateItem", "<m:CreateItem MessageDisposition=\"SaveOnly\"><m:SavedItemFolderId>" + s.distinguished("drafts")
+                + "</m:SavedItemFolderId><m:Items>" + m + "</m:Items></m:CreateItem>");
+        sendDraft(ctx, s, child(first(child(made, "Items")), "ItemId"));
+    }
+
+    /** A file name for an email: its subject without the characters Windows does not allow, ending in .eml. */
+    static String emlName(String subject) {
+        String n = (subject == null || subject.isBlank() ? "email" : subject.strip()).replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_");
+        return (n.length() > 120 ? n.substring(0, 120) : n) + ".eml";
+    }
+
+    /**
+     * Reply, reply all or forward: a response object that points at the original (with its change key, which EWS asks
+     * for). With attachments, or without the original sender, it is saved as a draft first: Exchange takes neither on
+     * the response itself, so the draft gets its files and recipients and is then sent (A6, command review batch 7).
+     */
+    private static void respond(ActionContext ctx, ExchangeSession s, String kind, String id, List<String> to, Object cc, Object bcc, String text, boolean html,
+                                List<Object> attachments, boolean excludeSender) {
+        String fileXml = attachmentsXml(ctx, attachments);   // read first, so a missing file leaves no draft behind
+        Element original = item(ctx, s, id, excludeSender
+                ? "<t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties><t:FieldURI FieldURI=\"message:From\"/></t:AdditionalProperties>"
+                : "<t:BaseShape>IdOnly</t:BaseShape>");
+        String response = "<t:" + kind + ">"
                 + (to == null ? "" : mailboxes("ToRecipients", to)) + mailboxes("CcRecipients", HttpJson.addressList(cc)) + mailboxes("BccRecipients", HttpJson.addressList(bcc))
                 + itemId(child(original, "ItemId")).replace("<t:ItemId", "<t:ReferenceItemId")
                 + "<t:NewBodyContent BodyType=\"" + (html ? "HTML" : "Text") + "\">" + x(text == null ? "" : text) + "</t:NewBodyContent>"
-                + "</t:" + kind + "></m:Items></m:CreateItem>";
-        call(ctx, s, "CreateItem", body);
+                + "</t:" + kind + ">";
+        if (fileXml.isEmpty() && !excludeSender) {
+            call(ctx, s, "CreateItem", "<m:CreateItem MessageDisposition=\"SendAndSaveCopy\"><m:SavedItemFolderId>" + s.distinguished("sentitems")
+                    + "</m:SavedItemFolderId><m:Items>" + response + "</m:Items></m:CreateItem>");
+            return;
+        }
+        Element made = call(ctx, s, "CreateItem", "<m:CreateItem MessageDisposition=\"SaveOnly\"><m:SavedItemFolderId>" + s.distinguished("drafts")
+                + "</m:SavedItemFolderId><m:Items>" + response + "</m:Items></m:CreateItem>");
+        Element draft = child(first(child(made, "Items")), "ItemId");
+        if (excludeSender) draft = withoutSender(ctx, s, draft, address(child(original, "From")));
+        if (!fileXml.isEmpty()) {
+            String inner = fileXml.substring("<t:Attachments>".length(), fileXml.length() - "</t:Attachments>".length());
+            Element added = call(ctx, s, "CreateAttachment", "<m:CreateAttachment><m:ParentItemId Id=\"" + x(attr(draft, "Id")) + "\" ChangeKey=\""
+                    + x(attr(draft, "ChangeKey")) + "\"/><m:Attachments>" + inner + "</m:Attachments></m:CreateAttachment>");
+            String ck = attr(child(first(child(added, "Attachments")), "AttachmentId"), "RootItemChangeKey");
+            if (!ck.isEmpty()) draft.setAttribute("ChangeKey", ck);
+        }
+        sendDraft(ctx, s, draft);
+    }
+
+    /** Takes the original sender off a reply-all draft's To and CC; returns the draft's id with its new change key. */
+    private static Element withoutSender(ActionContext ctx, ExchangeSession s, Element draft, String sender) {
+        Element d = item(ctx, s, attr(draft, "Id"), "<t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties><t:FieldURI FieldURI=\"message:ToRecipients\"/>"
+                + "<t:FieldURI FieldURI=\"message:CcRecipients\"/></t:AdditionalProperties>");
+        List<String> keepTo = new ArrayList<>(), keepCc = new ArrayList<>();
+        for (Element m : children(child(d, "ToRecipients"))) { String a = text(m, "EmailAddress"); if (!a.isEmpty() && !a.equalsIgnoreCase(sender)) keepTo.add(a); }
+        for (Element m : children(child(d, "CcRecipients"))) { String a = text(m, "EmailAddress"); if (!a.isEmpty() && !a.equalsIgnoreCase(sender)) keepCc.add(a); }
+        if (keepTo.isEmpty() && keepCc.isEmpty()) {
+            call(ctx, s, "DeleteItem", "<m:DeleteItem DeleteType=\"HardDelete\"><m:ItemIds>" + itemId(draft) + "</m:ItemIds></m:DeleteItem>");
+            throw new ActionException(P + ".BAD_ADDRESS", "Without the sender there is nobody left to reply to", "Use Reply to email, or give cc.");
+        }
+        String updates = (keepTo.isEmpty() ? "<t:DeleteItemField><t:FieldURI FieldURI=\"message:ToRecipients\"/></t:DeleteItemField>"
+                : "<t:SetItemField><t:FieldURI FieldURI=\"message:ToRecipients\"/><t:Message>" + mailboxes("ToRecipients", keepTo) + "</t:Message></t:SetItemField>")
+                + (keepCc.isEmpty() ? "<t:DeleteItemField><t:FieldURI FieldURI=\"message:CcRecipients\"/></t:DeleteItemField>"
+                : "<t:SetItemField><t:FieldURI FieldURI=\"message:CcRecipients\"/><t:Message>" + mailboxes("CcRecipients", keepCc) + "</t:Message></t:SetItemField>");
+        Element msg = call(ctx, s, "UpdateItem", "<m:UpdateItem MessageDisposition=\"SaveOnly\" ConflictResolution=\"AlwaysOverwrite\"><m:ItemChanges><t:ItemChange>"
+                + itemId(draft) + "<t:Updates>" + updates + "</t:Updates></t:ItemChange></m:ItemChanges></m:UpdateItem>");
+        Element updated = child(first(child(msg, "Items")), "ItemId");
+        return updated == null ? draft : updated;
+    }
+
+    /** Sends a saved draft and keeps it in Sent Items. */
+    private static void sendDraft(ActionContext ctx, ExchangeSession s, Element draftId) {
+        call(ctx, s, "SendItem", "<m:SendItem SaveItemToFolder=\"true\"><m:ItemIds>" + itemId(draftId) + "</m:ItemIds><m:SavedItemFolderId>"
+                + s.distinguished("sentitems") + "</m:SavedItemFolderId></m:SendItem>");
+    }
+
+    @Action(id = "save_email_as_eml", name = "Save email as .eml", category = "Mailbox", capabilities = {"network", "filesystem"},
+            description = "Save a whole email (text, HTML, attachments and headers) as an .eml file that any mail program opens.",
+            panel = "id, local_path | overwrite, session")
+    @Output(name = "path", type = OoaType.FILE, description = "The saved file.")
+    public Map<String, Object> saveEmailAsEml(ActionContext ctx,
+            @Input(name = "id", type = OoaType.STRING, description = D_ID) String id,
+            @Input(name = "local_path", type = OoaType.FILE, description = "The .eml file to write, or a folder: the subject then names the file.") String localPath,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that is already there; when false it stops the step.") boolean overwrite,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session) {
+        ExchangeSession s = es(ctx, session);
+        Element it = item(ctx, s, id, "<t:BaseShape>IdOnly</t:BaseShape><t:IncludeMimeContent>true</t:IncludeMimeContent>"
+                + "<t:AdditionalProperties><t:FieldURI FieldURI=\"item:Subject\"/></t:AdditionalProperties>");
+        String mime = text(it, "MimeContent");
+        if (mime.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "Exchange did not give the email's content", null);
+        Path p = ctx.resolvePath(localPath);
+        if (Files.isDirectory(p)) p = p.resolve(emlName(text(it, "Subject")));
+        if (!overwrite && Files.exists(p)) throw new ActionException("FILE.EXISTS", "File already exists: " + p, "Set overwrite to true or choose another name.");
+        try {
+            if (p.getParent() != null) Files.createDirectories(p.getParent());
+            Files.write(p, Base64.getMimeDecoder().decode(mime));
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        return Map.of("path", p.toString());
     }
 
     // ------------------------------------------------------------------ move, mark, delete

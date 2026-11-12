@@ -1,0 +1,2325 @@
+[
+ {
+  "command": "ooa.file_transfer/connect",
+  "name": "signs in and lists an empty folder of its own",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c1"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/list",
+    "args": {
+     "folder": "/c1"
+    },
+    "out": {
+     "table": "t"
+    }
+   },
+   {
+    "action": "ooa.datatable/row_count",
+    "args": {
+     "table": "$t"
+    },
+    "out": {
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 0
+  }
+ },
+ {
+  "command": "ooa.file_transfer/upload",
+  "name": "uploads a file and lists it",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c2"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/upload",
+    "args": {
+     "local_path": "{tmp}/a.txt",
+     "remote_path": "/c2/a.txt"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/list",
+    "args": {
+     "folder": "/c2",
+     "kind": "files"
+    },
+    "out": {
+     "table": "t"
+    }
+   },
+   {
+    "action": "ooa.datatable/row_count",
+    "args": {
+     "table": "$t"
+    },
+    "out": {
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 1
+  },
+  "files": {
+   "a.txt": "hello"
+  }
+ },
+ {
+  "command": "ooa.file_transfer/download",
+  "name": "downloads what was uploaded",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c3"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/upload",
+    "args": {
+     "local_path": "{tmp}/a.txt",
+     "remote_path": "/c3/a.txt"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/download",
+    "args": {
+     "remote_path": "/c3/a.txt",
+     "local_path": "{tmp}/back.txt"
+    }
+   },
+   {
+    "action": "ooa.file/read_text",
+    "args": {
+     "path": "{tmp}/back.txt"
+    },
+    "out": {
+     "text": "t"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "t": "hello"
+  },
+  "files": {
+   "a.txt": "hello"
+  }
+ },
+ {
+  "command": "ooa.file_transfer/rename",
+  "name": "renames (moves) a file on the server",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c4"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/upload",
+    "args": {
+     "local_path": "{tmp}/a.txt",
+     "remote_path": "/c4/a.txt"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/rename",
+    "args": {
+     "from": "/c4/a.txt",
+     "to": "/c4/b.txt"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/list",
+    "args": {
+     "folder": "/c4",
+     "pattern": "b.txt"
+    },
+    "out": {
+     "table": "t"
+    }
+   },
+   {
+    "action": "ooa.datatable/row_count",
+    "args": {
+     "table": "$t"
+    },
+    "out": {
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 1
+  },
+  "files": {
+   "a.txt": "hello"
+  }
+ },
+ {
+  "command": "ooa.file_transfer/delete",
+  "name": "deletes one file",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c5"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/upload",
+    "args": {
+     "local_path": "{tmp}/a.txt",
+     "remote_path": "/c5/a.txt"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/delete",
+    "args": {
+     "remote_path": "/c5/a.txt"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/list",
+    "args": {
+     "folder": "/c5"
+    },
+    "out": {
+     "table": "t"
+    }
+   },
+   {
+    "action": "ooa.datatable/row_count",
+    "args": {
+     "table": "$t"
+    },
+    "out": {
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 0
+  },
+  "files": {
+   "a.txt": "hello"
+  }
+ },
+ {
+  "command": "ooa.file_transfer/delete_files",
+  "name": "deletes the files that match a pattern",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c6"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/upload_folder",
+    "args": {
+     "local_folder": "{tmp}/out",
+     "remote_folder": "/c6"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/delete_files",
+    "args": {
+     "folder": "/c6",
+     "pattern": "*.csv"
+    },
+    "out": {
+     "deleted": "d"
+    }
+   },
+   {
+    "action": "ooa.list/size",
+    "args": {
+     "list": "$d"
+    },
+    "out": {
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 2
+  },
+  "files": {
+   "out/a.csv": "1",
+   "out/b.csv": "2",
+   "out/c.txt": "3"
+  }
+ },
+ {
+  "command": "ooa.file_transfer/change_folder",
+  "name": "changes the current folder",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c7"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/change_folder",
+    "args": {
+     "folder": "/c7"
+    },
+    "out": {
+     "folder": "f"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "f": "/c7"
+  }
+ },
+ {
+  "command": "ooa.file_transfer/create_folder",
+  "name": "creates a folder",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c8/sub"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/list",
+    "args": {
+     "folder": "/c8",
+     "kind": "folders"
+    },
+    "out": {
+     "table": "t"
+    }
+   },
+   {
+    "action": "ooa.datatable/row_count",
+    "args": {
+     "table": "$t"
+    },
+    "out": {
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.file_transfer/delete_folder",
+  "name": "deletes a folder and what is in it",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c9"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/upload",
+    "args": {
+     "local_path": "{tmp}/a.txt",
+     "remote_path": "/c9/a.txt"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/delete_folder",
+    "args": {
+     "folder": "/c9",
+     "recursive": true
+    },
+    "out": {
+     "deleted_files": "n"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 1
+  },
+  "files": {
+   "a.txt": "hello"
+  }
+ },
+ {
+  "command": "ooa.file_transfer/upload_folder",
+  "name": "uploads a folder",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c10"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/upload_folder",
+    "args": {
+     "local_folder": "{tmp}/out",
+     "remote_folder": "/c10"
+    },
+    "out": {
+     "files": "f"
+    }
+   },
+   {
+    "action": "ooa.list/size",
+    "args": {
+     "list": "$f"
+    },
+    "out": {
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 2
+  },
+  "files": {
+   "out/a.csv": "1",
+   "out/b.csv": "2"
+  }
+ },
+ {
+  "command": "ooa.file_transfer/download_folder",
+  "name": "downloads a folder",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c11"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/upload_folder",
+    "args": {
+     "local_folder": "{tmp}/out",
+     "remote_folder": "/c11"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/download_folder",
+    "args": {
+     "remote_folder": "/c11",
+     "local_folder": "{tmp}/in"
+    },
+    "out": {
+     "files": "f"
+    }
+   },
+   {
+    "action": "ooa.list/size",
+    "args": {
+     "list": "$f"
+    },
+    "out": {
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 2
+  },
+  "files": {
+   "out/a.csv": "1",
+   "out/b.csv": "2"
+  },
+  "expectFiles": {
+   "in/a.csv": true,
+   "in/b.csv": true
+  }
+ },
+ {
+  "command": "ooa.file_transfer/sync_folder",
+  "name": "a dry run lists what a sync would upload, without uploading",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/c12"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/sync_folder",
+    "args": {
+     "direction": "upload",
+     "local_folder": "{tmp}/out",
+     "remote_folder": "/c12",
+     "dry_run": true
+    },
+    "out": {
+     "uploaded": "n"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 2
+  },
+  "files": {
+   "out/a.csv": "1",
+   "out/b.csv": "2"
+  }
+ },
+ {
+  "command": "ooa.file_transfer/send_command",
+  "name": "sends a raw FTP command and reads the server's answer",
+  "requires": "ftp",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "ftp",
+     "host": "127.0.0.1",
+     "port": "{ftp_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/send_command",
+    "args": {
+     "command": "SYST"
+    },
+    "out": {
+     "ok": "ok"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "command": "ooa.file_transfer/upload",
+  "name": "SFTP: uploads, lists and downloads",
+  "requires": "ssh",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.file_transfer/connect",
+    "args": {
+     "protocol": "sftp",
+     "host": "127.0.0.1",
+     "port": "{ssh_port}",
+     "user": "agent",
+     "password": "$pw",
+     "passive_mode": true
+    }
+   },
+   {
+    "action": "ooa.file_transfer/create_folder",
+    "args": {
+     "folder": "/s1"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/upload",
+    "args": {
+     "local_path": "{tmp}/a.txt",
+     "remote_path": "/s1/a.txt"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/download",
+    "args": {
+     "remote_path": "/s1/a.txt",
+     "local_path": "{tmp}/back.txt"
+    }
+   },
+   {
+    "action": "ooa.file/read_text",
+    "args": {
+     "path": "{tmp}/back.txt"
+    },
+    "out": {
+     "text": "t"
+    }
+   },
+   {
+    "action": "ooa.file_transfer/disconnect"
+   }
+  ],
+  "expect": {
+   "t": "hello"
+  },
+  "files": {
+   "a.txt": "hello"
+  }
+ },
+ {
+  "command": "ooa.pgp/create_keys",
+  "name": "creates a key pair and saves both keys as files",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "files": {
+   "report.csv": "id,amount\n1,42.50\n"
+  },
+  "steps": [
+   {
+    "action": "ooa.pgp/create_keys",
+    "args": {
+     "name": "Ann Agent",
+     "email": "ann@acme.test",
+     "passphrase": "$pw",
+     "public_key_file": "{tmp}/ann.pub.asc",
+     "private_key_file": "{tmp}/ann.key.asc",
+     "gnupg_home": "{tmp}/keys"
+    },
+    "out": {
+     "fingerprint": "fpr"
+    }
+   }
+  ],
+  "expect": {},
+  "expectFiles": {
+   "ann.pub.asc": true,
+   "ann.key.asc": true
+  }
+ },
+ {
+  "command": "ooa.pgp/encrypt",
+  "name": "encrypts for a key in the key folder",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "files": {
+   "report.csv": "id,amount\n1,42.50\n"
+  },
+  "steps": [
+   {
+    "action": "ooa.pgp/create_keys",
+    "args": {
+     "name": "Ann Agent",
+     "email": "ann@acme.test",
+     "passphrase": "$pw",
+     "public_key_file": "{tmp}/ann.pub.asc",
+     "private_key_file": "{tmp}/ann.key.asc",
+     "gnupg_home": "{tmp}/keys"
+    },
+    "out": {
+     "fingerprint": "fpr"
+    }
+   },
+   {
+    "action": "ooa.pgp/encrypt",
+    "args": {
+     "path": "{tmp}/report.csv",
+     "recipients": "ann@acme.test",
+     "gnupg_home": "{tmp}/keys"
+    },
+    "out": {
+     "target": "enc"
+    }
+   }
+  ],
+  "expect": {},
+  "expectFiles": {
+   "report.csv.pgp": true
+  }
+ },
+ {
+  "command": "ooa.pgp/decrypt",
+  "name": "decrypts with the private key and its passphrase",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "files": {
+   "report.csv": "id,amount\n1,42.50\n"
+  },
+  "steps": [
+   {
+    "action": "ooa.pgp/create_keys",
+    "args": {
+     "name": "Ann Agent",
+     "email": "ann@acme.test",
+     "passphrase": "$pw",
+     "public_key_file": "{tmp}/ann.pub.asc",
+     "private_key_file": "{tmp}/ann.key.asc",
+     "gnupg_home": "{tmp}/keys"
+    },
+    "out": {
+     "fingerprint": "fpr"
+    }
+   },
+   {
+    "action": "ooa.pgp/encrypt",
+    "args": {
+     "path": "{tmp}/report.csv",
+     "recipients": "ann@acme.test",
+     "gnupg_home": "{tmp}/keys"
+    }
+   },
+   {
+    "action": "ooa.pgp/decrypt",
+    "args": {
+     "path": "{tmp}/report.csv.pgp",
+     "target": "{tmp}/back.csv",
+     "passphrase": "$pw",
+     "gnupg_home": "{tmp}/keys"
+    }
+   },
+   {
+    "action": "ooa.file/read_text",
+    "args": {
+     "path": "{tmp}/back.csv"
+    },
+    "out": {
+     "text": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": "id,amount\n1,42.50\n"
+  }
+ },
+ {
+  "command": "ooa.pgp/sign",
+  "name": "signs a file",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "files": {
+   "report.csv": "id,amount\n1,42.50\n"
+  },
+  "steps": [
+   {
+    "action": "ooa.pgp/create_keys",
+    "args": {
+     "name": "Ann Agent",
+     "email": "ann@acme.test",
+     "passphrase": "$pw",
+     "public_key_file": "{tmp}/ann.pub.asc",
+     "private_key_file": "{tmp}/ann.key.asc",
+     "gnupg_home": "{tmp}/keys"
+    },
+    "out": {
+     "fingerprint": "fpr"
+    }
+   },
+   {
+    "action": "ooa.pgp/sign",
+    "args": {
+     "path": "{tmp}/report.csv",
+     "signature": "{tmp}/report.csv.sig",
+     "passphrase": "$pw",
+     "gnupg_home": "{tmp}/keys"
+    }
+   }
+  ],
+  "expect": {},
+  "expectFiles": {
+   "report.csv.sig": true
+  }
+ },
+ {
+  "command": "ooa.pgp/verify",
+  "name": "a partner imports the public key and checks the signature",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "files": {
+   "report.csv": "id,amount\n1,42.50\n"
+  },
+  "steps": [
+   {
+    "action": "ooa.pgp/create_keys",
+    "args": {
+     "name": "Ann Agent",
+     "email": "ann@acme.test",
+     "passphrase": "$pw",
+     "public_key_file": "{tmp}/ann.pub.asc",
+     "private_key_file": "{tmp}/ann.key.asc",
+     "gnupg_home": "{tmp}/keys"
+    },
+    "out": {
+     "fingerprint": "fpr"
+    }
+   },
+   {
+    "action": "ooa.pgp/sign",
+    "args": {
+     "path": "{tmp}/report.csv",
+     "signature": "{tmp}/report.csv.sig",
+     "passphrase": "$pw",
+     "gnupg_home": "{tmp}/keys"
+    }
+   },
+   {
+    "action": "ooa.pgp/import_key",
+    "args": {
+     "path": "{tmp}/ann.pub.asc",
+     "gnupg_home": "{tmp}/partner"
+    }
+   },
+   {
+    "action": "ooa.pgp/verify",
+    "args": {
+     "path": "{tmp}/report.csv",
+     "signature": "{tmp}/report.csv.sig",
+     "gnupg_home": "{tmp}/partner"
+    },
+    "out": {
+     "valid": "ok"
+    }
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "command": "ooa.pgp/import_key",
+  "name": "imports a public key file",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "files": {
+   "report.csv": "id,amount\n1,42.50\n"
+  },
+  "steps": [
+   {
+    "action": "ooa.pgp/create_keys",
+    "args": {
+     "name": "Ann Agent",
+     "email": "ann@acme.test",
+     "passphrase": "$pw",
+     "public_key_file": "{tmp}/ann.pub.asc",
+     "private_key_file": "{tmp}/ann.key.asc",
+     "gnupg_home": "{tmp}/keys"
+    },
+    "out": {
+     "fingerprint": "fpr"
+    }
+   },
+   {
+    "action": "ooa.pgp/import_key",
+    "args": {
+     "path": "{tmp}/ann.pub.asc",
+     "gnupg_home": "{tmp}/partner"
+    },
+    "out": {
+     "fingerprints": "f"
+    }
+   },
+   {
+    "action": "ooa.list/size",
+    "args": {
+     "list": "$f"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.connector/import_connector",
+  "name": "imports an OpenAPI description as a connector",
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/orders/42",
+    "body": {
+     "id": 42,
+     "total": 9.5
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/orders",
+    "body": [
+     {
+      "id": 42
+     }
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.connector/import_connector",
+    "args": {
+     "spec_text": "{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Orders\", \"version\": \"1\"}, \"servers\": [{\"url\": \"https://orders.example.invalid\"}], \"paths\": {\"/orders/{id}\": {\"get\": {\"operationId\": \"getOrder\", \"summary\": \"Read one order\", \"parameters\": [{\"name\": \"id\", \"in\": \"path\", \"required\": true, \"schema\": {\"type\": \"string\"}}], \"responses\": {\"200\": {\"description\": \"the order\"}}}}, \"/orders\": {\"get\": {\"operationId\": \"listOrders\", \"summary\": \"List orders\", \"responses\": {\"200\": {\"description\": \"orders\"}}}}}}",
+     "name": "orders",
+     "server": "{mock}"
+    },
+    "out": {
+     "operations": "ops"
+    }
+   }
+  ],
+  "expect": {
+   "ops": 2
+  }
+ },
+ {
+  "command": "ooa.connector/list_connectors",
+  "name": "lists the connectors in the workspace",
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/orders/42",
+    "body": {
+     "id": 42,
+     "total": 9.5
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/orders",
+    "body": [
+     {
+      "id": 42
+     }
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.connector/import_connector",
+    "args": {
+     "spec_text": "{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Orders\", \"version\": \"1\"}, \"servers\": [{\"url\": \"https://orders.example.invalid\"}], \"paths\": {\"/orders/{id}\": {\"get\": {\"operationId\": \"getOrder\", \"summary\": \"Read one order\", \"parameters\": [{\"name\": \"id\", \"in\": \"path\", \"required\": true, \"schema\": {\"type\": \"string\"}}], \"responses\": {\"200\": {\"description\": \"the order\"}}}}, \"/orders\": {\"get\": {\"operationId\": \"listOrders\", \"summary\": \"List orders\", \"responses\": {\"200\": {\"description\": \"orders\"}}}}}}",
+     "name": "orders",
+     "server": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.connector/list_connectors",
+    "out": {
+     "connectors": "c"
+    }
+   },
+   {
+    "action": "ooa.list/size",
+    "args": {
+     "list": "$c"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.connector/list_operations",
+  "name": "lists a connector's operations",
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/orders/42",
+    "body": {
+     "id": 42,
+     "total": 9.5
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/orders",
+    "body": [
+     {
+      "id": 42
+     }
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.connector/import_connector",
+    "args": {
+     "spec_text": "{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Orders\", \"version\": \"1\"}, \"servers\": [{\"url\": \"https://orders.example.invalid\"}], \"paths\": {\"/orders/{id}\": {\"get\": {\"operationId\": \"getOrder\", \"summary\": \"Read one order\", \"parameters\": [{\"name\": \"id\", \"in\": \"path\", \"required\": true, \"schema\": {\"type\": \"string\"}}], \"responses\": {\"200\": {\"description\": \"the order\"}}}}, \"/orders\": {\"get\": {\"operationId\": \"listOrders\", \"summary\": \"List orders\", \"responses\": {\"200\": {\"description\": \"orders\"}}}}}}",
+     "name": "orders",
+     "server": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.connector/list_operations",
+    "args": {
+     "connector": "orders"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 2
+  }
+ },
+ {
+  "command": "ooa.connector/describe_operation",
+  "name": "describes one operation with example parameters",
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/orders/42",
+    "body": {
+     "id": 42,
+     "total": 9.5
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/orders",
+    "body": [
+     {
+      "id": 42
+     }
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.connector/import_connector",
+    "args": {
+     "spec_text": "{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Orders\", \"version\": \"1\"}, \"servers\": [{\"url\": \"https://orders.example.invalid\"}], \"paths\": {\"/orders/{id}\": {\"get\": {\"operationId\": \"getOrder\", \"summary\": \"Read one order\", \"parameters\": [{\"name\": \"id\", \"in\": \"path\", \"required\": true, \"schema\": {\"type\": \"string\"}}], \"responses\": {\"200\": {\"description\": \"the order\"}}}}, \"/orders\": {\"get\": {\"operationId\": \"listOrders\", \"summary\": \"List orders\", \"responses\": {\"200\": {\"description\": \"orders\"}}}}}}",
+     "name": "orders",
+     "server": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.connector/describe_operation",
+    "args": {
+     "connector": "orders",
+     "operation": "getOrder"
+    },
+    "out": {
+     "operation": "op"
+    }
+   }
+  ],
+  "expect": {}
+ },
+ {
+  "command": "ooa.connector/call_operation",
+  "name": "calls an operation with a path parameter",
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/orders/42",
+    "body": {
+     "id": 42,
+     "total": 9.5
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/orders",
+    "body": [
+     {
+      "id": 42
+     }
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.connector/import_connector",
+    "args": {
+     "spec_text": "{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Orders\", \"version\": \"1\"}, \"servers\": [{\"url\": \"https://orders.example.invalid\"}], \"paths\": {\"/orders/{id}\": {\"get\": {\"operationId\": \"getOrder\", \"summary\": \"Read one order\", \"parameters\": [{\"name\": \"id\", \"in\": \"path\", \"required\": true, \"schema\": {\"type\": \"string\"}}], \"responses\": {\"200\": {\"description\": \"the order\"}}}}, \"/orders\": {\"get\": {\"operationId\": \"listOrders\", \"summary\": \"List orders\", \"responses\": {\"200\": {\"description\": \"orders\"}}}}}}",
+     "name": "orders",
+     "server": "{mock}"
+    }
+   },
+   {
+    "action": "ooa.connector/call_operation",
+    "args": {
+     "connector": "orders",
+     "operation": "getOrder",
+     "parameters": {
+      "id": "42"
+     }
+    },
+    "out": {
+     "status": "s"
+    }
+   }
+  ],
+  "expect": {
+   "s": 200
+  },
+  "expectRequests": [
+   "GET /orders/42"
+  ]
+ },
+ {
+  "command": "ooa.mcp/list_tools",
+  "name": "lists the tools an MCP server offers",
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/mcp",
+    "contains": "notifications/initialized",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/mcp",
+    "contains": "\"initialize\"",
+    "body": {
+     "jsonrpc": "2.0",
+     "id": 1,
+     "result": {
+      "protocolVersion": "2025-06-18",
+      "capabilities": {
+       "tools": {}
+      },
+      "serverInfo": {
+       "name": "sample",
+       "version": "1"
+      }
+     }
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/mcp",
+    "contains": "tools/list",
+    "body": {
+     "jsonrpc": "2.0",
+     "id": 2,
+     "result": {
+      "tools": [
+       {
+        "name": "add",
+        "description": "Adds two numbers",
+        "inputSchema": {
+         "type": "object",
+         "properties": {
+          "a": {
+           "type": "number"
+          },
+          "b": {
+           "type": "number"
+          }
+         }
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/mcp",
+    "contains": "tools/call",
+    "body": {
+     "jsonrpc": "2.0",
+     "id": 2,
+     "result": {
+      "content": [
+       {
+        "type": "text",
+        "text": "5"
+       }
+      ],
+      "isError": false
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.mcp/list_tools",
+    "args": {
+     "server_url": "{mock}/mcp"
+    },
+    "out": {
+     "tools": "t"
+    }
+   },
+   {
+    "action": "ooa.list/size",
+    "args": {
+     "list": "$t"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.mcp/call_tool",
+  "name": "calls a tool and reads its text answer",
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/mcp",
+    "contains": "notifications/initialized",
+    "status": 202,
+    "body": ""
+   },
+   {
+    "method": "POST",
+    "path": "/mcp",
+    "contains": "\"initialize\"",
+    "body": {
+     "jsonrpc": "2.0",
+     "id": 1,
+     "result": {
+      "protocolVersion": "2025-06-18",
+      "capabilities": {
+       "tools": {}
+      },
+      "serverInfo": {
+       "name": "sample",
+       "version": "1"
+      }
+     }
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/mcp",
+    "contains": "tools/list",
+    "body": {
+     "jsonrpc": "2.0",
+     "id": 2,
+     "result": {
+      "tools": [
+       {
+        "name": "add",
+        "description": "Adds two numbers",
+        "inputSchema": {
+         "type": "object",
+         "properties": {
+          "a": {
+           "type": "number"
+          },
+          "b": {
+           "type": "number"
+          }
+         }
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/mcp",
+    "contains": "tools/call",
+    "body": {
+     "jsonrpc": "2.0",
+     "id": 2,
+     "result": {
+      "content": [
+       {
+        "type": "text",
+        "text": "5"
+       }
+      ],
+      "isError": false
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.mcp/call_tool",
+    "args": {
+     "server_url": "{mock}/mcp",
+     "tool": "add",
+     "arguments": {
+      "a": 2,
+      "b": 3
+     }
+    },
+    "out": {
+     "text": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": "5"
+  }
+ },
+ {
+  "command": "ooa.kafka/produce_message",
+  "name": "sends a message to a topic",
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/records",
+    "body": {
+     "error_code": 200,
+     "topic_name": "orders",
+     "partition_id": 2,
+     "offset": 41,
+     "timestamp": "2026-11-12T08:00:00.000Z"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/configs",
+    "body": {
+     "data": [
+      {
+       "name": "retention.ms",
+       "value": "604800000"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders",
+    "body": {
+     "topic_name": "orders",
+     "partitions_count": 6,
+     "replication_factor": 3,
+     "is_internal": false
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "metadata": {
+      "next": null
+     },
+     "data": [
+      {
+       "topic_name": "orders",
+       "partitions_count": 6,
+       "replication_factor": 3,
+       "is_internal": false
+      }
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "topic_name": "invoices",
+     "partitions_count": 3,
+     "replication_factor": 3
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/ooa-orders/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/g1",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/g1/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders/instances/i1/subscription",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "GET",
+    "path": "/consumers/ooa-orders/instances/i1/records",
+    "body": [
+     {
+      "topic": "orders",
+      "key": "SO-1",
+      "value": {
+       "amount": 5
+      },
+      "partition": 0,
+      "offset": 10
+     }
+    ]
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   }
+  ],
+  "credentials": {
+   "secret": "test/kafka/secret"
+  },
+  "secrets": {
+   "test/kafka/secret": "s1"
+  },
+  "steps": [
+   {
+    "action": "ooa.kafka/produce_message",
+    "args": {
+     "base_url": "{mock}",
+     "cluster_id": "lkc-abc12",
+     "topic": "orders",
+     "value": {
+      "amount": 5
+     },
+     "key": "SO-1",
+     "api_key": "k1",
+     "api_secret": "$secret"
+    },
+    "out": {
+     "offset": "o"
+    }
+   }
+  ],
+  "expect": {
+   "o": 41
+  }
+ },
+ {
+  "command": "ooa.kafka/list_topics",
+  "name": "lists the topics",
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/records",
+    "body": {
+     "error_code": 200,
+     "topic_name": "orders",
+     "partition_id": 2,
+     "offset": 41,
+     "timestamp": "2026-11-12T08:00:00.000Z"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/configs",
+    "body": {
+     "data": [
+      {
+       "name": "retention.ms",
+       "value": "604800000"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders",
+    "body": {
+     "topic_name": "orders",
+     "partitions_count": 6,
+     "replication_factor": 3,
+     "is_internal": false
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "metadata": {
+      "next": null
+     },
+     "data": [
+      {
+       "topic_name": "orders",
+       "partitions_count": 6,
+       "replication_factor": 3,
+       "is_internal": false
+      }
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "topic_name": "invoices",
+     "partitions_count": 3,
+     "replication_factor": 3
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/ooa-orders/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/g1",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/g1/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders/instances/i1/subscription",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "GET",
+    "path": "/consumers/ooa-orders/instances/i1/records",
+    "body": [
+     {
+      "topic": "orders",
+      "key": "SO-1",
+      "value": {
+       "amount": 5
+      },
+      "partition": 0,
+      "offset": 10
+     }
+    ]
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   }
+  ],
+  "credentials": {
+   "secret": "test/kafka/secret"
+  },
+  "secrets": {
+   "test/kafka/secret": "s1"
+  },
+  "steps": [
+   {
+    "action": "ooa.kafka/list_topics",
+    "args": {
+     "base_url": "{mock}",
+     "cluster_id": "lkc-abc12",
+     "api_key": "k1",
+     "api_secret": "$secret"
+    },
+    "out": {
+     "names": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": [
+    "orders"
+   ]
+  }
+ },
+ {
+  "command": "ooa.kafka/create_topic",
+  "name": "creates a topic",
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/records",
+    "body": {
+     "error_code": 200,
+     "topic_name": "orders",
+     "partition_id": 2,
+     "offset": 41,
+     "timestamp": "2026-11-12T08:00:00.000Z"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/configs",
+    "body": {
+     "data": [
+      {
+       "name": "retention.ms",
+       "value": "604800000"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders",
+    "body": {
+     "topic_name": "orders",
+     "partitions_count": 6,
+     "replication_factor": 3,
+     "is_internal": false
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "metadata": {
+      "next": null
+     },
+     "data": [
+      {
+       "topic_name": "orders",
+       "partitions_count": 6,
+       "replication_factor": 3,
+       "is_internal": false
+      }
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "topic_name": "invoices",
+     "partitions_count": 3,
+     "replication_factor": 3
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/ooa-orders/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/g1",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/g1/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders/instances/i1/subscription",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "GET",
+    "path": "/consumers/ooa-orders/instances/i1/records",
+    "body": [
+     {
+      "topic": "orders",
+      "key": "SO-1",
+      "value": {
+       "amount": 5
+      },
+      "partition": 0,
+      "offset": 10
+     }
+    ]
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   }
+  ],
+  "credentials": {
+   "secret": "test/kafka/secret"
+  },
+  "secrets": {
+   "test/kafka/secret": "s1"
+  },
+  "steps": [
+   {
+    "action": "ooa.kafka/create_topic",
+    "args": {
+     "base_url": "{mock}",
+     "cluster_id": "lkc-abc12",
+     "topic": "invoices",
+     "partitions": 3,
+     "api_key": "k1",
+     "api_secret": "$secret"
+    },
+    "out": {
+     "created": "c"
+    }
+   }
+  ],
+  "expect": {
+   "c": true
+  }
+ },
+ {
+  "command": "ooa.kafka/get_topic",
+  "name": "reads a topic's details and settings",
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/records",
+    "body": {
+     "error_code": 200,
+     "topic_name": "orders",
+     "partition_id": 2,
+     "offset": 41,
+     "timestamp": "2026-11-12T08:00:00.000Z"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/configs",
+    "body": {
+     "data": [
+      {
+       "name": "retention.ms",
+       "value": "604800000"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders",
+    "body": {
+     "topic_name": "orders",
+     "partitions_count": 6,
+     "replication_factor": 3,
+     "is_internal": false
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "metadata": {
+      "next": null
+     },
+     "data": [
+      {
+       "topic_name": "orders",
+       "partitions_count": 6,
+       "replication_factor": 3,
+       "is_internal": false
+      }
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "topic_name": "invoices",
+     "partitions_count": 3,
+     "replication_factor": 3
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/ooa-orders/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/g1",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/g1/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders/instances/i1/subscription",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "GET",
+    "path": "/consumers/ooa-orders/instances/i1/records",
+    "body": [
+     {
+      "topic": "orders",
+      "key": "SO-1",
+      "value": {
+       "amount": 5
+      },
+      "partition": 0,
+      "offset": 10
+     }
+    ]
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   }
+  ],
+  "credentials": {
+   "secret": "test/kafka/secret"
+  },
+  "secrets": {
+   "test/kafka/secret": "s1"
+  },
+  "steps": [
+   {
+    "action": "ooa.kafka/get_topic",
+    "args": {
+     "base_url": "{mock}",
+     "cluster_id": "lkc-abc12",
+     "topic": "orders",
+     "api_key": "k1",
+     "api_secret": "$secret"
+    },
+    "out": {
+     "info": "i"
+    }
+   }
+  ],
+  "expect": {}
+ },
+ {
+  "command": "ooa.kafka/read_messages",
+  "name": "reads the waiting messages of a topic",
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/records",
+    "body": {
+     "error_code": 200,
+     "topic_name": "orders",
+     "partition_id": 2,
+     "offset": 41,
+     "timestamp": "2026-11-12T08:00:00.000Z"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/configs",
+    "body": {
+     "data": [
+      {
+       "name": "retention.ms",
+       "value": "604800000"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders",
+    "body": {
+     "topic_name": "orders",
+     "partitions_count": 6,
+     "replication_factor": 3,
+     "is_internal": false
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "metadata": {
+      "next": null
+     },
+     "data": [
+      {
+       "topic_name": "orders",
+       "partitions_count": 6,
+       "replication_factor": 3,
+       "is_internal": false
+      }
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "topic_name": "invoices",
+     "partitions_count": 3,
+     "replication_factor": 3
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/ooa-orders/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/g1",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/g1/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders/instances/i1/subscription",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "GET",
+    "path": "/consumers/ooa-orders/instances/i1/records",
+    "body": [
+     {
+      "topic": "orders",
+      "key": "SO-1",
+      "value": {
+       "amount": 5
+      },
+      "partition": 0,
+      "offset": 10
+     }
+    ]
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   }
+  ],
+  "credentials": {
+   "secret": "test/kafka/secret"
+  },
+  "secrets": {
+   "test/kafka/secret": "s1"
+  },
+  "steps": [
+   {
+    "action": "ooa.kafka/read_messages",
+    "args": {
+     "base_url": "{mock}",
+     "topics": [
+      "orders"
+     ],
+     "consumer_group": "ooa-orders",
+     "max_messages": 1,
+     "wait_seconds": 1,
+     "api_key": "k1",
+     "api_secret": "$secret"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.kafka/commit_offsets",
+  "name": "marks messages read up to an offset",
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/records",
+    "body": {
+     "error_code": 200,
+     "topic_name": "orders",
+     "partition_id": 2,
+     "offset": 41,
+     "timestamp": "2026-11-12T08:00:00.000Z"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders/configs",
+    "body": {
+     "data": [
+      {
+       "name": "retention.ms",
+       "value": "604800000"
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics/orders",
+    "body": {
+     "topic_name": "orders",
+     "partitions_count": 6,
+     "replication_factor": 3,
+     "is_internal": false
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "metadata": {
+      "next": null
+     },
+     "data": [
+      {
+       "topic_name": "orders",
+       "partitions_count": 6,
+       "replication_factor": 3,
+       "is_internal": false
+      }
+     ]
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/v3/clusters/lkc-abc12/topics",
+    "body": {
+     "topic_name": "invoices",
+     "partitions_count": 3,
+     "replication_factor": 3
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/ooa-orders/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/g1",
+    "body": {
+     "instance_id": "i1",
+     "base_uri": "{mock}/consumers/g1/instances/i1"
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/ooa-orders/instances/i1/subscription",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "GET",
+    "path": "/consumers/ooa-orders/instances/i1/records",
+    "body": [
+     {
+      "topic": "orders",
+      "key": "SO-1",
+      "value": {
+       "amount": 5
+      },
+      "partition": 0,
+      "offset": 10
+     }
+    ]
+   },
+   {
+    "method": "POST",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   },
+   {
+    "method": "DELETE",
+    "path": "/consumers/*",
+    "status": 204,
+    "body": ""
+   }
+  ],
+  "credentials": {
+   "secret": "test/kafka/secret"
+  },
+  "secrets": {
+   "test/kafka/secret": "s1"
+  },
+  "steps": [
+   {
+    "action": "ooa.kafka/commit_offsets",
+    "args": {
+     "base_url": "{mock}",
+     "consumer_group": "g1",
+     "topic": "orders",
+     "partition": 0,
+     "offset": 10,
+     "api_key": "k1",
+     "api_secret": "$secret"
+    },
+    "out": {
+     "next_offset": "o"
+    }
+   }
+  ],
+  "expect": {
+   "o": 11
+  }
+ }
+]

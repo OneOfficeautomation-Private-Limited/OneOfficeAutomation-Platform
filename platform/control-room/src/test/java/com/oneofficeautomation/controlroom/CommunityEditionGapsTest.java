@@ -109,22 +109,25 @@ class CommunityEditionGapsTest {
         cr.checkin(jane, "Sales/Quote.flow.json", agent("quote", ""), "v1", true, null);
         cr.setLabel(jane, "Sales/Quote.flow.json", "UAT", 1, null);
         Map<String, Object> sch = cr.createSchedule(admin, new HashMap<>(Map.of("name", "q", "bot_path", "Sales/Quote.flow.json", "device_id", device, "kind", "daily", "at_time", "02:00")), null);
-        assertEquals("Archive/Quote.flow.json", cr.moveBot(jane, "Sales/Quote.flow.json", "Archive", null).get("path"));
+        assertEquals("CR.FORBIDDEN", code(() -> cr.moveBot(jane, "Sales/Quote.flow.json", "Archive", null)));   // builders move in Private (AA)
+        assertEquals("Archive/Quote.flow.json", cr.moveBot(admin, "Sales/Quote.flow.json", "Archive", null).get("path"));
         assertEquals(1, cr.getBot(admin, "Archive/Quote.flow.json", "UAT").get("version"));
         assertEquals("Archive/Quote.flow.json", cr.schedule(admin, (String) sch.get("id")).get("bot_path"));
         assertEquals("CR.NOT_FOUND", code(() -> cr.getBot(admin, "Sales/Quote.flow.json", "latest")));
         assertEquals("CR.FORBIDDEN", code(() -> cr.moveBot(bob, "Archive/Quote.flow.json", "Sales", null)));
         // a workflow that names it blocks the move
         cr.checkin(admin, "Proc/Q.process.json", json("{\"name\":\"Q\",\"stages\":[{\"id\":\"a\",\"type\":\"bot\",\"name\":\"Q\",\"bot\":\"Archive/Quote.flow.json\"}]}"), "v1", true, null);
-        assertEquals("CR.IN_USE", code(() -> cr.moveBot(jane, "Archive/Quote.flow.json", "Sales", null)));
+        assertEquals("CR.IN_USE", code(() -> cr.moveBot(admin, "Archive/Quote.flow.json", "Sales", null)));
 
-        Map<String, Object> copy = cr.copyBot(jane, "Archive/Quote.flow.json", null, null);
+        // a builder's copy goes to the Private workspace (One AgentStudio), not into the repository
+        assertEquals("CR.COPY_TO_PRIVATE", code(() -> cr.copyBot(jane, "Archive/Quote.flow.json", null, null)));
+        Map<String, Object> copy = cr.copyBot(admin, "Archive/Quote.flow.json", null, null);
         assertEquals("Archive/Quote (copy).flow.json", copy.get("path"));
-        Map<String, Object> flow = castMap(cr.getBot(jane, "Archive/Quote (copy).flow.json", "latest").get("flow"));
+        Map<String, Object> flow = castMap(cr.getBot(admin, "Archive/Quote (copy).flow.json", "latest").get("flow"));
         assertEquals("quote_copy", flow.get("id"), "the copy gets its own agent id");
-        assertEquals("quote_copy2", castMap(cr.getBot(jane, (String) cr.copyBot(jane, "Archive/Quote.flow.json", "Sales/Quote 2.flow.json", null).get("path"), "latest").get("flow")).get("id"));
-        assertEquals("CR.CONFLICT", code(() -> cr.copyBot(jane, "Archive/Quote.flow.json", "Sales/Quote 2.flow.json", null)));
-        assertEquals("CR.BAD_PATH", code(() -> cr.copyBot(jane, "Archive/Quote.flow.json", "Sales/Quote 3.process.json", null)));
+        assertEquals("quote_copy2", castMap(cr.getBot(admin, (String) cr.copyBot(admin, "Archive/Quote.flow.json", "Sales/Quote 2.flow.json", null).get("path"), "latest").get("flow")).get("id"));
+        assertEquals("CR.CONFLICT", code(() -> cr.copyBot(admin, "Archive/Quote.flow.json", "Sales/Quote 2.flow.json", null)));
+        assertEquals("CR.BAD_PATH", code(() -> cr.copyBot(admin, "Archive/Quote.flow.json", "Sales/Quote 3.process.json", null)));
     }
 
     @SuppressWarnings("unchecked")
@@ -290,6 +293,32 @@ class CommunityEditionGapsTest {
         assertEquals("ooa.servicenow", conn.get("package"));
         assertEquals("https://acme.service-now.com", ((Map<String, Object>) conn.get("values")).get("instance_url"));
         finishAll();
+        // A1: a connection that signs in by itself keeps its sign-in as settings and vault references, sent with every job
+        cr.saveConnection(admin, "Mail", json("{\"package\":\"ooa.microsoft365\",\"values\":{\"sign_in_provider\":\"microsoft\",\"sign_in_grant\":\"client_credentials\","
+                + "\"sign_in_tenant\":\"acme.onmicrosoft.com\",\"sign_in_client_id\":\"app-9\"},\"credentials\":{\"sign_in_client_secret\":\"apps/mail/secret\"}}"), null);
+        Map<String, Object> mail = cr.connections(admin).stream().filter(c -> "Mail".equals(c.get("name"))).findFirst().orElseThrow();
+        assertEquals("app-9", ((Map<String, Object>) mail.get("values")).get("sign_in_client_id"));
+        cr.deleteConnection(admin, "Mail", null);
+        // the kinds: Microsoft 365 offers the sign-in; Email (IMAP) is offered with its Connect step's settings
+        List<Map<String, Object>> kinds = cr.connectionKinds(admin);
+        Map<String, Object> m365 = kinds.stream().filter(k -> "ooa.microsoft365".equals(k.get("package"))).findFirst().orElseThrow();
+        assertEquals(true, m365.get("sign_in"));
+        cr.saveConnection(admin, "Orders API", json("{\"package\":\"ooa.rest\",\"values\":{\"base_url\":\"https://api.acme.test/v2\",\"headers\":{\"X-Team\":\"ap\"}},"
+                + "\"credentials\":{\"bearer_token\":\"apps/orders/token\"}}"), null);
+        cr.deleteConnection(admin, "Orders API", null);
+        // R2 (batch 8): REST and SOAP have web connections: base address, headers and sign-in, not each call's address
+        for (String web : List.of("ooa.rest", "ooa.soap")) {
+            Map<String, Object> k = kinds.stream().filter(x -> web.equals(x.get("package"))).findFirst().orElseThrow();
+            List<Object> names = ((List<Map<String, Object>>) k.get("inputs")).stream().map(x -> x.get("name")).map(Object.class::cast).toList();
+            assertTrue(names.containsAll(List.of("base_url", "headers", "bearer_token")) && !names.contains("url"), web + ": " + names);
+            assertEquals(true, k.get("sign_in"));
+        }
+        // Email is an optional module, not loaded in these tests: when it is, it is offered with its Connect step's settings
+        kinds.stream().filter(k -> "ooa.email".equals(k.get("package"))).findFirst().ifPresent(email -> {
+            List<Object> emailInputs = ((List<Map<String, Object>>) email.get("inputs")).stream().map(x -> x.get("name")).map(Object.class::cast).toList();
+            assertTrue(emailInputs.containsAll(List.of("imap_host", "user", "access_token")) && !emailInputs.contains("session"), emailInputs.toString());
+            assertEquals(true, email.get("sign_in"));
+        });
         cr.deleteConnection(admin, "ServiceNow prod", null);
         assertTrue(cr.connections(admin).isEmpty());
         assertEquals("CR.NOT_FOUND", code(() -> cr.deleteConnection(admin, "ServiceNow prod", null)));

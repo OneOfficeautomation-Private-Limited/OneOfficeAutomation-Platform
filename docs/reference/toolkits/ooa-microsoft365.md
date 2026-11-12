@@ -13,6 +13,7 @@ Toolkit `ooa.microsoft365`, version 1.0.0. Outlook mail, calendar, OneDrive and 
 - **Planner**: Create task (Planner), List plans (Planner), List tasks (Planner), Update task (Planner)
 - **Mail**: Delete all emails (Outlook), Delete email (Outlook), Forward email (Outlook), Read email (Outlook), Find emails (Outlook), Check mail folder exists (Outlook), Change email status (Outlook), Move all emails (Outlook), Move email (Outlook), Reply all to email (Outlook), Reply to email (Outlook), Save attachments of all matching emails (Outlook), Save email as EML (Outlook), Save email as MSG (Outlook), Save email attachments (Outlook), Send email (Outlook)
 - **Excel online**: Add table rows (Excel online), Add worksheet (Excel online), Autofit columns (Excel online), Autofit rows (Excel online), Clear range (Excel online), Get column name (Excel online), Copy Excel range (OneDrive/SharePoint), Copy worksheet (Excel online), Create table (Excel online), Create workbook (Excel online), Delete range (Excel online), Delete table (Excel online), Delete worksheet (Excel online), Find in sheet (Excel online), Find next empty cell (Excel online), Format range (Excel online), Get cell (Excel online), Read cell format (Excel online), Get range values (Excel online), Get table rows (Excel online), Get worksheets (Excel online), Hide worksheet (Excel online), Insert range (Excel online), List tables (Excel online), Read column (Excel online), Read formula (Excel online), Read Excel range (OneDrive/SharePoint), Read row (Excel online), Rename table (Excel online), Rename worksheet (Excel online), Set cell (Excel online), Set formula (Excel online), Set range values (Excel online), Show worksheet (Excel online), Get used range (Excel online), Write Data Table (Excel online), Write Excel range (OneDrive/SharePoint)
+- **Loop types**: Each email in a mailbox (Outlook)
 
 ## Calendar
 
@@ -26,7 +27,7 @@ Invite more people to an existing event; people already invited are not added tw
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id from Get calendar events or Create calendar event. |
 | Attendees | `attendees` | Any | Yes |  | Main | Address(es) to invite. |
 | Type | `type` | Text | No | `required` | Main | required, optional or resource. One of: `required`, `optional`, `resource` |
@@ -51,7 +52,7 @@ Attach a local file of up to 3 MB to a calendar event.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id from Get calendar events or Create calendar event. |
 | File | `file` | File path | Yes |  | Main | File to attach. |
 | Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
@@ -75,7 +76,7 @@ Cancel a meeting you organise and send attendees a cancellation note.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id from Get calendar events or Create calendar event. |
 | Message | `message` | Text | No | (empty) | Main | Note sent to attendees. |
 | Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
@@ -93,7 +94,7 @@ Blank the ticked details of an event: title, location, description, reminder, re
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id from Get calendar events or Create calendar event. |
 | Clear subject | `clear_subject` | Yes/No | No | No | Main | Empty the title. |
 | Clear location | `clear_location` | Yes/No | No | No | Main | Empty the location. |
@@ -122,7 +123,7 @@ Create a meeting or appointment, optionally inviting attendees.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Start | `start` | DateTime | Yes |  | Main | Start date and time. |
 | End | `end` | DateTime | Yes |  | Main | End date and time. |
 | Time zone | `time_zone` | Text | No | `UTC` | Main | Time zone of start and end, e.g. India Standard Time or Europe/London. |
@@ -170,7 +171,7 @@ Remove an event from the calendar without sending a cancellation note.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id from Get calendar events or Create calendar event. |
 | Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
@@ -187,11 +188,11 @@ Suggest time slots in a period when the attendees are free for a meeting of the 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Attendees | `attendees` | Any | Yes |  | Main | Attendee address(es). |
 | Duration (minutes) | `duration_minutes` | Number | No | `30` | Main | Meeting length in minutes. |
-| From | `from` | DateTime | Yes |  | Main | Start of the search period. |
-| To | `to` | DateTime | Yes |  | Main | End of the search period. |
+| Start | `start` | DateTime | Yes |  | Main | Start of the search period. |
+| End | `end` | DateTime | Yes |  | Main | End of the search period. |
 | Include outside working (hours) | `include_outside_working_hours` | Yes/No | No | No | More options | Also suggest times outside the attendees' working hours. |
 | Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone of from, to and the results. |
 | Maximum results | `max_results` | Number | No | `10` | More options | Most suggestions. |
@@ -218,12 +219,13 @@ List events between two dates.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
-| From | `from` | DateTime | Yes |  | Main | Start of the period (UTC). |
-| To | `to` | DateTime | Yes |  | Main | End of the period (UTC). |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Start | `start` | DateTime | Yes |  | Main | Start of the period (UTC). |
+| End | `end` | DateTime | Yes |  | Main | End of the period (UTC). |
 | Subject contains | `subject_contains` | Text | No |  | Main | Only events whose title contains this text. |
+| Maximum results | `max_results` | Number | No | `1000` | More options | At most this many events (0: every event in the period). Range: 0 to  |
 | Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone of the returned start and end times, e.g. Europe/London. |
-| Calendar ID | `calendar_id` | Text | No |  | More options | Read this calendar instead of the default one. |
+| Calendar | `calendar` | Text | No |  | More options | Read this calendar instead of the default one. |
 | Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -232,6 +234,7 @@ List events between two dates.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, subject, start, end, location, organizer. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -245,7 +248,7 @@ Take people off an existing event's attendee list.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id from Get calendar events or Create calendar event. |
 | Attendees | `attendees` | Any | Yes |  | Main | Address(es) to remove. |
 | Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
@@ -269,7 +272,7 @@ Accept, tentatively accept or decline a meeting invitation, with an optional not
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id from Get calendar events or Create calendar event. |
 | Response | `response` | Text | Yes |  | Main | accept, tentative or decline. One of: `accept`, `tentative`, `decline` |
 | Comment | `comment` | Text | No | (empty) | Main; tick Add a note | Note to the organiser. |
@@ -289,7 +292,7 @@ Change the title, times, description, location, all-day setting or repeat patter
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id from Get calendar events or Create calendar event. |
 | Start | `start` | DateTime | No |  | Main | New start date and time. |
 | End | `end` | DateTime | No |  | Main | New end date and time. |
@@ -333,10 +336,10 @@ Check whether a person has been given direct access to a file or folder and with
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | Email | `email` | Text | Yes |  | Main | Email address of the person. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -358,14 +361,14 @@ Copy a file or folder into another folder, optionally under a new name, and wait
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | To folder | `to_folder` | Text | Yes |  | Main | Destination folder path (empty for the root), or id:{item-id}. |
 | If exists | `if_exists` | Text | No | `fail` | Main | When the name is taken at the destination: fail, rename (add a number) or replace. One of: `fail`, `rename`, `replace` |
 | New name | `new_name` | Text | No |  | More options | Name for the copy; the original name when empty. |
 | To drive | `to_drive` | Text | No |  | More options | Destination drive when different from the source drive. |
 | Wait (seconds) | `wait_seconds` | Number | No | `120` | More options | How long to wait for the copy; 0 returns at once. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -388,11 +391,11 @@ Create a folder inside a drive folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Parent folder | `parent_folder` | Text | No | (empty) | Main | Parent folder path (empty for the root), or id:{item-id}. |
 | Name | `name` | Text | Yes |  | Main | New folder name. |
 | If exists | `if_exists` | Text | No | `fail` | More options | When the name is taken: fail, rename (add a number) or replace. One of: `fail`, `rename`, `replace` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -414,12 +417,12 @@ Create a link that opens a file or folder for viewing or editing, for anyone or 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | Type | `type` | Text | No | `view` | Main | view or edit. One of: `view`, `edit` |
 | Scope | `scope` | Text | No | `organization` | Main | organization: people in your organisation; anonymous: anyone with the link. One of: `organization`, `anonymous` |
 | Expires | `expires` | DateTime | No |  | Main; tick Link expires | When the link stops working (UTC); never when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -441,10 +444,10 @@ Delete a file or folder; it goes to the drive's recycle bin unless deleted perma
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | Permanent | `permanent` | Yes/No | No | No | More options | Delete for good, skipping the recycle bin (OneDrive for work or school and SharePoint). |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; needs: network.*
@@ -459,11 +462,11 @@ Download a file from a OneDrive or SharePoint path to a local file.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Path of the file in the drive. |
 | Local path | `local_path` | File path | Yes |  | Main | Where to save it. |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing local file; when false a number such as (2) is added to the name. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -484,11 +487,11 @@ Convert a Word, Excel, PowerPoint or other supported file in the drive to PDF an
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | Local path | `local_path` | File path | Yes |  | Main | Where to save the PDF. Example: `out/report.pdf` |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing local file; when false a number such as (2) is added to the name. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -509,13 +512,13 @@ Search a drive for files and folders whose name or content matches the text.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Text | `text` | Text | Yes |  | Main | Text to look for. |
 | Item type | `item_type` | Text | No | `any` | Main | Files, folders or both. One of: `any`, `file`, `folder` |
 | In folder | `in_folder` | Text | No |  | Main; tick Search one folder only | Search only inside this folder (path or id:{item-id}); the whole drive when empty. |
 | Exact name | `exact_name` | Yes/No | No | No | More options | Keep only items whose name equals the text (not case-sensitive). |
 | Maximum results | `max_results` | Number | No | `100` | More options | Maximum items. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -537,9 +540,9 @@ Read a file's or folder's id, size, dates, last editor, parent path and link.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -560,9 +563,9 @@ List the files and folders in a drive folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Folder | `folder` | Text | No | (empty) | Main | Folder path; the root when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -570,6 +573,7 @@ List the files and folders in a drive folder.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, type, size, modified, web_url. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -583,9 +587,9 @@ List who can open or edit a file or folder, including sharing links.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -593,6 +597,7 @@ List who can open or edit a file or folder, including sharing links.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, roles, granted_to, link_type, link_scope, link_url. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -606,12 +611,12 @@ Move a file or folder into another folder in the same drive, optionally renaming
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | To folder | `to_folder` | Text | Yes |  | Main | Destination folder path (empty for the root), or id:{item-id}. |
 | If exists | `if_exists` | Text | No | `fail` | Main | When the name is taken at the destination: fail, rename (add a number) or replace. One of: `fail`, `rename`, `replace` |
 | New name | `new_name` | Text | No |  | More options | New name; unchanged when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -633,11 +638,11 @@ Give a file or folder a new name in the same folder.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | New name | `new_name` | Text | Yes |  | Main | New name, including the extension for files. |
 | If exists | `if_exists` | Text | No | `fail` | More options | When the new name is taken in the folder: fail, rename (add a number) or replace. One of: `fail`, `rename`, `replace` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -659,10 +664,10 @@ Make an earlier version of a file the current one; by default the version before
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | Version ID | `version_id` | Text | No | (empty) | Main; choice Version = A specific version | Version to restore, e.g. 3.0; the previous version when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -683,14 +688,14 @@ Give people read or edit access to a file or folder, optionally emailing them an
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Item | `item` | Text | Yes |  | Main | Path in the drive (e.g. Reports/q4.xlsx), or id:{item-id}. |
 | Recipients | `recipients` | Any | Yes |  | Main | Email address(es) of the people to share with. |
 | Role | `role` | Text | No | `read` | Main | read to view, write to edit. One of: `read`, `write` |
 | Send invitation | `send_invitation` | Yes/No | No | Yes | Main | Email the people a sharing invitation. |
 | Message | `message` | Text | No |  | Main; tick Add a note to the invitation | Text added to the invitation. |
 | Require sign in | `require_sign_in` | Yes/No | No | Yes | More options | People must sign in to open the item. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -711,12 +716,12 @@ Upload a local file of any size to a OneDrive or SharePoint folder path; creates
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Local path | `local_path` | File path | Yes |  | Main | File to upload. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Target path in the drive, including the file name. Example: `Reports/2026/summary.xlsx` |
 | If exists | `if_exists` | Text | No | `replace` | Main | When the name is taken at the destination: fail, rename (add a number) or replace. One of: `fail`, `rename`, `replace` |
 | Chunk size (MB) | `chunk_size_mb` | Number | No | `10` | More options | Size of each piece sent for files over 4 MB (rounded down to a multiple of 320 KB); smaller pieces suit slow or unreliable networks. Range: 0.3125 to 60 |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -741,7 +746,7 @@ Add a standard channel, visible to every member, to a team.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | Yes |  | Main | Team id. |
 | Name | `name` | Text | Yes |  | Main | Channel name, up to 50 characters, unique in the team. |
 | Description | `description` | Text | No |  | Main | What the channel is for. |
@@ -766,7 +771,7 @@ Start, or reuse, a one-on-one Teams chat between the signed-in user and another 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | Yes |  | Main | Other person's id or email address. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -788,7 +793,7 @@ Find the id of a team's channel from its display name.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | No |  | Main; choice Team = By id | Team id; or give team_name instead. |
 | Team name | `team_name` | Text | No |  | Main; choice Team = By name | Team display name (not case-sensitive), among the teams the signed-in user belongs to; used instead of team_id. Example: `Finance` |
 | Name | `name` | Text | Yes |  | Main | Channel display name (not case-sensitive), e.g. General. |
@@ -812,7 +817,7 @@ Read a channel's name, description, membership type, email address, creation dat
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | Yes |  | Main | Team id. |
 | Channel ID | `channel_id` | Text | Yes |  | Main | Channel id. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
@@ -835,7 +840,7 @@ Read the posts of a Teams channel, newest first, optionally only those since a d
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | Yes |  | Main | Team id. |
 | Channel ID | `channel_id` | Text | Yes |  | Main | Channel id. |
 | Since | `since` | DateTime | No |  | Main | Only posts created at or after this time (UTC); all posts when empty. |
@@ -861,7 +866,7 @@ Find the id of a team the user belongs to from its display name.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Name | `name` | Text | Yes |  | Main | Team display name (not case-sensitive). |
 | User | `user` | Text | No | `me` | More options | me, or a user's id or email address. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
@@ -884,7 +889,7 @@ Read a team's name, description, visibility, archive state and link.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | Yes |  | Main | Team id. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -906,7 +911,7 @@ Read a person's directory profile: name, email, job title, department, office an
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | No | `me` | Main | me, or a user's id or email address. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -928,7 +933,7 @@ List the channels of a team.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | Yes |  | Main | Team id. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -937,6 +942,7 @@ List the channels of a team.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, description, membership_type. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -950,7 +956,7 @@ List the Microsoft Teams teams the user belongs to.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | User | `user` | Text | No | `me` | Main | me, or a user's id or email address. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -959,6 +965,7 @@ List the Microsoft Teams teams the user belongs to.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, description. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -972,7 +979,7 @@ Post a reply in the thread of a Teams channel message.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | Yes |  | Main | Team id. |
 | Channel ID | `channel_id` | Text | Yes |  | Main | Channel id. |
 | Message ID | `message_id` | Text | Yes |  | Main | Id of the post to reply to, e.g. from Get channel messages. |
@@ -998,7 +1005,7 @@ Send a message into an existing Teams chat, or straight to one person, starting 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Chat ID | `chat_id` | Text | No |  | Main; choice Send to = A chat | Chat id, e.g. from Create chat; or give to instead. |
 | To | `to` | Text | No |  | Main; choice Send to = A person | Person's email address or user id; their one-on-one chat with the signed-in user is used, or started. Used instead of chat_id. Example: `ann@contoso.com` |
 | Message | `message` | Text | Yes |  | Main | Message text (HTML allowed when html is true). |
@@ -1026,7 +1033,7 @@ Post a message to a Microsoft Teams channel, chosen by id or by name.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Team ID | `team_id` | Text | No |  | Main; choice Team = By id | Team id; or give team_name instead. |
 | Team name | `team_name` | Text | No |  | Main; choice Team = By name | Team display name (not case-sensitive), among the teams the signed-in user belongs to; used instead of team_id. Example: `Finance` |
 | Channel ID | `channel_id` | Text | No |  | Main; choice Channel = By id | Channel id; or give channel_name instead. |
@@ -1059,7 +1066,7 @@ Add an item to a SharePoint list from a dictionary of field names and values.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Site | `site` | Text | Yes |  | Main | SharePoint site: site id, or hostname:/sites/path such as contoso.sharepoint.com:/sites/Finance. |
 | List | `list` | Text | Yes |  | Main | List id or display name. |
 | Fields | `fields` | Dictionary | Yes |  | Main | Field internal names and values, e.g. {"Title":"Laptop","Status":"Open"}. |
@@ -1083,7 +1090,7 @@ Delete an item from a SharePoint list; it goes to the site's recycle bin.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Site | `site` | Text | Yes |  | Main | SharePoint site: site id, or hostname:/sites/path such as contoso.sharepoint.com:/sites/Finance. |
 | List | `list` | Text | Yes |  | Main | List id or display name. |
 | Item ID | `item_id` | Text | Yes |  | Main | Item id. |
@@ -1101,11 +1108,12 @@ Read the items of a SharePoint list as a Data Table, optionally filtered and lim
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Site | `site` | Text | Yes |  | Main | SharePoint site: site id, or hostname:/sites/path such as contoso.sharepoint.com:/sites/Finance. |
 | List | `list` | Text | Yes |  | Main | List id or display name. |
 | Filter | `filter` | Text | No |  | Main; tick Filter the items | OData filter on fields, e.g. fields/Status eq 'Open'. Example: `fields/Status eq 'Open'` |
 | Columns | `columns` | List | No |  | Main | Field names to return; all when empty. |
+| Use display names | `use_display_names` | Yes/No | No | No | Main | Name the table's columns as people see them in SharePoint (Status, not Status0 or field_1); columns may then be given that way too. |
 | Maximum results | `max_results` | Number | No | `1000` | More options | Maximum items. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -1113,7 +1121,7 @@ Read the items of a SharePoint list as a Data Table, optionally filtered and lim
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `table` | Table | Column id, then one column per list field. |
+| `table` | Table | Column id, then one column per list field (named as people see them when use_display_names is on). |
 | `count` | Number | Number of items. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -1128,7 +1136,7 @@ List the lists and libraries of a SharePoint site.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Site | `site` | Text | Yes |  | Main | SharePoint site: site id, or hostname:/sites/path such as contoso.sharepoint.com:/sites/Finance. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -1137,6 +1145,7 @@ List the lists and libraries of a SharePoint site.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, display_name, template, web_url. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1150,7 +1159,7 @@ Change some fields of a SharePoint list item; other fields keep their values.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Site | `site` | Text | Yes |  | Main | SharePoint site: site id, or hostname:/sites/path such as contoso.sharepoint.com:/sites/Finance. |
 | List | `list` | Text | Yes |  | Main | List id or display name. |
 | Item ID | `item_id` | Text | Yes |  | Main | Item id. |
@@ -1171,7 +1180,7 @@ Add a task to a Planner plan, optionally in a bucket, with a due date and people
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Plan ID | `plan_id` | Text | Yes |  | Main | Plan id, e.g. from List plans. |
 | Bucket ID | `bucket_id` | Text | No |  | Main | Bucket (column) to put the task in; leave empty for none. |
 | Title | `title` | Text | Yes |  | Main | Task title. |
@@ -1197,7 +1206,7 @@ List the Planner plans of a Microsoft 365 group (the group behind a team).
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Group ID | `group_id` | Text | Yes |  | Main | Microsoft 365 group id; a team's id is its group id. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
@@ -1220,7 +1229,7 @@ List the tasks of a Planner plan, optionally only those in one bucket or assigne
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Plan ID | `plan_id` | Text | Yes |  | Main | Plan id, e.g. from List plans. |
 | Bucket ID | `bucket_id` | Text | No |  | Main | Only tasks in this bucket; all buckets when empty. |
 | Assigned to | `assigned_to` | Text | No |  | Main | Only tasks assigned to this user id; everyone's when empty. |
@@ -1245,7 +1254,7 @@ Change a Planner task's title, progress or due date; fields left empty keep thei
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id, e.g. from List tasks. |
 | Title | `title` | Text | No |  | Main | New title. |
 | Percent complete | `percent_complete` | Number | No |  | Main | Progress from 0 to 100; Planner shows 0 as not started, 1 to 99 as in progress and 100 as completed. |
@@ -1266,7 +1275,7 @@ Delete every email in a folder that matches the optional filters, to Deleted Ite
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Folder | `folder` | Text | No | `inbox` | Main | Folder id or well-known name: inbox, archive, sentitems, deleteditems. |
 | Unread only | `unread_only` | Yes/No | No | No | Main | Only unread emails. |
 | Read only | `read_only` | Yes/No | No | No | Main | Only emails already read. |
@@ -1297,7 +1306,7 @@ Delete an email by moving it to Deleted Items, or remove it permanently.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Text | Yes |  | Main | Email id. |
 | Permanent | `permanent` | Yes/No | No | No | More options | Remove permanently instead of moving to Deleted Items. |
 | Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
@@ -1315,7 +1324,7 @@ Forward an email to new recipients with an optional note above the original mess
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Text | Yes |  | Main | Email id. |
 | From | `from` | Text | No |  | Main | Send as this address, e.g. a shared mailbox; the account needs Send As rights. The mailbox itself when empty. Example: `invoices@acme.com` |
 | To | `to` | Any | Yes |  | Main | Recipient address(es). |
@@ -1339,7 +1348,7 @@ Read one email's details and body; optionally mark it read.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Text | Yes |  | Main | Email id from Find emails. |
 | Mark read | `mark_read` | Yes/No | No | Yes | Main | Mark as read. |
 | Body as text | `body_as_text` | Yes/No | No | No | Main | Return the body as plain text even when the email is HTML. |
@@ -1350,7 +1359,7 @@ Read one email's details and body; optionally mark it read.
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `email` | Dictionary | id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id. |
+| `email` | Dictionary | id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id. |
 
 *Time limit 60 s; needs: network.*
 
@@ -1364,7 +1373,7 @@ List emails in a mail folder, newest first, optionally only unread or matching s
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Folder | `folder` | Text | No | `inbox` | Main | Folder id or well-known name: inbox, archive, sentitems, deleteditems. |
 | Unread only | `unread_only` | Yes/No | No | No | Main | Only unread emails. |
 | Read only | `read_only` | Yes/No | No | No | Main | Only emails already read. |
@@ -1397,7 +1406,7 @@ Check whether a mail folder exists, by top-level display name or by a path such 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Name | `name` | Text | Yes |  | Main | Folder display name, e.g. Invoices, or a path such as Inbox/Invoices/2026 (/ or \ between levels). |
 | Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
@@ -1421,7 +1430,7 @@ Mark an email as read or unread, or set, clear or complete its follow-up flag.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Text | Yes |  | Main | Email id. |
 | Status | `status` | Text | Yes |  | Main | New status: read, unread, flagged, unflagged or complete. One of: `read`, `unread`, `flagged`, `unflagged`, `complete` |
 | Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
@@ -1439,7 +1448,7 @@ Move every email in a folder that matches the optional filters to another folder
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | To folder | `to_folder` | Text | Yes |  | Main | Destination folder id, well-known name, or a path such as Inbox/Invoices/2026. |
 | Unread only | `unread_only` | Yes/No | No | No | Main | Only unread emails. |
 | Read only | `read_only` | Yes/No | No | No | Main | Only emails already read. |
@@ -1470,7 +1479,7 @@ Move an email to another folder (id or well-known name such as archive).
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Text | Yes |  | Main | Email id. |
 | To folder | `to_folder` | Text | Yes |  | Main | Destination folder id, well-known name, or a path such as Inbox/Invoices/2026. |
 | Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
@@ -1494,7 +1503,7 @@ Reply to the sender and every other recipient of an email with a note above the 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Text | Yes |  | Main | Email id. |
 | From | `from` | Text | No |  | Main | Send as this address, e.g. a shared mailbox; the account needs Send As rights. The mailbox itself when empty. Example: `invoices@acme.com` |
 | Cc | `cc` | Any | No |  | Main | CC address(es). |
@@ -1518,7 +1527,7 @@ Reply to the sender of an email, or to everyone on it, with a note above the ori
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Text | Yes |  | Main | Email id. |
 | Reply all | `reply_all` | Yes/No | No | No | Main | Reply to the sender and every other recipient. |
 | From | `from` | Text | No |  | Main | Send as this address, e.g. a shared mailbox; the account needs Send As rights. The mailbox itself when empty. Example: `invoices@acme.com` |
@@ -1543,7 +1552,7 @@ Save the attachments of every email in a folder that matches the filters, option
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Unread only | `unread_only` | Yes/No | No | No | Main | Only unread emails. |
 | Read only | `read_only` | Yes/No | No | No | Main | Only emails already read. |
 | Folder | `folder` | Text | No | `inbox` | Main | Folder id or well-known name: inbox, archive, sentitems, deleteditems. |
@@ -1578,7 +1587,7 @@ Save a complete email, including attachments, as a standard .eml file.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Text | Yes |  | Main | Email id. |
 | Local path | `local_path` | File path | Yes |  | Main | Where to save the .eml file; a path ending in / or an existing folder gets a file named after the subject. Example: `mail/order-123.eml` |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing file; when false a number such as (2) is added to the name. |
@@ -1603,7 +1612,7 @@ Save an email, with its recipients, HTML body and attachments, as an Outlook .ms
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Text | Yes |  | Main | Email id. |
 | Local path | `local_path` | File path | Yes |  | Main | Where to save the .msg file; a path ending in / or an existing folder gets a file named after the subject. Example: `mail/order-123.msg` |
 | Overwrite | `overwrite` | Yes/No | No | Yes | Main | Replace an existing file; when false a number such as (2) is added to the name. |
@@ -1629,7 +1638,7 @@ Save an email's file attachments to a folder, optionally only names matching a p
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Text | Yes |  | Main | Email id. |
 | Target folder | `target_folder` | File path | Yes |  | Main | Folder to save into. |
 | Overwrite | `overwrite` | Yes/No | No | No | Main | Replace files of the same name instead of adding a number such as (2). |
@@ -1656,7 +1665,7 @@ Send an email from a Microsoft 365 mailbox with optional CC, BCC and attachments
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | From | `from` | Text | No |  | Main | Send as this address, e.g. a shared mailbox; the account needs Send As rights. The mailbox itself when empty. Example: `invoices@acme.com` |
 | To | `to` | Any | Yes |  | Main | Recipient address(es). |
 | Cc | `cc` | Any | No |  | Main | CC address(es). |
@@ -1686,11 +1695,11 @@ Append rows to the end of an Excel table.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Table | `table` | Text | Yes |  | Main | Table name or id. |
 | Rows | `rows` | Any | Yes |  | Main | List of rows (each a list of values), one flat list for a single row, or a Data Table (rows only). |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1711,10 +1720,10 @@ Add a worksheet to a workbook in OneDrive or SharePoint.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Name | `name` | Text | No |  | Main | Name for the worksheet; Excel picks one when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1736,11 +1745,11 @@ Resize the columns of a range so their contents fit.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range whose columns are resized. Example: `A1:F1` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -1755,11 +1764,11 @@ Resize the rows of a range so their contents fit.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range whose rows are resized. Example: `A1:A50` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -1774,12 +1783,12 @@ Clear the values, the formatting, or both from a range without shifting other ce
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range address. Example: `A2:F100` |
 | Clear | `clear` | Text | No | `all` | Main | What to clear: all, contents or formats. One of: `all`, `contents`, `formats` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -1816,7 +1825,7 @@ Copy a cell or range to another place in the same workbook, as values or with fo
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet the range is on. |
 | Range | `range` | Text | Yes |  | Main | Cell or range to copy. Example: `A2:D10` |
@@ -1824,7 +1833,7 @@ Copy a cell or range to another place in the same workbook, as values or with fo
 | Destination sheet | `destination_sheet` | Text | No |  | Main; tick To another sheet | Worksheet to copy to; the same sheet when empty. |
 | Copy | `copy` | Text | No | `values` | More options | values copies the results; formulas copies formulas exactly as written (cell references are not moved). One of: `values`, `formulas` |
 | Include number formats | `include_number_formats` | Yes/No | No | Yes | More options | Also copy number formats such as dates and currency. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1845,13 +1854,13 @@ Copy a worksheet's cells (values, formulas and number formats) into a new worksh
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet to copy. |
 | Target remote path | `target_remote_path` | Text | No |  | Main; tick Into another workbook | Workbook to copy into (path in the same drive, or id:{item-id}); the same workbook when empty. |
 | New name | `new_name` | Text | No |  | Main | Name of the new worksheet; the source sheet's name when empty, which must then be free in the target workbook. |
 | Copy formats | `copy_formats` | Text | No | `all` | More options | all copies column widths, row heights, fonts, fill colours and alignment; sizes only widths and heights; none only cells and number formats (fastest). One of: `all`, `sizes`, `none` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1873,13 +1882,13 @@ Turn a range into an Excel table, optionally naming it.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Name | `name` | Text | No |  | Main | Table name; Excel picks one when empty. |
 | Range | `range` | Text | Yes |  | Main | Range the table covers. Example: `A1:D1` |
 | Has headers | `has_headers` | Yes/No | No | Yes | Main | The first row holds column names. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1901,11 +1910,11 @@ Create a new, empty Excel workbook in OneDrive or SharePoint, optionally with na
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Path of the new workbook, ending in .xlsx. Example: `Reports/2026/new.xlsx` |
 | Sheet names | `sheet_names` | List | No |  | More options | Names of the sheets; one sheet called Sheet1 when empty. |
 | If exists | `if_exists` | Text | No | `fail` | More options | When a file of that name exists: fail, rename (add a number) or replace it. One of: `fail`, `rename`, `replace` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -1927,12 +1936,12 @@ Delete the cells of a range and close the gap by moving cells up or left, or del
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range address. Example: `A5:F5` |
 | Shift | `shift` | Text | No | `up` | Main | Move the remaining cells up or left; entire_row or entire_column deletes the whole rows or columns of the range. One of: `up`, `left`, `entire_row`, `entire_column` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; needs: network.*
@@ -1947,10 +1956,10 @@ Delete an Excel table together with its data.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Table | `table` | Text | Yes |  | Main | Table name or id. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; needs: network.*
@@ -1965,11 +1974,11 @@ Delete a worksheet and everything on it from a workbook in OneDrive or SharePoin
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | No |  | Main; choice Sheet by = Name | Worksheet name; or give sheet_position instead. |
 | Sheet position | `sheet_position` | Number | No |  | Main; choice Sheet by = Position | Position of the worksheet among the tabs, the first being 1; used instead of sheet. Example: `2` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; needs: network.*
@@ -1984,7 +1993,7 @@ Search the used cells of a sheet, or a range, for text and return the addresses 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | No |  | Main; tick Search only a range | Range to search; the used cells when empty. Example: `A1:F200` |
@@ -1992,7 +2001,7 @@ Search the used cells of a sheet, or a range, for text and return the addresses 
 | Search by | `search_by` | Text | No | `rows` | Main | Order of the results: rows goes across each row first, columns goes down each column first. One of: `rows`, `columns` |
 | Match case | `match_case` | Yes/No | No | No | Main | Upper and lower case must match. |
 | Whole cell | `whole_cell` | Yes/No | No | No | Main | The whole cell must equal the text. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2014,13 +2023,13 @@ Find the first empty cell after the last value in a column (going down) or in a 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Direction | `direction` | Text | No | `down` | Main | down: after the last value of a column; right: after the last value of a row. One of: `down`, `right` |
 | Column | `column` | Text | No | `A` | Main | Column letter to look in. Shown when: `{"direction": ["down"]}` |
 | Row | `row` | Number | No | `1` | Main | Row number to look in. Range: 1 to ; Shown when: `{"direction": ["right"]}` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2043,7 +2052,7 @@ Set fill, font, alignment, wrapping, size, borders, merging and number format of
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range address. Example: `A1:F1` |
@@ -2064,7 +2073,7 @@ Set fill, font, alignment, wrapping, size, borders, merging and number format of
 | Border style | `border_style` | Text | No |  | More options | Line style of every border of the range, inside and out; unchanged when empty. One of: `None`, `Continuous`, `Dash`, `DashDot`, `DashDotDot`, `Dot`, `Double`, `SlantDashDot` |
 | Border color | `border_color` | Text | No |  | More options | Colour of those borders. Example: `#000000` |
 | Merge | `merge` | Yes/No | No |  | More options | Merge the cells (true) or unmerge them (false); unchanged when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2079,11 +2088,11 @@ Read one cell's value and the text Excel shows for it.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `C7` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2105,11 +2114,11 @@ Read one cell's fill colour, font (name, size, colour, bold, italic, underline),
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `C7` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2130,11 +2139,11 @@ Read the cell values of a range as a list of rows, without treating the first ro
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range address. Example: `A1:D20` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2157,11 +2166,11 @@ Read all rows of an Excel table, or one row by its position, as a Data Table, us
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Table | `table` | Text | Yes |  | Main | Table name or id. |
 | Row index | `row_index` | Number | No |  | Main; tick Only one row | Return only this data row; 1 is the first row under the headers. All rows when empty. Range: 1 to  |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2183,9 +2192,9 @@ List the worksheets of a workbook in OneDrive or SharePoint, in tab order.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2207,11 +2216,11 @@ Hide a worksheet tab without deleting it; very hidden sheets can only be shown a
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Very hidden | `very_hidden` | Yes/No | No | No | More options | Hide it so that it cannot be shown from Excel's menu. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2226,12 +2235,12 @@ Insert empty cells at a range, pushing the existing cells down or right, or inse
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Range address. Example: `A5:F5` |
 | Shift | `shift` | Text | No | `down` | Main | Push the existing cells down or right; entire_row or entire_column inserts as many whole rows or columns as the range covers. One of: `down`, `right`, `entire_row`, `entire_column` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2252,10 +2261,10 @@ List the Excel tables in a workbook, or on one worksheet.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | No | (empty) | Main; tick Only one worksheet | Only tables on this worksheet; all when empty. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2263,6 +2272,7 @@ List the Excel tables in a workbook, or on one worksheet.
 | Name | Type | Description |
 | --- | --- | --- |
 | `table` | Table | Columns: id, name, style, show_headers. |
+| `count` | Number | How many rows the table has. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -2276,11 +2286,11 @@ Read one sheet column from row 1 to the last used row.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Column | `column` | Text | Yes |  | Main | Column letter, or its number starting at 1. Example: `C` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2301,11 +2311,11 @@ Read the formula in a cell together with its current value.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `D10` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2327,13 +2337,13 @@ Read a range, or all cells in use, from an Excel workbook stored in OneDrive or 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive. Example: `Finance/budget.xlsx` |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. Example: `Sheet1` |
 | Range | `range` | Text | No |  | Main; choice Cells = A range | Range address; all cells in use on the sheet when empty. Example: `A1:D20` |
 | First row is the header | `header` | Yes/No | No | Yes | Main | The first row holds the column names. |
 | Read as | `read_as` | Text | No | `value` | Main | value returns numbers and booleans as such; text returns what Excel displays, with number formats applied. One of: `value`, `text` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2354,11 +2364,11 @@ Read one sheet row from column A to the last used column.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Row | `row` | Number | Yes |  | Main | Row number, starting at 1. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2379,11 +2389,11 @@ Give an Excel table a new name.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Table | `table` | Text | Yes |  | Main | Table name or id. |
 | New name | `new_name` | Text | Yes |  | Main | New table name (no spaces). |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2398,12 +2408,12 @@ Give a worksheet in a OneDrive or SharePoint workbook a new name.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | No |  | Main; choice Sheet by = Name | Current worksheet name; or give sheet_position instead. |
 | Sheet position | `sheet_position` | Number | No |  | Main; choice Sheet by = Position | Position of the worksheet among the tabs, the first being 1; used instead of sheet. Example: `2` |
 | New name | `new_name` | Text | Yes |  | Main | New worksheet name. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2418,12 +2428,12 @@ Write one value into a cell.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `C7` |
 | Value | `value` | Any | Yes |  | Main | Value to write; empty clears the value. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2438,12 +2448,12 @@ Put a formula into a cell and return the value Excel calculates.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Cell | `cell` | Text | Yes |  | Main | Cell address. Example: `D10` |
 | Formula | `formula` | Text | Yes |  | Main | Formula; the leading = is added when missing. Example: `=SUM(D2:D9)` |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2464,12 +2474,12 @@ Write a list of rows into a sheet; a single cell address is grown to fit the val
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | Yes |  | Main | Top-left cell, or a full range matching the values' size. Example: `B2` |
 | Values | `values` | Any | Yes |  | Main | List of rows (each a list of values), one flat list for a single row, or a Data Table (rows only). |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2490,10 +2500,10 @@ Make a hidden worksheet tab visible again.
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
@@ -2508,10 +2518,10 @@ Find the block of cells on a sheet that holds values, with its last row and colu
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2536,13 +2546,13 @@ Write a Data Table to a sheet starting at a cell, with or without its column nam
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive (e.g. Finance/budget.xlsx), or id:{item-id}. |
 | Table | `table` | Table | Yes |  | Main | Data to write. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Start cell | `start_cell` | Text | No | `A1` | Main | Top-left cell. |
 | Include headers | `include_headers` | Yes/No | No | Yes | More options | Write the column names as the first row. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2563,12 +2573,12 @@ Write a table into an Excel workbook in OneDrive or SharePoint, starting at a ce
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Remote path | `remote_path` | Text | Yes |  | Main | Workbook path in the drive. |
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Start cell | `start_cell` | Text | No | `A1` | Main | Top-left cell. |
 | Table | `table` | Table | Yes |  | Main | Data to write. |
-| Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
+| Drive | `drive` | Text | No | `me/drive` | More options | Whose files: me/drive (your OneDrive), a person (ann@acme.com), a SharePoint site (contoso.sharepoint.com:/sites/Finance), a library of a site by name (contoso.sharepoint.com:/sites/Finance:/Invoices), or sites/{site-id}/drive or drives/{drive-id}. With an app sign-in, name a person or site. |
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 **Results**
@@ -2578,3 +2588,32 @@ Write a table into an Excel workbook in OneDrive or SharePoint, starting at a ce
 | `address` | Text | The range that was written. |
 
 *Time limit 60 s; needs: network.*
+
+## Loop types
+
+Used as the kind of loop in a Loop step.
+
+### Each email in a mailbox (Outlook)
+
+`ooa.microsoft365/emails` (loop type)
+
+Go through the emails matching the Find emails filters, one per turn: id, from, subject, received, unread, has_attachments, or the whole email.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Folder | `folder` | Text | No | `inbox` | Main | Folder id or well-known name: inbox, archive, sentitems, deleteditems. |
+| Unread only | `unread_only` | Yes/No | No | No | Main | Only unread emails. |
+| Read only | `read_only` | Yes/No | No | No | Main | Only emails already read. |
+| From contains | `from_contains` | Text | No |  | Main | Sender contains this text; separate several with ; to match any of them. |
+| Subject contains | `subject_contains` | Text | No |  | Main | Subject contains this text; separate several with ; to match any of them. |
+| Since | `since` | DateTime | No |  | Main | Received on or after this time (UTC). |
+| Before | `before` | DateTime | No |  | Main | Received before this time (UTC). |
+| Has attachments only | `has_attachments_only` | Yes/No | No | No | Main | Only emails that have attachments. |
+| Oldest first | `oldest_first` | Yes/No | No | No | Main | The oldest emails first instead of the newest. |
+| Maximum results | `max_results` | Number | No | `100` | Main | Stop after this many emails. |
+| With body | `with_body` | Yes/No | No | No | Main | Give each email whole: text, HTML, recipients and attachment names (one more request per email); the email stays unread. Without it each email has id, from, subject, received, unread and has_attachments. |
+| Mailbox | `mailbox` | Text | No | `me` | Main | Mailbox: me, or a user's email address (needs application permission). |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | Main | Graph endpoint; change only for national clouds or testing. |

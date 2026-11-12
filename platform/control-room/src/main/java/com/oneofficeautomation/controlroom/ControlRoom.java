@@ -1096,7 +1096,14 @@ public final class ControlRoom {
      * Deletes an agent: it disappears from the repository and can no longer run, but its versions are kept and it can be
      * recovered. Agents still used by schedules, triggers or work queues are not deleted (those are listed).
      */
-    public Map<String, Object> deleteBot(User by, String path, String ip) {
+    public Map<String, Object> deleteBot(User by, String path, String ip) { return deleteBot(by, path, null, ip); }
+
+    /**
+     * Deletes an agent (it can be recovered). Refused while it is checked out by someone else, or while a schedule,
+     * trigger, work queue, API task or another agent uses it (as AA: remove the references first). The reason, when
+     * given, goes into the audit trail (as Blue Prism asks for one).
+     */
+    public Map<String, Object> deleteBot(User by, String path, String reason, String ip) {
         require(by, "repo.delete", "delete agents");
         folders.require(by, path, "edit", "delete agents");
         Map<String, Object> b = db.one("SELECT locked_by, deleted_at, bot_id FROM bots WHERE path = ?", path);
@@ -1107,9 +1114,10 @@ public final class ControlRoom {
         for (Map<String, Object> r : db.query("SELECT name FROM triggers WHERE bot_path = ?", path)) users.add("trigger " + r.get("name"));
         for (Map<String, Object> r : db.query("SELECT name FROM queues WHERE bot_path = ?", path)) users.add("work queue " + r.get("name"));
         for (Map<String, Object> r : db.query("SELECT name FROM api_tasks WHERE bot_path = ?", path)) users.add("API task " + r.get("name"));
+        for (String parent : parentsOf((String) b.get("bot_id"))) users.add("agent " + parent);
         if (!users.isEmpty()) throw new OoaException("CR.IN_USE", "The agent is used by " + String.join(", ", users), "Delete or change those first.", false, Map.of("used_by", users));
         db.update("UPDATE bots SET deleted_at = ?, deleted_by = ?, locked_by = NULL, locked_at = NULL WHERE path = ?", now(), by.username(), path);
-        audit.record(by.username(), "repo.delete", "bot", path, null, "ok", ip);
+        audit.record(by.username(), "repo.delete", "bot", path, reason == null || reason.isBlank() ? null : Map.of("reason", reason.strip()), "ok", ip);
         repositoryChanged(by.username(), path + " deleted");
         return Map.of("deleted", path, "called_by", parentsOf((String) b.get("bot_id")));
     }
@@ -1119,7 +1127,8 @@ public final class ControlRoom {
      * runs it. Refused while someone else has it checked out, or a workflow names it by path.
      */
     public Map<String, Object> moveBot(User by, String path, String toFolder, String ip) {
-        require(by, "repo.checkin", "move agents");
+        // as AA, builders move agents in their Private workspace before check-in; in the repository only an administrator does
+        require(by, "repo.production", "move agents in the repository");
         Map<String, Object> b = db.one("SELECT locked_by FROM bots WHERE path = ?", path);
         if (b == null) throw notFound("Agent " + path);
         String name = path.substring(path.lastIndexOf('/') + 1);
@@ -1156,6 +1165,11 @@ public final class ControlRoom {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> copyBot(User by, String path, String toPath, String ip) {
+        // as AA, a copy is made in the person's Private workspace (One AgentStudio's Copy to Private); a copy straight into
+        // the repository is for administrators only (for example while reorganising)
+        if (!can(by, "repo.production"))
+            throw new OoaException("CR.COPY_TO_PRIVATE", "Copies are made in your Private workspace",
+                    "Use Copy to Private on the agent in One AgentStudio's Public tab, change it there, then check it in.");
         Map<String, Object> flow = new LinkedHashMap<>((Map<String, Object>) getBot(by, path, "latest").get("flow"));
         String to = toPath == null || toPath.isBlank() ? path.replaceAll("\\.(flow|process|form)\\.json$", "") + " (copy)" + path.substring(path.lastIndexOf(".", path.length() - 6)) : toPath.trim();
         if (!to.matches(".*\\.(flow|process|form)\\.json$") || !to.substring(to.indexOf('.', to.lastIndexOf('/') + 1)).equals(path.substring(path.indexOf('.', path.lastIndexOf('/') + 1))))
@@ -3097,13 +3111,36 @@ public final class ControlRoom {
      * action and that include a secret, such as its address and sign-in (Studio applies the same rule).
      */
     @SuppressWarnings("unchecked")
+    /** R2 (batch 8): what a web connection keeps for REST and SOAP: base address, headers, sign-in, proxy, client certificate. */
+    static final List<String> WEB_CONNECTION_INPUTS = List.of("base_url", "headers", "basic_user", "basic_password", "bearer_token", "windows_auth",
+            "oauth_token_url", "oauth_client_id", "oauth_client_secret", "oauth_refresh_token", "oauth_scope", "oauth_audience", "oauth_resource", "oauth_client_auth",
+            "oauth1_consumer_key", "oauth1_consumer_secret", "oauth1_token", "oauth1_token_secret", "oauth1_signature_method",
+            "ntlm_user", "ntlm_domain", "ntlm_password", "proxy", "proxy_user", "proxy_password", "client_certificate", "client_certificate_password", "insecure_tls");
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> webConnectionKind(String id, String name, List<Map<String, Object>> actions) {
+        Map<String, Map<String, Object>> prop = new HashMap<>();
+        for (Map<String, Object> a : actions)
+            for (var e : ((Map<String, Object>) ((Map<String, Object>) a.getOrDefault("inputs", Map.of())).getOrDefault("properties", Map.of())).entrySet())
+                prop.putIfAbsent(e.getKey(), (Map<String, Object>) e.getValue());
+        List<Map<String, Object>> inputs = new ArrayList<>();
+        for (String n : WEB_CONNECTION_INPUTS) {
+            Map<String, Object> p = prop.get(n);
+            if (p == null) continue;
+            inputs.add(Map.of("name", n, "type", String.valueOf(p.getOrDefault("x-ooa-type", "String")), "credential", "Credential".equals(p.get("x-ooa-type")),
+                    "description", String.valueOf(p.getOrDefault("description", ""))));
+        }
+        return Map.of("package", id, "name", name, "inputs", inputs, "sign_in", true);
+    }
+
     public List<Map<String, Object>> connectionKinds(User by) {
         require(by, "globals.view", "view saved connections");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> m : registry.allManifests()) {
             String id = String.valueOf(m.get("id"));
             List<Map<String, Object>> actions = m.get("actions") instanceof List<?> l ? (List<Map<String, Object>>) l : List.of();
-            if (actions.size() < 3 || Set.of("ooa.excel_desktop", "ooa.powerpoint_desktop", "ooa.pdf", "ooa.rest", "ooa.genai").contains(id)) continue;
+            if (id.equals("ooa.rest") || id.equals("ooa.soap")) { out.add(webConnectionKind(id, String.valueOf(m.getOrDefault("name", id)), actions)); continue; }
+            if (actions.size() < 3 || Set.of("ooa.excel_desktop", "ooa.powerpoint_desktop", "ooa.pdf", "ooa.genai").contains(id)) continue;
             Map<String, Integer> count = new LinkedHashMap<>();
             Map<String, Map<String, Object>> prop = new HashMap<>();
             for (Map<String, Object> a : actions) {
@@ -3120,7 +3157,25 @@ public final class ControlRoom {
                 inputs.add(Map.of("name", e.getKey(), "type", String.valueOf(p.getOrDefault("x-ooa-type", "String")), "credential", cred,
                         "description", String.valueOf(p.getOrDefault("description", ""))));
             }
-            if (secret) out.add(Map.of("package", id, "name", String.valueOf(m.getOrDefault("name", id)), "inputs", inputs));
+            // A1: a toolkit with sessions that signs in with an access token (Email's IMAP with OAuth): its Connect step's settings
+            boolean signIn = false;
+            for (Map<String, Object> a : actions) {
+                Map<String, Object> props = (Map<String, Object>) ((Map<String, Object>) a.getOrDefault("inputs", Map.of())).getOrDefault("properties", Map.of());
+                if (props.get("access_token") instanceof Map<?, ?> t && "Credential".equals(t.get("x-ooa-type"))) signIn = true;
+                // K1 (batch 10): any toolkit that marks the input taking a sign-in's token
+                for (Object p : props.values()) if (p instanceof Map<?, ?> pm && Boolean.TRUE.equals(pm.get("x-ooa-sign-in-token"))) signIn = true;
+                if (!secret && "connect".equals(a.get("id")) && props.get("access_token") instanceof Map<?, ?> t && "Credential".equals(t.get("x-ooa-type"))) {
+                    inputs.clear();
+                    for (var e : props.entrySet()) {
+                        if (e.getKey().equals("session") || e.getKey().equals("timeout_seconds")) continue;
+                        Map<String, Object> p = (Map<String, Object>) e.getValue();
+                        inputs.add(Map.of("name", e.getKey(), "type", String.valueOf(p.getOrDefault("x-ooa-type", "String")), "credential", "Credential".equals(p.get("x-ooa-type")),
+                                "description", String.valueOf(p.getOrDefault("description", ""))));
+                    }
+                    secret = true;
+                }
+            }
+            if (secret) out.add(Map.of("package", id, "name", String.valueOf(m.getOrDefault("name", id)), "inputs", inputs, "sign_in", signIn));
         }
         out.sort(Comparator.comparing(x -> String.valueOf(x.get("name"))));
         return out;
@@ -3136,8 +3191,11 @@ public final class ControlRoom {
         if (!pkg.matches("^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$")) throw new OoaException("CR.BAD_INPUT", "Choose the toolkit the connection is for", "Example: ooa.servicenow.");
         Map<String, Object> values = body.get("values") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
         Map<String, Object> creds = body.get("credentials") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
-        for (var e : values.entrySet())
+        for (var e : values.entrySet()) {
+            // R2 (batch 8): a web connection's headers are name to text
+            if (e.getKey().equals("headers") && e.getValue() instanceof Map<?, ?> h && h.values().stream().allMatch(x -> x instanceof String || x instanceof Number || x instanceof Boolean)) continue;
             if (e.getValue() instanceof Map || e.getValue() instanceof List) throw new OoaException("CR.BAD_INPUT", "Setting '" + e.getKey() + "' must be text, a number or true/false");
+        }
         for (var e : creds.entrySet())
             if (!(e.getValue() instanceof String ref) || !ref.matches("^[^/]{1,120}/[^/]{1,120}/[^/]{1,120}$"))
                 throw new OoaException("CR.BAD_INPUT", "Credential '" + e.getKey() + "' must be a vault reference folder/credential/attribute", "Pick it from Credential vault.");

@@ -1,4 +1,4 @@
-import { Menu, type MenuItem } from "../components";
+import { Icon, Menu, type MenuItem } from "../components";
 
 /**
  * Small parts of the design plan's list pattern (step 3), shared by the list pages: the refresh icon button at the end
@@ -8,6 +8,17 @@ export function RefreshButton({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" className="cc-list-icon" aria-label="Refresh" title="Refresh" onClick={onClick}>
       <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg></button>
+  );
+}
+
+/**
+ * Closes a full-page view (an agent, a run, a user...): a labelled button, so it is found at once (item 22, 9 Nov 2026;
+ * a bare × beside the ⋯ menu was easy to miss). Escape still closes the views that listen for it.
+ */
+export function CloseView({ onClick, to }: { onClick: () => void; to?: string }) {
+  return (
+    <button type="button" className="ui-btn ui-btn-secondary cc-close-view" title={to ? "Back to " + to : "Close"} onClick={onClick}>
+      <Icon name="close" size={16} /><span>Close</span></button>
   );
 }
 

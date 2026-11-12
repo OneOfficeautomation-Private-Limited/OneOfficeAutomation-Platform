@@ -642,3 +642,42 @@ body.st-printing-doc .st-print-doc { display: block; color: #000; background: #f
 .st-simple-toggle { font: inherit; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ui-border); background: var(--ui-bg); color: var(--ui-text); cursor: pointer; }
 .st-simple-toggle.is-on { background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; }
 .st-simple-toggle:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.st-ai-note.st-clone-note { flex-wrap: wrap; background: var(--ui-offer-bg); color: var(--ui-text); }
+.st-prop-about { margin: 0; padding: 8px 12px 10px; color: var(--ui-text); font-size: 13px; line-height: 1.45; border-bottom: 1px solid var(--ui-border); background: var(--ui-soft); }
+.st-action .st-aa-name { display: block; color: var(--ui-text-2); font-size: 12px; }
+/* item 16 (9 Nov 2026): a section heading folds its section; the section of the page on screen stays open */
+button.st-menu-group-head { width: 100%; border: 0; background: transparent; font-family: inherit; text-align: left; cursor: pointer; border-radius: var(--ui-radius); }
+button.st-menu-group-head:hover { background: rgba(255, 255, 255, .06); }
+button.st-menu-group-head:focus-visible { outline: 2px solid #8fb4ff; outline-offset: -2px; }
+.st-menu-group-head .st-menu-caret { margin-left: auto; display: inline-flex; color: #8b97a8; }
+button.st-menu-group-head { letter-spacing: .02em; gap: 6px; padding-right: 6px; }
+button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* C1, C7 (9 Nov 2026): groups of checks, and a toolkit condition with its own fields */
+.st-cond-group { display: flex; flex-direction: column; gap: 8px; }
+.st-cond-group.is-inner { padding: 8px; border: 1px dashed var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-soft); }
+.st-cond-group-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.st-cond-fields { display: flex; flex-direction: column; gap: 6px; }
+.st-cond-field { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ui-text-2); }
+.st-cond-field > span { font-weight: 600; }
+/* C3: a step that is tried again or goes on after an error says so on its line */
+.st-badge + .st-badge { margin-left: 4px; }
+.st-badge.is-info { background: var(--ui-selected); color: var(--ui-pill-text); }
+.st-picker { display: flex; flex-direction: column; gap: 4px; }
+.st-more-conds { display: flex; flex-direction: column; gap: 6px; }
+/* F1: a file field with its sources, and the agent's files from One CommandCenter */
+.st-file-field { display: flex; flex-direction: column; gap: 2px; }
+.st-fs-size { margin-left: auto; padding-left: 12px; }
+.st-repo-files { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.st-repo-files li { display: flex; align-items: center; gap: 8px; }
+.st-file-sources { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; }
+.st-file-sources .st-link { display: inline-flex; align-items: center; gap: 4px; }
+.st-alt-field { flex-direction: column; align-items: stretch; gap: 2px; }
+.st-alt-field > .st-alt-label { font-size: 12px; }
+.st-window-field .st-row-tight > select { flex: 1; min-width: 0; }
+.st-key-picker { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; justify-content: flex-end; margin: -2px 0 4px; }
+.st-key-picker > select { flex: 0 1 14em; min-width: 9em; }
+.st-key-mod { font-size: 12px; }
+.st-conn-sub { font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
+.st-signin { display: flex; flex-direction: column; gap: 8px; }
+.st-switch-pick > * { flex: 1; min-width: 0; }
+.st-switch-report { margin: 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; }

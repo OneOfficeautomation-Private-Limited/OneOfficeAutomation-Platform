@@ -1,6 +1,9 @@
 dependencies {
     api(project(":runner"))
     implementation("com.github.mwiede:jsch:0.2.20")   // Terminal: VT hosts over SSH
+    // PGP without GnuPG (command review P1): Bouncy Castle's OpenPGP library, MIT-style licence
+    implementation("org.bouncycastle:bcpg-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
     // Database: every database_type Connect offers has its driver (SQL Server, PostgreSQL and H2 come with control-room).
     // MariaDB's driver (LGPL) also serves MySQL; Oracle's is under Oracle's free-use terms; SQLite and UCanAccess are Apache 2.0.
     runtimeOnly("org.xerial:sqlite-jdbc:3.53.4.0")

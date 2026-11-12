@@ -258,7 +258,7 @@ Delete the row at a position, or every row where a column equals a value.
 
 `ooa.datatable/filter` (action)
 
-Keep rows where a column satisfies a comparison.
+Keep (or remove) the rows that meet one or more conditions on their columns, and keep only the columns you need.
 
 **Settings**
 
@@ -269,6 +269,10 @@ Keep rows where a column satisfies a comparison.
 | Operator | `operator` | Text | Yes |  | Main | Comparison; matches takes a regular expression. One of: `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `contains`, `not_contains`, `starts_with`, `ends_with`, `matches`, `empty`, `not_empty` |
 | Value | `value` | Any | No |  | Main | Value to compare with (not needed for empty/not_empty). Shown when: `{"operator": ["!", "empty", "not_empty"]}` |
 | Match case | `match_case` | Yes/No | No | No | Main | Compare text with upper/lower case taken into account. Shown when: `{"operator": ["eq", "ne", "contains", "not_contains", "starts_with", "ends_with", "matches"]}` |
+| More conditions | `more_conditions` | List | No |  | Main | More conditions, each a column, a comparison and a value (column, operator, value, match_case). |
+| Match | `match` | Text | No | `all` | Main | With more conditions: a row must meet all of them, or any one. One of: `all`, `any` |
+| Keep | `keep` | Text | No | `matching` | Main | Keep the rows that meet the conditions, or remove them and keep the rest. One of: `matching`, `not_matching` |
+| Columns | `columns` | List | No |  | More options | Only these columns in the result, in this order; all of them when empty. |
 
 **Results**
 

@@ -63,14 +63,14 @@ Move a date by a number of working days, skipping the weekend and holidays of a 
 
 `ooa.datetime/convert_time_zone` (action)
 
-Show a UTC date as local time in another zone, as ISO text with offset.
+Show a date as the time in another time zone, as text with its offset (2026-11-10T14:30+05:30).
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Value | `value` | DateTime | Yes |  | Main | Date (UTC). |
-| Time zone | `time_zone` | Text | Yes |  | Main | Target IANA zone. |
+| Time zone | `time_zone` | Text | Yes |  | Main | Time zone to convert to: local (the runner's own), UTC or a name such as Europe/London. |
 
 **Results**
 
@@ -136,9 +136,9 @@ Format a date as text in a time zone, using a pattern such as dd/MM/yyyy HH:mm.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Value | `value` | DateTime | Yes |  | Main | Date to format (UTC). |
-| Standard | `standard` | Text | No |  | Main; choice Format = A standard format | A predefined ISO or RFC format to use instead of the pattern. One of: `ISO_LOCAL_DATE`, `ISO_LOCAL_TIME`, `ISO_LOCAL_DATE_TIME`, `ISO_OFFSET_DATE_TIME`, `ISO_ZONED_DATE_TIME`, `ISO_INSTANT`, `ISO_DATE`, `ISO_DATE_TIME`, `ISO_ORDINAL_DATE`, `ISO_WEEK_DATE`, `BASIC_ISO_DATE`, `RFC_1123_DATE_TIME` |
 | Pattern | `pattern` | Text | No | `yyyy-MM-dd` | Main; choice Format = My own pattern | Pattern, e.g. dd/MM/yyyy, yyyy-MM-dd HH:mm, MMM d, yyyy. Shown when: `{"standard": [""]}` |
-| Time zone | `time_zone` | Text | No | `UTC` | More options | IANA time zone for display, e.g. Asia/Kolkata. |
+| Standard | `standard` | Text | No |  | Main; choice Format = A standard format | A predefined ISO or RFC format to use instead of the pattern. One of: `ISO_LOCAL_DATE`, `ISO_LOCAL_TIME`, `ISO_LOCAL_DATE_TIME`, `ISO_OFFSET_DATE_TIME`, `ISO_ZONED_DATE_TIME`, `ISO_INSTANT`, `ISO_DATE`, `ISO_DATE_TIME`, `ISO_ORDINAL_DATE`, `ISO_WEEK_DATE`, `BASIC_ISO_DATE`, `RFC_1123_DATE_TIME` |
+| Time zone | `time_zone` | Text | No | `UTC` | Main | Time zone to show the date in: local (the runner's own), UTC or a name such as Asia/Kolkata. |
 | Locale | `locale` | Text | No | `en` | More options | Language for month and day names, e.g. en, de-DE, fr-FR. |
 
 **Results**
@@ -161,7 +161,7 @@ Return one part of a date, such as the year, month, day of week, week of year or
 | --- | --- | --- | --- | --- | --- | --- |
 | Value | `value` | DateTime | Yes |  | Main | Date (UTC). |
 | Part | `part` | Text | Yes |  | Main | Which part to return; day_of_week is 1 for Monday to 7 for Sunday, week_of_year follows ISO 8601. One of: `year`, `month`, `day`, `hour`, `minute`, `second`, `millisecond`, `day_of_week`, `day_name`, `month_name`, `day_of_year`, `week_of_year`, `quarter`, `days_in_month`, `days_in_year` |
-| Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone the part is read in. |
+| Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone the part is read in: local (the runner's own), UTC or a name such as Asia/Kolkata. |
 | Locale | `locale` | Text | No | `en` | More options | Language for day_name and month_name. |
 
 **Results**
@@ -316,7 +316,7 @@ Return the first working day after a date in a business calendar, or the date it
 
 `ooa.datetime/now` (action)
 
-Return the current date and time in UTC. Every DateTime in OOA is UTC; use Format date with a time zone to show local time, or the ISO_INSTANT / ISO_OFFSET_DATE_TIME standard for text with Z or an offset for other systems.
+The date and time now. Show it in your time zone with Format date (Local, the runner's own, for new steps).
 
 No settings.
 
@@ -332,16 +332,16 @@ No settings.
 
 `ooa.datetime/parse` (action)
 
-Read a date from text using a pattern, interpreting it in a time zone; the result is UTC.
+Read a date from text with a pattern such as dd/MM/yyyy, in the time zone the text is written in (Local, the runner's own, for new steps).
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Text | `text` | Text | Yes |  | Main | Text such as 18/10/2026. |
-| Standard | `standard` | Text | No |  | Main; choice Format = A standard format | A predefined ISO or RFC format to read instead of the pattern; an offset in the text wins over time_zone. One of: `ISO_LOCAL_DATE`, `ISO_LOCAL_DATE_TIME`, `ISO_OFFSET_DATE_TIME`, `ISO_ZONED_DATE_TIME`, `ISO_INSTANT`, `ISO_DATE`, `ISO_DATE_TIME`, `BASIC_ISO_DATE`, `RFC_1123_DATE_TIME` |
 | Pattern | `pattern` | Text | No |  | Main; choice Format = My own pattern | Pattern of the text, e.g. dd/MM/yyyy; needed unless a standard format is chosen. Shown when: `{"standard": [""]}` |
-| Time zone | `time_zone` | Text | No | `UTC` | More options | Time zone the text is in. |
+| Standard | `standard` | Text | No |  | Main; choice Format = A standard format | A predefined ISO or RFC format to read instead of the pattern; an offset in the text wins over time_zone. One of: `ISO_LOCAL_DATE`, `ISO_LOCAL_DATE_TIME`, `ISO_OFFSET_DATE_TIME`, `ISO_ZONED_DATE_TIME`, `ISO_INSTANT`, `ISO_DATE`, `ISO_DATE_TIME`, `BASIC_ISO_DATE`, `RFC_1123_DATE_TIME` |
+| Time zone | `time_zone` | Text | No | `UTC` | Main | Time zone the text is in: local (the runner's own), UTC or a name such as Asia/Kolkata. |
 | Locale | `locale` | Text | No | `en` | More options | Language of month and day names in the text, e.g. en, de-DE. |
 
 **Results**

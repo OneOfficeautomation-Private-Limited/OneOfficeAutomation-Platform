@@ -7,7 +7,7 @@ Toolkit `ooa.azure_devops`, version 1.0.0. Work with Azure DevOps: work items an
 ## Contents
 
 - **Repos**: Comment on pull request, Complete pull request, Create pull request, Get pull request, List pull requests, List repositories
-- **Test plans**: Add test cases to suite, Create test case, Create test plan, Create test run, Create test suite, Delete test plan, Delete test suite, Get test plan details, Get test run details, List test plans, List test points, Remove test cases from suite, Edit test plan, Update test point, Edit test suite
+- **Test plans**: Add test cases to suite, Complete test run, Create test case, Create test plan, Create test run, Create test suite, Delete test plan, Delete test suite, Get test plan details, Get test run details, List test cases, List test plans, List test points, List test runs, List test suites, Remove test cases from suite, Edit test plan, Update test point, Update test results, Edit test suite
 - **Work items**: Add work item comment, Attach file to work item, Create work item, Delete work item, Get work item, List work item comments, Query work items (WIQL), Update work item
 - **Pipelines**: Create pipeline, Delete pipeline, Get pipeline details, Get pipeline run, List pipeline runs, List pipelines, Run pipeline, Edit pipeline
 - **Builds**: Get build, List builds, Queue build
@@ -28,7 +28,7 @@ Start a new comment thread on a pull request.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Repository | `repository` | Text | Yes |  | Main | Repository name or id, e.g. finance-portal-api. |
 | Pull request ID | `pull_request_id` | Number | Yes |  | Main | Pull request id. |
@@ -53,7 +53,7 @@ Merge an active pull request into its target branch.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Repository | `repository` | Text | Yes |  | Main | Repository name or id, e.g. finance-portal-api. |
 | Pull request ID | `pull_request_id` | Number | Yes |  | Main | Pull request id. |
@@ -81,7 +81,7 @@ Propose merging one branch into another, optionally linking work items.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Repository | `repository` | Text | Yes |  | Main | Repository name or id, e.g. finance-portal-api. |
 | Source branch | `source_branch` | Text | Yes |  | Main | Branch with the changes. Example: `feature/vat-2027` |
@@ -110,7 +110,7 @@ Read a pull request by id.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Repository | `repository` | Text | Yes |  | Main | Repository name or id, e.g. finance-portal-api. |
 | Pull request ID | `pull_request_id` | Number | Yes |  | Main | Pull request id. |
@@ -135,7 +135,7 @@ List pull requests of a repository, filtered by status and target branch.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Repository | `repository` | Text | Yes |  | Main | Repository name or id, e.g. finance-portal-api. |
 | Status | `status` | Text | No | `active` | Main | active, completed, abandoned or all. One of: `active`, `completed`, `abandoned`, `all` |
@@ -162,7 +162,7 @@ List the Git repositories of a project.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 
 **Results**
@@ -187,7 +187,7 @@ Add existing test case work items to a static suite.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 | Suite ID | `suite_id` | Number | Yes |  | Main | Test suite id; a plan's top suite has the plan's root suite id (see Get test plan). Range: 1 to  |
@@ -198,6 +198,24 @@ Add existing test case work items to a static suite.
 | Name | Type | Description |
 | --- | --- | --- |
 | `count` | Number | Number of test cases added. |
+
+*Time limit 60 s; needs: network.*
+
+### Complete test run
+
+`ooa.azure_devops/complete_test_run` (action)
+
+Mark a test run as completed, after its results are recorded, optionally with a comment.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
+| Run ID | `run_id` | Number | Yes |  | Main | Test run id. Range: 1 to  |
+| Comment | `comment` | Text | No |  | More options | Comment stored with the run. |
 
 *Time limit 60 s; needs: network.*
 
@@ -212,7 +230,7 @@ Create a Test Case work item with numbered steps (action and expected result), o
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Title | `title` | Text | Yes |  | Main | Test case title. |
 | Steps | `steps` | List | No |  | Main | Steps in order: text, or {"action": ..., "expected": ...}, e.g. [{"action": "Open the invoice", "expected": "Total shows 120.50"}]. |
@@ -243,7 +261,7 @@ Create a test plan; its root suite is created with it.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Name | `name` | Text | Yes |  | Main | Plan name, e.g. Release 3.2 regression. |
 | Plan description | `plan_description` | Text | No |  | Main | Description. |
@@ -272,7 +290,7 @@ Start a test run for test points of a plan, so their results can be recorded; ma
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 | Name | `name` | Text | Yes |  | Main | Run name. |
@@ -300,7 +318,7 @@ Create a static, requirement-based or query-based suite inside a plan's suite.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 | Suite type | `suite_type` | Text | No | `static` | Main | static: test cases added by hand; requirement: the tests of one work item; query: tests matching a WIQL query. One of: `static`, `requirement`, `query` |
@@ -328,7 +346,7 @@ Delete a test plan with its suites (test cases stay as work items). Needs confir
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 | Confirm | `confirm` | Yes/No | Yes |  | Main | Must be true: a safeguard against deleting by mistake. |
@@ -346,7 +364,7 @@ Delete a suite and its child suites (test cases stay as work items).
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 | Suite ID | `suite_id` | Number | Yes |  | Main | Test suite id; a plan's top suite has the plan's root suite id (see Get test plan). Range: 1 to  |
@@ -364,7 +382,7 @@ Read one test plan.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 
@@ -387,7 +405,7 @@ Read a test run: state, counts of passed, failed and incomplete tests, dates.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Run ID | `run_id` | Number | Yes |  | Main | Test run id. Range: 1 to  |
 
@@ -396,6 +414,32 @@ Read a test run: state, counts of passed, failed and incomplete tests, dates.
 | Name | Type | Description |
 | --- | --- | --- |
 | `run` | Dictionary | Keys: id, name, state, total_tests, passed_tests, failed_tests, incomplete_tests, started, completed, url. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### List test cases
+
+`ooa.azure_devops/list_test_cases` (action)
+
+List the test cases of a suite, with their test points.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
+| Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id. Range: 1 to  |
+| Suite ID | `suite_id` | Number | Yes |  | Main | Test suite id (see List test suites). Range: 1 to  |
+| Maximum results | `max_results` | Number | No | `5000` | More options | Most items to return; pages are read until this many are found. Range: 1 to  |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, name, state, assigned_to, point_ids. |
+| `count` | Number | Number of test cases. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -410,7 +454,7 @@ List the test plans of a project.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Active only | `active_only` | Yes/No | No | No | Main | Leave out inactive plans. |
 | Owner | `owner` | Text | No |  | Main | Only plans owned by this person: identity id or name. Example: `ana@contoso.com` |
@@ -436,7 +480,7 @@ List the test points of a suite (one per test case and configuration) with their
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 | Suite ID | `suite_id` | Number | Yes |  | Main | Test suite id; a plan's top suite has the plan's root suite id (see Get test plan). Range: 1 to  |
@@ -452,6 +496,57 @@ List the test points of a suite (one per test case and configuration) with their
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
+### List test runs
+
+`ooa.azure_devops/list_test_runs` (action)
+
+List the test runs of a project, newest first; optionally only those of one plan or in one state.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
+| Plan ID | `plan_id` | Number | No | `0` | Main | Only runs of this plan; 0 for all. Range: 0 to  |
+| State | `state` | Text | No |  | Main | Only runs in this state; any when empty. One of: ``, `NotStarted`, `InProgress`, `Completed`, `Aborted`, `Waiting` |
+| Maximum results | `max_results` | Number | No | `100` | More options | Most items to return; pages are read until this many are found. Range: 1 to  |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, name, state, total_tests, passed_tests, started, completed. |
+| `count` | Number | Number of runs. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### List test suites
+
+`ooa.azure_devops/list_test_suites` (action)
+
+List the suites of a test plan.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
+| Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id (see List test plans). Range: 1 to  |
+| Maximum results | `max_results` | Number | No | `5000` | More options | Most items to return; pages are read until this many are found. Range: 1 to  |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, name, suite_type, parent_suite_id, test_case_count. |
+| `count` | Number | Number of suites. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
 ### Remove test cases from suite
 
 `ooa.azure_devops/remove_test_cases_from_suite` (action)
@@ -463,7 +558,7 @@ Take test cases out of a suite; the test case work items are kept.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 | Suite ID | `suite_id` | Number | Yes |  | Main | Test suite id; a plan's top suite has the plan's root suite id (see Get test plan). Range: 1 to  |
@@ -482,7 +577,7 @@ Rename a test plan, change its state, description, area, iteration or dates; emp
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 | Name | `name` | Text | No |  | Main | New name. |
@@ -506,7 +601,7 @@ Set the outcome of test points (passed, failed, blocked, not applicable), reset 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 | Suite ID | `suite_id` | Number | Yes |  | Main | Test suite id; a plan's top suite has the plan's root suite id (see Get test plan). Range: 1 to  |
@@ -522,6 +617,30 @@ Set the outcome of test points (passed, failed, blocked, not applicable), reset 
 
 *Time limit 60 s; needs: network.*
 
+### Update test results
+
+`ooa.azure_devops/update_test_results` (action)
+
+Record the outcome of tests in a run: one row per result, with its outcome and, if you like, a comment, how long it took and an error.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
+| Run ID | `run_id` | Number | Yes |  | Main | Test run id. Range: 1 to  |
+| Results | `results` | Table | Yes |  | Main | Columns: result_id (or test_point_id), outcome (Passed, Failed, Blocked, NotApplicable...), and optionally comment, duration_seconds, error_message. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `updated` | Number | How many results were recorded. |
+
+*Time limit 60 s; needs: network.*
+
 ### Edit test suite
 
 `ooa.azure_devops/update_test_suite` (action)
@@ -533,7 +652,7 @@ Rename a suite, move it under another suite of the plan, or change a query-based
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Plan ID | `plan_id` | Number | Yes |  | Main | Test plan id, from List test plans. Range: 1 to  |
 | Suite ID | `suite_id` | Number | Yes |  | Main | Test suite id; a plan's top suite has the plan's root suite id (see Get test plan). Range: 1 to  |
@@ -556,7 +675,7 @@ Add a comment to a work item's discussion.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | ID | `id` | Number | Yes |  | Main | Work item id. |
 | Text | `text` | Text | Yes |  | Main | Comment text; simple HTML is allowed. Example: `Invoice re-sent by the finance agent.` |
@@ -580,7 +699,7 @@ Upload a local file and attach it to a work item.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | ID | `id` | Number | Yes |  | Main | Work item id. |
 | Path | `path` | File path | Yes |  | Main | Local file to attach. Example: `out/error-log.txt` |
@@ -605,7 +724,7 @@ Create a work item such as a Bug, Task or User Story.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Type | `type` | Text | Yes |  | Main | Work item type, e.g. Bug, Task, User Story, Issue. Example: `Bug` |
 | Title | `title` | Text | Yes |  | Main | Title of the work item. |
@@ -637,7 +756,7 @@ Move a work item to the Recycle Bin, or remove it for good.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Number | Yes |  | Main | Work item id. |
 | Permanently | `permanently` | Yes/No | No | No | More options | Remove for good instead of moving to the Recycle Bin. This cannot be undone. |
 
@@ -654,7 +773,7 @@ Read a work item by id.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Number | Yes |  | Main | Work item id. Example: `4711` |
 
 **Results**
@@ -677,7 +796,7 @@ Read the comments in a work item's discussion, newest first.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | ID | `id` | Number | Yes |  | Main | Work item id. |
 | Maximum results | `max_results` | Number | No | `200` | More options | Most items to return; pages are read until this many are found. |
@@ -702,7 +821,7 @@ Find work items with a WIQL query and return their main fields as a table.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Wiql | `wiql` | Text | Yes |  | Main | WIQL query. Only the ids it finds are used; choose columns with extra_fields. Example: `SELECT [System.Id] FROM WorkItems WHERE [System.State] = 'Active' AND [System.AssignedTo] = @Me` |
 | Extra fields | `extra_fields` | List | No |  | More options | More field reference names to add as columns, e.g. ["Microsoft.VSTS.Common.Priority"]. |
@@ -729,7 +848,7 @@ Change fields of a work item, such as its state or assignee. Only the inputs you
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | ID | `id` | Number | Yes |  | Main | Work item id. |
 | Title | `title` | Text | No |  | Main | New title. |
 | Iteration path | `iteration_path` | Text | No |  | Main | New iteration (sprint) path. |
@@ -761,7 +880,7 @@ Create a YAML pipeline from a file in an Azure Repos Git repository.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Name | `name` | Text | Yes |  | Main | Pipeline name. |
 | Repository ID | `repository_id` | Text | Yes |  | Main | Repository id (a GUID, from List repositories). |
@@ -787,7 +906,7 @@ Delete a pipeline and its run history. Needs confirm.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Pipeline ID | `pipeline_id` | Number | Yes |  | Main | Pipeline id. Range: 1 to  |
 | Confirm | `confirm` | Yes/No | Yes |  | Main | Must be true: a safeguard against deleting by mistake. |
@@ -805,7 +924,7 @@ Read a pipeline: name, folder, YAML file and repository.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Pipeline ID | `pipeline_id` | Number | Yes |  | Main | Pipeline id, from List pipelines. Range: 1 to  |
 
@@ -828,7 +947,7 @@ Read the state and result of a pipeline run.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Pipeline ID | `pipeline_id` | Number | Yes |  | Main | Pipeline id. |
 | Run ID | `run_id` | Number | Yes |  | Main | Run id, from Run pipeline. |
@@ -854,7 +973,7 @@ List the recent runs of one pipeline, newest first, optionally only those in a g
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Pipeline ID | `pipeline_id` | Number | Yes |  | Main | Pipeline id, from List pipelines. Example: `12` |
 | State | `state` | Text | No |  | Main | Only runs in this state. One of: `inProgress`, `canceling`, `completed` |
@@ -881,7 +1000,7 @@ List the pipelines of a project.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Maximum results | `max_results` | Number | No | `200` | Main | Most items to return; pages are read until this many are found. |
 
@@ -905,7 +1024,7 @@ Start a pipeline run on a branch, with optional parameters and variables, option
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Pipeline ID | `pipeline_id` | Number | Yes |  | Main | Pipeline id, from List pipelines. Example: `12` |
 | Parameters | `parameters` | Dictionary | No |  | Main | Template parameters, e.g. {"environment": "test"}. |
@@ -934,7 +1053,7 @@ Rename a pipeline, move it to another folder, or point it at a different YAML fi
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Pipeline ID | `pipeline_id` | Number | Yes |  | Main | Pipeline id. Range: 1 to  |
 | Name | `name` | Text | No |  | More options | New name. |
@@ -957,7 +1076,7 @@ Read the status and result of a build.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Build ID | `build_id` | Number | Yes |  | Main | Build id. |
 
@@ -982,7 +1101,7 @@ List recent builds, newest first, optionally for one definition, branch, status 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Definition ID | `definition_id` | Number | No |  | Main | Only builds of this definition. |
 | Branch | `branch` | Text | No |  | Main | Only builds of this branch. |
@@ -1010,7 +1129,7 @@ Queue a build of a build definition (classic or YAML) on a branch.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Definition ID | `definition_id` | Number | Yes |  | Main | Build definition id. Example: `7` |
 | Branch | `branch` | Text | No |  | Main | Branch to build. Empty uses the definition's default. Example: `main` |
@@ -1039,7 +1158,7 @@ Read a project's details.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name or id. |
 
 **Results**
@@ -1061,7 +1180,7 @@ List the projects in the organization or collection.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Maximum results | `max_results` | Number | No | `200` | More options | Most items to return; pages are read until this many are found. |
 
 **Results**
@@ -1086,7 +1205,7 @@ Return the ids of the work items planned in a sprint; read details with Get work
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Iteration ID | `iteration_id` | Text | Yes |  | Main | Sprint id (a GUID) from List sprints. |
 | Team | `team` | Text | No |  | More options | Team name. Empty uses the project's default team. |
@@ -1111,7 +1230,7 @@ List a team's sprints, or only the current one.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Current only | `current_only` | Yes/No | No | No | Main | Return only the sprint in progress today. |
 | Team | `team` | Text | No |  | More options | Team name. Empty uses the project's default team. Example: `Payments Team` |
@@ -1140,7 +1259,7 @@ True when the pipeline run has completed, whatever its result.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Organization address (URL) | `organization_url` | Text | Yes |  | Main | Organization or collection address, e.g. https://dev.azure.com/contoso, or https://devops.contoso.local/tfs/DefaultCollection for Azure DevOps Server. |
-| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write). |
+| Personal access token | `personal_access_token` | Credential (vault) | Yes |  | Main | Personal access token from the vault, with the scopes this action needs (e.g. Work Items read and write); a Microsoft Entra ID token works too. Or leave it empty and choose a connection that signs in, which gets and renews the token. |
 | Project | `project` | Text | Yes |  | Main | Project name, e.g. Finance Portal. |
 | Pipeline ID | `pipeline_id` | Number | Yes |  | Main | Pipeline id. |
 | Run ID | `run_id` | Number | Yes |  | Main | Run id. |

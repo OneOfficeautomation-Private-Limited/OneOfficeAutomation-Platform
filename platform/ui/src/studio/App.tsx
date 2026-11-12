@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
-import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem } from "../components";
+import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem } from "../components";
 import { Automation, find as findNode } from "./Automation";
-import { CheckInDialog, PublicRepository, type CheckInDep } from "./ControlRoom";
+import { CheckInDialog, CopyToPrivate, PublicRepository, type CheckInDep, type RepoRequest } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
 import { ObjectRepositoryEditor } from "./ObjectRepository";
 import { displayName } from "./itemTypes";
@@ -70,6 +70,8 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [cr, setCr] = useState<CrStatus>({ connected: false });   // One CommandCenter sign-in, for the Public tab and Check in
   const [checkingIn, setCheckingIn] = useState<string[] | null>(null);   // the items being checked in (the open agent, or ticked items)
   const [repoStates, setRepoStates] = useState<Record<string, RepoState>>({});   // each private copy's state against the repository
+  const repoStatesRef = useRef(repoStates);   // isClone: the open agent is a read-only clone (item 21)
+  repoStatesRef.current = repoStates;
   const [undoing, setUndoing] = useState<{ local: string; repoPath: string } | null>(null);
   const [reverting, setReverting] = useState<string | null>(null);
   const [checkInDeps, setCheckInDeps] = useState<CheckInDep[]>([]);   // the agents one checked-in agent runs, for the review
@@ -104,6 +106,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const current = tabs.find((t) => t.path === active) ?? null;
   useEffect(() => { document.title = current ? current.name + " · One AgentStudio" : "One CommandCenter"; }, [current?.name]);   // eslint-disable-line react-hooks/exhaustive-deps
   const agent = current?.kind === "agent" ? current : null;
+  const isClone = !!agent && repoStates[agent.path]?.status === "cloned";
   const item = current?.kind === "item" ? current : null;
   // a file or folder was renamed or moved: open tabs in it follow (an item's tab takes the new name)
   const moved = (from: string, to: string) => {
@@ -123,6 +126,8 @@ export function App({ api: given }: { api?: StudioApi }) {
   // ---- editing: every change keeps the previous flow for Undo ----
   const edit = (next: Flow, select?: string[]) => {
     if (!agent || next === agent.flow) return;   // nothing changed (a drop on itself, a move past the end)
+    // a clone is read-only (AA): it is checked out, or copied to Private, to be changed
+    if (repoStatesRef.current[agent.path]?.status === "cloned") { setNotice(agent.name + " is a read-only clone. Check it out, or copy it to Private, to change it."); return; }
     patch(agent.path, (t) => ({ ...t, flow: next, past: [...t.past, t.flow].slice(-MAX_UNDO), future: [],
       selected: select ?? t.selected }));
   };
@@ -332,6 +337,21 @@ export function App({ api: given }: { api?: StudioApi }) {
     setNotice((r.kept ? `Checked out to you. Your private copy ${r.local} has changes that were not checked in, so it was kept as it is.`
       : `Checked out v${r.version} into your workspace: ${r.local}.`) + also);
   };
+  /** A clone or a copy just made in the workspace (item 21): the tree and states are read again, and it opens. */
+  const openLocal = async (local: string, note: string) => {
+    await reloadTree();
+    loadStates();
+    const flow = local.endsWith(".flow.json") ? await api.bot(local) : null;
+    if (flow && !tabsRef.current.some((t) => t.path === local)) {
+      if (tabsRef.current.length >= MAX_TABS) { setNotice(note + " Close an item to open it."); return; }
+      setTabs((t) => [...t, { kind: "agent", path: local, name: flow.name || local.split("/").pop()!, flow, saved: JSON.stringify(flow), past: [], future: [],
+        selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false, run: null, breakpoints: [] }]);
+    } else if (flow) patch(local, (t) => ({ ...t, flow, saved: JSON.stringify(flow), past: [], future: [] }));
+    if (flow) setActive(local);
+    setNotice(note);
+  };
+  const [repoLink, setRepoLink] = useState<RepoRequest | null>(null);   // the console agent page's Edit, Clone or Copy to Private
+  const [copyingClone, setCopyingClone] = useState<string | null>(null);   // Copy to Private from a read-only clone
   /** Check in: saves the open agent, then sends it to the repository as a new version (live only when asked). */
   const loadStates = useCallback(() => { api.crStates().then((r) => setRepoStates(r.states), () => setRepoStates({})); }, [api]);
   useEffect(() => { loadStates(); }, [loadStates, cr.connected, tree]);
@@ -402,11 +422,11 @@ export function App({ api: given }: { api?: StudioApi }) {
     if (inputsOf(agent.flow).length) setAsking({ path: agent.path, debug }); else go(agent.path, {}, debug);
   };
   /** Run from here, with the last run's values or the defaults, or Run this step only, from the step menu. */
-  const runFrom = (stepId: string, only: boolean, defaults: boolean) => {
+  const runFrom = (stepId: string, only: boolean, defaults: boolean, note?: string) => {
     if (!agent) return;
     const from: RunOptions = only ? { only_step: stepId } : { start_at: stepId };
     if (defaults) from.carry_over = false;
-    setNotice(only ? "Running only the chosen step." : "Running from the chosen step; the steps before it are skipped" + (defaults ? ", and their variables keep their default values." : "."));
+    setNotice(note ? note + "." : only ? "Running only the chosen step." : "Running from the chosen step; the steps before it are skipped" + (defaults ? ", and their variables keep their default values." : "."));
     if (inputsOf(agent.flow).length) setAsking({ path: agent.path, debug: false, from }); else go(agent.path, {}, false, from);
   };
   const go = async (path: string, inputs: Record<string, unknown>, debug: boolean, from: RunOptions = {}) => {
@@ -472,21 +492,21 @@ export function App({ api: given }: { api?: StudioApi }) {
         <div className="st-top-actions">
           {/* only what works today, never faded buttons: Run and Debug join here in P3 */}
           {current && <>
-                <Button kind="primary" icon="save" onClick={() => save(current.path)} title={withKey("Save", "app.save")}>Save</Button>
+                <Button kind="primary" icon="save" onClick={() => save(current.path)} disabled={isClone} title={isClone ? "A clone is read-only" : withKey("Save", "app.save")}>Save</Button>
                 {!agent ? null : running
                   ? <Button kind="light" onClick={stopRun} title={withKey("Stop the run", "run.stop")}>Stop run</Button>
                   : <>
                       <Button kind="run" icon="play" onClick={() => startRun(false)} title={withKey("Run the agent as it is in the editor, on this computer", "run.run")}>Run</Button>
                       <Button kind="debug" icon="bug" onClick={() => startRun(true)} title={withKey("Run and stop at breakpoints, or at the first step", "run.debug")}>Debug</Button>
                     </>}
-                {agent && <Button kind="light" icon="globe" onClick={() => setCheckingIn([current.path])} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
+                {agent && !isClone && <Button kind="light" icon="globe" onClick={() => setCheckingIn([current.path])} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
                 <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>
               </>}
         </div>
       </header>
 
-      {error && <div className="st-alert" role="alert"><span>{error}</span><Button kind="secondary" onClick={() => setError(null)}>Dismiss</Button></div>}
-      {notice && !error && <div className="st-notice" role="status"><span>{notice}</span><Button kind="secondary" onClick={() => setNotice(null)}>OK</Button></div>}
+      {error && <Notice kind="error" text={error} onClose={() => setError(null)} />}
+      {notice && !error && <Notice text={notice} onClose={() => setNotice(null)} />}
 
       <HelpProvider><div className="st-body">
         <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />
@@ -531,7 +551,11 @@ export function App({ api: given }: { api?: StudioApi }) {
                 onNewConnection={() => setWizard(true)} run={agent.run} onTry={(request) => go(agent.path, { request }, false)}
                 onShowSteps={() => setAsSteps([...asSteps, agent.path])} />
             : agent
-            ? <>{isAiAgent(agent.flow) && <div className="st-ai-note"><span>This is an AI agent, shown as its steps.</span>
+            ? <>{repoStates[agent.path]?.status === "cloned" && <div className="st-ai-note st-clone-note" role="status">
+                <span><strong>Read-only clone.</strong> It follows the repository. To change it, check it out or copy it.</span>
+                <Button kind="secondary" onClick={() => checkOut(repoStates[agent.path].path, agent.path).catch(fail)}>Check out</Button>
+                <Button kind="secondary" onClick={() => setCopyingClone(repoStates[agent.path].path)}>Copy to Private…</Button></div>}
+              {isAiAgent(agent.flow) && <div className="st-ai-note"><span>This is an AI agent, shown as its steps.</span>
                 <Button kind="secondary" icon="spark" onClick={() => setAsSteps(asSteps.filter((p) => p !== agent.path))}>Open in the AI agent editor</Button></div>}
               <AgentView key={agent.path} flow={agent.flow} packages={packages} selected={agent.selected} askTrigger={askTrigger}
                 list={agent.list ?? null} onList={(l) => patch(agent.path, (t) => ({ ...t, list: l }))}
@@ -548,13 +572,16 @@ export function App({ api: given }: { api?: StudioApi }) {
                 onCopyStep={(step, label) => { setClipboard({ steps: [{ id: "s1", ...step }], variables: [], system: false }); setNotice("Copied a “" + label + "” step. Open an agent and paste it (Ctrl+V or Paste)."); }} />
             : tree
               ? <Automation view={view} tree={tree}
-                  publicView={<PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onNotice={setNotice} onError={fail} />} search={search} blueprints={blueprints.filter((b) => allInstalled([...b.steps, ...(b.subflows ?? []).flatMap((s) => s.steps), ...(b.onError?.steps ?? [])], packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
+                  publicView={<PublicRepository api={api} status={cr} home={crHome} onStatus={setCr} onCheckOut={checkOut} onOpenLocal={openLocal}
+                    request={repoLink} onRequestDone={() => setRepoLink(null)} onNotice={setNotice} onError={fail} />} onRepoLink={setRepoLink} search={search} blueprints={blueprints.filter((b) => allInstalled([...b.steps, ...(b.subflows ?? []).flatMap((s) => s.steps), ...(b.onError?.steps ?? [])], packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
                   repo={cr.connected ? { states: repoStates, onCheckIn: setCheckingIn, onUndo: (local, repoPath) => setUndoing({ local, repoPath }), onRevert: setReverting } : undefined}
                   api={api} onMoved={moved} onChanged={() => { loadStates(); return reloadTree(); }} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
         </main>
         <HelpPanel page={active ?? view} />
         {showKeys && <ShortcutsDialog app="studio" onClose={() => setShowKeys(false)} />}
+        {copyingClone && <CopyToPrivate api={api} path={copyingClone} onClose={() => setCopyingClone(null)}
+          onCopied={(local, note) => { setCopyingClone(null); openLocal(local, note).catch(fail); }} />}
       </div></HelpProvider>
 
       {checkingIn && <CheckInDialog api={api} name={checkingIn.length === 1 ? displayName({ name: checkingIn[0].split("/").pop()!, path: checkingIn[0], type: "bot" }) : checkingIn.length + " items"}

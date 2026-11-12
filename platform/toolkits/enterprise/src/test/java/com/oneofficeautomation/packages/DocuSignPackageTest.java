@@ -3,6 +3,7 @@ package com.oneofficeautomation.packages;
 import com.oneofficeautomation.packages.ConnectorsTest.Call;
 import com.oneofficeautomation.packages.ConnectorsTest.Fake;
 import com.oneofficeautomation.sdk.ActionContext;
+import com.oneofficeautomation.sdk.ActionException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -71,6 +72,25 @@ class DocuSignPackageTest {
             assertEquals("Client", role.get("roleName"));
             assertEquals(Map.of("tabLabel", "ContractNumber", "value", "C-1042"), m(l(m(role.get("tabs")).get("textTabs")).get(0)));
             fails("DOCUSIGN.BAD_ID", () -> pkg.fromTemplate(ctx, base, ACC, "not-a-guid", List.of(Map.of("role", "C", "name", "A", "email", "a@b")), null, null, true, TOKEN));
+        }
+    }
+
+    /** K6 (batch 10): with no address, the account's own one comes from DocuSign's userinfo (production first, then demo). */
+    @Test void anEmptyAddressIsLookedUpFromTheAccount() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("GET /prod/userinfo", c -> new Object[]{401, "{\"error\":\"invalid_grant\"}"})
+             .on("GET /demo/userinfo", c -> ok("{\"accounts\":[{\"account_id\":\"other\",\"base_uri\":\"https://wrong\"},{\"account_id\":\"" + ACC + "\",\"base_uri\":\"" + f.url() + "\"}]}"))
+             .on("GET " + A + "/envelopes/" + ENV, c -> ok("{\"envelopeId\":\"" + ENV + "\",\"status\":\"sent\"}"));
+            List<String> urls = DocuSignPackage.userInfoUrls;
+            DocuSignPackage.userInfoUrls = List.of(f.url() + "/prod/userinfo", f.url() + "/demo/userinfo");
+            try {
+                ActionContext ctx = ctx(PackagesTest.tmp());
+                assertEquals("sent", pkg.status(ctx, null, ACC, ENV, TOKEN).get("status"));
+                assertEquals("sent", pkg.status(ctx, "", ACC, ENV, TOKEN).get("status"));
+                assertEquals(1, f.calls.stream().filter(c -> c.path().equals("/demo/userinfo")).count(), "looked up once");
+                ActionException e = assertThrows(ActionException.class, () -> pkg.status(ctx, null, "9999", ENV, TOKEN));
+                assertEquals("DOCUSIGN.NO_BASE_URL", e.code());
+            } finally { DocuSignPackage.userInfoUrls = urls; }
         }
     }
 

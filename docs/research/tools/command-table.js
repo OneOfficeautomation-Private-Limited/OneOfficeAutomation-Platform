@@ -19,7 +19,7 @@ const cell = (s) => String(s || "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ")
 const reverse = {};                     // our command -> AA actions mapped to it
 for (const [k, v] of Object.entries(data.aaMap)) if (!v.startsWith("-")) (reverse[v] = reverse[v] || []).push(k);
 const samples = {};
-for (const r of results) { const s = samples[r.command] = samples[r.command] || { pass: 0, fail: 0, skipped: 0 }; s[r.check === "pass" ? "pass" : r.check === "skipped" ? "skipped" : "fail"]++; }
+for (const r of results) { const s = samples[r.command] = samples[r.command] || { pass: 0, fail: 0, skipped: 0 }; s[r.check === "pass" ? "pass" : r.check === "skipped" || r.check === "outside site" ? "skipped" : "fail"]++; }
 // commands used inside another command's sample task count as exercised by it
 const usedIn = {};
 for (const r of results) if (r.check === "pass") for (const u of r.uses || []) if (u !== r.command) (usedIn[u] = usedIn[u] || new Set()).add(r.command);

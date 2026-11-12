@@ -29,6 +29,33 @@ class AzureDevOpsMoreOptionsTest {
 
     @Test void catalogStillValid() { checkCatalog("ooa.azure_devops", 20); }
 
+    /** K7 (batch 10): suites, test cases, runs, recording results and completing a run. */
+    @Test void testManagementSuitesCasesRunsResults() throws Exception {
+        try (Fake f = new Fake()) {
+            String org = f.url() + "/acme";
+            f.on("GET " + PRJ + "/_apis/testplan/Plans/31/suites", c -> ok("{\"value\":[{\"id\":32,\"name\":\"Root\",\"suiteType\":\"staticTestSuite\"},{\"id\":33,\"name\":\"Payments\",\"suiteType\":\"staticTestSuite\",\"parentSuite\":{\"id\":32}}]}"))
+             .on("GET " + PRJ + "/_apis/testplan/Plans/31/Suites/33/TestCase", c -> ok("{\"value\":[{\"workItem\":{\"id\":501,\"name\":\"Pay invoice\",\"workItemFields\":[{\"System.State\":\"Ready\"},{\"System.AssignedTo\":{\"displayName\":\"Ana\"}}]},\"pointAssignments\":[{\"id\":901}]}]}"))
+             .on("GET " + PRJ + "/_apis/test/runs", c -> ok("{\"value\":[{\"id\":7,\"name\":\"Old\",\"state\":\"Completed\",\"startedDate\":\"2026-11-01\"},{\"id\":8,\"name\":\"Nightly\",\"state\":\"InProgress\",\"startedDate\":\"2026-11-12\"}]}"))
+             .on("GET " + PRJ + "/_apis/test/Runs/8/results", c -> ok("{\"value\":[{\"id\":100000,\"testPoint\":{\"id\":\"901\"}}]}"))
+             .on("PATCH " + PRJ + "/_apis/test/Runs/8/results", c -> ok("{\"value\":[]}"))
+             .on("PATCH " + PRJ + "/_apis/test/runs/8", c -> ok("{\"id\":8}"));
+            ActionContext ctx = ctx(tmp(), log);
+            assertEquals(new BigDecimal(2), az.listTestSuites(ctx, org, TOKEN, "Finance Portal", 31, 100).get("count"));
+            Map<String, Object> cases = az.listTestCases(ctx, org, TOKEN, "Finance Portal", 31, 33, 100);
+            assertEquals(Arrays.asList(new BigDecimal(501), "Pay invoice", "Ready", "Ana", List.of(new BigDecimal(901))), EnterpriseGapsTest.rows(cases.get("table")).get(0));
+            Map<String, Object> runs = az.listTestRuns(ctx, org, TOKEN, "Finance Portal", 31, "InProgress", 10);
+            assertEquals(List.of(new BigDecimal(8)), EnterpriseGapsTest.rows(runs.get("table")).stream().map(r -> r.get(0)).toList());
+            assertTrue(q(f.last("GET", PRJ + "/_apis/test/runs")).contains("planId=31"));
+            Map<String, Object> table = Map.of("columns", List.of("test_point_id", "outcome", "comment", "duration_seconds"), "rows", List.of(List.of(901, "Passed", "ok", 2.5)));
+            assertEquals(BigDecimal.ONE, az.updateTestResults(ctx, org, TOKEN, "Finance Portal", 8, table).get("updated"));
+            Map<String, Object> sent = list(f.last("PATCH", PRJ + "/_apis/test/Runs/8/results")).get(0);
+            assertEquals(List.of(new BigDecimal(100000), "Passed", "Completed", "ok", "2500"),
+                    List.of(sent.get("id"), sent.get("outcome"), sent.get("state"), sent.get("comment"), String.valueOf(sent.get("durationInMs"))));
+            az.completeTestRun(ctx, org, TOKEN, "Finance Portal", 8, "Nightly done");
+            assertEquals(Map.of("state", "Completed", "comment", "Nightly done"), json(f.last("PATCH", PRJ + "/_apis/test/runs/8")));
+        }
+    }
+
     @Test void testPlanStartAndEndDates() throws Exception {
         try (Fake f = new Fake()) {
             String org = f.url() + "/acme";

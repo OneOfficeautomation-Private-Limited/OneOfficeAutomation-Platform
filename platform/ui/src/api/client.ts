@@ -20,14 +20,18 @@ export type FieldSpec = {
   "x-ooa-type"?: string; "x-ooa-label"?: string;
   /** Shown only when another input has one of these values, e.g. { iterator: ["while"] }. */
   "x-ooa-visible-when"?: Record<string, unknown[]>;
+  /** Names the input had before it was renamed; Studio moves a value under one to the current name. */
+  "x-ooa-former-names"?: string[];
 };
+/** A command panel's entry: a field, a choice of options each showing its own fields, or a tick box that shows its fields. */
+export type PanelEntry = string | { choice: string; options: { label: string; fields: string[] }[] } | { tick: string; fields: string[] };
 export type ActionManifest = {
   id: string; name: string; category?: string; description?: string;
   inputs?: { properties?: Record<string, FieldSpec>; required?: string[] };
   outputs?: { properties?: Record<string, FieldSpec> };
-  "x-ooa-panel"?: { main?: string[]; more?: string[] };
+  "x-ooa-panel"?: { main?: PanelEntry[]; more?: PanelEntry[] };
 };
-export type PackageManifest = { id: string; name: string; version: string; description?: string; actions: ActionManifest[]; conditions?: ActionManifest[] };
+export type PackageManifest = { id: string; name: string; version: string; description?: string; actions: ActionManifest[]; conditions?: ActionManifest[]; iterators?: ActionManifest[] };
 
 /** A variable: in_out is both an input and an output; local (or none) is a working value inside the agent. */
 export type FlowVariable = { name: string; type: string; direction?: "input" | "output" | "in_out" | "local"; default?: unknown; description?: string;
@@ -54,7 +58,9 @@ export type FlowStep = {
   id: string; action: string; args?: Record<string, unknown>; out?: Record<string, string>; disabled?: boolean; note?: string;
   /** A saved connection that supplies the connector's address and sign-in. */
   connection?: string;
-  children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; children?: FlowStep[] }[]; finally?: FlowStep[];
+  /** If the step fails: log it and go on (C3), and trying an action again. */
+  continueOnError?: boolean; retry?: RetryPolicy;
+  children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; message_to?: string; line_to?: string; continueOnError?: boolean; screenshot?: boolean | string; rethrow?: boolean; children?: FlowStep[] }[]; finally?: FlowStep[];
   /** Switch: the cases, tried in order (a case value is a value to compare, or a condition when match is expression), and the default steps. */
   cases?: { values?: unknown[]; children?: FlowStep[] }[]; default?: FlowStep[];
   /** State machine: named states, each with entry steps and transitions tried in order (one without "when" is the default); a final state ends it. */
@@ -68,13 +74,19 @@ export type FlowTransition = { to: string; when?: unknown; steps?: FlowStep[] };
 export type FlowUi = { collapsed?: string[]; breakpoints?: string[]; [key: string]: unknown };
 /** A named list of steps inside an agent, run by a Run subflow step; it shares the agent's variables. */
 export type Subflow = { name: string; description?: string; steps: FlowStep[] };
-export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; onError?: FlowOnError; ui?: FlowUi };
+export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; onError?: FlowOnError; ui?: FlowUi;
+  /** Files kept in One CommandCenter that go to the runner with the agent, at the same path (F1, AA's Control Room files). */
+  files?: string[];
+  /** The agent's default when a step fails outside a Try (C3): stop or continue, and trying actions again. */
+  errorHandling?: { default?: "stop" | "continue"; retry?: RetryPolicy } };
+/** Trying a failed action again: up to max more times, delayMs between (doubled each time when exponential), for the codes named ("*" any; none: temporary errors). */
+export type RetryPolicy = { max?: number; backoff?: "fixed" | "exponential"; delayMs?: number; codes?: string[] };
 
 /**
  * The agent's error handler: steps that run once when an error no Try block caught ends the run, while its windows and
  * files are still open; then the run fails with that error (fail, the default) or ends as succeeded with a warning.
  */
-export type FlowOnError = { as?: string; steps: FlowStep[]; then?: "fail" | "succeed"; screenshot?: boolean | string };
+export type FlowOnError = { as?: string; message_to?: string; line_to?: string; steps: FlowStep[]; then?: "fail" | "succeed"; screenshot?: boolean | string };
 
 /** An agent to start from (Create > Start from): its variables and steps are copied into the new agent. */
 export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[]; subflows?: Subflow[]; onError?: FlowOnError };
@@ -125,8 +137,10 @@ export type RepoFacts = { labels?: { label: string; version: number }[]; analysi
   size?: number; updated?: string; updated_by?: string };
 export type RepoAgent = { path: string; latest_version: number; production_version?: number | null; locked_by?: string | null } & RepoFacts;
 /** A private copy's state against the repository, as AA's statuses (1 Nov 2026). "linked": signed out, so the locks are not known. */
-export type RepoState = { status: "new" | "linked" | "checked_out" | "checked_out_edited" | "checked_in" | "edited"; path: string; locked_by?: string;
+export type RepoState = { status: "new" | "linked" | "checked_out" | "checked_out_edited" | "checked_in" | "edited" | "cloned"; path: string; locked_by?: string;
   latest_version?: number; production_version?: number | null } & RepoFacts;
+/** A file kept in One CommandCenter's repository. */
+export type RepoFile = { path: string; folder?: string; size?: number; updated?: string; updated_by?: string; version?: number };
 export type RepoVersion = { version: number; author: string; created: string; comment?: string };
 /** A check-in: the new version, and whether it became live or waits for approval first. */
 export type CheckIn = { path: string; version: number; local: string; production: boolean; production_request?: unknown };
@@ -235,6 +249,10 @@ export class StudioApi {
   /** Opens the page and outlines every element the captured object matches; gives how many match. */
   captureTest(url: string, object: unknown) { return this.call<{ count?: number }>("POST", "capture/test", { url, object, browser: "edge" }); }
   /** A control in a Windows application: the person hovers it and presses Ctrl+Shift+C. */
+  /** A point in a window: the person points and presses Ctrl+Shift+C (M1); x and y are measured from the window's corner. */
+  pickPoint(req: { timeout_seconds?: number } = {}) {
+    return this.call<{ x: number; y: number; screen_x: number; screen_y: number; window: string; window_width?: number; window_height?: number }>("POST", "pick-point", req);
+  }
   captureDesktop(req: { timeout_seconds?: number; screenshot?: boolean; highlight?: boolean } = {}) {
     return this.call<{ object?: Record<string, unknown> } & Record<string, unknown>>("POST", "capture-desktop", req);
   }
@@ -278,6 +296,12 @@ export class StudioApi {
   crCheckout(path: string, version?: number) {
     return this.call<{ local: string; path: string; version: number; kept?: boolean; cloned?: string[] }>("POST", "cr/checkout", version ? { path, version } : { path });
   }
+  /** The files kept in One CommandCenter that the person may see (F1: AA's Control Room files). */
+  async crFiles() { return (await this.call<{ files?: RepoFile[] }>("GET", "cr/files")).files ?? []; }
+  /** Clone: a read-only private copy that follows the repository (AA's Clone); check it out to change it. */
+  crClone(path: string) { return this.call<{ local: string; path: string; version: number }>("POST", "cr/clone", { path }); }
+  /** Copy to Private: the agent's latest version becomes a new agent of your own at "to" (AA's Copy). */
+  crCopy(path: string, to: string) { return this.call<{ local: string; from: string; version: number; cloned?: string[] }>("POST", "cr/copy", { path, to }); }
   /** Each private copy linked to the repository, with its state (checked out, edited, checked in …); unlinked items are new. */
   crStates() { return this.call<{ states: Record<string, RepoState>; connected: boolean }>("GET", "cr/states"); }
   /** Revert edits: the private copy goes back to the version that was checked out. */

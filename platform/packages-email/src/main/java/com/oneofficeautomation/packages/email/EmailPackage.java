@@ -145,7 +145,7 @@ public final class EmailPackage {
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Mailbox user name; the mailbox session's user when empty.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
                     description = "Password or app password from the vault; with neither password nor token the server is used without signing in (internal relay).") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token (Microsoft 365, Gmail) from the vault.") Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token (Microsoft 365, Gmail) from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
             @Input(name = "from", type = OoaType.STRING, required = false, description = "Sender address; the user when empty.") String from,
             @Input(name = "to", description = "Recipient address(es): text separated by , or ; or a List.") Object to,
             @Input(name = "cc", required = false, description = "CC address(es).") Object cc,
@@ -337,9 +337,18 @@ public final class EmailPackage {
             @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "The body contains this text (searched by the server).") String bodyText,
             @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
             @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Give the oldest emails first instead of the newest.") boolean oldestFirst,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
+            @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = com.oneofficeautomation.packages.MailRecord.D_WITH_BODY) boolean withBody) {
         // the list is taken before the loop starts, so emails can be moved or deleted inside it
-        return new ArrayList<>(find(ms(ctx, session), folder, unread, readOnly, from, subject, since, before, to, bodyText, withAtts, oldestFirst, max));
+        List<Map<String, Object>> found = new ArrayList<>(find(ms(ctx, session), folder, unread, readOnly, from, subject, since, before, to, bodyText, withAtts, oldestFirst, max));
+        return com.oneofficeautomation.packages.MailRecord.each(found, withBody,
+                row -> (Map<String, Object>) get(ctx, ((Number) row.get("id")).longValue(), folder, false, session).get("email"));
+    }
+
+    /** Earlier signature, kept for callers written before with_body. */
+    public Iterable<Object> emails(ActionContext ctx, String folder, boolean unread, String from, String subject, LocalDateTime since, int max, LocalDateTime before,
+                                   boolean readOnly, String to, String bodyText, boolean withAtts, boolean oldestFirst, String session) {
+        return emails(ctx, folder, unread, from, subject, since, max, before, readOnly, to, bodyText, withAtts, oldestFirst, session, false);
     }
 
     private static void collect(Part p, StringBuilder text, StringBuilder html, List<Part> attachments) throws MessagingException, IOException {
@@ -352,7 +361,7 @@ public final class EmailPackage {
 
     @Action(id = "get", name = "Read email", category = "Mailbox", idempotent = true, capabilities = "network", description = "Read one email: sender, recipients, subject, text, HTML and attachment names.",
             panel = "id, folder, mark_read | session")
-    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size.")
+    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
@@ -361,9 +370,11 @@ public final class EmailPackage {
         try {
             MailSession s = ms(ctx, session);
             Message m = byUid(s.folder(folder), id);
+            boolean wasUnread = !m.isSet(Flags.Flag.SEEN);
             Map<String, Object> e = details(m, id);
+            e.put("unread", wasUnread && !(markRead && !s.pop3));
             if (markRead && !s.pop3) m.setFlag(Flags.Flag.SEEN, true);
-            return Map.of("email", e);
+            return Map.of("email", com.oneofficeautomation.packages.MailRecord.withCommonKeys(e));
         } catch (MessagingException | IOException e) { throw e instanceof MessagingException me ? mail(me) : new ActionException("EMAIL.READ_FAILED", e.getMessage()); }
     }
 

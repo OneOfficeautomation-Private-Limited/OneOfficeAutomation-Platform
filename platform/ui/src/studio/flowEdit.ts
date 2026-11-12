@@ -1,4 +1,4 @@
-import type { ActionManifest, Flow, FlowOnError, FlowState, FlowStep, FlowVariable, PackageManifest } from "../api/client";
+import type { ActionManifest, Flow, FlowOnError, FlowState, FlowStep, FlowVariable, PackageManifest, PanelEntry, RetryPolicy } from "../api/client";
 
 /**
  * Editing an agent, as pure functions: each takes a flow and returns a changed copy, so undo is keeping the old one.
@@ -43,6 +43,21 @@ export function locate(steps: FlowStep[], id: string): Lists | null {
     for (const inner of innerLists(steps[i])) { const r = locate(inner, id); if (r) return r; }
   }
   return null;
+}
+
+/**
+ * Whether a step is skipped when the agent runs: disabled itself ("self"), inside a disabled block ("inside"), or not
+ * (null). Used by the step menu (usage review item 25): Run from here then starts at the next enabled step.
+ */
+export function disabledState(steps: FlowStep[], id: string, offAbove = false): "self" | "inside" | null | undefined {
+  for (const s of steps) {
+    if (s.id === id) return s.disabled ? "self" : offAbove ? "inside" : null;
+    for (const inner of innerLists(s)) {
+      const r = disabledState(inner, id, offAbove || !!s.disabled);
+      if (r !== undefined) return r;
+    }
+  }
+  return undefined;
 }
 
 function* every(steps: FlowStep[]): Generator<FlowStep> {
@@ -97,6 +112,8 @@ export function newStep(action: string, flow: Flow, packages: PackageManifest[])
     else if ((spec?.inputs?.required ?? []).includes(name) && prop.examples?.length) args[name] = prop.examples[0];
   }
   if (action === "core/throw" && args.code === undefined) args.code = "BUSINESS.ERROR";   // a business error unless another code is chosen
+  // a new date step works in the runner's own time zone, as AA's dates (command review D1); older steps keep UTC
+  if (action.startsWith("ooa.datetime/") && "time_zone" in props && args.time_zone === undefined) args.time_zone = "local";
   if (Object.keys(args).length) step.args = args;
   if (action === "core/if") { step.children = []; step.else = []; }
   else if (action === "core/try") { step.children = []; step.catch = [{ codes: [], children: [] }]; }   // Finally only when wanted
@@ -365,17 +382,26 @@ export function logFields(f: unknown): string {
  * The order of an action's fields: the main ones first, then those under More options, as its panel layout lists
  * them; any input the layout does not mention goes under More options.
  */
-export function fieldOrder(spec: ActionManifest | undefined): { main: string[]; more: string[] } {
+/** The groups of a panel (choices and tick boxes) and the fields each holds (command review X2, 10 Nov 2026). */
+export type PanelGroup = Exclude<PanelEntry, string>;
+export const groupFields = (g: PanelGroup): string[] => "choice" in g ? g.options.flatMap((o) => o.fields) : g.fields;
+
+export function fieldOrder(spec: ActionManifest | undefined): { main: string[]; more: string[]; groups: PanelGroup[] } {
   const names = Object.keys(spec?.inputs?.properties ?? {});
-  const pick = (entries: unknown) => {
-    const text = Array.isArray(entries) ? entries.join(" ") : "";
-    return [...new Set(text.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? [])].filter((n) => names.includes(n));
+  // a choice or a tick box holds fields of its own: they count where the group stands (before X2 an object read as
+  // "[object Object]", so 329 commands showed those fields under More options)
+  const pick = (entries: PanelEntry[] | undefined) => {
+    const out: string[] = [];
+    for (const e of entries ?? []) for (const n of typeof e === "string" ? (e.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []) : groupFields(e))
+      if (names.includes(n) && !out.includes(n)) out.push(n);
+    return out;
   };
   const panel = spec?.["x-ooa-panel"];
-  if (!panel) return { main: names, more: [] };
+  if (!panel) return { main: names, more: [], groups: [] };
+  const groups = [...(panel.main ?? []), ...(panel.more ?? [])].filter((e): e is PanelGroup => typeof e !== "string");
   const main = pick(panel.main);
   const more = pick(panel.more).filter((n) => !main.includes(n));
-  return { main, more: [...more, ...names.filter((n) => !main.includes(n) && !more.includes(n))] };
+  return { main, more: [...more, ...names.filter((n) => !main.includes(n) && !more.includes(n))], groups };
 }
 
 /** Moves every selected step one place up (-1) or down (+1) in its own list; selected neighbours move together. */
@@ -622,6 +648,28 @@ export function setCatchCodes(flow: Flow, id: string, k: number, codes: string[]
   return f;
 }
 
+/** A step's "If it fails" (C3): continue with the next step, and trying it again; false or undefined removes the setting. */
+export function setStepPolicy(flow: Flow, id: string, patch: { continueOnError?: boolean; retry?: RetryPolicy | undefined }): Flow {
+  const f = copy(flow);
+  const s = findStep(f, id)?.step;
+  if (!s) return flow;
+  if ("continueOnError" in patch) { if (patch.continueOnError) s.continueOnError = true; else delete s.continueOnError; }
+  if ("retry" in patch) { if (patch.retry) s.retry = patch.retry; else delete s.retry; }
+  return f;
+}
+
+/** A Catch part's settings besides its codes (items 19 and 20): where the error goes, and what happens around its steps. */
+export type CatchSettings = { as?: string; message_to?: string; line_to?: string; continueOnError?: boolean; screenshot?: boolean; rethrow?: boolean };
+
+/** Sets a Catch part's settings; an empty name or false removes the setting. */
+export function setCatch(flow: Flow, id: string, k: number, patch: CatchSettings): Flow {
+  const f = copy(flow);
+  const c = findStep(f, id)?.step.catch?.[k] as (Record<string, unknown> | undefined);
+  if (!c) return flow;
+  for (const [key, v] of Object.entries(patch)) { if (v === undefined || v === "" || v === false) delete c[key]; else c[key] = v; }
+  return f;
+}
+
 /** Sets the condition of an Else if. */
 export function setElseIfCondition(flow: Flow, id: string, k: number, condition: unknown): Flow {
   const f = copy(flow);
@@ -695,12 +743,13 @@ export function addOnError(flow: Flow): Flow {
   return f;
 }
 
-/** Changes the error handler's settings: its variable, what happens after it (fail or succeed), the screenshot. */
-export function setOnError(flow: Flow, patch: { as?: string; then?: "fail" | "succeed"; screenshot?: boolean }): Flow {
+/** Changes the error handler's settings: its variables, what happens after it (fail or succeed), the screenshot. */
+export function setOnError(flow: Flow, patch: { as?: string; message_to?: string; line_to?: string; then?: "fail" | "succeed"; screenshot?: boolean }): Flow {
   if (!flow.onError) return flow;
   const f = copy(flow);
   const h = f.onError!;
-  if ("as" in patch) { const v = (patch.as ?? "").trim().replace(/^\$/, ""); if (v) h.as = v; else delete h.as; }
+  for (const key of ["as", "message_to", "line_to"] as const)
+    if (key in patch) { const v = (patch[key] ?? "").trim().replace(/^\$/, ""); if (v) h[key] = v; else delete h[key]; }
   if ("then" in patch) { if (patch.then === "succeed") h.then = "succeed"; else delete h.then; }   // fail is the default
   if ("screenshot" in patch) { if (patch.screenshot) h.screenshot = true; else delete h.screenshot; }
   return f;
@@ -791,6 +840,19 @@ export function locateAny(flow: Flow, id: string): Lists | null {
  * The labels a Go to step can jump to: those in its own step list and in the lists around it (not inside blocks, and
  * not across a Parallel branch or out of a State machine), nearest first.
  */
+/** The names of the loops around a step, innermost first (C5): what Exit loop and Continue loop can name. */
+export function loopLabelsAround(steps: FlowStep[], id: string): string[] {
+  const find = (list: FlowStep[], around: string[]): string[] | null => {
+    for (const s of list) {
+      if (s.id === id) return around;
+      const here = s.action === "core/loop" && typeof s.args?.label === "string" && s.args.label.trim() ? [String(s.args.label).trim(), ...around] : around;
+      for (const inner of innerLists(s)) { const r = find(inner, here); if (r) return r; }
+    }
+    return null;
+  };
+  return find(steps, []) ?? [];
+}
+
 export function labelsInScope(steps: FlowStep[], id: string): string[] {
   const labelsOf = (list: FlowStep[]) => list.filter((s) => s.action === "core/label" && typeof s.args?.name === "string" && s.args.name.trim())
     .map((s) => String(s.args!.name).trim());

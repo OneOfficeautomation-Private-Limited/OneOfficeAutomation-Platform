@@ -6,6 +6,7 @@ export { Field, TextInput, TextArea, Select } from "./Field";
 export { HelpButton, HelpPanel, HelpProvider, type HelpItem, type HelpTopic } from "./Help";
 export { Icon, IconTile, ICONS, type IconName } from "./Icon";
 export { Menu, type MenuItem } from "./Menu";
+export { Notice } from "./Notice";
 export { SearchSelect, type SearchOption } from "./SearchSelect";
 export { Splitter, usePanelSize } from "./Splitter";
 export { Tabs, TabPanel } from "./Tabs";

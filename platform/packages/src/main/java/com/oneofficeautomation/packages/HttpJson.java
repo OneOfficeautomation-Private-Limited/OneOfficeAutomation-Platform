@@ -17,6 +17,24 @@ import java.util.*;
  * retryable flags (429, 5xx), and secret masking in logs.
  */
 final class HttpJson {
+    /**
+     * A value on its way to a server: a vault secret as the secret itself, anything else as text (R1, command review
+     * batch 8). Turning a secret into text gives its mask, so a header taken from the vault used to be sent as ****.
+     * The run still masks the secret in logs and run output.
+     */
+    static String sendable(Object v) {
+        if (v instanceof SecureString s) return s.reveal();
+        return String.valueOf(v);
+    }
+
+    /** A JSON value, map or list with every vault secret inside it replaced by the secret, for a request body. */
+    static Object revealed(Object v) {
+        if (v instanceof SecureString s) return s.reveal();
+        if (v instanceof Map<?, ?> m) { Map<String, Object> out = new LinkedHashMap<>(); m.forEach((k, x) -> out.put(String.valueOf(k), revealed(x))); return out; }
+        if (v instanceof List<?> l) { List<Object> out = new ArrayList<>(); for (Object x : l) out.add(revealed(x)); return out; }
+        return v;
+    }
+
     /** Address pattern: https for real servers; plain http only for this computer (local test and mock servers). */
     static final String HTTPS_OR_LOCAL = "^(https://|http://(localhost|127\\.0\\.0\\.1)(:|/|$))";
 
@@ -51,6 +69,55 @@ final class HttpJson {
         Req json(Object value) { body = HttpRequest.BodyPublishers.ofString(JsonLite.write(Values.toJsonable(value))); headers.put("Content-Type", "application/json"); return this; }
         Req bytes(byte[] data, String contentType) { body = HttpRequest.BodyPublishers.ofByteArray(data); headers.put("Content-Type", contentType); return this; }
         Req binaryResponse() { binary = true; return this; }
+        /** K3 (batch 10): the body read from a file as it is sent, so a large upload is not held in memory. */
+        Req file(java.nio.file.Path p, String contentType) {
+            try { body = HttpRequest.BodyPublishers.ofFile(p); }
+            catch (java.io.FileNotFoundException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+            headers.put("Content-Type", contentType); return this;
+        }
+
+        /**
+         * K3 (command review, batch 10): writes the answer straight to a file (through a temporary file next to it, moved
+         * into place when complete), so a download of any size does not pass through memory. Returns its size in bytes.
+         * An error answer is read as text and reported as by send.
+         */
+        long download(ActionContext ctx, java.nio.file.Path target) {
+            HttpRequest.Builder b;
+            try { b = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(timeout)).method(method, body); }
+            catch (IllegalArgumentException e) { throw new ActionException(prefix + ".BAD_URL", "Invalid URL: " + url, "Check the instance or base URL."); }
+            headers.putIfAbsent("Accept", "*/*");
+            headers.forEach(b::header);
+            ctx.info(method + " " + url.replaceAll("(?i)([?&][^=]*(token|key|secret|password)[^=]*=)[^&]+", "$1****") + " (to a file)");
+            java.nio.file.Path dir = target.toAbsolutePath().getParent(), tmp;
+            try { java.nio.file.Files.createDirectories(dir); tmp = java.nio.file.Files.createTempFile(dir, ".ooa-download-", ".part"); }
+            catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write in " + dir + ": " + e.getMessage(), "Check the folder and its permissions.", true); }
+            try {
+                HttpResponse<java.nio.file.Path> r;
+                for (int attempt = 0; ; attempt++) {
+                    try { r = CLIENT.send(b.build(), HttpResponse.BodyHandlers.ofFile(tmp)); }
+                    catch (HttpTimeoutException e) { throw new ActionException(prefix + ".TIMEOUT", "No response within " + timeout + " s from " + host(url), "Try again later or raise the timeout.", true); }
+                    catch (IOException e) { throw new ActionException(prefix + ".UNREACHABLE", "Cannot reach " + host(url) + ": " + NetErrors.reason(e, null), "Check the URL, proxy and network access.", true); }
+                    catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+                    long wait = r.statusCode() == 429 && attempt < MAX_RATE_RETRIES ? retryAfterMillis(r.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
+                    if (wait < 0) break;
+                    ctx.warn(host(url) + " is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s (" + (attempt + 1) + " of " + MAX_RATE_RETRIES + ")");
+                    pause(ctx, wait);
+                }
+                if (r.statusCode() >= 400) {
+                    byte[] err = java.nio.file.Files.size(tmp) > 1_000_000 ? new byte[0] : java.nio.file.Files.readAllBytes(tmp);
+                    String text = new String(err, StandardCharsets.UTF_8);
+                    Object parsed = null;
+                    if (!text.isBlank()) try { parsed = JsonLite.parse(text); } catch (IllegalArgumentException ignored) { }
+                    throw error(prefix, new Response(r.statusCode(), text, parsed, err, r.headers().map()));
+                }
+                java.nio.file.Files.move(tmp, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                return java.nio.file.Files.size(target);
+            } catch (IOException e) {
+                throw new ActionException("FILE.IO_ERROR", "Cannot write " + target + ": " + e.getMessage(), "Check the folder, its permissions and free space.", true);
+            } finally {
+                try { java.nio.file.Files.deleteIfExists(tmp); } catch (IOException ignored) { }
+            }
+        }
         /** The caller reads the answer as text and checks it itself (an HTML answer is then not an error here). */
         Req allowText() { allowText = true; return this; }
         Req timeout(int s) { timeout = s; return this; }
@@ -130,7 +197,24 @@ final class HttpJson {
         return t.isEmpty() ? "(empty page)" : t.length() > 160 ? t.substring(0, 160) + "..." : t;
     }
 
-    static Req req(String prefix, String method, String url) { return new Req(prefix, method, url); }
+    static Req req(String prefix, String method, String url) { return new Req(prefix, method, plainHttpCheck(prefix, url)); }
+
+    /**
+     * K6 (command review, batch 10): toolkits whose addresses may be plain http for on-premises servers (Jira Data Center,
+     * Azure DevOps Server, GitHub Enterprise, Asana's stand-ins) send tokens over http only to this computer, or to a
+     * host the runner's administrator lists in OOA_ALLOW_PLAIN_HTTP (or -Dooa.allow_plain_http), comma separated.
+     */
+    static final Set<String> HTTPS_UNLESS_ALLOWED = Set.of("JIRA", "ASANA", "AZURE_DEVOPS", "GITHUB");
+
+    static String plainHttpCheck(String prefix, String url) {
+        if (url == null || !HTTPS_UNLESS_ALLOWED.contains(prefix) || !url.regionMatches(true, 0, "http://", 0, 7)) return url;
+        String h = host(url);
+        if (h == null || h.equalsIgnoreCase("localhost") || h.equals("127.0.0.1") || h.equals("[::1]") || h.equals("::1")) return url;
+        String allowed = System.getProperty("ooa.allow_plain_http", System.getenv().getOrDefault("OOA_ALLOW_PLAIN_HTTP", ""));
+        for (String a : allowed.split(",")) if (!a.isBlank() && a.strip().equalsIgnoreCase(h)) return url;
+        throw new ActionException(prefix + ".PLAIN_HTTP", "The address " + h + " is plain http, so the sign-in would travel unencrypted",
+                "Use https://. For an on-premises server that only has http, an administrator adds " + h + " to OOA_ALLOW_PLAIN_HTTP on the runner.");
+    }
 
     static String host(String url) { try { return URI.create(url).getHost(); } catch (Exception e) { return url; } }
 
@@ -154,6 +238,11 @@ final class HttpJson {
         } else if (j instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> first && first.get("message") != null) msg = String.valueOf(first.get("message"));
         if (msg == null) msg = r.text().length() > 300 ? r.text().substring(0, 300) : r.text();
         int s = r.status();
+        // K5 (batch 10): Microsoft Graph refuses "me" to an app sign-in; say what to write instead
+        if (msg.contains("/me request is only valid with delegated authentication") || msg.contains("only valid with delegated authentication flow"))
+            return new ActionException(prefix + ".ME_NEEDS_A_USER", "This connection signs in as an app, which has no \"me\": " + msg,
+                    "Name the person or place instead: drive users/ann@acme.com (or a SharePoint site such as contoso.sharepoint.com:/sites/Finance), mailbox ann@acme.com, "
+                            + "and for Teams by name the user whose teams to search. Or use a connection that signs in as a person.", false, Map.of("status", java.math.BigDecimal.valueOf(s)));
         String code = s == 401 ? ".AUTH_FAILED" : s == 403 ? ".FORBIDDEN" : s == 404 ? ".NOT_FOUND" : s == 429 ? ".RATE_LIMITED" : s >= 500 ? ".SERVER_ERROR" : ".REQUEST_FAILED";
         String fix = s == 401 ? "The access token is missing, wrong or expired; refresh it in the vault."
                 : s == 403 ? "The account or app lacks permission for this operation." : s == 404 ? "Check the id, name or path." : s == 429 ? "Too many requests; retry later." : null;

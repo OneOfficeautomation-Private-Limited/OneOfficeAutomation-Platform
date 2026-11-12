@@ -43,6 +43,8 @@ public final class ExcelPackage {
         Workbook wb;
         /** Cell or range chosen by go_to_cell / select_range; empty until one of them runs. */
         String selection;
+        /** Formulas the last save could not work out without Excel (E1). */
+        int unevaluated;
         /** Opened with read_only: saving over the opened file is refused. */
         boolean readOnly;
         /** Opened from OneDrive or SharePoint (X2): the drive path, drive, token and Graph address it is saved back to. */
@@ -229,7 +231,24 @@ public final class ExcelPackage {
     }
 
     /** Writes the workbook atomically, encrypted when a password is given (xlsx only). */
+    /**
+     * Works out every formula it can, so the saved file holds up-to-date results for other tools and bots, and marks the
+     * workbook so Excel recalculates when it opens it (command review E1, 11 Nov 2026). A formula that cannot be worked
+     * out here (a function POI does not know, a link to another file) keeps its stored result; the count comes back.
+     */
+    static int recalculate(Workbook wb) {
+        FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
+        int failed = 0;
+        for (Sheet sh : wb) for (Row r : sh) for (Cell c : r)
+            if (c.getCellType() == CellType.FORMULA) {
+                try { ev.evaluateFormulaCell(c); } catch (RuntimeException e) { failed++; }
+            }
+        wb.setForceFormulaRecalculation(true);
+        return failed;
+    }
+
     private static void writeFile(WorkbookSession s, Path target, String password) {
+        s.unevaluated = recalculate(s.wb);
         try {
             if (password != null && !(s.wb instanceof XSSFWorkbook)) {  // .xls files use the legacy RC4 encryption
                 org.apache.poi.hssf.record.crypto.Biff8EncryptionKey.setCurrentUserPassword(password);
@@ -571,6 +590,7 @@ public final class ExcelPackage {
         refuseReadOnly(s, target);
         String pw = OfficeCrypto.secret(password);
         writeFile(s, target, pw != null ? pw : s.password);
+        if (s.unevaluated > 0) ctx.warn(s.unevaluated + " formula(s) could not be worked out without Excel; they keep their stored results, and Excel recalculates them when it opens the file");
         uploadBack(ctx, s, target);
         return Map.of();
     }
@@ -604,6 +624,7 @@ public final class ExcelPackage {
             else {
                 refuseReadOnly(w, w.path);
                 writeFile(w, w.path, w.password);
+                if (w.unevaluated > 0) ctx.warn(w.unevaluated + " formula(s) could not be worked out without Excel; they keep their stored results, and Excel recalculates them when it opens the file");
                 uploadBack(ctx, w, w.path);
             }
         }

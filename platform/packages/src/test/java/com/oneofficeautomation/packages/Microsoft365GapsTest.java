@@ -384,6 +384,22 @@ class Microsoft365GapsTest {
             assertEquals("C3:D5", wdt.get("address"));
             assertEquals("{\"values\":[[\"Name\",\"Amount\"],[\"A\",\"1\"],[\"B\",\"2\"]]}", f.last("PATCH", sh + "/range(address='C3:D5')").text());
             assertEquals("A1:B2", pkg.excelWriteDataTable(ctx, tok, book, "Data", Map.of("columns", List.of("Name", "Amount"), "rows", List.of(List.of("A", "1"), List.of("B", "2"))), "A1", false, dr, b).get("address"), "without headers");
+
+            // K3 (batch 10): a large table goes in blocks of rows inside one workbook session
+            int cells = Microsoft365Package.cellsPerRequest;
+            Microsoft365Package.cellsPerRequest = 4;   // two rows of two columns a request
+            List<String> writes = new ArrayList<>();
+            f.at("POST", wb + "/createSession", c -> ok("{\"id\":\"WS-1\"}"))
+             .at("POST", wb + "/closeSession", c -> none())
+             .rx("PATCH", Pattern.quote(sh + "/range(address='") + "C1[0-9]:D1[0-9]'\\)", c -> { writes.add(c.path().replaceAll(".*address='", "").replace("')", "") + " " + c.header("workbook-session-id")); return ok("{}"); });
+            try {
+                Map<String, Object> big = pkg.excelWriteDataTable(ctx, tok, book, "Data", Map.of("columns", List.of("Name", "Amount"),
+                        "rows", List.of(List.of("A", "1"), List.of("B", "2"), List.of("C", "3"))), "C10", true, dr, b);
+                assertEquals("C10:D13", big.get("address"));
+                assertEquals(List.of("C10:D11 WS-1", "C12:D13 WS-1"), writes);
+                assertEquals(Map.of("persistChanges", true), f.last("POST", wb + "/createSession").json());
+                assertEquals("WS-1", f.last("POST", wb + "/closeSession").header("workbook-session-id"));
+            } finally { Microsoft365Package.cellsPerRequest = cells; }
         }
     }
 
@@ -520,6 +536,12 @@ class Microsoft365GapsTest {
             assertEquals(BigDecimal.valueOf(2), picked.get("count"), "max_results stops paging");
             assertTrue(f.last("GET", items).q().contains("$expand=fields($select=Title)"));
             assertNull(f.last("GET", items).header("Prefer"));
+
+            // K7 (batch 10): columns named as people see them, and given that way
+            f.at("GET", site + "/lists/Assets/columns", c -> ok("{\"value\":[{\"name\":\"Title\",\"displayName\":\"Asset\"},{\"name\":\"Status\",\"displayName\":\"State\"}]}"));
+            Map<String, Object> shown = pkg.getListItems(ctx, tok, s, "Assets", null, List.of("asset", "State"), 2, b, true);
+            assertEquals(List.of("id", "Asset", "State"), tbl(shown.get("table")).get("columns"));
+            assertTrue(f.last("GET", items).q().contains("$expand=fields($select=Title,Status)"), "display names asked for by their internal names");
 
             assertEquals("7", pkg.createListItem(ctx, tok, s, "Assets", Map.of("Title", "Monitor"), b).get("item_id"));
             assertEquals(Map.of("fields", Map.of("Title", "Monitor")), f.last("POST", items).json());

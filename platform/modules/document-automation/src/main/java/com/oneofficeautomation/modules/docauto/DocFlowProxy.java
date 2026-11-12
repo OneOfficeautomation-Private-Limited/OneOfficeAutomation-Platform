@@ -551,6 +551,158 @@ public final class DocFlowProxy {
         return out;
     }
 
+    // ------------------------------------------------------------------ an agent picks up results (D1)
+
+    /** Statuses of a document that is read and needs nothing more: read and checked, approved, or rejected. */
+    static final Set<String> FINISHED = Set.of("success", "validated", "invalid");
+    /** Statuses of a document still being read. */
+    static final Set<String> READING = Set.of("received", "queued", "pending", "processing");
+    private static final Pattern DOC_ID = Pattern.compile("[A-Za-z0-9_-]{1,80}");
+
+    /**
+     * Document Automation's "Get document result", "List finished documents" and "Mark collected" (command review D1,
+     * 12 Nov 2026), on /api/agent/docflow/results for a running agent, as the run's user with docs.view and view access
+     * to the process's folder. op get: one document's status, fields, tables and confidence by id; op list: a process's
+     * finished documents not yet collected by the collector; op collect: marks documents collected by the collector (kept
+     * here in docflow_collected, as DocFlow keeps no such mark), so agents that share a collector name never take one twice.
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> resultsForBot(HttpExchange ex, Map<String, Object> device, Map<String, String> q) throws IOException {
+        Map<String, Object> b = ctx.jsonBody(ex);
+        Map<String, Object> run = ctx.runOfDevice(device, String.valueOf(b.get("run_id")));
+        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can read documents");
+        User user = runUser(run);
+        ctx.require(user, "docs.view", "read Document Automation results");
+        String collector = b.get("collector") instanceof String c && !c.isBlank() ? c.strip() : "default";
+        if (collector.length() > 120) throw new OoaException("CR.BAD_INPUT", "The collector name is longer than 120 characters");
+        Map<String, Map<String, String>> all = ctx.folderEntries();
+        String op = String.valueOf(b.getOrDefault("op", ""));
+        switch (op) {
+            case "get" -> {
+                String id = docId(b.get("document_id"));
+                Map<String, Object> d = docOf(id);
+                need(user, processFolders().getOrDefault(String.valueOf(d.get("flowId")), ""), "view", all, "see this document");
+                Map<String, Object> out = result(d);
+                out.put("collected", ctx.db().one("SELECT 1 AS x FROM docflow_collected WHERE document_id = ? AND collector = ?", id, collector) != null);
+                return out;
+            }
+            case "list" -> {
+                String process = String.valueOf(b.getOrDefault("process", "")).trim();
+                Map<String, Object> flow = flowNamed(process);
+                need(user, flow.get("folder"), "view", all, "see this process");
+                int limit = b.get("limit") instanceof Number n ? Math.max(1, Math.min(500, n.intValue())) : 100;
+                Set<String> wanted = new HashSet<>();
+                if (b.get("statuses") instanceof List<?> l) for (Object o : l) wanted.add(String.valueOf(o));
+                if (wanted.isEmpty()) wanted.addAll(FINISHED);
+                boolean includeCollected = Boolean.TRUE.equals(b.get("include_collected"));
+                Set<String> taken = new HashSet<>();
+                for (Map<String, Object> r : ctx.db().query("SELECT document_id FROM docflow_collected WHERE process_id = ? AND collector = ?", flow.get("id"), collector))
+                    taken.add(String.valueOf(r.get("document_id")));
+                HttpResponse<byte[]> r = send("GET", "df/flows/" + java.net.URLEncoder.encode(String.valueOf(flow.get("id")), StandardCharsets.UTF_8) + "/documents",
+                        "limit=500", null, null, "Command Center");
+                if (r.statusCode() != 200) throw new OoaException("DOCS.REFUSED", "Document Automation did not list the documents: HTTP " + r.statusCode());
+                List<Object> rows = new ArrayList<>();
+                for (Object o : (List<Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8))) {
+                    Map<String, Object> d = (Map<String, Object>) o;
+                    String id = String.valueOf(d.get("id"));
+                    if (!wanted.contains(String.valueOf(d.get("status"))) || (!includeCollected && taken.contains(id))) continue;
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("document_id", id);
+                    row.put("file_name", d.get("file_name"));
+                    row.put("status", d.get("status"));
+                    row.put("doc_type", d.get("doctype_id"));
+                    row.put("created_at", d.get("created_at"));
+                    row.put("validated_by", d.get("validated_by"));
+                    row.put("collected", taken.contains(id));
+                    rows.add(row);
+                    if (rows.size() >= limit) break;
+                }
+                return new LinkedHashMap<>(Map.of("process", flow.get("name"), "documents", rows));
+            }
+            case "collect" -> {
+                List<Object> ids = b.get("document_ids") instanceof List<?> l ? (List<Object>) l : List.of();
+                if (ids.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Give the ids of the documents to mark collected");
+                if (ids.size() > 500) throw new OoaException("CR.BAD_INPUT", "Mark at most 500 documents at a time");
+                Map<String, String> folders = processFolders();
+                int marked = 0, already = 0;
+                for (Object o : ids) {
+                    String id = docId(o);
+                    Map<String, Object> d = docOf(id);
+                    String flowId = String.valueOf(d.get("flowId"));
+                    need(user, folders.getOrDefault(flowId, ""), "view", all, "see this document");
+                    if (ctx.db().one("SELECT 1 AS x FROM docflow_collected WHERE document_id = ? AND collector = ?", id, collector) != null) { already++; continue; }
+                    ctx.db().update("INSERT INTO docflow_collected (document_id, collector, process_id, run_id, collected_by, collected) VALUES (?,?,?,?,?,?)",
+                            id, collector, flowId, run.get("id"), user.username(), Instant.now());
+                    marked++;
+                }
+                ctx.audit(user.username(), "docflow.collect", "docflow_document", null,
+                        Map.of("collector", collector, "marked", marked, "already", already, "run_id", String.valueOf(run.get("id"))), "success", null);
+                return new LinkedHashMap<>(Map.of("marked", marked, "already_collected", already));
+            }
+            default -> throw new OoaException("CR.BAD_INPUT", "Unknown request '" + op + "'");
+        }
+    }
+
+    /** The user a run acts as, when still active. */
+    private User runUser(Map<String, Object> run) {
+        String by = (String) (run.get("run_as") != null ? run.get("run_as") : run.get("requested_by"));
+        Map<String, Object> user = ctx.db().one("SELECT id, username, role, display_name FROM users WHERE username = ? AND enabled = TRUE", by);
+        if (user == null) throw new OoaException("CR.FORBIDDEN", "The run's user " + by + " is not active");
+        return new User((String) user.get("id"), by, (String) user.get("role"), (String) user.get("display_name"), false);
+    }
+
+    private static String docId(Object o) {
+        String id = o == null ? "" : String.valueOf(o).strip();
+        if (!DOC_ID.matcher(id).matches()) throw new OoaException("CR.BAD_INPUT", "'" + id + "' is not a document id", "Use the document id that Send document to process gave.");
+        return id;
+    }
+
+    /** A process by its name (any case) or id. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> flowNamed(String process) {
+        HttpResponse<byte[]> flows = send("GET", "df/flows", null, null, null, "Command Center");
+        Map<String, Object> flow = flows.statusCode() != 200 ? null : ((List<Object>) JsonLite.parse(new String(flows.body(), StandardCharsets.UTF_8))).stream()
+                .map(o -> (Map<String, Object>) o).filter(f -> process.equals(f.get("id")) || process.equalsIgnoreCase(String.valueOf(f.get("name")))).findFirst().orElse(null);
+        if (flow == null) throw new OoaException("CR.NOT_FOUND", "No Document Automation process '" + process + "'", "Use the process's name or id as shown in Document Automation.");
+        return flow;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> docOf(String id) {
+        HttpResponse<byte[]> r = send("GET", "df/documents/" + id, null, null, null, "Command Center");
+        if (r.statusCode() == 404) throw new OoaException("CR.NOT_FOUND", "No document '" + id + "' in Document Automation", "Use the document id that Send document to process gave.");
+        if (r.statusCode() != 200 || !(JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8)) instanceof Map<?, ?> m))
+            throw new OoaException("DOCS.REFUSED", "Document Automation did not give the document: HTTP " + r.statusCode());
+        return (Map<String, Object>) m;
+    }
+
+    /**
+     * What an agent gets for a document: status, whether it is read and whether it waits for a review, the fields
+     * (single values), the tables (fields whose value is a list of rows, such as line items) and each field's confidence.
+     */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> result(Map<String, Object> d) {
+        String st = String.valueOf(d.get("status"));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("document_id", d.get("id"));
+        out.put("status", st);
+        out.put("done", !READING.contains(st));
+        out.put("needs_review", "validation".equals(st));
+        out.put("reviewed", "validated".equals(st) || "invalid".equals(st));
+        out.put("process_id", d.get("flowId"));
+        out.put("file_name", d.get("file_name"));
+        out.put("doc_type", d.get("doctype_id"));
+        out.put("validated_by", d.get("validated_by"));
+        Map<String, Object> fields = new LinkedHashMap<>(), tables = new LinkedHashMap<>();
+        if (d.get("fields") instanceof Map<?, ?> f)
+            ((Map<String, Object>) f).forEach((k, v) -> { if (v instanceof List<?> l && !l.isEmpty() && l.stream().allMatch(x -> x instanceof Map)) tables.put(k, v); else fields.put(k, v); });
+        out.put("fields", fields);
+        out.put("tables", tables);
+        out.put("confidence", d.get("confidence") instanceof Map<?, ?> c ? c : Map.of());
+        if (d.get("error") != null) out.put("error", d.get("error"));
+        return out;
+    }
+
     // ------------------------------------------------------------------ Start a bot
 
     /**

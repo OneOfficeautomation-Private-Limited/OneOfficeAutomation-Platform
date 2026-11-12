@@ -85,6 +85,10 @@ final class ModelConnections {
         // Settings > AI (item 4n): an administrator can switch AI off for every agent; then no step calls a model
         if (Boolean.TRUE.equals(guardrails(ctx).get("disabled")))
             throw new ActionException("AI.DISABLED", "AI is switched off in One CommandCenter", "Ask an administrator to switch it on (Administration > Settings > AI).");
+        // I1 (command review, batch 9): a step that names no connection and sets no key, model or address of its own
+        // uses the organisation's default model connection, so keys stay in Model connections, not in steps
+        if ((connection == null || connection.isBlank()) && key == null && (model == null || model.isBlank()) && (base == null || base.isBlank())
+                && all(ctx).get("default") instanceof String d && !d.isBlank()) connection = "default";
         Map<String, Object> c = find(ctx, connection);
         // the folder's AI guardrails: only the models allowed, and personal data always masked
         Map<String, Object> g = guardrails(ctx);

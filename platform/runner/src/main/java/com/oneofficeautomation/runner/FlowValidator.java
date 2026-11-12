@@ -79,6 +79,12 @@ public final class FlowValidator {
                     else if (!List.of("Dictionary", "Any").contains(String.valueOf(declared.get(as).get("type"))))
                         p.add(null, "onError/as", "Error handler variable '" + as + "' must be a Dictionary, not " + declared.get(as).get("type"), "Make '" + as + "' a Dictionary variable.");
                 }
+                // the message and line number (usage review item 20), as a Catch's
+                for (String k : List.of("message_to", "line_to"))
+                    if (h.get(k) instanceof String v && !v.isBlank()) {
+                        if (Runner.RESERVED.contains(v)) p.add(null, "onError/" + k, "Cannot store the error in the built-in variable '" + v + "'", "Choose one of your own variables.");
+                        else if (!declared.containsKey(v)) p.add(null, "onError/" + k, "Error handler variable '" + v + "' is not declared", "Declare the variable, or choose + New variable in the field.");
+                    }
                 if (h.get("then") != null && !List.of("fail", "succeed").contains(String.valueOf(h.get("then"))))
                     p.add(null, "onError/then", "onError.then must be 'fail' or 'succeed', got '" + h.get("then") + "'", "Use fail (the default) to end the run failed with the original error.");
             }
@@ -277,6 +283,7 @@ public final class FlowValidator {
 
     /** Unknown, missing and literal values of an action, condition or loop type, against its manifest. */
     private static void checkArgs(P p, String sid, String prefix, String what, ActionSpec spec, Map<String, Object> args, boolean connection, boolean dynamicArgs) {
+        args = spec.currentArgs(args);   // K8: a renamed input's former name is still accepted
         for (String k : args.keySet())
             if (spec.input(k).isEmpty()) p.add(sid, prefix + k, "Unknown input '" + k + "' for " + what,
                     "Valid inputs: " + (spec.inputs().isEmpty() ? "none" : String.join(", ", spec.inputs().stream().map(ActionSpec.InputSpec::name).toList())) + ".");

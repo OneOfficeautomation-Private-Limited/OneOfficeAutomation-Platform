@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CredentialExpiry, CrApi, CrUser, VaultCredential, VaultFolder, VaultRequest, VaultStatus } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 
 /**
  * Administration > Credential vault, built as AA's Credentials page (checked against AA's docs, UiPath's credential
@@ -393,7 +393,7 @@ function CredentialPage({ api, folder, name, onClose, onChanged }: { api: CrApi;
   }, (e) => setError(message(e))), [api, folder.name, name]);
   useEffect(() => { read(); }, [read]);
   const run = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); setError(null); onChanged(done); await read(); } catch (e) { setError(message(e)); } };
-  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the vault" onClick={onClose}>×</button>;
+  const close = <CloseView onClick={onClose} to="the vault" />;
   if (!c) return <div className="cc-agent" role="dialog" aria-modal="false" aria-label={"Credential " + ref}><div className="cc-agent-head"><h1>{ref}</h1><span className="ov-fill" />{close}</div>
     {error ? <p className="st-alert" role="alert">{error}</p> : <p className="cc-none cc-agent-pad" role="status">Loading…</p>}</div>;
   const ownerEditable = writer(folder);
@@ -491,7 +491,7 @@ function FolderPage({ api, folder: l, onClose, onOpen, onChanged }: { api: CrApi
   const [asking, setAsking] = useState<null | "delete" | "unlink">(null);
   const run = async (fn: () => Promise<unknown>, done: string, close = false) => { try { await fn(); setError(null); onChanged(done, close); } catch (e) { setError(message(e)); } };
   const names = [...new Set(l.credentials.map((c) => c.name))].sort();
-  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the vault" onClick={onClose}>×</button>;
+  const close = <CloseView onClick={onClose} to="the vault" />;
   const more = [...(l.can_manage && !names.length ? [{ key: "delete", label: "Delete folder…", onSelect: () => setAsking("delete" as const) }] : [])];
   return (
     <div className="cc-agent" role="dialog" aria-modal="false" aria-label={"Vault folder " + l.name}>

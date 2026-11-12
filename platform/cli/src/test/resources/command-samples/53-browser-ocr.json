@@ -1,0 +1,27 @@
+[
+  {"command": "ooa.browser/extract_list", "name": "repeated items on a page become a table, one row per item", "requires": "browser",
+   "files": {"shop.html": "<html><body><div class='item'><h3><a href='/p/1'>Pen</a></h3><span class='price'>2.50</span></div><div class='item'><h3><a href='/p/2'>Ink</a></h3><span class='price'>7.00</span></div><div class='item'><h3><a href='/p/3'>Pad</a></h3><span class='price'>4.25</span></div></body></html>"},
+   "steps": [
+     {"action": "ooa.browser/open", "args": {"url": "{web}/shop.html", "headless": true, "engine": "playwright", "keep_open": false}},
+     {"action": "ooa.browser/extract_list", "args": {"selector": ".item", "fields": {"Name": "h3 a", "Price": ".price"}}, "out": {"table": "items", "count": "n"}},
+     {"action": "ooa.browser/close"}],
+   "expect": {"n": 3, "items": {"columns": ["Name", "Price"], "rows": [["Pen", "2.50"], ["Ink", "7.00"], ["Pad", "4.25"]]}}},
+  {"command": "ooa.browser/open_for_automation", "name": "starts a browser others can attach to, then Attach to open browser reads its tab", "requires": "browser",
+   "files": {"hello.html": "<html><head><title>Hello page</title></head><body>hello</body></html>"},
+   "steps": [
+     {"action": "ooa.browser/open_for_automation", "args": {"url": "{web}/hello.html", "port": 9339, "headless": true, "session": "started"}, "out": {"endpoint": "ep", "pid": "pid"}},
+     {"action": "core/try", "children": [
+       {"action": "ooa.browser/attach", "args": {"endpoint": "$ep", "session": "attached"}, "out": {"title": "title", "tab_count": "tabs"}},
+       {"action": "ooa.browser/close", "args": {"session": "attached"}}],
+      "finally": [{"action": "ooa.application/stop_program", "args": {"process_id": "$pid"}, "continueOnError": true}]}],
+   "expect": {"title": "Hello page"}},
+  {"command": "ooa.ocr/read_image", "name": "reads the words in a picture of a page (Windows OCR)", "requires": "windows",
+   "files": {"words.html": "<html><body style='background:#fff'><p style='font:48px Arial;color:#000;margin:40px'>Invoice 4711 approved</p></body></html>"},
+   "steps": [
+     {"action": "ooa.browser/open", "args": {"url": "{web}/words.html", "headless": true, "engine": "playwright", "keep_open": false}},
+     {"action": "ooa.browser/screenshot", "args": {"path": "{tmp}/words.png"}},
+     {"action": "ooa.browser/close"},
+     {"action": "ooa.ocr/read_image", "args": {"path": "{tmp}/words.png"}, "out": {"text": "t"}},
+     {"action": "ooa.string/count_occurrences", "args": {"text": "$t", "find": "4711"}, "out": {"count": "n"}}],
+   "expect": {"n": 1}}
+]

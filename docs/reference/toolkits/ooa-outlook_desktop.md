@@ -8,6 +8,7 @@ Toolkit `ooa.outlook_desktop`, version 1.0.0. Find, read, send, reply to, forwar
 
 - **Mailbox**: Delete email, Read email, Get folders, Find emails, Mark read or unread, Move email, Save attachments
 - **Send**: Forward email, Reply to email, Send email
+- **Loop types**: Each email in an Outlook folder
 
 ## Mailbox
 
@@ -41,7 +42,7 @@ Read one email: sender, recipients, subject, text and HTML body and attachment n
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `email` | Dictionary | id, subject, from, from_name, to, cc, received, unread, body, html_body, categories, attachment_names, folder. |
+| `email` | Dictionary | id, subject, from, from_name, to, cc, received, unread, body, html_body, categories, attachment_names, folder. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id. |
 
 *Time limit 60 s; safe to repeat; needs: desktop.*
 
@@ -90,6 +91,7 @@ List the newest emails in an Outlook folder, optionally only unread ones, by sub
 | --- | --- | --- |
 | `emails` | List | Emails, newest first: id, subject, from, from_name, to, received, unread, attachments, folder. |
 | `count` | Number | How many were found. |
+| `table` | Table | The same emails as a table, as the other mail services give it: id, from, subject, received, unread, has_attachments. |
 
 *Time limit 300 s; safe to repeat; needs: desktop.*
 
@@ -228,3 +230,26 @@ Send an email from Outlook, or keep it in Drafts for someone to check, with atta
 | `draft_id` | Text | The draft's id when it was kept as a draft, else empty. |
 
 *Time limit 120 s; needs: desktop.*
+
+## Loop types
+
+Used as the kind of loop in a Loop step.
+
+### Each email in an Outlook folder
+
+`ooa.outlook_desktop/emails` (loop type)
+
+Go through the emails matching the Find emails filters, one per turn: id, subject, from, from_name, to, received, unread, attachments, folder, or the whole email.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Folder | `folder` | Text | No | `Inbox` | Main | Folder path: Inbox, Sent Items, Drafts, or a folder below them, e.g. Inbox/Invoices. Example: `Inbox/Invoices` |
+| Unread only | `unread_only` | Yes/No | No | No | Main | Only unread emails. |
+| Subject contains | `subject_contains` | Text | No |  | Main | Only emails whose subject contains this text. |
+| From contains | `from_contains` | Text | No |  | Main | Only emails whose sender address or name contains this text. |
+| Received after | `received_after` | DateTime | No |  | Main | Only emails received after this date and time. |
+| Largest value | `max` | Number | No | `50` | Main | At most this many emails. Range: 1 to 5000 |
+| With body | `with_body` | Yes/No | No | No | Main | Give each email whole: text, HTML, recipients and attachment names (one more request per email); the email stays unread. Without it each email has id, from, subject, received, unread and has_attachments. |
+| Mailbox | `mailbox` | Text | No |  | Main | Another mailbox open in the runner's Outlook profile (its name or address), e.g. a shared mailbox; empty for the user's own. |

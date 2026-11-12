@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, HumanTask, TaskFormField } from "../api/cr";
 import { Button, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 
 /**
  * Manage > Task inbox, built as AA's Co-Pilot tasks and UiPath's Action Center (checked against their docs and Blue
@@ -159,7 +159,7 @@ function TaskDialog({ api, task: t, onClose, onDone }: { api: CrApi; task: Human
         <HelpButton topic={HELP_TASK} />
         {t.overdue && <span className="cc-pill is-failed"><span className="cc-pill-dot" />Overdue</span>}
         <span className="ov-fill" />
-        <button type="button" className="cc-list-icon" aria-label="Close" title="Close" onClick={onClose}>×</button>
+        <CloseView onClick={onClose} />
       </div>
       <div className="cc-run-body">
         {t.stages && t.stages.length > 1 && <StageBar stages={t.stages} current={t.stage ?? null} done={!!t.completed} />}

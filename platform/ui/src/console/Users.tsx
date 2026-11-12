@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrUser, Runner } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic } from "../components";
-import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { ROLE_NAMES, roleName } from "./roleNames";
 
 /**
@@ -340,7 +340,7 @@ function UserPage({ api, id, self, roles, runners, onClose, onChanged, onPasswor
   }, (e) => setError(message(e))), [api, id]);
   useEffect(() => { read(); }, [read]);
   const run = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); setError(null); onChanged(done); await read(); } catch (e) { setError(message(e)); } };
-  const close = <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the users" onClick={onClose}>×</button>;
+  const close = <CloseView onClick={onClose} to="the users" />;
   if (!u) return <div className="cc-agent" role="dialog" aria-modal="false" aria-label="User"><div className="cc-agent-head"><h1>User</h1><span className="ov-fill" />{close}</div>
     {error ? <p className="st-alert" role="alert">{error}</p> : <p className="cc-none cc-agent-pad" role="status">Loading…</p>}</div>;
 

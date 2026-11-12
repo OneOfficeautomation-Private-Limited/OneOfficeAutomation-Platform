@@ -55,10 +55,37 @@ public final class ActiveDirectoryPackage {
     static final class JndiDirectory implements Directory {
         final LdapContext c;
         JndiDirectory(LdapContext c) { this.c = c; }
+        /** Entries a page (K4, batch 10): Active Directory returns at most 1,000 entries to a search that is not paged. */
+        static int PAGE = 500;   // tests make it smaller
+
+        /**
+         * Reads page by page (the paged results control, which every Active Directory and most LDAP servers support;
+         * a server without it answers in one go), stopping after the search's count limit with SizeLimitExceededException.
+         */
         @Override public void search(String base, String filter, SearchControls sc, Consumer<Entry> each) throws NamingException {
-            NamingEnumeration<SearchResult> r = c.search(new LdapName(base), filter, sc);
-            try { while (r.hasMore()) { SearchResult e = r.next(); each.accept(new Entry(e.getNameInNamespace(), e.getAttributes())); } }
-            finally { r.close(); }
+            long limit = sc.getCountLimit(), n = 0;
+            SearchControls all = new SearchControls(sc.getSearchScope(), 0, sc.getTimeLimit(), sc.getReturningAttributes(), false, false);
+            javax.naming.ldap.Control[] before = c.getRequestControls();
+            byte[] cookie = null;
+            try {
+                do {
+                    try { c.setRequestControls(new javax.naming.ldap.Control[]{new javax.naming.ldap.PagedResultsControl(PAGE, cookie, javax.naming.ldap.Control.NONCRITICAL)}); }
+                    catch (java.io.IOException e) { throw new NamingException("Cannot ask for pages: " + e.getMessage()); }
+                    NamingEnumeration<SearchResult> r = c.search(new LdapName(base), filter, all);
+                    try {
+                        while (r.hasMore()) {
+                            SearchResult e = r.next();
+                            if (limit > 0 && n >= limit) throw new SizeLimitExceededException("More than " + limit + " entries");
+                            each.accept(new Entry(e.getNameInNamespace(), e.getAttributes()));
+                            n++;
+                        }
+                    } finally { r.close(); }
+                    cookie = null;
+                    javax.naming.ldap.Control[] answer = c.getResponseControls();
+                    if (answer != null) for (javax.naming.ldap.Control x : answer)
+                        if (x instanceof javax.naming.ldap.PagedResultsResponseControl prc) cookie = prc.getCookie();
+                } while (cookie != null && cookie.length > 0);
+            } finally { c.setRequestControls(before); }
         }
         @Override public Attributes read(String dn, String[] attributes) throws NamingException { return c.getAttributes(new LdapName(dn), attributes); }
         @Override public void modify(String dn, ModificationItem[] items) throws NamingException { c.modifyAttributes(new LdapName(dn), items); }
@@ -113,35 +140,105 @@ public final class ActiveDirectoryPackage {
     private static AdSession s(ActionContext ctx, String name) { return ctx.session(name, AdSession.class); }
 
     @Action(id = "connect", name = "Connect", category = "Directory", capabilities = "network", description = "Sign in to Active Directory or an LDAP server.",
-            panel = "session, url, base_dn, bind_user, password | connect_timeout_seconds, read_timeout_seconds, follow_referrals")
+            panel = "session, url, base_dn, bind_user, password | start_tls, ca_file, connect_timeout_seconds, read_timeout_seconds, follow_referrals")
     public Map<String, Object> connect(ActionContext ctx,
-            @Input(name = "url", type = OoaType.STRING, pattern = "^ldaps?://", example = "ldaps://dc01.corp.example.com:636", description = "Server URL; use ldaps:// for password changes.") String url,
+            @Input(name = "url", type = OoaType.STRING, pattern = "^[Ll][Dd][Aa][Pp][Ss]?://", example = "ldaps://dc01.corp.example.com:636",
+                    description = "Server address. ldaps:// (or ldap:// with StartTLS) is recommended for everything and needed for password changes. "
+                            + "AA's form LDAP://dc01/DC=corp,DC=example,DC=com is accepted; the part after the host is the base DN.") String url,
             @Input(name = "bind_user", type = OoaType.STRING, example = "svc-bot@corp.example.com", description = "User to sign in as (UPN or distinguished name).") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "Password from the vault.") SecureString password,
-            @Input(name = "base_dn", type = OoaType.STRING, example = "DC=corp,DC=example,DC=com", description = "Where searches start.") String baseDn,
+            @Input(name = "base_dn", type = OoaType.STRING, required = false, example = "DC=corp,DC=example,DC=com", description = "Where searches start; taken from the address when it has one.") String baseDn,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = "Session name.") String session,
             @Input(name = "connect_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "Seconds to wait for the server to accept the connection.") int connectTimeout,
             @Input(name = "read_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds to wait for each answer from the server.") int readTimeout,
-            @Input(name = "follow_referrals", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Follow referrals to other domain controllers; turn off to ignore them.") boolean referrals) {
+            @Input(name = "follow_referrals", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Follow referrals to other domain controllers; turn off to ignore them.") boolean referrals,
+            @Input(name = "start_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Encrypt an ldap:// connection with StartTLS before signing in (for domain controllers that require signing or encryption).") boolean startTls,
+            @Input(name = "ca_file", type = OoaType.FILE, required = false,
+                    description = "Certificate of the company CA that issued the domain controller's certificate (PEM or DER), when it is not in the Windows certificate store.") String caFile) {
         if (connectTimeout < 1 || connectTimeout > 600 || readTimeout < 1 || readTimeout > 3600)
             throw new ActionException("AD.BAD_TIMEOUT", "Timeouts must be 1-600 s (connect) and 1-3600 s (read)");
-        try { ctx.sessions().put(session, new AdSession(new JndiDirectory(new InitialLdapContext(environment(url, user, password, connectTimeout, readTimeout, referrals), null)), baseDn)); }
-        catch (NamingException e) { throw ad(e); }
+        String[] addr = address(url, baseDn);
+        boolean ldaps = addr[0].startsWith("ldaps://");
+        if (startTls && ldaps) throw new ActionException("AD.BAD_OPTION", "StartTLS is for ldap:// addresses; ldaps:// is already encrypted", "Turn StartTLS off, or use ldap://.");
+        java.nio.file.Path ca = caFile == null || caFile.isBlank() ? null : ctx.resolvePath(caFile);
+        if (ca != null && !java.nio.file.Files.isRegularFile(ca)) throw new ActionException("FILE.NOT_FOUND", "CA certificate not found: " + ca, "Check the path.");
+        Thread t = Thread.currentThread();
+        ClassLoader before = t.getContextClassLoader();
+        DirectoryTrust.CA_FILE.set(ca);
+        t.setContextClassLoader(DirectoryTrust.class.getClassLoader());   // JNDI loads the socket factory by its name
+        try {
+            LdapContext c;
+            if (startTls) {
+                Hashtable<String, Object> env = environment(addr[0], null, null, connectTimeout, readTimeout, referrals);
+                env.put(Context.SECURITY_AUTHENTICATION, "none");
+                c = new InitialLdapContext(env, null);
+                try {
+                    javax.naming.ldap.StartTlsResponse tls = (javax.naming.ldap.StartTlsResponse) c.extendedOperation(new javax.naming.ldap.StartTlsRequest());
+                    tls.negotiate((javax.net.ssl.SSLSocketFactory) DirectoryTrust.getDefault());
+                } catch (java.io.IOException | NamingException e) {
+                    c.close();
+                    throw new ActionException("AD.TLS_FAILED", "StartTLS failed: " + e.getMessage(), "Check that the server offers StartTLS and that its certificate is trusted (ca_file).");
+                }
+                c.addToEnvironment(Context.SECURITY_AUTHENTICATION, "simple");
+                c.addToEnvironment(Context.SECURITY_PRINCIPAL, user);
+                c.addToEnvironment(Context.SECURITY_CREDENTIALS, password.reveal());
+                c.getAttributes("", new String[]{"namingContexts"});   // signs in now, over the encrypted connection
+            } else {
+                c = new InitialLdapContext(environment(addr[0], user, password, connectTimeout, readTimeout, referrals), null);
+            }
+            ctx.sessions().put(session, new AdSession(new JndiDirectory(c), addr[1]));
+        } catch (NamingException e) {
+            if (e.getRootCause() instanceof javax.net.ssl.SSLException || e.getRootCause() instanceof java.security.cert.CertificateException
+                    || String.valueOf(e.getMessage()).contains("PKIX"))
+                throw new ActionException("AD.CERTIFICATE_NOT_TRUSTED", "The domain controller's certificate is not trusted: " + e.getMessage(),
+                        "Add the company CA's certificate to the Windows certificate store (Trusted Root), or give it in ca_file.");
+            throw ad(e);
+        } finally {
+            t.setContextClassLoader(before);
+            DirectoryTrust.CA_FILE.remove();
+        }
         return Map.of();
     }
 
-    /** Earlier signature, kept for callers written before the timeout options. */
+    /** Earlier signatures, kept for callers written before the timeout and security options. */
     public Map<String, Object> connect(ActionContext ctx, String url, String user, SecureString password, String baseDn, String session) {
         return connect(ctx, url, user, password, baseDn, session, 10, 30, true);
+    }
+
+    public Map<String, Object> connect(ActionContext ctx, String url, String user, SecureString password, String baseDn, String session, int connectTimeout, int readTimeout, boolean referrals) {
+        return connect(ctx, url, user, password, baseDn, session, connectTimeout, readTimeout, referrals, false, null);
+    }
+
+    /**
+     * The server address (scheme in lower case, no path) and the base DN: the one given, else the path of the address
+     * (AA's LDAP://host/DC=corp,DC=com). Fails when neither has one.
+     */
+    static String[] address(String url, String baseDn) {
+        String u = url == null ? "" : url.strip();
+        if (!u.matches("(?i)^ldaps?://.+")) throw new ActionException("AD.BAD_URL", "'" + url + "' is not an LDAP address", "Example: ldaps://dc01.corp.example.com:636 or LDAP://dc01/DC=corp,DC=com.");
+        String scheme = u.substring(0, u.indexOf("://")).toLowerCase(Locale.ROOT);
+        String rest = u.substring(u.indexOf("://") + 3);
+        int slash = rest.indexOf('/');
+        String host = slash < 0 ? rest : rest.substring(0, slash);
+        String path = slash < 0 ? "" : java.net.URLDecoder.decode(rest.substring(slash + 1), StandardCharsets.UTF_8).strip();
+        String base = baseDn != null && !baseDn.isBlank() ? baseDn.strip() : path;
+        if (base.isBlank()) throw new ActionException("AD.NO_BASE_DN", "Say where searches start (base_dn)", "Example: DC=corp,DC=example,DC=com, or put it in the address: LDAP://dc01/DC=corp,DC=com.");
+        if (host.isBlank()) throw new ActionException("AD.BAD_URL", "The address has no server name", "Example: ldaps://dc01.corp.example.com:636.");
+        return new String[]{scheme + "://" + host, base};
     }
 
     static Hashtable<String, Object> environment(String url, String user, SecureString password, int connectTimeout, int readTimeout, boolean referrals) {
         Hashtable<String, Object> env = new Hashtable<>();
         env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
         env.put(Context.PROVIDER_URL, url);
-        env.put(Context.SECURITY_AUTHENTICATION, "simple");
-        env.put(Context.SECURITY_PRINCIPAL, user);
-        env.put(Context.SECURITY_CREDENTIALS, password.reveal());
+        // ldaps:// trusts the Windows store and the CA file as well as Java's list (K6, batch 10)
+        if (url.toLowerCase(Locale.ROOT).startsWith("ldaps://")) env.put("java.naming.ldap.factory.socket", DirectoryTrust.class.getName());
+        if (user != null) {
+            env.put(Context.SECURITY_AUTHENTICATION, "simple");
+            env.put(Context.SECURITY_PRINCIPAL, user);
+            env.put(Context.SECURITY_CREDENTIALS, password.reveal());
+        }
         env.put("com.sun.jndi.ldap.connect.timeout", String.valueOf(connectTimeout * 1000));
         env.put("com.sun.jndi.ldap.read.timeout", String.valueOf(readTimeout * 1000));
         env.put(Context.REFERRAL, referrals ? "follow" : "ignore");
@@ -188,7 +285,7 @@ public final class ActiveDirectoryPackage {
                 try { for (String n : names) row.add(attrValue(e.attributes().get(n))); } catch (NamingException x) { throw new IllegalStateException(x); }
                 rows.add(row);
             });
-        } catch (SizeLimitExceededException e) { ctx.warn("Search stopped at " + max + " results");
+        } catch (SizeLimitExceededException e) { ctx.warn("Search stopped at " + rows.size() + " results (max_results); there are more");
         } catch (InvalidSearchFilterException e) { throw new ActionException("AD.BAD_FILTER", "Invalid LDAP filter: " + filter, "Example: (&(objectClass=user)(sAMAccountName=jdoe))");
         } catch (NamingException e) { throw ad(e); }
         return Out.of("table", Values.table(cols, rows), "count", BigDecimal.valueOf(rows.size()));
@@ -902,7 +999,7 @@ public final class ActiveDirectoryPackage {
                         rows.add(new ArrayList<>(Arrays.asList(e.dn(), attrValue(e.attributes().get("cn")), attrValue(e.attributes().get("sAMAccountName")), type == null ? null : String.valueOf(type), attrValue(e.attributes().get("mail")))));
                     } catch (NamingException x) { throw new IllegalStateException(x); }
                 });
-            } catch (SizeLimitExceededException e) { ctx.warn("Stopped at " + max + " members"); }
+            } catch (SizeLimitExceededException e) { ctx.warn("Stopped at " + rows.size() + " members (max_results); there are more"); }
             if (rows.isEmpty() && !recursive) {
                 // directories that do not keep memberOf (OpenLDAP without the overlay, test servers): read the group's own member list
                 Attribute members = s.dir.read(dn, new String[]{"member"}).get("member");

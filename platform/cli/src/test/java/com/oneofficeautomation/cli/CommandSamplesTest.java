@@ -91,7 +91,7 @@ class CommandSamplesTest {
     Stream<DynamicTest> samples() throws Exception {
         Path dir = Path.of("src/test/resources/command-samples");
         List<DynamicTest> tests = new ArrayList<>();
-        Runner runner = Runner.builder(FirstPartyPackages.registry()).workDir(tmpRoot).build();
+        Runner runner = Runner.builder(registry()).workDir(tmpRoot).build();
         // as a Bot Agent does when it starts: PDF's font list is made in the background while the first files run (on a
         // fresh Windows CI machine it took over 300 s, and the first PDF sample timed out waiting for it)
         FirstPartyPackages.warmUp();
@@ -182,8 +182,13 @@ class CommandSamplesTest {
         String json = JsonLite.write(raw).replace("{mock}", mockBase).replace("{ldap}", ldapUrl).replace("{tmp}", tmp.toString().replace('\\', '/'))
                 .replace("{web}", JsonLite.write(raw).contains("{web}") ? webBase() + "/" + tmp.getFileName() : "")
                 .replace("\"{smtp_port}\"", mail == null ? "0" : String.valueOf(mail.getSmtp().getPort()))
-                .replace("\"{imap_port}\"", mail == null ? "0" : String.valueOf(mail.getImap().getPort()));
+                .replace("\"{imap_port}\"", mail == null ? "0" : String.valueOf(mail.getImap().getPort()))
+                // requires "ssh": the in-process VT host of the terminal samples (user agent, password test/mail/password)
+                .replace("\"{ssh_port}\"", requires.equals("ssh") ? String.valueOf(SampleSshHost.port()) : "0")
+                // requires "ftp": the in-process FTP server of the file transfer samples (user agent, password test/mail/password)
+                .replace("\"{ftp_port}\"", requires.equals("ftp") ? String.valueOf(ftpPort()) : "0");
         try {
+            if (requires.equals("internet")) { runOnOutsideSite(runner, raw, json, label, tmp); return; }
             runCase(runner, (Map<String, Object>) JsonLite.parse(json), label, tmp);
             // "expectRequests": ["METHOD /path text that must appear in the request line or body", ...] in order
             List<String> want = (List<String>) ((Map<String, Object>) JsonLite.parse(json)).getOrDefault("expectRequests", List.of());
@@ -201,7 +206,44 @@ class CommandSamplesTest {
         }
     }
 
+    /**
+     * A sample on a public website (command review B1, 11 Nov 2026): a third-party site has bad days (slow, a changed
+     * page, too many visitors), so a failure is tried once more in a fresh folder; when it fails again it is recorded as
+     * "outside site" with its message and skipped, so it never turns the whole suite red. The results file lists those
+     * apart, for a person to look at.
+     */
+    @SuppressWarnings("unchecked")
+    static void runOnOutsideSite(Runner runner, Map<String, Object> raw, String json, String label, Path tmp) throws Exception {
+        try { runCase(runner, (Map<String, Object>) JsonLite.parse(json), label, tmp); return; }
+        catch (AssertionError | RuntimeException first) {
+            System.out.println("    " + label + ": failed on the outside site, trying once more: " + first.getMessage());
+        }
+        Path again = Files.createTempDirectory(tmpRoot, "case");
+        try { runCase(runner, (Map<String, Object>) JsonLite.parse(json.replace(tmp.toString().replace('\\', '/'), again.toString().replace('\\', '/'))), label, again); }
+        catch (AssertionError | RuntimeException twice) {
+            String why = "outside site: " + raw.get("probe") + " failed twice: " + twice.getMessage();
+            RESULTS.removeIf(r -> Objects.equals(r.get("command"), raw.get("command")) && Objects.equals(r.get("name"), raw.getOrDefault("name", "")) && "fail".equals(r.get("check")));
+            RESULTS.add(new LinkedHashMap<>(Map.of("command", raw.get("command"), "name", raw.getOrDefault("name", ""), "check", "outside site", "detail", why)));
+            org.junit.jupiter.api.Assumptions.abort(why);
+        }
+    }
+
     static final String MAIL_USER = "bot@sample.test", MAIL_PASSWORD = "sample-mail-pass";
+
+    /**
+     * One toolkit registry for every case. Cases with credentials or child agents need their own vault and runner, not
+     * their own registry: building one per case kept about a hundred registries reachable until the class ended
+     * (MERGE-1), and the mail samples of batch 7 took the test JVM past 3 GB.
+     */
+    private static com.oneofficeautomation.sdk.PackageRegistry registry;
+    static int ftpPort() {
+        try { return SampleFtpHost.port(); } catch (Exception e) { throw new IllegalStateException("The sample FTP server did not start: " + e.getMessage(), e); }
+    }
+
+    static synchronized com.oneofficeautomation.sdk.PackageRegistry registry() {
+        if (registry == null) registry = FirstPartyPackages.registry();
+        return registry;
+    }
 
     /**
      * A use case: a whole agent file (examples/use-cases) run with its folder copied into the case folder.
@@ -226,7 +268,7 @@ class CommandSamplesTest {
             String[] ref = e.getKey().split("/");
             vault.put(ref[0], ref[1], ref[2], String.valueOf(e.getValue()));
         }
-        Runner runner = Runner.builder(FirstPartyPackages.registry()).workDir(tmp).service("vault", vault).build();
+        Runner runner = Runner.builder(registry()).workDir(tmp).service("vault", vault).build();
         if (cs.get("setup") instanceof List<?> setup) {
             List<Map<String, Object>> steps = (List<Map<String, Object>>) setup;
             collect(steps, new LinkedHashSet<>(), new int[]{0});
@@ -324,9 +366,12 @@ class CommandSamplesTest {
                 String[] ref = e.getKey().split("/");
                 vault.put(ref[0], ref[1], ref[2], String.valueOf(e.getValue()));
             }
-            Runner.Builder b = Runner.builder(FirstPartyPackages.registry()).workDir(tmp).service("vault", vault);
+            Runner.Builder b = Runner.builder(registry()).workDir(tmp).service("vault", vault);
             if (agents) b.service("repository", (com.oneofficeautomation.runner.AutomationRepository) (aid, version) -> (Map<String, Object>) ((Map<String, Object>) cs.get("agents")).get(aid));
-            runner = b.build();
+            Runner built = b.build();
+            // AI agents call the sample's agents as tools, as in Studio (StudioServer.runner)
+            if (agents) b.service("bot_invoker", (com.oneofficeautomation.runner.BotInvoker) (aid, in) -> built.run((Map<String, Object>) ((Map<String, Object>) cs.get("agents")).get(aid), in));
+            runner = agents ? b.build() : built;
         }
         RunResult r = runner.run(flow, inputs);
         Map<String, Object> result = new LinkedHashMap<>();
