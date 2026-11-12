@@ -368,7 +368,10 @@ class CommandSamplesTest {
             }
             Runner.Builder b = Runner.builder(registry()).workDir(tmp).service("vault", vault);
             if (agents) b.service("repository", (com.oneofficeautomation.runner.AutomationRepository) (aid, version) -> (Map<String, Object>) ((Map<String, Object>) cs.get("agents")).get(aid));
-            runner = b.build();
+            Runner built = b.build();
+            // AI agents call the sample's agents as tools, as in Studio (StudioServer.runner)
+            if (agents) b.service("bot_invoker", (com.oneofficeautomation.runner.BotInvoker) (aid, in) -> built.run((Map<String, Object>) ((Map<String, Object>) cs.get("agents")).get(aid), in));
+            runner = agents ? b.build() : built;
         }
         RunResult r = runner.run(flow, inputs);
         Map<String, Object> result = new LinkedHashMap<>();
