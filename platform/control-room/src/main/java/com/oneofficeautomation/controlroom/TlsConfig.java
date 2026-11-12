@@ -32,7 +32,7 @@ public final class TlsConfig {
     public static TlsConfig load(Path file) {
         TlsConfig c = new TlsConfig(file);
         try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) { c.p.load(r); }
-        catch (Exception e) { throw new OoaException("CR.TLS_CONFIG", "Cannot read " + file + ": " + e.getMessage()); }
+        catch (Exception e) { throw new OoaException("CR.TLS_CONFIG", "Cannot read " + file + ": " + e.getMessage(), "Correct the HTTPS settings (ooa-tls.properties: keystore, its password and alias) and restart the service."); }
         if (c.keystore().toString().isEmpty() || !Files.exists(c.keystore()))
             throw new OoaException("CR.TLS_CONFIG", "The certificate file " + c.keystore() + " named in " + file + " does not exist", "Run: ooa tls configure --pfx FILE");
         return c;
@@ -46,7 +46,7 @@ public final class TlsConfig {
         if (v.startsWith("enc:")) return vault.decrypt(v.substring(4), "ooa-tls:password");
         if (v.startsWith("env:")) {
             String e = System.getenv(v.substring(4));
-            if (e == null) throw new OoaException("CR.TLS_CONFIG", "The environment variable " + v.substring(4) + " is not set");
+            if (e == null) throw new OoaException("CR.TLS_CONFIG", "The environment variable " + v.substring(4) + " is not set", "Set the environment variable for the service's account, then restart the service.");
             return e;
         }
         throw new OoaException("CR.TLS_CONFIG", "The certificate password in " + file + " is missing or in clear text", "Run: ooa tls set-password");
@@ -74,7 +74,7 @@ public final class TlsConfig {
             ctx.init(kmf.getKeyManagers(), null, null);
             return ctx;
         } catch (OoaException e) { throw e; }
-        catch (Exception e) { throw new OoaException("CR.TLS_CONFIG", "The certificate cannot be used for HTTPS: " + e.getMessage()); }
+        catch (Exception e) { throw new OoaException("CR.TLS_CONFIG", "The certificate cannot be used for HTTPS: " + e.getMessage(), "Correct the HTTPS settings (ooa-tls.properties: keystore, its password and alias) and restart the service."); }
     }
 
     /** The server certificate (no private key) in PEM form, for runners ("ooa agent register --ca") and browsers to trust. */
@@ -86,9 +86,9 @@ public final class TlsConfig {
                 String b64 = Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.US_ASCII)).encodeToString(ks.getCertificate(alias).getEncoded());
                 return "-----BEGIN CERTIFICATE-----\n" + b64 + "\n-----END CERTIFICATE-----\n";
             }
-            throw new OoaException("CR.TLS_CONFIG", "The file " + keystore() + " holds no private key");
+            throw new OoaException("CR.TLS_CONFIG", "The file " + keystore() + " holds no private key", "Correct the HTTPS settings (ooa-tls.properties: keystore, its password and alias) and restart the service.");
         } catch (OoaException e) { throw e; }
-        catch (Exception e) { throw new OoaException("CR.TLS_CONFIG", "Cannot read the certificate: " + e.getMessage()); }
+        catch (Exception e) { throw new OoaException("CR.TLS_CONFIG", "Cannot read the certificate: " + e.getMessage(), "Correct the HTTPS settings (ooa-tls.properties: keystore, its password and alias) and restart the service."); }
     }
 
     /** Subject, alternative names and validity of the server certificate (the first key entry). */
@@ -109,8 +109,8 @@ public final class TlsConfig {
                 m.put("self_signed", c.getSubjectX500Principal().equals(c.getIssuerX500Principal()));
                 return m;
             }
-            throw new OoaException("CR.TLS_CONFIG", "The file " + keystore() + " holds no private key");
+            throw new OoaException("CR.TLS_CONFIG", "The file " + keystore() + " holds no private key", "Correct the HTTPS settings (ooa-tls.properties: keystore, its password and alias) and restart the service.");
         } catch (OoaException e) { throw e; }
-        catch (Exception e) { throw new OoaException("CR.TLS_CONFIG", "Cannot read the certificate: " + e.getMessage()); }
+        catch (Exception e) { throw new OoaException("CR.TLS_CONFIG", "Cannot read the certificate: " + e.getMessage(), "Correct the HTTPS settings (ooa-tls.properties: keystore, its password and alias) and restart the service."); }
     }
 }

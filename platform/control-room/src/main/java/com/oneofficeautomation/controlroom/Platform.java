@@ -856,7 +856,7 @@ public final class Platform {
         if (queue == null) throw notFound("Queue");
         requireQueue(by, qid, "add", "add work items to this queue");
         if (items == null || items.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Send at least one item");
-        if (items.size() > 10000) throw new OoaException("CR.TOO_LARGE", "Add at most 10,000 items at a time");
+        if (items.size() > 10000) throw new OoaException("CR.TOO_LARGE", "Add at most 10,000 items at a time", "Add the items in parts of at most 10,000.");
         List<Map<String, Object>> fields = modelFields((String) queue.get("model_id"));
         boolean encrypt = queueTools.encrypted(qid);
         List<String> ids = new ArrayList<>();
@@ -961,7 +961,7 @@ public final class Platform {
         String name = String.valueOf(m.getOrDefault("name", "")).trim();
         if (name.isEmpty() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "Model names have 1 to 120 characters");
         if (!(m.get("fields") instanceof List<?> list) || list.isEmpty()) throw new OoaException("CR.BAD_INPUT", "A model has at least one field");
-        if (list.size() > 100) throw new OoaException("CR.TOO_LARGE", "A model has at most 100 fields");
+        if (list.size() > 100) throw new OoaException("CR.TOO_LARGE", "A model has at most 100 fields", "Keep a work item model to at most 100 fields.");
         List<Map<String, Object>> fields = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (Object o : list) {
@@ -989,9 +989,9 @@ public final class Platform {
                 for (Map<String, Object> f : fields) {
                     Map<String, Object> b = before.remove(String.valueOf(f.get("name")));
                     if (b == null ? Boolean.TRUE.equals(f.get("required")) : !Objects.equals(b.get("type"), f.get("type")) || (!Boolean.TRUE.equals(b.get("required")) && Boolean.TRUE.equals(f.get("required"))))
-                        throw new OoaException("CR.CONFLICT", "Queues with work items use this model: field '" + f.get("name") + "' cannot become required or change type");
+                        throw new OoaException("CR.CONFLICT", "Queues with work items use this model: field '" + f.get("name") + "' cannot become required or change type", "Add a new optional field instead, or make a new model for new queues.");
                 }
-                if (!before.isEmpty()) throw new OoaException("CR.CONFLICT", "Queues with work items use this model: fields " + before.keySet() + " cannot be removed");
+                if (!before.isEmpty()) throw new OoaException("CR.CONFLICT", "Queues with work items use this model: fields " + before.keySet() + " cannot be removed", "Keep the fields; queues with items still use them.");
             }
             db.update("UPDATE work_item_models SET name = ?, description = ?, fields = ? WHERE id = ?", name, m.get("description"), JsonLite.write(fields), id);
         }
@@ -1022,31 +1022,31 @@ public final class Platform {
             known.add(n);
             Object v = data.get(n);
             if (v == null || (v instanceof String sv && sv.isEmpty())) {
-                if (Boolean.TRUE.equals(f.get("required"))) throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' is required");
+                if (Boolean.TRUE.equals(f.get("required"))) throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' is required", "Fill in the field the message names.");
                 continue;
             }
             out.put(n, switch (String.valueOf(f.get("type"))) {
                 case "number" -> {
                     if (v instanceof Number) yield v;
                     try { yield new java.math.BigDecimal(String.valueOf(v).trim()); }
-                    catch (NumberFormatException e) { throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' must be a number, not '" + v + "'"); }
+                    catch (NumberFormatException e) { throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' must be a number, not '" + v + "'", "Give a number in the field the message names."); }
                 }
                 case "boolean" -> {
                     if (v instanceof Boolean) yield v;
                     String t = String.valueOf(v).trim().toLowerCase(Locale.ROOT);
                     if (Set.of("true", "yes", "1").contains(t)) yield true;
                     if (Set.of("false", "no", "0").contains(t)) yield false;
-                    throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' must be true or false, not '" + v + "'");
+                    throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' must be true or false, not '" + v + "'", "Give true or false in the field the message names.");
                 }
                 case "date" -> {
                     String t = String.valueOf(v).trim();
                     try { LocalDate.parse(t.length() > 10 ? t.substring(0, 10) : t); yield t; }
-                    catch (DateTimeException e) { throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' must be a date like 2026-10-23, not '" + v + "'"); }
+                    catch (DateTimeException e) { throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' must be a date like 2026-10-23, not '" + v + "'", "Give the date as year-month-day, for example 2026-10-23."); }
                 }
                 default -> String.valueOf(v);
             });
         }
-        for (String k : data.keySet()) if (!known.contains(k)) throw new OoaException("CR.BAD_ITEM", where + ": '" + k + "' is not a field of the work item model");
+        for (String k : data.keySet()) if (!known.contains(k)) throw new OoaException("CR.BAD_ITEM", where + ": '" + k + "' is not a field of the work item model", "Remove the field, or add it to the work item model first.");
         return out;
     }
 
@@ -1155,7 +1155,7 @@ public final class Platform {
         if (changes.containsKey("reference") && i.get("unique_ref") != null) {
             String ref = changes.get("reference") == null ? null : String.valueOf(changes.get("reference"));
             if (ref != null && db.one("SELECT id FROM queue_items WHERE queue_id = ? AND reference = ? AND id <> ? LIMIT 1", qid, ref, itemId) != null)
-                throw new OoaException("CR.DUPLICATE_REFERENCE", "The queue already has an item with reference '" + ref + "'");
+                throw new OoaException("CR.DUPLICATE_REFERENCE", "The queue already has an item with reference '" + ref + "'", "Use a new reference, or update the item that has it.");
             db.update("UPDATE queue_items SET unique_ref = ? WHERE id = ?", ref, itemId);
         }
         if (changes.containsKey("reference")) db.update("UPDATE queue_items SET reference = ?, updated = ? WHERE id = ?", changes.get("reference") == null ? null : String.valueOf(changes.get("reference")), now(), itemId);
@@ -1230,7 +1230,7 @@ public final class Platform {
                 String v = c < row.size() ? row.get(c) : "";
                 String h = head.get(c);
                 if (h.equalsIgnoreCase("reference") || h.equals("_reference")) { if (!v.isEmpty()) item.put("_reference", v); }
-                else if (h.equalsIgnoreCase("priority") || h.equals("_priority")) { if (!v.isBlank()) try { item.put("_priority", Integer.parseInt(v.trim())); } catch (NumberFormatException e) { throw new OoaException("CR.BAD_ITEM", "Row " + (r + 1) + ": priority must be a whole number"); } }
+                else if (h.equalsIgnoreCase("priority") || h.equals("_priority")) { if (!v.isBlank()) try { item.put("_priority", Integer.parseInt(v.trim())); } catch (NumberFormatException e) { throw new OoaException("CR.BAD_ITEM", "Row " + (r + 1) + ": priority must be a whole number", "Give the priority as a whole number."); } }
                 else if (!h.isEmpty()) item.put(h, v);
             }
             items.add(item);
@@ -1618,7 +1618,7 @@ public final class Platform {
         requireQueue(by, qid, "process", "validate work items in this queue");
         Map<String, Object> i = db.one("SELECT * FROM queue_items WHERE id = ? AND queue_id = ?", itemId, qid);
         if (i == null) throw notFound("Work item");
-        if (!"review".equals(i.get("status"))) throw new OoaException("CR.CONFLICT", "The item is not waiting for validation");
+        if (!"review".equals(i.get("status"))) throw new OoaException("CR.CONFLICT", "The item is not waiting for validation", "Reload Agent Activity: the run has moved on, so this action no longer applies.");
         Map<String, Object> result = i.get("result") == null ? Map.of() : (Map<String, Object>) JsonLite.parse((String) i.get("result"));
         Map<String, Object> asked = result.get("validation") instanceof Map<?, ?> v && v.get("fields") instanceof Map<?, ?> f ? (Map<String, Object>) f : Map.of();
         if (Boolean.TRUE.equals(b.get("reject"))) {

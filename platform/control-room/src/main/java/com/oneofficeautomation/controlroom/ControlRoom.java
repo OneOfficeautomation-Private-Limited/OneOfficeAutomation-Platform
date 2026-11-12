@@ -223,7 +223,7 @@ public final class ControlRoom {
     public static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }
     public static Instant now() { return Instant.now().truncatedTo(ChronoUnit.MILLIS); }
     public static OoaException denied(String what) { return new OoaException("CR.FORBIDDEN", "You do not have permission to " + what, "Ask One CommandCenter administrator for the right role."); }
-    public static OoaException notFound(String what) { return new OoaException("CR.NOT_FOUND", what + " not found"); }
+    public static OoaException notFound(String what) { return new OoaException("CR.NOT_FOUND", what + " not found", "Reload the page and choose it again; it may have been renamed, moved or deleted."); }
 
     public void require(User u, String permission, String what) { if (!can(u, permission)) throw denied(what); }
 
@@ -316,7 +316,7 @@ public final class ControlRoom {
         Map<String, Object> r = db.one("SELECT * FROM users WHERE username = ?", username == null ? "" : username.trim());
         // no local account by that name, or an account from the directory: the directory checks the password
         if (directory.enabled() && (r == null || "ldap".equals(r.get("directory")))) return ldapLogin(username, password, code, ip);
-        OoaException bad = new OoaException("CR.LOGIN_FAILED", "Wrong user name or password", null);
+        OoaException bad = new OoaException("CR.LOGIN_FAILED", "Wrong user name or password", "Check the user name and password; after several tries the account is locked for a while.");
         if (r == null) { Security.hashPassword("timing".toCharArray()); audit.record(String.valueOf(username), "auth.login", "user", String.valueOf(username), null, "failed", ip); throw bad; }
         if (!Boolean.TRUE.equals(r.get("enabled"))) { audit.record(username, "auth.login", "user", username, "disabled", "failed", ip); throw new OoaException("CR.USER_DISABLED", "This account is disabled", "Contact your administrator."); }
         Object lu = r.get("locked_until");
@@ -439,7 +439,7 @@ public final class ControlRoom {
      */
     public Map<String, Object> tokenFromApiKey(String apiKey, String ip) {
         User u = apiKey == null || !apiKey.startsWith("ooak_") ? null : platform.apiKeyUser(apiKey);
-        if (u == null) { audit.record("api key", "auth.token", "user", null, null, "failed", ip); throw new OoaException("CR.LOGIN_FAILED", "Unknown, expired or revoked API key", null); }
+        if (u == null) { audit.record("api key", "auth.token", "user", null, null, "failed", ip); throw new OoaException("CR.LOGIN_FAILED", "Unknown, expired or revoked API key", "Make a new API key in Administration > Settings > API access and use it in place of the old one."); }
         Map<String, Object> r = db.one("SELECT * FROM users WHERE username = ?", u.username());
         audit.record(u.username(), "auth.token", "user", u.username(), Map.of("via", "api key"), "ok", ip);
         return newSession(r, ip);
@@ -449,7 +449,7 @@ public final class ControlRoom {
     public Map<String, Object> refreshToken(String token, User u, String ip) {
         if (token == null || token.startsWith("ooak_")) throw new OoaException("CR.BAD_INPUT", "Refresh a session token (an API key does not expire this way)");
         Map<String, Object> r = db.one("SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?", Security.sha256(token));
-        if (r == null) throw new OoaException("CR.UNAUTHENTICATED", "Please sign in", null);
+        if (r == null) throw new OoaException("CR.UNAUTHENTICATED", "Please sign in", "Sign in again; your session may have ended.");
         db.update("DELETE FROM sessions WHERE token_hash = ?", Security.sha256(token));
         audit.record(u.username(), "auth.refresh", "user", u.username(), null, "ok", ip);
         return newSession(r, ip);
@@ -565,11 +565,11 @@ public final class ControlRoom {
         if (audience.isEmpty()) throw new OoaException("CR.UNAUTHENTICATED", "MCP sign-in with OAuth is not set up", "An administrator sets the MCP audience in Settings > AI assistants.");
         Map<String, Object> claims;
         try { claims = sso.verify(jwt, audience, null); }
-        catch (OoaException e) { audit.record("mcp", "auth.mcp_oauth", "user", null, e.getMessage(), "failed", ip); throw new OoaException("CR.UNAUTHENTICATED", "The access token was refused: " + e.getMessage()); }
+        catch (OoaException e) { audit.record("mcp", "auth.mcp_oauth", "user", null, e.getMessage(), "failed", ip); throw new OoaException("CR.UNAUTHENTICATED", "The access token was refused: " + e.getMessage(), "Get a new access token (Administration > Settings > API access) and use it in place of the old one."); }
         String scope = String.valueOf(platform.setting("mcp_oauth_scope")).trim();
         if (!scope.isEmpty()) {
             String granted = claims.get("scp") instanceof String sc ? sc : claims.get("scope") instanceof String sc2 ? sc2 : "";
-            if (!Arrays.asList(granted.split("\\s+")).contains(scope)) throw new OoaException("CR.FORBIDDEN", "The access token lacks the scope " + scope);
+            if (!Arrays.asList(granted.split("\\s+")).contains(scope)) throw new OoaException("CR.FORBIDDEN", "The access token lacks the scope " + scope, "Make a token with the scope the message names, or ask an administrator to.");
         }
         Map<String, Object> r = db.one("SELECT * FROM users WHERE sso_subject = ?", claims.get("iss") + "|" + claims.get("sub"));
         for (String k : new String[] { "email", "preferred_username", "upn" }) {
@@ -577,7 +577,7 @@ public final class ControlRoom {
             if (claims.get(k) instanceof String v && !v.isBlank()) r = db.one("SELECT * FROM users WHERE LOWER(username) = ?", v.trim().toLowerCase(Locale.ROOT));
         }
         if (r == null) throw new OoaException("CR.UNAUTHENTICATED", "No One CommandCenter account belongs to this access token", "Sign in to One CommandCenter once with single sign-on, or ask an administrator for an account.");
-        if (!Boolean.TRUE.equals(r.get("enabled"))) throw new OoaException("CR.UNAUTHENTICATED", "This account is disabled");
+        if (!Boolean.TRUE.equals(r.get("enabled"))) throw new OoaException("CR.UNAUTHENTICATED", "This account is disabled", "Ask an administrator to enable your account in Administration > Users.");
         User u = user(r);
         licensing.checkSignIn(u);
         // signed in through the identity provider: the local first-time password change does not apply (as for SSO sign-in)
@@ -589,10 +589,10 @@ public final class ControlRoom {
         String[] p = ref.split("/");
         if (p.length != 3) throw new OoaException("CR.BAD_INPUT", "Use a vault reference: vault folder/credential/attribute");
         Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", p[0]);
-        if (l == null) throw new OoaException("VAULT.NOT_FOUND", "Vault folder " + p[0] + " not found");
+        if (l == null) throw new OoaException("VAULT.NOT_FOUND", "Vault folder " + p[0] + " not found", "Check the credential's name and folder in Manage > Credentials, and that the agent's user may use it.");
         if (l.get("external") != null) return readExternal(l, p[1], p[2]);
         Map<String, Object> c = db.one("SELECT ciphertext FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", p[0], p[1], p[2]);
-        if (c == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found");
+        if (c == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found", "Check the credential's name and folder in Manage > Credentials, and that the agent's user may use it.");
         audit.record("system", "credential.read", "credential", ref, Map.of("for", "command center"), "ok", null);
         return vault.decrypt((String) c.get("ciphertext"), ref);
     }
@@ -604,7 +604,7 @@ public final class ControlRoom {
      */
     public String recoverUser(String username) {
         Map<String, Object> r = db.one("SELECT id, role FROM users WHERE username = ?", username);
-        if (r == null) throw new OoaException("CR.NOT_FOUND", "There is no user called " + username);
+        if (r == null) throw new OoaException("CR.NOT_FOUND", "There is no user called " + username, "Check the user name in Administration > Users.");
         String temp = Security.token(12);
         db.update("UPDATE users SET password_hash = ?, must_change = TRUE, enabled = TRUE, failed = 0, locked_until = NULL WHERE id = ?",
                 Security.hashPassword(temp.toCharArray()), r.get("id"));
@@ -674,11 +674,11 @@ public final class ControlRoom {
         Map<String, Object> r = db.one("SELECT password_hash, password_history FROM users WHERE id = ?", u.id());
         if (!Security.verifyPassword(current == null ? new char[0] : current.toCharArray(), (String) r.get("password_hash"))) {
             audit.record(u.username(), "user.change_password", "user", u.username(), null, "failed", ip);
-            throw new OoaException("CR.LOGIN_FAILED", "The current password is wrong");
+            throw new OoaException("CR.LOGIN_FAILED", "The current password is wrong", "Type your current password again; Forgot password on the sign-in page resets it if you no longer know it.");
         }
         String problem = Security.passwordProblem(next, u.username(), platform.intSetting("password_min_length"),
                 platform.intSetting("password_needs_mixed_case") == 1, platform.intSetting("password_needs_symbol") == 1);
-        if (problem != null) throw new OoaException("CR.WEAK_PASSWORD", problem);
+        if (problem != null) throw new OoaException("CR.WEAK_PASSWORD", problem, "Choose a password that meets the rule the message names (Administration > Policies shows the password rules).");
         // a new password stays for at least password_min_days, unless it must be changed (a reset or an expired one)
         int minDays = platform.intSetting("password_min_days");
         Map<String, Object> when = db.one("SELECT password_changed, must_change FROM users WHERE id = ?", u.id());
@@ -686,12 +686,12 @@ public final class ControlRoom {
                 && Instant.parse(when.get("password_changed").toString()).isAfter(now().minus(Duration.ofDays(minDays))))
             throw new OoaException("CR.WEAK_PASSWORD", "A new password can be changed again after " + minDays + " day" + (minDays == 1 ? "" : "s") + ".",
                     "Ask an administrator to reset it if you must change it now.");
-        if (current.equals(next)) throw new OoaException("CR.WEAK_PASSWORD", "Choose a different password from the current one.");
+        if (current.equals(next)) throw new OoaException("CR.WEAK_PASSWORD", "Choose a different password from the current one.", "Choose a new password that differs from the current one.");
         // password history: none of the last N passwords again
         int keep = platform.intSetting("password_history");
         List<String> history = new ArrayList<>(r.get("password_history") == null || ((String) r.get("password_history")).isBlank() ? List.of() : List.of(((String) r.get("password_history")).split(",")));
         if (keep > 0) for (String old : history.subList(0, Math.min(keep, history.size())))
-            if (Security.verifyPassword(next.toCharArray(), old)) throw new OoaException("CR.WEAK_PASSWORD", "Choose a password you have not used for your last " + keep + " passwords.");
+            if (Security.verifyPassword(next.toCharArray(), old)) throw new OoaException("CR.WEAK_PASSWORD", "Choose a password you have not used for your last " + keep + " passwords.", "Choose a password you have not used recently.");
         history.add(0, (String) r.get("password_hash"));
         String kept = keep > 0 ? String.join(",", history.subList(0, Math.min(keep, history.size()))) : null;
         db.tx(() -> {
@@ -818,7 +818,7 @@ public final class ControlRoom {
                 String e = changes.get("email") == null ? "" : String.valueOf(changes.get("email")).strip().toLowerCase(Locale.ROOT);
                 if (!e.isEmpty() && (e.length() > 200 || !e.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))) throw new OoaException("CR.BAD_INPUT", "Not an e-mail address: " + e);
                 if (!e.isEmpty() && db.one("SELECT id FROM users WHERE LOWER(email) = ? AND id <> ?", e, userId) != null)
-                    throw new OoaException("CR.CONFLICT", "Another user has the e-mail address " + e);
+                    throw new OoaException("CR.CONFLICT", "Another user has the e-mail address " + e, "Use another e-mail address, or change the other user's address first.");
                 db.update("UPDATE users SET email = ? WHERE id = ?", e.isEmpty() ? null : e, userId);
             }
             for (String f : List.of("first_name", "last_name", "description")) {
@@ -945,7 +945,7 @@ public final class ControlRoom {
         if (v instanceof String label && !label.matches("^\\d+$")) {
             // a version label (for example UAT), set in the agent repository
             Map<String, Object> l = db.one("SELECT version FROM bot_labels WHERE path = ? AND label = ?", path, label);
-            if (l == null) throw new OoaException("CR.NOT_FOUND", "Agent " + path + " has no version labelled '" + label + "'");
+            if (l == null) throw new OoaException("CR.NOT_FOUND", "Agent " + path + " has no version labelled '" + label + "'", "Check the version labels on the agent's Versions tab, or use production or latest.");
             v = l.get("version");
         }
         if (v == null) throw new OoaException("CR.NO_PRODUCTION", "Agent " + path + " has no live production version", "Set a live production version in the agent repository.");
@@ -988,7 +988,7 @@ public final class ControlRoom {
         if (b == null) throw notFound("Agent " + path);
         if (b.get("locked_by") == null) return;
         if (!by.username().equals(b.get("locked_by")) && !can(by, "repo.production"))
-            throw new OoaException("CR.LOCKED", "Only " + b.get("locked_by") + " or an administrator can undo this check-out");
+            throw new OoaException("CR.LOCKED", "Only " + b.get("locked_by") + " or an administrator can undo this check-out", "Ask the person who checked it out to check it in, or ask an administrator to undo the check-out.");
         db.update("UPDATE bots SET locked_by = NULL, locked_at = NULL WHERE path = ?", path);
         audit.record(by.username(), "repo.undo_checkout", "bot", path, Map.of("was_locked_by", b.get("locked_by")), "ok", ip);
     }
@@ -1108,7 +1108,7 @@ public final class ControlRoom {
         folders.require(by, path, "edit", "delete agents");
         Map<String, Object> b = db.one("SELECT locked_by, deleted_at, bot_id FROM bots WHERE path = ?", path);
         if (b == null || b.get("deleted_at") != null) throw notFound("Agent " + path);
-        if (b.get("locked_by") != null && !by.username().equals(b.get("locked_by"))) throw new OoaException("CR.LOCKED", "Checked out by " + b.get("locked_by"));
+        if (b.get("locked_by") != null && !by.username().equals(b.get("locked_by"))) throw new OoaException("CR.LOCKED", "Checked out by " + b.get("locked_by"), "Ask the person who checked it out to check it in, or ask an administrator to undo the check-out.");
         List<String> users = new ArrayList<>();
         for (Map<String, Object> r : db.query("SELECT name FROM schedules WHERE bot_path = ?", path)) users.add("schedule " + r.get("name"));
         for (Map<String, Object> r : db.query("SELECT name FROM triggers WHERE bot_path = ?", path)) users.add("trigger " + r.get("name"));
@@ -1136,8 +1136,8 @@ public final class ControlRoom {
         if (to.equals(path)) return Map.of("path", to);
         folders.require(by, path, "edit", "move this agent");
         folders.require(by, to, "edit", "move agents into that folder");
-        if (b.get("locked_by") != null && !by.username().equals(b.get("locked_by"))) throw new OoaException("CR.LOCKED", "Checked out by " + b.get("locked_by"));
-        if (db.one("SELECT path FROM bots WHERE path = ?", to) != null) throw new OoaException("CR.CONFLICT", "There is already an agent at " + to);
+        if (b.get("locked_by") != null && !by.username().equals(b.get("locked_by"))) throw new OoaException("CR.LOCKED", "Checked out by " + b.get("locked_by"), "Ask the person who checked it out to check it in, or ask an administrator to undo the check-out.");
+        if (db.one("SELECT path FROM bots WHERE path = ?", to) != null) throw new OoaException("CR.CONFLICT", "There is already an agent at " + to, "Choose another name or folder, or delete the agent that is there first.");
         List<String> refs = new ArrayList<>();
         for (Map<String, Object> w : db.query("SELECT b.path, v.content FROM bots b JOIN bot_versions v ON v.path = b.path AND v.version = b.latest_version WHERE b.path LIKE ? AND b.deleted_at IS NULL", "%.process.json"))
             if (String.valueOf(w.get("content")).contains("\"" + path + "\"")) refs.add((String) w.get("path"));
@@ -1173,8 +1173,8 @@ public final class ControlRoom {
         Map<String, Object> flow = new LinkedHashMap<>((Map<String, Object>) getBot(by, path, "latest").get("flow"));
         String to = toPath == null || toPath.isBlank() ? path.replaceAll("\\.(flow|process|form)\\.json$", "") + " (copy)" + path.substring(path.lastIndexOf(".", path.length() - 6)) : toPath.trim();
         if (!to.matches(".*\\.(flow|process|form)\\.json$") || !to.substring(to.indexOf('.', to.lastIndexOf('/') + 1)).equals(path.substring(path.indexOf('.', path.lastIndexOf('/') + 1))))
-            throw new OoaException("CR.BAD_PATH", "The copy keeps the kind of file: " + path.substring(path.indexOf('.', path.lastIndexOf('/') + 1)));
-        if (db.one("SELECT path FROM bots WHERE path = ?", to) != null) throw new OoaException("CR.CONFLICT", "There is already an agent at " + to);
+            throw new OoaException("CR.BAD_PATH", "The copy keeps the kind of file: " + path.substring(path.indexOf('.', path.lastIndexOf('/') + 1)), "Keep the same ending in the copy's name (.flow.json for an agent, .form.json for a form).");
+        if (db.one("SELECT path FROM bots WHERE path = ?", to) != null) throw new OoaException("CR.CONFLICT", "There is already an agent at " + to, "Choose another name or folder, or delete the agent that is there first.");
         if (!FlowFiles.isDefinition(path)) {
             String base = String.valueOf(flow.get("id")) + "_copy", id = base;
             for (int k = 2; db.one("SELECT path FROM bots WHERE bot_id = ?", id) != null; k++) id = base + k;
@@ -1558,7 +1558,7 @@ public final class ControlRoom {
             throw new OoaException("CR.BAD_INPUT", "This agent needs a desktop, so it cannot run headless", "Run it unattended or attended.");
         Map<String, Object> dev = db.one("SELECT enabled, last_seen, name FROM devices WHERE id = ?", deviceId);
         if (dev == null) throw notFound("Runner " + deviceId);
-        if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "That runner is disabled");
+        if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "That runner is disabled", "Enable the runner in Manage > Runners, or choose another runner.");
         // Settings: a run for a runner that is offline is refused, rather than waiting for it (AA's "when the default device is down")
         if (!serverlessRun && platform.intSetting("runs_refuse_offline_runner") == 1
                 && (dev.get("last_seen") == null || Instant.parse(dev.get("last_seen").toString()).isBefore(now().minus(Duration.ofMinutes(2)))))
@@ -1823,7 +1823,7 @@ public final class ControlRoom {
             String licenseProblem = licensing.runProblem(did, String.valueOf(run.get("run_as") != null ? run.get("run_as") : run.get("requested_by")), String.valueOf(run.get("source")));
             if (licenseProblem != null) {
                 db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ?", now(),
-                    JsonLite.write(new OoaException(licensing.expired() ? "CR.LICENSE_EXPIRED" : "CR.LICENSE_REQUIRED", licenseProblem).toMap()), run.get("id"));
+                    JsonLite.write(new OoaException(licensing.expired() ? "CR.LICENSE_EXPIRED" : "CR.LICENSE_REQUIRED", licenseProblem, "An administrator adds or renews the license in Administration > Licenses.").toMap()), run.get("id"));
                 audit.record("agent:" + d.get("name"), "run.finish", "run", (String) run.get("id"), Map.of("status", "failed", "code", "CR.LICENSE_REQUIRED"), "failed", null);
                 continue;
             }
@@ -1940,7 +1940,7 @@ public final class ControlRoom {
         String ended = runWaits.onRunEnd(runId, status);
         if (!ended.equals(status)) {
             result = new LinkedHashMap<>(result);
-            result.put("error", new OoaException("LONGRUN.NOT_REGISTERED", "The run ended as suspended, but One CommandCenter has no wait for it").toMap());
+            result.put("error", new OoaException("LONGRUN.NOT_REGISTERED", "The run ended as suspended, but One CommandCenter has no wait for it", "Run the agent again; if it keeps happening, report it with the run id.").toMap());
             status = ended;
         }
         Instant started = r.get("started") == null ? now() : Instant.parse(r.get("started").toString());
@@ -2088,7 +2088,7 @@ public final class ControlRoom {
      */
     public Map<String, Object> runRequest(Map<String, Object> d, String runId, String call, Map<String, Object> args) {
         Map<String, Object> run = runOnDevice(d, runId);
-        if (!"running".equals(run.get("status"))) throw new OoaException("JOBS.NOT_RUNNING", "Only a running agent can ask One CommandCenter");
+        if (!"running".equals(run.get("status"))) throw new OoaException("JOBS.NOT_RUNNING", "Only a running agent can ask One CommandCenter", "Use this only from a step of a running agent.");
         String name = (String) (run.get("run_as") != null ? run.get("run_as") : run.get("requested_by"));
         Map<String, Object> row = name == null ? null : db.one("SELECT * FROM users WHERE username = ? AND enabled = ?", name, true);
         if (row == null) throw new OoaException("JOBS.NO_USER", "The run's user '" + name + "' is not an active user of One CommandCenter", "Run the agent as an active user.");
@@ -2101,7 +2101,7 @@ public final class ControlRoom {
                 require(as, "runs.view", "see other runs");
                 Map<String, Object> r = db.one("SELECT r.id, r.bot_path, r.status, r.requested_by, r.run_as, r.created, r.started, r.finished, r.duration_ms, r.error, d.name AS device_name "
                         + "FROM runs r LEFT JOIN devices d ON d.id = r.device_id WHERE r.id = ?", job);
-                if (r == null || !folders.mayView(as, (String) r.get("bot_path"))) throw new OoaException("JOBS.NOT_FOUND", "There is no run '" + job + "' that " + as.username() + " may see");
+                if (r == null || !folders.mayView(as, (String) r.get("bot_path"))) throw new OoaException("JOBS.NOT_FOUND", "There is no run '" + job + "' that " + as.username() + " may see", "Check the run id in Agent Activity; you see only runs you started or may manage.");
                 out = jobRecord(r);
             }
             case "list_jobs" -> {
@@ -2121,7 +2121,7 @@ public final class ControlRoom {
             case "stop_job" -> {
                 if (runId.equals(job)) throw new OoaException("JOBS.SELF", "An agent cannot stop its own run this way", "Use the Stop agent step.");
                 Map<String, Object> r = db.one("SELECT bot_path, status FROM runs WHERE id = ?", job);
-                if (r == null || !folders.mayView(as, (String) r.get("bot_path"))) throw new OoaException("JOBS.NOT_FOUND", "There is no run '" + job + "' that " + as.username() + " may see");
+                if (r == null || !folders.mayView(as, (String) r.get("bot_path"))) throw new OoaException("JOBS.NOT_FOUND", "There is no run '" + job + "' that " + as.username() + " may see", "Check the run id in Agent Activity; you see only runs you started or may manage.");
                 if (!Set.of("queued", "running").contains(String.valueOf(r.get("status")))) out = Map.of("stopped", false, "status", r.get("status"));
                 else { control(as, job, "stop", null); out = Map.of("stopped", true, "status", "stopping"); }
             }
@@ -2141,7 +2141,7 @@ public final class ControlRoom {
             default -> {
                 // a request a feature module answers (insights: raise_alert); it audits it itself
                 ModuleContext.RunRequest h = modules == null ? null : modules.runRequests.get(call);
-                if (h == null) throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'");
+                if (h == null) throw new OoaException("JOBS.BAD_CALL", "Unknown request '" + call + "'", "Use one of the requests the agent toolkit offers; update the runner if it is older than One CommandCenter.");
                 return h.handle(run, as, args, actor);
             }
         }
@@ -2381,7 +2381,7 @@ public final class ControlRoom {
             if (t.toInstant().isAfter(after) && (days.isEmpty() || days.contains(t.getDayOfWeek()))) return t.toInstant();
             t = t.plusDays(1).with(at);
         }
-        throw new OoaException("CR.BAD_SCHEDULE", "No next run could be computed");
+        throw new OoaException("CR.BAD_SCHEDULE", "No next run could be computed", "Correct the schedule in Manage > Scheduling and save it again.");
     }
 
     static final Set<String> SCHEDULE_KINDS = Set.of("every", "daily", "weekly", "monthly", "cron");
@@ -2393,11 +2393,11 @@ public final class ControlRoom {
      */
     Map<String, Object> scheduleTiming(Map<String, Object> s) {
         String kind = String.valueOf(s.get("kind"));
-        if (!SCHEDULE_KINDS.contains(kind)) throw new OoaException("CR.BAD_SCHEDULE", "kind must be every, daily, weekly, monthly or cron");
-        if (kind.equals("every") && (!(s.get("every_minutes") instanceof Number n) || n.intValue() < 1)) throw new OoaException("CR.BAD_SCHEDULE", "every_minutes must be at least 1");
-        if (!kind.equals("every") && !kind.equals("cron") && !String.valueOf(s.get("at_time")).matches("^([01]\\d|2[0-3]):[0-5]\\d$")) throw new OoaException("CR.BAD_SCHEDULE", "at_time must look like 08:30");
+        if (!SCHEDULE_KINDS.contains(kind)) throw new OoaException("CR.BAD_SCHEDULE", "kind must be every, daily, weekly, monthly or cron", "Set the kind to every, daily, weekly, monthly or cron.");
+        if (kind.equals("every") && (!(s.get("every_minutes") instanceof Number n) || n.intValue() < 1)) throw new OoaException("CR.BAD_SCHEDULE", "every_minutes must be at least 1", "Set every_minutes to 1 or more.");
+        if (!kind.equals("every") && !kind.equals("cron") && !String.valueOf(s.get("at_time")).matches("^([01]\\d|2[0-3]):[0-5]\\d$")) throw new OoaException("CR.BAD_SCHEDULE", "at_time must look like 08:30", "Write the time as hours and minutes, for example 08:30.");
         if (kind.equals("weekly") && !String.valueOf(s.get("days")).matches("^(MON|TUE|WED|THU|FRI|SAT|SUN)(,(MON|TUE|WED|THU|FRI|SAT|SUN))*$"))
-            throw new OoaException("CR.BAD_SCHEDULE", "days must be like MON,WED,FRI");
+            throw new OoaException("CR.BAD_SCHEDULE", "days must be like MON,WED,FRI", "Write the days as three-letter names separated by commas, for example MON,WED,FRI.");
         String tz = s.get("time_zone") instanceof String z && !z.isBlank() ? z.trim() : defaultTimeZone();
         ZoneId zone;
         try { zone = ZoneId.of(tz); } catch (DateTimeException e) { throw new OoaException("CR.BAD_SCHEDULE", "Unknown time zone " + tz, "Example: Asia/Kolkata, Europe/London, UTC"); }
@@ -2588,7 +2588,7 @@ public final class ControlRoom {
     static String scheduleOption(Object v, List<String> allowed) {
         if (v == null || String.valueOf(v).isBlank()) return null;
         String s = String.valueOf(v).trim().toLowerCase(Locale.ROOT);
-        if (!allowed.contains(s)) throw new OoaException("CR.BAD_SCHEDULE", "Use one of " + String.join(", ", allowed) + ", not '" + v + "'");
+        if (!allowed.contains(s)) throw new OoaException("CR.BAD_SCHEDULE", "Use one of " + String.join(", ", allowed) + ", not '" + v + "'", "Use one of the values the message lists.");
         return s.equals(allowed.get(0)) ? null : s;   // the default is kept as empty
     }
 
@@ -2742,9 +2742,9 @@ public final class ControlRoom {
         Map<String, Object> t = db.one("SELECT * FROM triggers WHERE id = ? AND kind = 'webhook'", tid);
         if (t == null || !Security.constantEquals(secret == null ? "" : Security.sha256(secret), (String) t.get("secret_hash"))) {
             audit.record("webhook", "trigger.fire", "trigger", tid, null, "denied", ip);
-            throw new OoaException("CR.FORBIDDEN", "Unknown webhook or wrong secret");
+            throw new OoaException("CR.FORBIDDEN", "Unknown webhook or wrong secret", "Check the webhook's address and secret in Manage > Triggers; copy them again if the secret was replaced.");
         }
-        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("CR.TRIGGER_DISABLED", "This webhook is disabled");
+        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("CR.TRIGGER_DISABLED", "This webhook is disabled", "Enable the trigger in Manage > Triggers.");
         return fireTrigger(t, payload == null ? Map.of() : Map.of("payload", payload), "webhook:" + tid, ip);
     }
 
@@ -2763,7 +2763,7 @@ public final class ControlRoom {
         if (t == null) throw notFound("Trigger");
         String kind = String.valueOf(t.get("kind"));
         TriggerKinds.Kind k = TriggerKinds.KINDS.get(kind);
-        if (k == null || k.where() != TriggerKinds.Where.RUNNER) throw new OoaException("CR.BAD_TRIGGER", "Trigger " + tid + " is not a runner trigger");
+        if (k == null || k.where() != TriggerKinds.Where.RUNNER) throw new OoaException("CR.BAD_TRIGGER", "Trigger " + tid + " is not a runner trigger", "Choose a trigger of the kind This runner watches in Manage > Triggers.");
         Map<String, Object> ev = new LinkedHashMap<>(event == null ? Map.of() : event);
         ev.put("kind", kind);
         ev.put("trigger_id", tid);
@@ -2914,11 +2914,11 @@ public final class ControlRoom {
         if (l.get("external") != null) v = readExternal(l, p[1], p[2]);
         else if (vaultAdmin.userProvided(p[0], p[1], p[2])) {
             Map<String, Object> uv = db.one("SELECT ciphertext FROM credential_user_values WHERE locker = ? AND name = ? AND attribute = ? AND username = ?", p[0], p[1], p[2], by.username());
-            if (uv == null) throw new OoaException("VAULT.NOT_FOUND", "You have not stored your own value for '" + ref + "'");
+            if (uv == null) throw new OoaException("VAULT.NOT_FOUND", "You have not stored your own value for '" + ref + "'", "Store your own value for this credential in Manage > Credentials (My values).");
             v = vault.decrypt((String) uv.get("ciphertext"), VaultAdmin.userBound(ref, by.username()));
         } else {
             Map<String, Object> c = db.one("SELECT ciphertext FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", p[0], p[1], p[2]);
-            if (c == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found");
+            if (c == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found", "Check the credential's name and folder in Manage > Credentials, and that the agent's user may use it.");
             v = vault.decrypt((String) c.get("ciphertext"), ref);
         }
         audit.record(by.username(), "credential.read", "credential", ref, Map.of("purpose", purpose), "ok", null);
@@ -2932,7 +2932,7 @@ public final class ControlRoom {
         if (r0.get("run_as") != null) r.put("requested_by", r0.get("run_as"));
         String[] p = ref == null ? new String[0] : ref.split("/");
         String actor = "agent:" + d.get("name") + " for " + r.get("requested_by");
-        if (!"running".equals(r.get("status")) || p.length != 3) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "denied", null); throw new OoaException("VAULT.DENIED", "Credentials are only available to running agents"); }
+        if (!"running".equals(r.get("status")) || p.length != 3) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "denied", null); throw new OoaException("VAULT.DENIED", "Credentials are only available to running agents", "Read credentials from a step of a running agent, not from outside a run."); }
         Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", p[0]);
         Map<String, Object> u = db.one("SELECT role FROM users WHERE username = ?", r.get("requested_by"));
         if (l == null || u == null || !consumes((String) r.get("requested_by"), (String) u.get("role"), l)) {
@@ -2962,7 +2962,7 @@ public final class ControlRoom {
             return vault.decrypt((String) uv.get("ciphertext"), VaultAdmin.userBound(ref, who));
         }
         Map<String, Object> c = db.one("SELECT ciphertext FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", p[0], p[1], p[2]);
-        if (c == null) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "not_found", null); throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found"); }
+        if (c == null) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "not_found", null); throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found", "Check the credential's name and folder in Manage > Credentials, and that the agent's user may use it."); }
         audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "ok", null);
         return vault.decrypt((String) c.get("ciphertext"), ref);
     }
@@ -3074,7 +3074,7 @@ public final class ControlRoom {
         String type = globalType(name);
         if (db.one("SELECT id FROM teams WHERE id = ?", teamId) == null) throw notFound("Team");
         String json = JsonLite.write(typedGlobal(name, type, value));
-        if (json.length() > 100_000) throw new OoaException("CR.TOO_LARGE", "A shared value is at most 100000 characters");
+        if (json.length() > 100_000) throw new OoaException("CR.TOO_LARGE", "A shared value is at most 100000 characters", "Keep shared values under 100,000 characters; put larger data in a file in the repository instead.");
         db.tx(() -> {
             if (db.update("UPDATE team_global_values SET json_value = ?, updated = ?, updated_by = ? WHERE name = ? AND team_id = ?", json, now(), by.username(), name, teamId) == 0)
                 db.update("INSERT INTO team_global_values (name, team_id, json_value, updated, updated_by) VALUES (?,?,?,?,?)", name, teamId, json, now(), by.username());
@@ -3213,7 +3213,7 @@ public final class ControlRoom {
 
     public void deleteConnection(User by, String name, String ip) {
         require(by, "globals.manage", "manage saved connections");
-        if (db.update("DELETE FROM connections WHERE name = ?", name) == 0) throw new OoaException("CR.NOT_FOUND", "No saved connection '" + name + "'");
+        if (db.update("DELETE FROM connections WHERE name = ?", name) == 0) throw new OoaException("CR.NOT_FOUND", "No saved connection '" + name + "'", "Check the connection's name in Manage > Shared data > Saved connections.");
         audit.record(by.username(), "connection.delete", "connection", name, null, "ok", ip);
     }
 
@@ -3290,7 +3290,7 @@ public final class ControlRoom {
         if (g == null) throw notFound("Shared value " + name);
         if (!Boolean.TRUE.equals(g.get("changeable"))) throw new OoaException("CR.FORBIDDEN", "Everyone uses the same value of " + name, "An administrator can let people change it for themselves.");
         String json = JsonLite.write(typedGlobal(name, globalType(name), value));
-        if (json.length() > 100_000) throw new OoaException("CR.TOO_LARGE", "A shared value is at most 100000 characters");
+        if (json.length() > 100_000) throw new OoaException("CR.TOO_LARGE", "A shared value is at most 100000 characters", "Keep shared values under 100,000 characters; put larger data in a file in the repository instead.");
         db.tx(() -> {
             if (db.update("UPDATE user_global_values SET json_value = ?, updated = ? WHERE name = ? AND username = ?", json, now(), name, by.username()) == 0)
                 db.update("INSERT INTO user_global_values (name, username, json_value, updated) VALUES (?,?,?,?)", name, by.username(), json, now());

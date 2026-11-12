@@ -49,7 +49,7 @@ public final class Lifecycle {
             String[] t = todo.poll();
             String path = t[0];
             if (agents.containsKey(path)) continue;
-            if (agents.size() >= 200) throw new OoaException("CR.TOO_LARGE", "A bundle holds at most 200 agents");
+            if (agents.size() >= 200) throw new OoaException("CR.TOO_LARGE", "A bundle holds at most 200 agents", "Export at most 200 agents at a time.");
             cr.folders.require(by, path, "view", "export agents");
             Map<String, Object> c;
             try { c = cr.content(path, t[1]); }
@@ -112,7 +112,7 @@ public final class Lifecycle {
             throw new OoaException("CR.BAD_BUNDLE", "This is not an agent bundle", "Export one with Lifecycle > Export in One CommandCenter.");
         if (!(bundle.get("format_version") instanceof Number fv) || fv.intValue() > FORMAT_VERSION)
             throw new OoaException("CR.BAD_BUNDLE", "The bundle was made by a newer One CommandCenter", "Update this One CommandCenter first.");
-        if (!checksum(list).equals(bundle.get("checksum"))) throw new OoaException("CR.BAD_BUNDLE", "The bundle's checksum does not match: it was changed or damaged");
+        if (!checksum(list).equals(bundle.get("checksum"))) throw new OoaException("CR.BAD_BUNDLE", "The bundle's checksum does not match: it was changed or damaged", "Export the bundle again from the source One CommandCenter; do not change it on the way.");
         String prefix = targetFolder == null || targetFolder.isBlank() ? "" : Folders.normalize(targetFolder) + "/";
         List<Map<String, Object>> results = new ArrayList<>();
         List<Object[]> toStore = new ArrayList<>();
@@ -125,16 +125,16 @@ public final class Lifecycle {
             r.put("bot_id", a.get("bot_id"));
             try {
                 String content = String.valueOf(a.get("content"));
-                if (!Security.sha256(content).equals(a.get("sha256"))) throw new OoaException("CR.BAD_BUNDLE", "The content of " + a.get("path") + " does not match its SHA-256");
+                if (!Security.sha256(content).equals(a.get("sha256"))) throw new OoaException("CR.BAD_BUNDLE", "The content of " + a.get("path") + " does not match its SHA-256", "Export the bundle again from the source One CommandCenter; do not change it on the way.");
                 Map<String, Object> flow = (Map<String, Object>) JsonLite.parse(content);
                 cr.folders.require(by, path, production ? "manage" : "edit", "import agents");
                 Map<String, Object> existing = db.one("SELECT path, deleted_at, latest_version FROM bots WHERE path = ?", path);
                 Map<String, Object> sameId = db.one("SELECT path FROM bots WHERE bot_id = ? AND path <> ?", a.get("bot_id"), path);
-                if (sameId != null) throw new OoaException("CR.DUPLICATE_ID", "Agent id '" + a.get("bot_id") + "' is already used here by " + sameId.get("path"));
+                if (sameId != null) throw new OoaException("CR.DUPLICATE_ID", "Agent id '" + a.get("bot_id") + "' is already used here by " + sameId.get("path"), "Give one of the two agents another id (the Agent id in its details), then import again.");
                 if (existing != null && existing.get("deleted_at") != null) throw new OoaException("CR.DELETED", "A deleted agent is at " + path, "Recover or rename it first.");
                 if (existing != null && mode.equals("skip")) { r.put("status", "skipped"); r.put("version", existing.get("latest_version")); results.add(r); continue; }
                 List<Map<String, Object>> problems = cr.problemsOf(path, flow);
-                if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"), null, false, Map.of("problems", problems));
+                if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"), "Open the agent in the source One CommandCenter, fix the problems Check now lists, and export it again.", false, Map.of("problems", problems));
                 r.put("status", existing == null ? "created" : "updated");
                 toStore.add(new Object[]{path, flow, a, r});
             } catch (OoaException e) {
@@ -183,7 +183,7 @@ public final class Lifecycle {
         if (p.length != 3) throw new OoaException("CR.BAD_INPUT", "api_key_ref is a vault reference: vault folder/credential/attribute", "Store the other One CommandCenter's API key in a vault folder first.");
         Map<String, Object> locker = db.one("SELECT * FROM lockers WHERE name = ?", p[0]);
         if (locker == null) throw notFound("Vault folder " + p[0]);
-        if (!cr.ownsLocker(by, locker) && !cr.consumes(by.username(), by.role(), locker)) throw new OoaException("VAULT.DENIED", "You may not use vault folder '" + p[0] + "'");
+        if (!cr.ownsLocker(by, locker) && !cr.consumes(by.username(), by.role(), locker)) throw new OoaException("VAULT.DENIED", "You may not use vault folder '" + p[0] + "'", "Ask an administrator to give your role the vault folder, or leave its credentials out.");
         Map<String, Object> bundle = export(by, (List<Object>) req.get("paths"), req.get("version"), !Boolean.FALSE.equals(req.get("include_dependencies")), ip);
         String key = cr.systemCredential(ref);
         Map<String, Object> body = new LinkedHashMap<>();
@@ -200,7 +200,7 @@ public final class Lifecycle {
         } catch (java.io.IOException e) {
             cr.audit.record(by.username(), "lifecycle.promote", "bundle", target, Map.of("error", String.valueOf(e.getMessage())), "failed", ip);
             throw new OoaException("CR.PROMOTE_FAILED", "Cannot reach " + target + ": " + e.getMessage(), "Check the address and that the other One CommandCenter is running.", true, null);
-        } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "Start the import again."); }
         Object parsed;
         try { parsed = JsonLite.parse(res.body()); } catch (IllegalArgumentException e) { parsed = Map.of("raw", res.body().length() > 300 ? res.body().substring(0, 300) : res.body()); }
         Map<String, Object> out = new LinkedHashMap<>();

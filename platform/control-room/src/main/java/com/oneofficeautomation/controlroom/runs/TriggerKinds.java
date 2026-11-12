@@ -73,7 +73,7 @@ public final class TriggerKinds {
         return k;
     }
 
-    static OoaException bad(String message) { return new OoaException("CR.BAD_TRIGGER", message); }
+    static OoaException bad(String message) { return new OoaException("CR.BAD_TRIGGER", message, "Correct the trigger's settings the message names."); }
 
     private static String str(Map<String, Object> m, String k) {
         Object v = m.get(k);

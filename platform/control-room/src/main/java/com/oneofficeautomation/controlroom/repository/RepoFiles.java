@@ -69,17 +69,17 @@ public final class RepoFiles {
         String p = check(path);
         cr.folders.require(by, p, "edit", "add files to this folder");
         if (content == null || content.length == 0) throw new OoaException("CR.BAD_INPUT", "The file is empty");
-        if (content.length > MAX_BYTES) throw new OoaException("CR.TOO_LARGE", "Repository files are at most " + (MAX_BYTES >> 20) + " MB");
+        if (content.length > MAX_BYTES) throw new OoaException("CR.TOO_LARGE", "Repository files are at most " + (MAX_BYTES >> 20) + " MB", "Keep repository files under the size the message names.");
         if (cr.platform.intSetting("block_executable_uploads") == 1 && p.toLowerCase(java.util.Locale.ROOT).matches(".*\\.(exe|dll|msi|bat|cmd|com|scr|ps1|vbs|jar)$"))
             throw new OoaException("CR.FILE_TYPE_BLOCKED", "Programs and scripts (.exe, .dll, .msi, .bat, .ps1 and similar) may not be uploaded", "An administrator can allow them in Settings");
-        if (db.one("SELECT path FROM bots WHERE path = ?", p) != null) throw new OoaException("CR.CONFLICT", "An agent is at " + p);
+        if (db.one("SELECT path FROM bots WHERE path = ?", p) != null) throw new OoaException("CR.CONFLICT", "An agent is at " + p, "Choose another name; an agent has this path.");
         String sha = sha256(content);
         try {
             Path dir = store();
             Files.createDirectories(dir);
             Path f = dir.resolve(sha);
             if (!Files.exists(f)) Files.write(f, content);
-        } catch (IOException e) { throw new OoaException("CR.IO", "Cannot store the file: " + e.getMessage()); }
+        } catch (IOException e) { throw new OoaException("CR.IO", "Cannot store the file: " + e.getMessage(), "Check that the server's data folder has space and that the service account may write there."); }
         String type = contentType == null || contentType.isBlank() ? "application/octet-stream" : contentType;
         int version = db.tx(() -> {
             Map<String, Object> old = db.one("SELECT version FROM repo_files WHERE path = ?", p);
@@ -108,7 +108,7 @@ public final class RepoFiles {
         Map<String, Object> f = db.one("SELECT sha256, content_type FROM repo_files WHERE path = ?", p);
         if (f == null) throw notFound("File " + p);
         try { return Map.of("content", Files.readAllBytes(store().resolve((String) f.get("sha256"))), "content_type", f.get("content_type")); }
-        catch (IOException e) { throw new OoaException("CR.IO", "The stored content of " + p + " is missing: " + e.getMessage()); }
+        catch (IOException e) { throw new OoaException("CR.IO", "The stored content of " + p + " is missing: " + e.getMessage(), "Upload the file again."); }
     }
 
     public void delete(User by, String path, String ip) {
@@ -135,7 +135,7 @@ public final class RepoFiles {
             cr.folders.require(username, role, p, "view", "use the file " + p);
             byte[] b = (byte[]) read(p).get("content");
             total += b.length;
-            if (total > MAX_PER_RUN) throw new OoaException("CR.TOO_LARGE", "The files an agent requires are at most " + (MAX_PER_RUN >> 20) + " MB in all");
+            if (total > MAX_PER_RUN) throw new OoaException("CR.TOO_LARGE", "The files an agent requires are at most " + (MAX_PER_RUN >> 20) + " MB in all", "Keep an agent's files under the total the message names; put large data in a share the runner reads.");
             out.put(p, Base64.getEncoder().encodeToString(b));
         }
         return out;

@@ -63,7 +63,7 @@ public final class ServerlessRuns {
             try {
                 db.update("UPDATE devices SET last_seen = ? WHERE id = ?", now(), DEVICE);
                 db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE device_id = ? AND status = 'running' AND started < ?", now(),
-                    JsonLite.write(new OoaException("RUN.INTERRUPTED", "One CommandCenter stopped during the run").toMap()), DEVICE, now().minusSeconds((long) maxSeconds() + 120));
+                    JsonLite.write(new OoaException("RUN.INTERRUPTED", "One CommandCenter stopped during the run", "Run the agent again.").toMap()), DEVICE, now().minusSeconds((long) maxSeconds() + 120));
             } catch (RuntimeException ignored) { }
         }, 0, 30, TimeUnit.SECONDS);
         kick();
@@ -132,7 +132,7 @@ public final class ServerlessRuns {
             AutomationRepository repo = (id, version) -> {
                 if (id.equals(main.get("id"))) return main;
                 Object f = bots.get(id);
-                if (f == null) throw new OoaException("REPO.NOT_FOUND", "Agent '" + id + "' is not published in One CommandCenter (no live production version)");
+                if (f == null) throw new OoaException("REPO.NOT_FOUND", "Agent '" + id + "' is not published in One CommandCenter (no live production version)", "Check the agent in and set a version live for production on its Versions tab.");
                 return (Map<String, Object>) f;
             };
             CredentialVault vault = (ref, principal) -> new SecureString(cr.credentialForRun(d, runId, ref), ref, false);

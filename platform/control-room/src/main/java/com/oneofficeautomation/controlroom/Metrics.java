@@ -94,7 +94,7 @@ public final class Metrics {
 
     public void deleteToken(User by, String ip) {
         cr.require(by, "events.manage", "remove the metrics token");
-        if (cr.db.update("DELETE FROM settings WHERE name = ?", TOKEN_SETTING) == 0) throw new OoaException("CR.NOT_FOUND", "No metrics token is set");
+        if (cr.db.update("DELETE FROM settings WHERE name = ?", TOKEN_SETTING) == 0) throw new OoaException("CR.NOT_FOUND", "No metrics token is set", "Make a metrics token in Administration > Settings > Monitoring.");
         cr.audit.record(by.username(), "metrics.token_delete", "settings", TOKEN_SETTING, null, "ok", ip);
         tokenAt = 0;
     }

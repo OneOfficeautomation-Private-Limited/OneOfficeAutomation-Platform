@@ -38,14 +38,14 @@ public final class DbConfig {
     public static DbConfig load(Path file) {
         DbConfig c = new DbConfig(file);
         try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) { c.p.load(r); }
-        catch (IOException e) { throw new OoaException("CR.DB_CONFIG", "Cannot read " + file + ": " + e.getMessage()); }
+        catch (IOException e) { throw new OoaException("CR.DB_CONFIG", "Cannot read " + file + ": " + e.getMessage(), "Correct the database settings (ooa-db.properties or the installer's Database page) and restart the service."); }
         String engine = c.engine();
         if (!List.of("h2", "sqlserver", "postgresql").contains(engine))
             throw new OoaException("CR.DB_CONFIG", "engine must be h2, sqlserver or postgresql, not \"" + engine + "\"", "Edit " + file);
         if (!c.get("auth", "sql").equals("sql") && !c.get("auth").equals("windows")) throw new OoaException("CR.DB_CONFIG", "auth must be sql or windows", "Edit " + file);
         if (c.windowsAuth() && !engine.equals("sqlserver")) throw new OoaException("CR.DB_CONFIG", "auth=windows is for SQL Server only", "Edit " + file);
         if (!engine.equals("h2")) for (String k : c.windowsAuth() ? List.of("host", "database") : List.of("host", "database", "user"))
-            if (c.get(k).isEmpty()) throw new OoaException("CR.DB_CONFIG", "Missing " + k + " in " + file);
+            if (c.get(k).isEmpty()) throw new OoaException("CR.DB_CONFIG", "Missing " + k + " in " + file, "Correct the database settings (ooa-db.properties or the installer's Database page) and restart the service.");
         String tls = c.get("tls", "required");
         if (!tls.equals("off") && !tls.equals("required")) throw new OoaException("CR.DB_CONFIG", "tls must be off or required", "Edit " + file);
         return c;
@@ -105,7 +105,7 @@ public final class DbConfig {
         if (v.isEmpty()) return "";
         if (v.startsWith("env:")) {
             String e = System.getenv(v.substring(4));
-            if (e == null) throw new OoaException("CR.DB_CONFIG", "The environment variable " + v.substring(4) + " (" + key + ") is not set");
+            if (e == null) throw new OoaException("CR.DB_CONFIG", "The environment variable " + v.substring(4) + " (" + key + ") is not set", "Set the environment variable for the service's account, then restart the service.");
             return e;
         }
         if (v.startsWith("enc:")) return vault.decrypt(v.substring(4), "ooa-db:" + key);
@@ -130,7 +130,7 @@ public final class DbConfig {
             if (!done) lines.add(key + "=" + value);
             Files.createDirectories(file.getParent());
             Files.write(file, lines, StandardCharsets.UTF_8);
-        } catch (IOException e) { throw new OoaException("CR.DB_CONFIG", "Cannot write " + file + ": " + e.getMessage()); }
+        } catch (IOException e) { throw new OoaException("CR.DB_CONFIG", "Cannot write " + file + ": " + e.getMessage(), "Check that the service account may write the configuration folder."); }
     }
 
     /** A PKCS12 trust store made from the CA file, so the driver checks the server certificate against that chain. */
@@ -142,11 +142,11 @@ public final class DbConfig {
             ks.load(null, null);
             int i = 0;
             for (Certificate c : CertificateFactory.getInstance("X.509").generateCertificates(in)) ks.setCertificateEntry("ca" + i++, c);
-            if (i == 0) throw new OoaException("CR.DB_CONFIG", "No certificate found in " + ca);
+            if (i == 0) throw new OoaException("CR.DB_CONFIG", "No certificate found in " + ca, "Give the database's CA certificate as a PEM file (it starts with -----BEGIN CERTIFICATE-----).");
             try (OutputStream out = Files.newOutputStream(store)) { ks.store(out, "ooa-truststore".toCharArray()); }
             return store.toAbsolutePath();
         } catch (OoaException e) { throw e; }
-        catch (Exception e) { throw new OoaException("CR.DB_CONFIG", "Cannot read the CA file " + ca + ": " + e.getMessage()); }
+        catch (Exception e) { throw new OoaException("CR.DB_CONFIG", "Cannot read the CA file " + ca + ": " + e.getMessage(), "Check the CA file's path and that the service account may read it."); }
     }
 
     /** A short description for logs and the console, without any secret. */

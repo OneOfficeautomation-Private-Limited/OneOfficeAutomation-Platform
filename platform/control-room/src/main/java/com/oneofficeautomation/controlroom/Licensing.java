@@ -210,7 +210,7 @@ public final class Licensing {
     public Map<String, Object> install(User by, String text, String ip) {
         cr.require(by, "settings.manage", "install licenses");
         if (cr.tenant != null) throw ControlRoom.notInSaas("Installing license files (the service's seats come with the subscription)");
-        if (text == null || text.isBlank() || text.length() > 20000) throw new OoaException("LICENSE.INVALID", "Paste or upload the license file");
+        if (text == null || text.isBlank() || text.length() > 20000) throw new OoaException("LICENSE.INVALID", "Paste or upload the license file", "Paste the license file's text, or upload the .lic file you received.");
         License l = License.verify(text, key.get());
         if (today().isAfter(l.expires().plusDays(l.graceDays()))) throw new OoaException("LICENSE.EXPIRED_FILE", "This license expired on " + l.expires(), "Ask for a current license");
         if (otherInstall(l)) throw new OoaException("LICENSE.OTHER_INSTALL", String.format(OTHER_INSTALL, l.installId(), installId()),
@@ -339,7 +339,7 @@ public final class Licensing {
 
     public void requireRunnable(String deviceId, String requestedBy, String source) {
         String p = runProblem(deviceId, requestedBy, source);
-        if (p != null) throw expired() ? expiredError() : new OoaException("CR.LICENSE_REQUIRED", p);
+        if (p != null) throw expired() ? expiredError() : new OoaException("CR.LICENSE_REQUIRED", p, "An administrator adds or renews the license in Administration > Licenses.");
     }
 
     /** After the grace period only administrators may sign in. */

@@ -106,7 +106,7 @@ public final class TaskInbox {
     public Map<String, Object> complete(User u, String taskId, String outcome, Map<String, Object> answers, String comment, String ip) {
         Map<String, Object> t = db.one("SELECT * FROM human_tasks WHERE id = ?", taskId);
         if (t == null) throw notFound("Task");
-        if (!Set.of("open", "claimed").contains(String.valueOf(t.get("status")))) throw new OoaException("CR.CONFLICT", "This task is already " + t.get("status"));
+        if (!Set.of("open", "claimed").contains(String.valueOf(t.get("status")))) throw new OoaException("CR.CONFLICT", "This task is already " + t.get("status"), "Reload Agent Activity: the run has moved on, so this action no longer applies.");
         if (!mayAct(u, t)) throw denied("complete this task");
         String kind = String.valueOf(t.get("kind"));
         ModuleContext.TaskKind moduleKind = cr.modules == null ? null : cr.modules.taskKind(kind);

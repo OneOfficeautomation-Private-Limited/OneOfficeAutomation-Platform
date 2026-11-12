@@ -27,7 +27,7 @@ public final class Vault {
 
     /** A vault with a given key: a SaaS tenant's own key, kept encrypted in the region's tenant catalog. */
     public static Vault ofKey(byte[] raw, String source) {
-        if (raw.length != 32) throw new OoaException("CR.VAULT_KEY", "The vault master key must be 32 bytes");
+        if (raw.length != 32) throw new OoaException("CR.VAULT_KEY", "The vault master key must be 32 bytes", "Check the vault key source in Administration > Settings > Security; the key must be the same one the vault was made with.");
         return new Vault(new SecretKeySpec(raw.clone(), "AES"), source, null);
     }
 
@@ -67,10 +67,10 @@ public final class Vault {
                     try { Files.setPosixFilePermissions(f, PosixFilePermissions.fromString("rw-------")); } catch (UnsupportedOperationException ignored) { }
                 }
                 raw = Base64.getDecoder().decode(Files.readString(f).trim());
-            } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot read or create the vault key: " + e.getMessage()); }
+            } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot read or create the vault key: " + e.getMessage(), "Check that the service account may read and write the vault key file in the data folder."); }
             keySource = "key file " + f + " (set OOA_MASTER_KEY in production and keep the key outside the data folder)";
         }
-        if (raw.length != 32) throw new OoaException("CR.VAULT_KEY", "The vault master key must be 32 bytes (Base64)");
+        if (raw.length != 32) throw new OoaException("CR.VAULT_KEY", "The vault master key must be 32 bytes (Base64)", "Check the vault key source in Administration > Settings > Security; the key must be the same one the vault was made with.");
         key = new SecretKeySpec(raw, "AES");
     }
 
@@ -83,7 +83,7 @@ public final class Vault {
             c.updateAAD(boundTo.getBytes(StandardCharsets.UTF_8));
             byte[] ct = c.doFinal(plain.getBytes(StandardCharsets.UTF_8));
             return "v1:" + Base64.getEncoder().encodeToString(iv) + ":" + Base64.getEncoder().encodeToString(ct);
-        } catch (Exception e) { throw new OoaException("CR.VAULT_ERROR", "Encryption failed"); }
+        } catch (Exception e) { throw new OoaException("CR.VAULT_ERROR", "Encryption failed", "Check the vault key source in Administration > Settings > Security; the key must be the same one the vault was made with."); }
     }
 
     public synchronized String decrypt(String stored, String boundTo) {

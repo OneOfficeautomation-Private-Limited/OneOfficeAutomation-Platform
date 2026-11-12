@@ -72,7 +72,7 @@ public final class ExternalVaults {
                 case "azure_keyvault" -> azure(cfg, authSecret, name, attribute);
                 case "aws_secrets_manager" -> aws(cfg, authSecret, name, attribute);
                 case "cyberark_ccp" -> cyberark(cfg, authSecret, name, attribute);
-                default -> throw new OoaException("VAULT.EXTERNAL", "Unknown external vault provider " + p);
+                default -> throw new OoaException("VAULT.EXTERNAL", "Unknown external vault provider " + p, "Use one of the providers the link offers: HashiCorp Vault, Azure Key Vault, AWS Secrets Manager or CyberArk.");
             };
         } catch (OoaException e) {
             throw e;
@@ -80,9 +80,9 @@ public final class ExternalVaults {
             throw new OoaException("VAULT.EXTERNAL_UNREACHABLE", "The external vault did not answer: " + e.getMessage(), "Check the vault URL and network access from One CommandCenter.", true, null);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new OoaException("VAULT.EXTERNAL_UNREACHABLE", "Interrupted while reading the external vault");
+            throw new OoaException("VAULT.EXTERNAL_UNREACHABLE", "Interrupted while reading the external vault", "Try again; if it keeps happening, an administrator can look in the server log.");
         } catch (Exception e) {
-            throw new OoaException("VAULT.EXTERNAL", "Reading the external vault failed: " + e.getMessage());
+            throw new OoaException("VAULT.EXTERNAL", "Reading the external vault failed: " + e.getMessage(), "Check the external vault's address and that the server can reach it; the message has the vault's answer.");
         }
     }
 
@@ -92,10 +92,10 @@ public final class ExternalVaults {
     private Map<String, Object> send(HttpRequest req, String what) throws Exception {
         NetGuard.check(cr, req.uri().toString(), "The external vault");
         HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
-        if (r.statusCode() == 404) throw new OoaException("VAULT.NOT_FOUND", what + " was not found in the external vault");
+        if (r.statusCode() == 404) throw new OoaException("VAULT.NOT_FOUND", what + " was not found in the external vault", "Check the secret's name and field in the external vault, and the attribute in the credential's link.");
         if (r.statusCode() == 401 || r.statusCode() == 403) throw new OoaException("VAULT.EXTERNAL_DENIED", "The external vault refused access to " + what + " (HTTP " + r.statusCode() + ")",
                 "Check the sign-in secret and the vault's access policy for One CommandCenter.");
-        if (r.statusCode() >= 300) throw new OoaException("VAULT.EXTERNAL", "The external vault answered HTTP " + r.statusCode() + " for " + what, null, r.statusCode() == 429 || r.statusCode() >= 500, null);
+        if (r.statusCode() >= 300) throw new OoaException("VAULT.EXTERNAL", "The external vault answered HTTP " + r.statusCode() + " for " + what, "Check the link's address and secret, and that its identity may read this secret in the external vault.", r.statusCode() == 429 || r.statusCode() >= 500, null);
         Object o = r.body().isBlank() ? Map.of() : JsonLite.parse(r.body());
         @SuppressWarnings("unchecked") Map<String, Object> m = o instanceof Map<?, ?> ? (Map<String, Object>) o : Map.of("value", o);
         return m;
@@ -103,29 +103,29 @@ public final class ExternalVaults {
 
     /** A field from a value that may itself be a JSON object (AWS and Azure secrets often hold several fields). */
     private static String field(Object value, String attribute, String what) {
-        if (value == null) throw new OoaException("VAULT.NOT_FOUND", what + " has no value");
+        if (value == null) throw new OoaException("VAULT.NOT_FOUND", what + " has no value", "Check the secret's name and field in the external vault, and the attribute in the credential's link.");
         String s = String.valueOf(value);
         if (attribute == null || attribute.isBlank() || attribute.equals("value")) return s;
         Object parsed;
         try { parsed = JsonLite.parse(s); } catch (RuntimeException e) { parsed = null; }
         if (parsed instanceof Map<?, ?> m) {
-            if (!m.containsKey(attribute)) throw new OoaException("VAULT.NOT_FOUND", what + " has no field '" + attribute + "'");
+            if (!m.containsKey(attribute)) throw new OoaException("VAULT.NOT_FOUND", what + " has no field '" + attribute + "'", "Check the secret's name and field in the external vault, and the attribute in the credential's link.");
             return String.valueOf(m.get(attribute));
         }
         if (attribute.equals("password") || attribute.equals("secret")) return s;
-        throw new OoaException("VAULT.NOT_FOUND", what + " is a single value; use the attribute 'value'");
+        throw new OoaException("VAULT.NOT_FOUND", what + " is a single value; use the attribute 'value'", "Set the credential's attribute to value.");
     }
 
     private String hashicorp(Map<String, Object> cfg, String token, String name, String attribute) throws Exception {
-        if (token == null || token.isBlank()) throw new OoaException("VAULT.EXTERNAL_DENIED", "No token is stored for this HashiCorp Vault link");
+        if (token == null || token.isBlank()) throw new OoaException("VAULT.EXTERNAL_DENIED", "No token is stored for this HashiCorp Vault link", "Store the missing secret for this link in Manage > Credentials > External vaults.");
         String mount = String.valueOf(cfg.getOrDefault("mount", "secret"));
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(trimSlash(cfg.get("url")) + "/v1/" + mount + "/data/" + name.replace(' ', '_')))
                 .timeout(Duration.ofSeconds(20)).header("X-Vault-Token", token).GET();
         if (cfg.get("namespace") instanceof String ns) b.header("X-Vault-Namespace", ns);
         Map<String, Object> r = send(b.build(), "secret '" + name + "'");
         Object data = r.get("data") instanceof Map<?, ?> d ? ((Map<?, ?>) d).get("data") : null;
-        if (!(data instanceof Map<?, ?> fields)) throw new OoaException("VAULT.NOT_FOUND", "Secret '" + name + "' has no data");
-        if (!fields.containsKey(attribute)) throw new OoaException("VAULT.NOT_FOUND", "Secret '" + name + "' has no field '" + attribute + "'");
+        if (!(data instanceof Map<?, ?> fields)) throw new OoaException("VAULT.NOT_FOUND", "Secret '" + name + "' has no data", "Check the secret's name and field in the external vault, and the attribute in the credential's link.");
+        if (!fields.containsKey(attribute)) throw new OoaException("VAULT.NOT_FOUND", "Secret '" + name + "' has no field '" + attribute + "'", "Check the secret's name and field in the external vault, and the attribute in the credential's link.");
         return String.valueOf(fields.get(attribute));
     }
 
@@ -133,13 +133,13 @@ public final class ExternalVaults {
         String key = cfg.get("tenant_id") + "|" + cfg.get("client_id");
         Object[] t = tokens.get(key);
         if (t != null && System.currentTimeMillis() < (Long) t[1]) return (String) t[0];
-        if (clientSecret == null || clientSecret.isBlank()) throw new OoaException("VAULT.EXTERNAL_DENIED", "No client secret is stored for this Azure Key Vault link");
+        if (clientSecret == null || clientSecret.isBlank()) throw new OoaException("VAULT.EXTERNAL_DENIED", "No client secret is stored for this Azure Key Vault link", "Store the missing secret for this link in Manage > Credentials > External vaults.");
         String url = cfg.get("token_url") instanceof String u ? u : "https://login.microsoftonline.com/" + enc(String.valueOf(cfg.get("tenant_id"))) + "/oauth2/v2.0/token";
         String form = "grant_type=client_credentials&client_id=" + enc(String.valueOf(cfg.get("client_id"))) + "&client_secret=" + enc(clientSecret) + "&scope=" + enc("https://vault.azure.net/.default");
         Map<String, Object> r = send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(20)).header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString(form)).build(), "the Azure sign-in");
         String access = (String) r.get("access_token");
-        if (access == null) throw new OoaException("VAULT.EXTERNAL_DENIED", "Azure did not return an access token");
+        if (access == null) throw new OoaException("VAULT.EXTERNAL_DENIED", "Azure did not return an access token", "Check the Azure app's tenant, client id and secret in the link.");
         long life = r.get("expires_in") instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(r.getOrDefault("expires_in", "3600")));
         tokens.put(key, new Object[]{access, System.currentTimeMillis() + Math.max(60, life - 120) * 1000});
         return access;
@@ -161,11 +161,11 @@ public final class ExternalVaults {
         Map<String, Object> r = send(b.build(), "account '" + name + "'");
         String key = attribute == null || attribute.isBlank() || attribute.equals("password") || attribute.equals("value") ? "Content" : attribute;
         for (Map.Entry<String, Object> e : r.entrySet()) if (e.getKey().equalsIgnoreCase(key)) return String.valueOf(e.getValue());
-        throw new OoaException("VAULT.NOT_FOUND", "Account '" + name + "' has no property '" + attribute + "'");
+        throw new OoaException("VAULT.NOT_FOUND", "Account '" + name + "' has no property '" + attribute + "'", "Check the secret's name and field in the external vault, and the attribute in the credential's link.");
     }
 
     private String aws(Map<String, Object> cfg, String secretKey, String name, String attribute) throws Exception {
-        if (secretKey == null || secretKey.isBlank()) throw new OoaException("VAULT.EXTERNAL_DENIED", "No secret access key is stored for this AWS Secrets Manager link");
+        if (secretKey == null || secretKey.isBlank()) throw new OoaException("VAULT.EXTERNAL_DENIED", "No secret access key is stored for this AWS Secrets Manager link", "Store the missing secret for this link in Manage > Credentials > External vaults.");
         String region = String.valueOf(cfg.get("region"));
         String endpoint = cfg.get("endpoint") instanceof String e ? trimSlash(e) : "https://secretsmanager." + region + ".amazonaws.com";
         String body = JsonLite.write(Map.of("SecretId", name));

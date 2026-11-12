@@ -47,16 +47,16 @@ public record RegionConfig(String region, String domain, String dbUrl, String db
             if (env.apply("OOA_DB_PASSWORD") != null) p.setProperty("db.password_env", "OOA_DB_PASSWORD");
             if (env.apply("OOA_DIRECTORY_TOKEN") != null) p.setProperty("directory.token_env", "OOA_DIRECTORY_TOKEN");
         }
-        catch (IOException e) { throw new OoaException("SAAS.CONFIG", "Cannot read " + file + ": " + e.getMessage()); }
+        catch (IOException e) { throw new OoaException("SAAS.CONFIG", "Cannot read " + file + ": " + e.getMessage(), "Correct the region file (ooa-region.properties) and restart the region; ooa region check shows what is wrong."); }
         Function<String, String> get = k -> p.getProperty(k, "").trim();
         String region = get.apply("region").toLowerCase(Locale.ROOT), domain = get.apply("domain").toLowerCase(Locale.ROOT);
-        if (!region.matches("^[a-z][a-z0-9-]{0,19}$")) throw new OoaException("SAAS.CONFIG", "region in " + file + " is a short name such as in, us or eu");
-        if (!domain.matches("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")) throw new OoaException("SAAS.CONFIG", "domain in " + file + " is a host name such as in.example.com");
+        if (!region.matches("^[a-z][a-z0-9-]{0,19}$")) throw new OoaException("SAAS.CONFIG", "region in " + file + " is a short name such as in, us or eu", "Correct the region file (ooa-region.properties) and restart the region; ooa region check shows what is wrong.");
+        if (!domain.matches("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")) throw new OoaException("SAAS.CONFIG", "domain in " + file + " is a host name such as in.example.com", "Correct the region file (ooa-region.properties) and restart the region; ooa region check shows what is wrong.");
         String url = get.apply("db.url");
         if (!url.isEmpty() && !url.startsWith("jdbc:postgresql:") && !url.startsWith("jdbc:h2:"))
-            throw new OoaException("SAAS.CONFIG", "A region's database is PostgreSQL (db.url=jdbc:postgresql://...)");
+            throw new OoaException("SAAS.CONFIG", "A region's database is PostgreSQL (db.url=jdbc:postgresql://...)", "Correct the region file (ooa-region.properties) and restart the region; ooa region check shows what is wrong.");
         String op = get.apply("operator.token_sha256").toLowerCase(Locale.ROOT);
-        if (!op.isEmpty() && !op.matches("^[0-9a-f]{64}$")) throw new OoaException("SAAS.CONFIG", "operator.token_sha256 is 64 hex digits (ooa region token makes one)");
+        if (!op.isEmpty() && !op.matches("^[0-9a-f]{64}$")) throw new OoaException("SAAS.CONFIG", "operator.token_sha256 is 64 hex digits (ooa region token makes one)", "Correct the region file (ooa-region.properties) and restart the region; ooa region check shows what is wrong.");
         return new RegionConfig(region, domain, url, get.apply("db.user"), get.apply("db.password_env"), op, get.apply("directory.url"),
             get.apply("directory.token_env"), Boolean.parseBoolean(get.apply("serverless")));
     }
@@ -65,7 +65,7 @@ public record RegionConfig(String region, String domain, String dbUrl, String db
     public Db openDatabase(Path data) {
         if (dbUrl.isEmpty()) return Db.h2File(data);
         String pw = dbPasswordEnv.isEmpty() ? "" : System.getenv(dbPasswordEnv);
-        if (!dbPasswordEnv.isEmpty() && pw == null) throw new OoaException("SAAS.CONFIG", "The environment variable " + dbPasswordEnv + " (db.password_env) is not set");
+        if (!dbPasswordEnv.isEmpty() && pw == null) throw new OoaException("SAAS.CONFIG", "The environment variable " + dbPasswordEnv + " (db.password_env) is not set", "Set the environment variable for the region's service account, then restart.");
         return new Db(dbUrl, dbUser, pw == null ? "" : pw, 4);
     }
 
@@ -73,7 +73,7 @@ public record RegionConfig(String region, String domain, String dbUrl, String db
     public RegionDirectory.Client directoryClient() {
         if (directoryUrl.isEmpty()) return null;
         String token = directoryTokenEnv.isEmpty() ? null : System.getenv(directoryTokenEnv);
-        if (token == null || token.isBlank()) throw new OoaException("SAAS.CONFIG", "Set " + (directoryTokenEnv.isEmpty() ? "directory.token_env" : directoryTokenEnv) + " to this region's directory token");
+        if (token == null || token.isBlank()) throw new OoaException("SAAS.CONFIG", "Set " + (directoryTokenEnv.isEmpty() ? "directory.token_env" : directoryTokenEnv) + " to this region's directory token", "Set the environment variable the message names, then restart.");
         return RegionDirectory.client(directoryUrl, token);
     }
 }
