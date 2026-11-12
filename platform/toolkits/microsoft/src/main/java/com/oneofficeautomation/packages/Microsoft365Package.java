@@ -17,7 +17,7 @@ import java.util.*;
         description = "Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph.")
 public final class Microsoft365Package {
     static final String P = "M365";
-    private static final String D_TOKEN = "Microsoft Graph access token from the vault.";
+    private static final String D_TOKEN = "Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_BASE = "Graph endpoint; change only for national clouds or testing.";
     private static final String D_MAILBOX = "Mailbox: me, or a user's email address (needs application permission).";
 

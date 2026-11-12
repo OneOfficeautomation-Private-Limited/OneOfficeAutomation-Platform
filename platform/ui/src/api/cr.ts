@@ -155,7 +155,7 @@ export type EnvironmentLock = { name: string; run_id: string; device_id?: string
   acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
 /** A toolkit that takes a connection, and the inputs one holds (credential: a vault reference). */
-export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[] };
+export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[]; sign_in?: boolean };
 export type Toolkit = { id: string; name: string; version?: string; versions?: string[]; description?: string | null; publisher?: string | null; actions: number; conditions?: number;
   enabled: boolean; used_by: number; custom?: boolean };
 export type ModelConnection = { name: string; provider: string; model?: string | null; model_type?: string | null; base_url?: string | null; key_ref?: string | null;

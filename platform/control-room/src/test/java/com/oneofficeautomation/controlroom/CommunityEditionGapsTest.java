@@ -293,6 +293,22 @@ class CommunityEditionGapsTest {
         assertEquals("ooa.servicenow", conn.get("package"));
         assertEquals("https://acme.service-now.com", ((Map<String, Object>) conn.get("values")).get("instance_url"));
         finishAll();
+        // A1: a connection that signs in by itself keeps its sign-in as settings and vault references, sent with every job
+        cr.saveConnection(admin, "Mail", json("{\"package\":\"ooa.microsoft365\",\"values\":{\"sign_in_provider\":\"microsoft\",\"sign_in_grant\":\"client_credentials\","
+                + "\"sign_in_tenant\":\"acme.onmicrosoft.com\",\"sign_in_client_id\":\"app-9\"},\"credentials\":{\"sign_in_client_secret\":\"apps/mail/secret\"}}"), null);
+        Map<String, Object> mail = cr.connections(admin).stream().filter(c -> "Mail".equals(c.get("name"))).findFirst().orElseThrow();
+        assertEquals("app-9", ((Map<String, Object>) mail.get("values")).get("sign_in_client_id"));
+        cr.deleteConnection(admin, "Mail", null);
+        // the kinds: Microsoft 365 offers the sign-in; Email (IMAP) is offered with its Connect step's settings
+        List<Map<String, Object>> kinds = cr.connectionKinds(admin);
+        Map<String, Object> m365 = kinds.stream().filter(k -> "ooa.microsoft365".equals(k.get("package"))).findFirst().orElseThrow();
+        assertEquals(true, m365.get("sign_in"));
+        // Email is an optional module, not loaded in these tests: when it is, it is offered with its Connect step's settings
+        kinds.stream().filter(k -> "ooa.email".equals(k.get("package"))).findFirst().ifPresent(email -> {
+            List<Object> emailInputs = ((List<Map<String, Object>>) email.get("inputs")).stream().map(x -> x.get("name")).map(Object.class::cast).toList();
+            assertTrue(emailInputs.containsAll(List.of("imap_host", "user", "access_token")) && !emailInputs.contains("session"), emailInputs.toString());
+            assertEquals(true, email.get("sign_in"));
+        });
         cr.deleteConnection(admin, "ServiceNow prod", null);
         assertTrue(cr.connections(admin).isEmpty());
         assertEquals("CR.NOT_FOUND", code(() -> cr.deleteConnection(admin, "ServiceNow prod", null)));

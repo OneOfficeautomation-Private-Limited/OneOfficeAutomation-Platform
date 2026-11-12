@@ -3134,7 +3134,23 @@ public final class ControlRoom {
                 inputs.add(Map.of("name", e.getKey(), "type", String.valueOf(p.getOrDefault("x-ooa-type", "String")), "credential", cred,
                         "description", String.valueOf(p.getOrDefault("description", ""))));
             }
-            if (secret) out.add(Map.of("package", id, "name", String.valueOf(m.getOrDefault("name", id)), "inputs", inputs));
+            // A1: a toolkit with sessions that signs in with an access token (Email's IMAP with OAuth): its Connect step's settings
+            boolean signIn = false;
+            for (Map<String, Object> a : actions) {
+                Map<String, Object> props = (Map<String, Object>) ((Map<String, Object>) a.getOrDefault("inputs", Map.of())).getOrDefault("properties", Map.of());
+                if (props.get("access_token") instanceof Map<?, ?> t && "Credential".equals(t.get("x-ooa-type"))) signIn = true;
+                if (!secret && "connect".equals(a.get("id")) && props.get("access_token") instanceof Map<?, ?> t && "Credential".equals(t.get("x-ooa-type"))) {
+                    inputs.clear();
+                    for (var e : props.entrySet()) {
+                        if (e.getKey().equals("session") || e.getKey().equals("timeout_seconds")) continue;
+                        Map<String, Object> p = (Map<String, Object>) e.getValue();
+                        inputs.add(Map.of("name", e.getKey(), "type", String.valueOf(p.getOrDefault("x-ooa-type", "String")), "credential", "Credential".equals(p.get("x-ooa-type")),
+                                "description", String.valueOf(p.getOrDefault("description", ""))));
+                    }
+                    secret = true;
+                }
+            }
+            if (secret) out.add(Map.of("package", id, "name", String.valueOf(m.getOrDefault("name", id)), "inputs", inputs, "sign_in", signIn));
         }
         out.sort(Comparator.comparing(x -> String.valueOf(x.get("name"))));
         return out;

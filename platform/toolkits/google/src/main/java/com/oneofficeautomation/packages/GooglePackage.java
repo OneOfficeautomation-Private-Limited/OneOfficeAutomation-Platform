@@ -15,7 +15,7 @@ import java.util.*;
         description = "Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail.")
 public final class GooglePackage {
     static final String P = "GOOGLE";
-    private static final String D_TOKEN = "Google OAuth access token from the vault.";
+    private static final String D_TOKEN = "Google OAuth access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token.";
     private static final String D_EP = "Replaces https://*.googleapis.com for testing or a proxy; leave empty normally.";
 
     private static String url(String defaultUrl, String override) {

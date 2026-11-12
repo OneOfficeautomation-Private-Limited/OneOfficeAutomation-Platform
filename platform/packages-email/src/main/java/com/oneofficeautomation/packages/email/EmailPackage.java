@@ -145,7 +145,7 @@ public final class EmailPackage {
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Mailbox user name; the mailbox session's user when empty.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
                     description = "Password or app password from the vault; with neither password nor token the server is used without signing in (internal relay).") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token (Microsoft 365, Gmail) from the vault.") Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token (Microsoft 365, Gmail) from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
             @Input(name = "from", type = OoaType.STRING, required = false, description = "Sender address; the user when empty.") String from,
             @Input(name = "to", description = "Recipient address(es): text separated by , or ; or a List.") Object to,
             @Input(name = "cc", required = false, description = "CC address(es).") Object cc,

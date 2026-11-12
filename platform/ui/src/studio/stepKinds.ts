@@ -176,5 +176,10 @@ export function connectionInputs(pkg: PackageManifest | undefined): Set<string> 
   const count = new Map<string, number>(), types = new Map<string, string | undefined>();
   for (const a of pkg.actions) for (const [k, v] of Object.entries(a.inputs?.properties ?? {})) { count.set(k, (count.get(k) ?? 0) + 1); types.set(k, v["x-ooa-type"]); }
   const common = [...count].filter(([, n]) => n >= 0.8 * pkg.actions.length).map(([k]) => k);
-  return common.some((k) => types.get(k) === "Credential") ? new Set(common) : new Set();
+  if (common.some((k) => types.get(k) === "Credential")) return new Set(common);
+  // A1: a toolkit with sessions that signs in with an access token (Email's IMAP with OAuth): its Connect step's settings
+  const connect = pkg.actions.find((a) => a.id === "connect");
+  if (connect?.inputs?.properties?.access_token?.["x-ooa-type"] === "Credential")
+    return new Set(Object.keys(connect.inputs.properties).filter((k) => k !== "session" && k !== "timeout_seconds"));
+  return new Set();
 }
