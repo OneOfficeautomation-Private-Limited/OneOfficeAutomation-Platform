@@ -1,0 +1,143 @@
+[
+  {"command": "ooa.okta/create_user", "name": "onboarding then offboarding: create with a group by name, check groups, sign out everywhere, deactivate",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "ssws-1"},
+   "mock": [
+     {"method": "POST", "path": "/api/v1/users", "body": {"id": "00uANN0000000000000A", "status": "ACTIVE", "profile": {"login": "ann@acme.com"}}},
+     {"method": "GET", "path": "/api/v1/groups", "body": [{"id": "00gFIN0000000000000A", "profile": {"name": "Finance"}}, {"id": "00gVPN0000000000000A", "profile": {"name": "VPN users"}}]},
+     {"method": "PUT", "path": "/api/v1/groups/*", "status": 204, "body": ""},
+     {"method": "GET", "path": "/api/v1/users/00uANN0000000000000A", "body": {"id": "00uANN0000000000000A", "status": "ACTIVE", "profile": {"login": "ann@acme.com"}}},
+     {"method": "GET", "path": "/api/v1/users/00uANN0000000000000A/groups", "body": [{"id": "00gFIN0000000000000A", "profile": {"name": "Finance"}}, {"id": "00gVPN0000000000000A", "profile": {"name": "VPN users"}}]},
+     {"method": "DELETE", "path": "/api/v1/users/00uANN0000000000000A/sessions", "status": 204, "body": ""},
+     {"method": "POST", "path": "/api/v1/users/00uANN0000000000000A/lifecycle/deactivate", "body": {}}],
+   "steps": [
+     {"action": "ooa.okta/create_user", "args": {"org_url": "{mock}", "api_token": "$tok", "first_name": "Ann", "last_name": "Lee", "email": "ann@acme.com", "groups": ["finance"]}, "out": {"user_id": "uid"}},
+     {"action": "ooa.okta/add_user_to_group", "args": {"org_url": "{mock}", "api_token": "$tok", "user": "$uid", "group": "VPN users"}},
+     {"action": "ooa.okta/list_user_groups", "args": {"org_url": "{mock}", "api_token": "$tok", "user": "$uid"}, "out": {"names": "groups"}},
+     {"action": "ooa.okta/clear_sessions", "args": {"org_url": "{mock}", "api_token": "$tok", "user": "$uid"}},
+     {"action": "ooa.okta/deactivate_user", "args": {"org_url": "{mock}", "api_token": "$tok", "user": "$uid"}}],
+   "expect": {"uid": "00uANN0000000000000A", "groups": ["Finance", "VPN users"]},
+   "expectRequests": ["GET /api/v1/groups q=finance", "POST /api/v1/users 00gFIN0000000000000A", "GET /api/v1/users/00uANN0000000000000A", "GET /api/v1/groups", "PUT /api/v1/groups/00gVPN0000000000000A/users/00uANN0000000000000A",
+     "GET /api/v1/users/00uANN0000000000000A/groups", "DELETE /api/v1/users/00uANN0000000000000A/sessions", "POST /api/v1/users/00uANN0000000000000A/lifecycle/deactivate"]},
+
+  {"command": "ooa.snowflake/execute_statement", "name": "a query through the SQL API",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "sf-oauth"},
+   "mock": [{"method": "POST", "path": "/api/v2/statements", "body": {"statementHandle": "h1", "resultSetMetaData": {"numRows": 2, "partitionInfo": [{"rowCount": 2}],
+     "rowType": [{"name": "REGION", "type": "text"}, {"name": "TOTAL", "type": "fixed", "scale": 2}]}, "data": [["EU", "1200.50"], ["US", "980.00"]]}}],
+   "steps": [{"action": "ooa.snowflake/execute_statement", "args": {"account_url": "{mock}", "token": "$tok", "sql": "SELECT region, SUM(amount) FROM sales GROUP BY 1", "warehouse": "BI_WH"},
+     "out": {"row_count": "n"}}],
+   "expect": {"n": 2},
+   "expectRequests": ["POST /api/v2/statements BI_WH"]},
+
+  {"command": "ooa.databricks/run_job", "name": "run a job by name, wait, read its output",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "dapi-1"},
+   "mock": [
+     {"method": "GET", "path": "/api/2.1/jobs/list", "body": {"jobs": [{"job_id": 42, "settings": {"name": "Nightly ETL"}}]}},
+     {"method": "POST", "path": "/api/2.1/jobs/run-now", "body": {"run_id": 7}},
+     {"method": "GET", "path": "/api/2.1/jobs/runs/get-output", "body": {"notebook_output": {"result": "1200 rows loaded"}}},
+     {"method": "GET", "path": "/api/2.1/jobs/runs/get", "body": {"run_id": 7, "state": {"life_cycle_state": "TERMINATED", "result_state": "SUCCESS"}, "run_page_url": "https://x/run/7"}}],
+   "steps": [
+     {"action": "ooa.databricks/run_job", "args": {"workspace_url": "{mock}", "access_token": "$tok", "job_id": "Nightly ETL", "wait": true, "timeout_seconds": 60}, "out": {"run_id": "run", "result_state": "st"}},
+     {"action": "ooa.databricks/get_run_output", "args": {"workspace_url": "{mock}", "access_token": "$tok", "run_id": "$run"}, "out": {"result": "res"}}],
+   "expect": {"run": "7", "st": "SUCCESS", "res": "1200 rows loaded"},
+   "expectRequests": ["GET /api/2.1/jobs/list", "POST /api/2.1/jobs/run-now \"job_id\":42"]},
+
+  {"command": "ooa.aws_ec2/start_instances", "name": "start by Name tag and wait until running, then stop",
+   "credentials": {"kid": "test/aws/id", "sk": "test/aws/secret"}, "secrets": {"test/aws/id": "AKIDEXAMPLE", "test/aws/secret": "wJalrXUtnFEMI/K7MDENG"},
+   "mock": [
+     {"method": "POST", "path": "/", "contains": "Action=StartInstances", "body": "<StartInstancesResponse xmlns=\"http://ec2.amazonaws.com/doc/2016-11-15/\"><instancesSet><item><instanceId>i-0aaaaaaaaaaaaaaa1</instanceId><currentState><name>pending</name></currentState><previousState><name>stopped</name></previousState></item></instancesSet></StartInstancesResponse>"},
+     {"method": "POST", "path": "/", "contains": "Action=StopInstances", "body": "<StopInstancesResponse xmlns=\"http://ec2.amazonaws.com/doc/2016-11-15/\"><instancesSet><item><instanceId>i-0aaaaaaaaaaaaaaa1</instanceId><currentState><name>stopping</name></currentState><previousState><name>running</name></previousState></item></instancesSet></StopInstancesResponse>"},
+     {"method": "POST", "path": "/", "contains": "Action=DescribeInstances", "body": "<DescribeInstancesResponse xmlns=\"http://ec2.amazonaws.com/doc/2016-11-15/\"><reservationSet><item><instancesSet><item><instanceId>i-0aaaaaaaaaaaaaaa1</instanceId><instanceState><code>16</code><name>running</name></instanceState><tagSet><item><key>Name</key><value>Invoice bot</value></item></tagSet></item></instancesSet></item></reservationSet></DescribeInstancesResponse>"}],
+   "steps": [
+     {"action": "ooa.aws_ec2/connect", "args": {"region": "eu-west-1", "access_key_id": "$kid", "secret_access_key": "$sk", "endpoint": "{mock}", "check_now": false}},
+     {"action": "ooa.aws_ec2/start_instances", "args": {"instance_ids": ["Invoice bot"], "wait": true, "timeout_seconds": 30}, "out": {"states": "st"}},
+     {"action": "ooa.aws_ec2/stop_instances", "args": {"instance_ids": ["i-0aaaaaaaaaaaaaaa1"]}}],
+   "expect": {"st": {"i-0aaaaaaaaaaaaaaa1": "running"}},
+   "expectRequests": ["POST / Filter.1.Value.1=Invoice%20bot", "POST / Action=StartInstances"]},
+
+  {"command": "ooa.box/upload_file", "name": "upload, list the folder, download",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "box-1"},
+   "files": {"report.csv": "a,b\n1,2"},
+   "mock": [
+     {"method": "POST", "path": "/api/2.0/files/content", "status": 201, "body": {"total_count": 1, "entries": [{"type": "file", "id": "9001"}]}},
+     {"method": "GET", "path": "/2.0/folders/42/items", "body": {"total_count": 1, "entries": [{"type": "file", "id": "9001", "name": "report.csv", "size": 7}]}},
+     {"method": "GET", "path": "/2.0/files/9001/content", "body": "a,b\n1,2"}],
+   "steps": [
+     {"action": "ooa.box/upload_file", "args": {"local_path": "{tmp}/report.csv", "folder_id": "42", "access_token": "$tok", "upload_url": "{mock}", "base_url": "{mock}"}, "out": {"file_id": "fid"}},
+     {"action": "ooa.box/list_folder", "args": {"folder_id": "42", "access_token": "$tok", "base_url": "{mock}"}, "out": {"count": "n"}},
+     {"action": "ooa.box/download_file", "args": {"file_id": "$fid", "save_as": "{tmp}/back.csv", "access_token": "$tok", "base_url": "{mock}"}}],
+   "expect": {"fid": "9001", "n": 1},
+   "expectFiles": {"back.csv": "a,b\n1,2"}},
+
+  {"command": "ooa.google/drive_upload", "name": "upload into a folder given by path, list it, download",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "ya29"},
+   "files": {"notes.txt": "hello drive"},
+   "mock": [
+     {"method": "GET", "path": "/drive/v3/files/F1", "body": "hello drive"},
+     {"method": "GET", "path": "/drive/v3/files", "body": {"files": [{"id": "FOLDER-R", "name": "Reports", "mimeType": "text/plain"}]}},
+     {"method": "POST", "path": "/upload/drive/v3/files", "body": {"id": "F1"}}],
+   "steps": [
+     {"action": "ooa.google/drive_upload", "args": {"access_token": "$tok", "local_path": "{tmp}/notes.txt", "folder_id": "/Reports", "base_url": "{mock}"}, "out": {"file_id": "fid"}},
+     {"action": "ooa.google/drive_list", "args": {"access_token": "$tok", "folder_id": "/Reports", "base_url": "{mock}"}, "out": {"count": "n"}},
+     {"action": "ooa.google/drive_download", "args": {"access_token": "$tok", "file_id": "$fid", "local_path": "{tmp}/back.txt", "base_url": "{mock}"}}],
+   "expect": {"fid": "F1", "n": 1},
+   "expectFiles": {"back.txt": true},
+   "expectRequests": ["GET /drive/v3/files", "POST /upload/drive/v3/files FOLDER-R"]},
+
+  {"command": "ooa.docusign/create_envelope", "name": "send for signature, check the status, download the signed PDF",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "ds-1"},
+   "files": {"nda.pdf": "%PDF-1.4 nda"},
+   "mock": [
+     {"method": "POST", "path": "/restapi/v2.1/accounts/1a2b3c4d-0000-1111-2222-333344445555/envelopes", "status": 201, "body": {"envelopeId": "4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59", "status": "sent"}},
+     {"method": "GET", "path": "/restapi/v2.1/accounts/1a2b3c4d-0000-1111-2222-333344445555/envelopes/4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59/documents/combined", "body": "%PDF signed"},
+     {"method": "GET", "path": "/restapi/v2.1/accounts/1a2b3c4d-0000-1111-2222-333344445555/envelopes/4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59", "body": {"envelopeId": "4b2f1a8c-1d3e-4f5a-9b7c-0e1d2c3b4a59", "status": "completed"}}],
+   "steps": [
+     {"action": "ooa.docusign/create_envelope", "args": {"base_url": "{mock}/restapi", "account_id": "1a2b3c4d-0000-1111-2222-333344445555", "access_token": "$tok",
+       "documents": ["{tmp}/nda.pdf"], "signers": [{"name": "Ann Lee", "email": "ann@acme.com"}], "email_subject": "Please sign the NDA", "send_now": true}, "out": {"envelope_id": "env"}},
+     {"action": "ooa.docusign/get_envelope_status", "args": {"base_url": "{mock}/restapi", "account_id": "1a2b3c4d-0000-1111-2222-333344445555", "access_token": "$tok", "envelope_id": "$env"}, "out": {"status": "st"}},
+     {"action": "ooa.docusign/download_combined_pdf", "args": {"base_url": "{mock}/restapi", "account_id": "1a2b3c4d-0000-1111-2222-333344445555", "access_token": "$tok", "envelope_id": "$env", "save_as": "{tmp}/signed.pdf"}}],
+   "expect": {"st": "completed"},
+   "expectFiles": {"signed.pdf": "%PDF signed"}},
+
+  {"command": "ooa.workday/search_workers", "name": "find workers through the REST API",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "wd-1"},
+   "mock": [{"method": "GET", "path": "/ccx/api/v1/acme/workers", "body": {"total": 1, "data": [{"id": "w1", "descriptor": "Ann Lee", "primaryWorkEmail": "ann@acme.com", "businessTitle": "Accountant"}]}}],
+   "steps": [{"action": "ooa.workday/search_workers", "args": {"host": "{mock}", "tenant": "acme", "access_token": "$tok", "search": "Ann"}, "out": {"count": "n"}}],
+   "expect": {"n": 1}},
+
+  {"command": "ooa.github/create_issue", "name": "open an issue, comment, close it",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "ghp-1"},
+   "mock": [
+     {"method": "POST", "path": "/repos/acme/web/issues/12/comments", "status": 201, "body": {"id": 900, "html_url": "https://github.example/acme/web/issues/12#c900"}},
+     {"method": "POST", "path": "/repos/acme/web/issues", "status": 201, "body": {"number": 12, "html_url": "https://github.example/acme/web/issues/12"}},
+     {"method": "PATCH", "path": "/repos/acme/web/issues/12", "body": {"number": 12, "state": "closed"}}],
+   "steps": [
+     {"action": "ooa.github/create_issue", "args": {"base_url": "{mock}", "token": "$tok", "owner": "acme", "repo": "web", "title": "Nightly load failed"}, "out": {"number": "num"}},
+     {"action": "ooa.github/add_issue_comment", "args": {"base_url": "{mock}", "token": "$tok", "owner": "acme", "repo": "web", "number": "$num", "text": "Rerun scheduled"}},
+     {"action": "ooa.github/close_issue", "args": {"base_url": "{mock}", "token": "$tok", "owner": "acme", "repo": "web", "number": "$num"}}],
+   "expect": {"num": 12},
+   "expectRequests": ["POST /repos/acme/web/issues Nightly load failed", "POST /repos/acme/web/issues/12/comments Rerun scheduled", "PATCH /repos/acme/web/issues/12 closed"]},
+
+  {"command": "ooa.salesforce/find_records", "name": "find records with a value that has a quote in it",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "sf-1"},
+   "mock": [{"method": "GET", "path": "/services/data/v61.0/query", "body": {"done": true, "totalSize": 1, "records": [{"attributes": {}, "Id": "003A", "Name": "Ann O'Brien"}]}}],
+   "steps": [{"action": "ooa.salesforce/find_records", "args": {"instance_url": "{mock}", "access_token": "$tok", "object": "Contact", "conditions": {"LastName": "O'Brien"}}, "out": {"count": "n", "soql": "q"}}],
+   "expect": {"n": 1, "q": "SELECT Id, Name FROM Contact WHERE LastName = 'O\\'Brien' LIMIT 2000"}},
+
+  {"command": "ooa.zendesk/update_ticket", "name": "assign a ticket to an agent by email and a group by name",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "zd-1"},
+   "mock": [
+     {"method": "GET", "path": "/api/v2/users/search", "body": {"users": [{"id": 501, "name": "Sam Lee", "email": "sam@acme.com", "role": "agent"}]}},
+     {"method": "GET", "path": "/api/v2/groups", "body": {"groups": [{"id": 601, "name": "Billing"}], "meta": {"has_more": false}}},
+     {"method": "PUT", "path": "/api/v2/tickets/35436", "body": {"ticket": {"id": 35436}}}],
+   "steps": [{"action": "ooa.zendesk/update_ticket", "args": {"site": "{mock}", "email": "bot@acme.com", "api_token": "$tok", "ticket_id": 35436, "assignee": "sam@acme.com", "group": "Billing"}}],
+   "expectRequests": ["GET /api/v2/users/search", "GET /api/v2/groups", "PUT /api/v2/tickets/35436 \"assignee_id\":501"]},
+
+  {"command": "ooa.slack/get_conversation_history", "name": "a channel by name, messages since a date",
+   "credentials": {"tok": "test/api/token"}, "secrets": {"test/api/token": "xoxb-1"},
+   "mock": [
+     {"method": "POST", "path": "/api/conversations.list", "body": {"ok": true, "channels": [{"id": "C2", "name": "ops-alerts"}], "response_metadata": {"next_cursor": ""}}},
+     {"method": "POST", "path": "/api/conversations.history", "body": {"ok": true, "messages": [{"ts": "1793500000.1", "text": "disk full"}]}}],
+   "steps": [{"action": "ooa.slack/get_conversation_history", "args": {"bot_token": "$tok", "channel": "#ops-alerts", "oldest": "2026-11-01", "base_url": "{mock}/api"}, "out": {"count": "n"}}],
+   "expect": {"n": 1},
+   "expectRequests": ["POST /api/conversations.list", "POST /api/conversations.history oldest=1793491200"]}
+]
