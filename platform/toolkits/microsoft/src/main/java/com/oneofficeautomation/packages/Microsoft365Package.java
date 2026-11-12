@@ -120,7 +120,7 @@ public final class Microsoft365Package {
 
     @Action(id = "get_mail", name = "Read email (Outlook)", category = "Mail", capabilities = "network", description = "Read one email's details and body; optionally mark it read.",
             panel = "access_token, id, mark_read, body_as_text | mailbox, base_url")
-    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id.")
+    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> getMail(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id from Find emails.") String id,
@@ -153,8 +153,17 @@ public final class Microsoft365Package {
         e.put("categories", new ArrayList<>(list(m.get("categories"))));
         e.put("conversation_id", m.get("conversationId"));
         e.put("internet_message_id", m.get("internetMessageId"));
+        e.put("unread", !Boolean.TRUE.equals(m.get("isRead")) && !markRead);
+        // the attachments' names, as the other mail services give them (one more request, only when there are some)
+        List<Object> names = new ArrayList<>();
+        if (Boolean.TRUE.equals(m.get("hasAttachments"))) {
+            Map<String, Object> list = HttpJson.req(P, "GET", url + "/attachments?$select=name,isInline").bearer(token).send(ctx).map();
+            if (list.get("value") instanceof List<?> l)
+                for (Object a : l) if (a instanceof Map<?, ?> am && !Boolean.TRUE.equals(am.get("isInline"))) names.add(am.get("name"));
+        }
+        e.put("attachments", names);
         if (markRead && !Boolean.TRUE.equals(m.get("isRead"))) HttpJson.req(P, "PATCH", url).bearer(token).json(Map.of("isRead", true)).send(ctx);
-        return Map.of("email", e);
+        return Map.of("email", MailRecord.withCommonKeys(e));
     }
 
     @Action(id = "save_mail_attachments", name = "Save email attachments (Outlook)", category = "Mail", capabilities = {"network", "filesystem"},

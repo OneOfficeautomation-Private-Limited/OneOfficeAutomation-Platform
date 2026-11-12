@@ -259,7 +259,7 @@ public final class ExchangePackage {
     @Action(id = "get", name = "Read email", category = "Mailbox", idempotent = true, capabilities = "network",
             description = "Read one email: sender, recipients, subject, text, HTML and attachment names.",
             panel = "id, mark_read | session")
-    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size, unread, conversation_id.")
+    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size, unread, conversation_id. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String id,
             @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Mark the email as read.") boolean markRead,
@@ -297,7 +297,7 @@ public final class ExchangePackage {
         e.put("unread", wasUnread && !markRead);
         e.put("conversation_id", attr(child(it, "ConversationId"), "Id"));
         if (markRead && wasUnread) setFields(ctx, s, id, isRead(true));
-        return Map.of("email", e);
+        return Map.of("email", MailRecord.withCommonKeys(e));
     }
 
     @Action(id = "save_attachments", name = "Save attachments", category = "Mailbox", capabilities = {"network", "filesystem"},

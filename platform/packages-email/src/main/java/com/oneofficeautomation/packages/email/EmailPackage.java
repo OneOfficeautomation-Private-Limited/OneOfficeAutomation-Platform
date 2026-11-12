@@ -352,7 +352,7 @@ public final class EmailPackage {
 
     @Action(id = "get", name = "Read email", category = "Mailbox", idempotent = true, capabilities = "network", description = "Read one email: sender, recipients, subject, text, HTML and attachment names.",
             panel = "id, folder, mark_read | session")
-    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size.")
+    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
@@ -361,9 +361,11 @@ public final class EmailPackage {
         try {
             MailSession s = ms(ctx, session);
             Message m = byUid(s.folder(folder), id);
+            boolean wasUnread = !m.isSet(Flags.Flag.SEEN);
             Map<String, Object> e = details(m, id);
+            e.put("unread", wasUnread && !(markRead && !s.pop3));
             if (markRead && !s.pop3) m.setFlag(Flags.Flag.SEEN, true);
-            return Map.of("email", e);
+            return Map.of("email", com.oneofficeautomation.packages.MailRecord.withCommonKeys(e));
         } catch (MessagingException | IOException e) { throw e instanceof MessagingException me ? mail(me) : new ActionException("EMAIL.READ_FAILED", e.getMessage()); }
     }
 

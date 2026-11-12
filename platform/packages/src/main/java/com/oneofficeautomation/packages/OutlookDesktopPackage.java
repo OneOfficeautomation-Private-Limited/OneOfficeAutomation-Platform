@@ -185,6 +185,7 @@ public final class OutlookDesktopPackage {
             panel = "folder, unread_only, subject_contains, from_contains, received_after, max | mailbox, timeout_seconds")
     @Output(name = "emails", type = OoaType.LIST, description = "Emails, newest first: id, subject, from, from_name, to, received, unread, attachments, folder.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many were found.")
+    @Output(name = "table", type = OoaType.TABLE, description = "The same emails as a table, as the other mail services give it: id, from, subject, received, unread, has_attachments.")
     public Map<String, Object> list(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"Inbox\"", example = "Inbox/Invoices", description = "Folder path: Inbox, Sent Items, Drafts, or a folder below them, e.g. Inbox/Invoices.") String folder,
             @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unreadOnly,
@@ -196,7 +197,14 @@ public final class OutlookDesktopPackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "120", description = "Maximum time.") int timeout) {
         Object emails = outlook(ctx, listScript(folder, mailbox, unreadOnly, subject, from, after, max), timeout).getOrDefault("emails", List.of());
         List<Object> l = emails instanceof List<?> x ? new ArrayList<>(x) : List.of(emails);
-        return Map.of("emails", l, "count", BigDecimal.valueOf(l.size()));
+        // A2: the same table as Find emails of the other mail services, next to the list agents written before use
+        List<Object> rows = new ArrayList<>();
+        for (Object o : l) if (o instanceof Map<?, ?> m) {
+            boolean atts = m.get("attachments") instanceof Number n ? n.intValue() > 0 : Boolean.TRUE.equals(m.get("attachments"));
+            rows.add(new ArrayList<>(Arrays.asList(m.get("id"), m.get("from"), m.get("subject"), m.get("received"), m.get("unread"), atts)));
+        }
+        return Map.of("emails", l, "count", BigDecimal.valueOf(l.size()),
+                "table", com.oneofficeautomation.runner.Values.table(List.of("id", "from", "subject", "received", "unread", "has_attachments"), rows));
     }
 
     static Script getScript(String id) {
@@ -216,9 +224,11 @@ public final class OutlookDesktopPackage {
 
     @Action(id = "get", name = "Read email", category = "Mailbox", idempotent = true, capabilities = "desktop",
             description = "Read one email: sender, recipients, subject, text and HTML body and attachment names.", panel = "id")
-    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, subject, from, from_name, to, cc, received, unread, body, html_body, categories, attachment_names, folder.")
+    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, subject, from, from_name, to, cc, received, unread, body, html_body, categories, attachment_names, folder. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> get(ActionContext ctx, @Input(name = "id", type = OoaType.STRING, description = D_ID) String id) {
-        return Map.of("email", outlook(ctx, getScript(id), 120));
+        Object raw = outlook(ctx, getScript(id), 120);
+        @SuppressWarnings("unchecked") Map<String, Object> e = raw instanceof Map<?, ?> m ? (Map<String, Object>) m : new LinkedHashMap<>();
+        return Map.of("email", MailRecord.withCommonKeys(e));
     }
 
     static Script sendScript(String to, String cc, String bcc, String subject, String body, boolean html, List<String> attachments, String account, boolean draft) {

@@ -1831,7 +1831,7 @@ public final class GooglePackage {
     @Action(id = "gmail_list_messages", name = "Find emails (Gmail)", category = "Gmail", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Find Gmail messages with a Gmail search such as from:billing@acme.com is:unread and return them as a table.",
             panel = "access_token, status, label, subject_contains, from_contains, since, before, has_attachments_only | query, max_results, include_spam_trash, endpoint_override")
-    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, thread_id, from, to, subject, date, snippet, unread, labels.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, thread_id, from, to, subject, date, snippet, unread, labels, received (date and time, UTC).")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages.")
     public Map<String, Object> gmailList(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -1853,15 +1853,15 @@ public final class GooglePackage {
             Map<String, Object> payload = obj(m.get("payload"));
             List<Object> labels = new ArrayList<>(list(m.get("labelIds")));
             rows.add(new ArrayList<>(Arrays.asList(id, m.get("threadId"), hdr(payload, "From"), hdr(payload, "To"), hdr(payload, "Subject"), hdr(payload, "Date"),
-                    m.get("snippet"), labels.contains("UNREAD"), labels)));
+                    m.get("snippet"), labels.contains("UNREAD"), labels, MailRecord.headerDate(hdr(payload, "Date")))));
         }
-        return Map.of("table", Values.table(List.of("id", "thread_id", "from", "to", "subject", "date", "snippet", "unread", "labels"), rows), "count", num(rows.size()));
+        return Map.of("table", Values.table(List.of("id", "thread_id", "from", "to", "subject", "date", "snippet", "unread", "labels", "received"), rows), "count", num(rows.size()));
     }
 
     @Action(id = "gmail_get_message", name = "Read email (Gmail)", category = "Gmail", idempotent = true, capabilities = "network",
             description = "Read one Gmail message: headers, text and HTML body, labels and attachment names.",
             panel = "access_token, message_id, mark_read | endpoint_override")
-    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, thread_id, from, to, cc, subject, date, message_id, text, html, attachments, labels.")
+    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, thread_id, from, to, cc, subject, date, message_id, text, html, attachments, labels. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> gmailGet(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "message_id", type = OoaType.STRING, description = D_MSG) String id,
@@ -1887,8 +1887,9 @@ public final class GooglePackage {
         for (Map<String, Object> a : atts) names.add(a.get("filename"));
         e.put("attachments", names);
         e.put("labels", new ArrayList<>(list(m.get("labelIds"))));
+        e.put("unread", list(m.get("labelIds")).contains("UNREAD") && !markRead);
         if (markRead) modify(ctx, token, id, List.of(), List.of("UNREAD"), ep);
-        return Map.of("email", e);
+        return Map.of("email", MailRecord.withCommonKeys(e));
     }
 
     @Action(id = "gmail_mark_message", name = "Change email status (Gmail)", category = "Gmail", idempotent = true, capabilities = "network",
