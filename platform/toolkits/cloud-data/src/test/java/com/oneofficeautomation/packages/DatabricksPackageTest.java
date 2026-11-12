@@ -178,6 +178,24 @@ class DatabricksPackageTest {
         }
     }
 
+    /** K7 (batch 10): the output of a run of several tasks: each task's result, error and logs. */
+    @Test void runOutputPerTask() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("GET /api/2.1/jobs/runs/get", c -> ok("{\"run_id\":10,\"state\":{\"life_cycle_state\":\"TERMINATED\",\"result_state\":\"FAILED\"},"
+                    + "\"tasks\":[{\"task_key\":\"load\",\"run_id\":11,\"state\":{\"result_state\":\"SUCCESS\"}},{\"task_key\":\"check\",\"run_id\":12,\"state\":{\"result_state\":\"FAILED\"}}]}"))
+             .on("GET /api/2.1/jobs/runs/get-output", c -> ok(q(c).contains("run_id=11")
+                    ? "{\"notebook_output\":{\"result\":\"1200 rows\"}}"
+                    : "{\"error\":\"AssertionError: totals differ\",\"error_trace\":\"Traceback ...\",\"logs\":\"checking\"}"));
+            ActionContext ctx = ctx(PackagesTest.tmp());
+            Map<String, Object> o = pkg.getRunOutput(ctx, f.url(), "10", TOKEN);
+            assertEquals("1200 rows", o.get("result"));
+            assertEquals("AssertionError: totals differ", o.get("error"));
+            assertEquals("Traceback ...", o.get("error_trace"));
+            assertEquals("checking", o.get("logs"));
+            assertEquals(Arrays.asList("check", "12", "FAILED", null, "AssertionError: totals differ", "checking"), rows(o.get("tasks")).get(1));
+        }
+    }
+
     /** K5 (batch 10): jobs, clusters and SQL warehouses by name. */
     @Test void jobsClustersAndWarehousesByName() throws Exception {
         try (Fake f = new Fake()) {

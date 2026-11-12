@@ -182,6 +182,50 @@ public final class OktaPackage {
         return Map.of();
     }
 
+    // ----- offboarding and help-desk steps (K7, command review batch 10) -----
+
+    @Action(id = "clear_sessions", name = "Clear user sessions", category = "User status", capabilities = "network",
+            description = "Sign a person out everywhere: end their Okta sessions and, if you like, revoke the tokens apps were given for them (offboarding).",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, revoke_app_tokens")
+    public Map<String, Object> clearSessions(ActionContext ctx,
+            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
+            @Input(name = "revoke_app_tokens", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Also revoke the OpenID Connect and OAuth tokens apps hold for the person.") boolean tokens,
+            @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        req("DELETE", api(org) + "/users/" + user(u) + "/sessions?oauthTokens=" + tokens, apiToken, accessToken).send(ctx);
+        return Map.of();
+    }
+
+    @Action(id = "unlock_user", name = "Unlock user", category = "User status", capabilities = "network",
+            description = "Let a person whose account was locked by too many wrong passwords sign in again.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
+    public Map<String, Object> unlock(ActionContext ctx,
+            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
+            @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        lifecycle(ctx, org, u, "unlock", Map.of(), apiToken, accessToken);
+        return Map.of();
+    }
+
+    @Action(id = "expire_password", name = "Expire password", category = "User status", capabilities = "network",
+            description = "Make a person choose a new password the next time they sign in; optionally give them a temporary one.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, [Give a temporary password: temporary_password]")
+    @Output(name = "temporary_password", type = OoaType.CREDENTIAL, description = "The temporary password, when one was asked for (kept secret in logs).")
+    public Map<String, Object> expirePassword(ActionContext ctx,
+            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
+            @Input(name = "temporary_password", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Have Okta make a temporary password to give the person.") boolean temp,
+            @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        Map<String, Object> r = lifecycle(ctx, org, u, "expire_password", temp ? Map.of("tempPassword", true) : Map.of(), apiToken, accessToken);
+        Object t = r.get("tempPassword");
+        return t == null ? Map.of() : Map.of("temporary_password", new SecureString(Values.text(t), "okta/temporary_password"));
+    }
+
     @Action(id = "unsuspend_user", name = "Unsuspend user", category = "User status", capabilities = "network",
             description = "Let a suspended person sign in again.",
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")

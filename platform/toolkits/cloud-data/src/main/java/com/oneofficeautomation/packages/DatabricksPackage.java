@@ -367,6 +367,45 @@ public final class DatabricksPackage {
         return Out.of("life_cycle_state", s.get("life_cycle_state"), "result_state", s.get("result_state"), "run", s);
     }
 
+    /**
+     * K7 (command review, batch 10): what a finished run produced, as AA's Get job run output gives it: the notebook's
+     * exit value (dbutils.notebook.exit), the error and its trace, and the logs; for a job of several tasks, each task's.
+     */
+    @Action(id = "get_run_output", name = "Get job run output", category = "Jobs", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+            description = "Read what a finished job run produced: the notebook's result, the error and its trace, and the logs, for each task of the run.",
+            panel = "workspace_url, access_token, run_id")
+    @Output(name = "result", type = OoaType.STRING, description = "The notebook's exit value (dbutils.notebook.exit); for several tasks, the first task's that has one.")
+    @Output(name = "error", type = OoaType.STRING, description = "Why the run failed, when it failed.")
+    @Output(name = "error_trace", type = OoaType.STRING, description = "The error's stack trace, when there is one.")
+    @Output(name = "logs", type = OoaType.STRING, description = "Output of a Python, JAR or spark-submit task (the last 5 MB).")
+    @Output(name = "tasks", type = OoaType.TABLE, description = "One row per task: task_key, run_id, result_state, result, error, logs.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getRunOutput(ActionContext ctx,
+            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "run_id", type = OoaType.STRING, description = "Run id from Run job now.") String runId,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+        Map<String, Object> run = getRunRaw(ctx, url, token, runId);
+        List<Map<String, Object>> tasks = HttpJson.maps(run.get("tasks"));
+        List<Object> rows = new ArrayList<>();
+        String result = null, error = null, trace = null, logs = null;
+        List<Map<String, Object>> each = new ArrayList<>();
+        if (tasks.isEmpty()) each.add(Map.of("run_id", numId("run", runId)));
+        else each.addAll(tasks);
+        for (Map<String, Object> t : each) {
+            String tid = Values.text(t.get("run_id"));
+            Map<String, Object> o = req("GET", ws(url) + "/api/2.1/jobs/runs/get-output?run_id=" + HttpJson.enc(numId("run", tid)), token).send(ctx).map();
+            String r = HttpJson.path(o, "notebook_output.result") == null ? null : Values.text(HttpJson.path(o, "notebook_output.result"));
+            String e = o.get("error") == null ? null : Values.text(o.get("error"));
+            String l = o.get("logs") == null ? null : Values.text(o.get("logs"));
+            if (result == null) result = r;
+            if (error == null) { error = e; trace = o.get("error_trace") == null ? null : Values.text(o.get("error_trace")); }
+            if (logs == null) logs = l;
+            rows.add(new ArrayList<>(Arrays.asList(t.get("task_key"), tid, HttpJson.path(t, "state.result_state") != null ? HttpJson.path(t, "state.result_state") : HttpJson.path(o, "metadata.state.result_state"), r, e, l)));
+        }
+        return Out.of("result", result, "error", error, "error_trace", trace, "logs", logs,
+                "tasks", Values.table(List.of("task_key", "run_id", "result_state", "result", "error", "logs"), rows));
+    }
+
     @Action(id = "cancel_run", name = "Cancel job run", category = "Jobs", capabilities = "network", description = "Stop a job run that is queued or running.",
             panel = "workspace_url, access_token, run_id")
     public Map<String, Object> cancelRun(ActionContext ctx,
