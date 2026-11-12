@@ -218,8 +218,12 @@ public final class ControlRoomServer {
             sendJson(ex, status, Map.of("error", error));
         } catch (RuntimeException | Error e) {
             // Any failure still gets an answer, so a client never sees a dropped connection.
+            // error batch E8: a reference the person can give an administrator, who finds it in the log next to the details
+            String ref = "ERR-" + Long.toString(System.currentTimeMillis(), 36).toUpperCase(java.util.Locale.ROOT) + "-" + Integer.toString((int) (Math.random() * 1296), 36).toUpperCase(java.util.Locale.ROOT);
+            System.err.println("[" + ref + "] " + ex.getRequestMethod() + " " + ex.getRequestURI().getPath() + " failed:");
             e.printStackTrace();
-            try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see One CommandCenter console log"))); }
+            try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "One CommandCenter could not finish this request (reference " + ref + ")",
+                    "suggestedFix", "Try again; if it keeps happening, give an administrator the reference " + ref + ": the server log has the details next to it."))); }
             catch (RuntimeException | IOException ignored) { /* the response had already started */ }
         } finally { ex.close(); }
     }

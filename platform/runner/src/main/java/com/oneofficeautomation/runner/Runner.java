@@ -1755,8 +1755,11 @@ public final class Runner {
             } catch (InvocationTargetException e) {
                 Throwable t = e.getCause();
                 if (t instanceof OoaException oe) throw oe;
+                // error batch E8: a plain IllegalArgumentException with a message is a wrong input (an Excel sheet name, a hotkey)
+                if (t instanceof IllegalArgumentException && t.getMessage() != null && !t.getMessage().isBlank())
+                    throw new ActionException("ACTION.INPUT_INVALID", t.getMessage(), "Correct the step's input the message names, then run the step again.");
                 throw new ActionException("ACTION.UNEXPECTED", pkg.id() + "/" + spec.id() + " raised " + t.getClass().getSimpleName() + ": " + t.getMessage(),
-                        "Report this to the toolkit publisher with the run id.");
+                        "Run the step again; if it keeps happening, report it to the toolkit's publisher with the run id.");
             } catch (IllegalAccessException e) {
                 throw new ActionException("ACTION.UNEXPECTED", "Cannot call " + pkg.id() + "/" + spec.id() + ": " + e.getMessage(), "Update the toolkit; if it keeps happening, report it with the run log.");
             } catch (Error e) {

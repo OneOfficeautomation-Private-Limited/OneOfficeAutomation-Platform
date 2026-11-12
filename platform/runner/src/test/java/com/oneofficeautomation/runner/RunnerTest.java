@@ -33,6 +33,9 @@ class RunnerTest {
         @Action(id = "crash", name = "Crash", description = "Throws a plain Java exception.")
         public Map<String, Object> crash(ActionContext ctx) { throw new ArithmeticException("bug"); }
 
+        @Action(id = "wrong_input", name = "Wrong input", description = "Refuses its input with a plain IllegalArgumentException.")
+        public Map<String, Object> wrongInput(ActionContext ctx) { throw new IllegalArgumentException("Sheet name 'A/B' contains one of : / ? * [ ]"); }
+
         @Action(id = "leaky_log", name = "Leaky log", description = "Logs a secret by mistake.")
         public Map<String, Object> leakyLog(ActionContext ctx, @Input(name = "secret", type = OoaType.CREDENTIAL, description = "Credential.") SecureString s) {
             ctx.info("password is " + s.reveal());
@@ -102,6 +105,15 @@ class RunnerTest {
         RunResult res = Runner.builder(registry()).build().run(bot(List.of(j("{\"id\":\"s\",\"action\":\"acme.flaky/crash\"}")), List.of()), Map.of());
         assertEquals("ACTION.UNEXPECTED", res.error().get("code"));
         assertTrue(String.valueOf(res.error().get("message")).contains("ArithmeticException"));
+        assertTrue(String.valueOf(res.error().get("suggestedFix")).contains("report it"));
+    }
+
+    /** Error batch E8: a toolkit's plain IllegalArgumentException is a wrong input, said as such with what to do. */
+    @Test void plainWrongInputBecomesInputError() {
+        RunResult res = Runner.builder(registry()).build().run(bot(List.of(j("{\"id\":\"s\",\"action\":\"acme.flaky/wrong_input\"}")), List.of()), Map.of());
+        assertEquals("ACTION.INPUT_INVALID", res.error().get("code"));
+        assertEquals("Sheet name 'A/B' contains one of : / ? * [ ]", res.error().get("message"));
+        assertTrue(String.valueOf(res.error().get("suggestedFix")).startsWith("Correct the step's input"));
     }
 
     @Test void secretsAreRedactedFromEvents() {
