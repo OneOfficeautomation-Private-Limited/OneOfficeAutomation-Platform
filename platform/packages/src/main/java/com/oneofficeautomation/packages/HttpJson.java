@@ -69,6 +69,55 @@ final class HttpJson {
         Req json(Object value) { body = HttpRequest.BodyPublishers.ofString(JsonLite.write(Values.toJsonable(value))); headers.put("Content-Type", "application/json"); return this; }
         Req bytes(byte[] data, String contentType) { body = HttpRequest.BodyPublishers.ofByteArray(data); headers.put("Content-Type", contentType); return this; }
         Req binaryResponse() { binary = true; return this; }
+        /** K3 (batch 10): the body read from a file as it is sent, so a large upload is not held in memory. */
+        Req file(java.nio.file.Path p, String contentType) {
+            try { body = HttpRequest.BodyPublishers.ofFile(p); }
+            catch (java.io.FileNotFoundException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+            headers.put("Content-Type", contentType); return this;
+        }
+
+        /**
+         * K3 (command review, batch 10): writes the answer straight to a file (through a temporary file next to it, moved
+         * into place when complete), so a download of any size does not pass through memory. Returns its size in bytes.
+         * An error answer is read as text and reported as by send.
+         */
+        long download(ActionContext ctx, java.nio.file.Path target) {
+            HttpRequest.Builder b;
+            try { b = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(timeout)).method(method, body); }
+            catch (IllegalArgumentException e) { throw new ActionException(prefix + ".BAD_URL", "Invalid URL: " + url, "Check the instance or base URL."); }
+            headers.putIfAbsent("Accept", "*/*");
+            headers.forEach(b::header);
+            ctx.info(method + " " + url.replaceAll("(?i)([?&][^=]*(token|key|secret|password)[^=]*=)[^&]+", "$1****") + " (to a file)");
+            java.nio.file.Path dir = target.toAbsolutePath().getParent(), tmp;
+            try { java.nio.file.Files.createDirectories(dir); tmp = java.nio.file.Files.createTempFile(dir, ".ooa-download-", ".part"); }
+            catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write in " + dir + ": " + e.getMessage(), "Check the folder and its permissions.", true); }
+            try {
+                HttpResponse<java.nio.file.Path> r;
+                for (int attempt = 0; ; attempt++) {
+                    try { r = CLIENT.send(b.build(), HttpResponse.BodyHandlers.ofFile(tmp)); }
+                    catch (HttpTimeoutException e) { throw new ActionException(prefix + ".TIMEOUT", "No response within " + timeout + " s from " + host(url), "Try again later or raise the timeout.", true); }
+                    catch (IOException e) { throw new ActionException(prefix + ".UNREACHABLE", "Cannot reach " + host(url) + ": " + NetErrors.reason(e, null), "Check the URL, proxy and network access.", true); }
+                    catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+                    long wait = r.statusCode() == 429 && attempt < MAX_RATE_RETRIES ? retryAfterMillis(r.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
+                    if (wait < 0) break;
+                    ctx.warn(host(url) + " is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s (" + (attempt + 1) + " of " + MAX_RATE_RETRIES + ")");
+                    pause(ctx, wait);
+                }
+                if (r.statusCode() >= 400) {
+                    byte[] err = java.nio.file.Files.size(tmp) > 1_000_000 ? new byte[0] : java.nio.file.Files.readAllBytes(tmp);
+                    String text = new String(err, StandardCharsets.UTF_8);
+                    Object parsed = null;
+                    if (!text.isBlank()) try { parsed = JsonLite.parse(text); } catch (IllegalArgumentException ignored) { }
+                    throw error(prefix, new Response(r.statusCode(), text, parsed, err, r.headers().map()));
+                }
+                java.nio.file.Files.move(tmp, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                return java.nio.file.Files.size(target);
+            } catch (IOException e) {
+                throw new ActionException("FILE.IO_ERROR", "Cannot write " + target + ": " + e.getMessage(), "Check the folder, its permissions and free space.", true);
+            } finally {
+                try { java.nio.file.Files.deleteIfExists(tmp); } catch (IOException ignored) { }
+            }
+        }
         /** The caller reads the answer as text and checks it itself (an HTML answer is then not an error here). */
         Req allowText() { allowText = true; return this; }
         Req timeout(int s) { timeout = s; return this; }

@@ -447,9 +447,15 @@ public final class DocuSignPackage {
     }
 
     private static Map<String, Object> save(ActionContext ctx, String url, String saveAs, Object token) {
-        byte[] data = send(ctx, req("GET", url, token).header("Accept", "application/pdf, application/zip, */*").binaryResponse().timeout(600)).bytes();
         Path out = ctx.resolvePath(saveAs);
-        HttpJson.writeFile(out, data);
+        // K3 (batch 10): straight to the file (a combined PDF or ZIP of a large envelope can be big)
+        try { req("GET", url, token).header("Accept", "application/pdf, application/zip, */*").timeout(1800).download(ctx, out); }
+        catch (ActionException e) {
+            String m = String.valueOf(e.getMessage());
+            if (e.code().equals(P + ".REQUEST_FAILED") && (m.contains("DOES_NOT_EXIST") || m.contains("INVALID_ENVELOPE_ID")))
+                throw new ActionException(P + ".NOT_FOUND", m, "Check the id and that it belongs to this account.", false, e.details());
+            throw e;
+        }
         return Out.of("path", out.toString());
     }
 

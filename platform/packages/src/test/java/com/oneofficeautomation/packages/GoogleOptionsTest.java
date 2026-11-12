@@ -44,6 +44,31 @@ class GoogleOptionsTest {
         assertEquals("GOOGLE.BAD_INPUT", assertThrows(ActionException.class, () -> GooglePackage.rrule("fortnightly")).code());
     }
 
+    /** K3 (batch 10): a large Drive upload is resumable and streamed from disk; every Drive call works in shared drives. */
+    @Test void largeDriveUploadsAreResumableAndSharedDrivesWork() throws Exception {
+        long from = GooglePackage.resumableFrom;
+        GooglePackage.resumableFrom = 10;
+        try (Fake f = new Fake()) {
+            f.on("POST /upload/drive/v3/files", c -> new Object[]{200, "{}", Map.of("Location", f.url() + "/upload-session/U1")})
+             .on("PUT /upload-session/U1", c -> ok("{\"id\":\"F1\"}"))
+             .on("GET /drive/v3/files/F1", c -> q(c).contains("fields=") ? ok("{\"mimeType\":\"application/pdf\",\"name\":\"a.pdf\"}") : ok("%PDF streamed"));
+            var p = new GooglePackage();
+            Path w = tmp();
+            Files.writeString(w.resolve("big.bin"), "0123456789abcdefghij");
+            var ctx = PackagesTestSupport.ctx(w, Map.of());
+            var tok = new com.oneofficeautomation.sdk.SecureString("tok", "t");
+            assertEquals("F1", p.driveUpload(ctx, tok, "big.bin", "SHARED-FOLDER", null, false, null, f.url()).get("file_id"));
+            Call open = f.last("POST", "/upload/drive/v3/files");
+            assertTrue(q(open).contains("uploadType=resumable") && q(open).contains("supportsAllDrives=true"), q(open));
+            assertEquals("20", open.header("X-Upload-Content-Length"));
+            assertEquals(List.of("SHARED-FOLDER"), open.json().get("parents"));
+            assertEquals("0123456789abcdefghij", f.last("PUT", "/upload-session/U1").text());
+            assertEquals("https://www.googleapis.com/drive/v3/files?q=x&supportsAllDrives=true&includeItemsFromAllDrives=true",
+                    GooglePackage.sharedDrives("https://www.googleapis.com/drive/v3/files?q=x"));
+            assertEquals("https://www.googleapis.com/drive/v3/files/F1/export?mimeType=a", GooglePackage.sharedDrives("https://www.googleapis.com/drive/v3/files/F1/export?mimeType=a"));
+        } finally { GooglePackage.resumableFrom = from; }
+    }
+
     /** A3 (command review, batch 7): an each-email loop on Gmail, as on the other mail services. */
     @Test void eachGmailMessageLoop() throws Exception {
         try (Fake f = new Fake()) {

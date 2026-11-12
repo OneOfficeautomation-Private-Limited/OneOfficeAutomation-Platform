@@ -635,11 +635,10 @@ public final class Microsoft365Package {
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
-        byte[] data = HttpJson.req(P, "GET", drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":/content").bearer(token).binaryResponse().timeout(600).send(ctx).bytes();
         Path p = ctx.resolvePath(local);
         if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
-        try { if (p.getParent() != null) Files.createDirectories(p.getParent()); Files.write(p, data); }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        // K3 (batch 10): straight to the file, so a file of any size does not pass through memory
+        HttpJson.req(P, "GET", drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":/content").bearer(token).timeout(3600).download(ctx, p);
         return Map.of("path", p.toString());
     }
 
@@ -1631,10 +1630,10 @@ public final class Microsoft365Package {
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite) {
-        byte[] data = HttpJson.req(P, "GET", item(drive, base, ref, "/content") + "?format=pdf").bearer(token).binaryResponse().timeout(600).send(ctx).bytes();
         Path p = ctx.resolvePath(local);
         if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
-        return Map.of("path", writeLocal(ctx, p.toString(), data).toString());
+        HttpJson.req(P, "GET", item(drive, base, ref, "/content") + "?format=pdf").bearer(token).timeout(1800).download(ctx, p);
+        return Map.of("path", p.toString());
     }
 
     @Action(id = "restore_version", name = "Restore file version (OneDrive/SharePoint)", category = "Files", capabilities = "network",
@@ -2692,9 +2691,34 @@ public final class Microsoft365Package {
         List<Object> g = tableMatrix(table, headers);
         if (g.isEmpty() || list(g.get(0)).isEmpty()) throw new ActionException(P + ".NO_VALUES", "The Data Table is empty", "Check that the table has columns and rows.");
         String address = spanFrom(start, g);
-        HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet) + rangePath(address))).bearer(token).json(Map.of("values", g)).send(ctx);
+        int cols = list(g.get(0)).size();
+        int block = Math.max(1, cellsPerRequest / cols);
+        if (g.size() <= block) {
+            HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet) + rangePath(address))).bearer(token).json(Map.of("values", g)).send(ctx);
+            return Map.of("address", address);
+        }
+        // K3 (batch 10): a large table goes in blocks of rows (Graph limits a request's size), inside one workbook
+        // session so the blocks are saved together and the workbook is not reopened for each
+        String session = Values.text(HttpJson.req(P, "POST", book(drive, base, remote, "/workbook/createSession")).bearer(token)
+                .json(Map.of("persistChanges", true)).send(ctx).map().get("id"));
+        int[] s0 = cell(start.split(":")[0]);
+        try {
+            for (int from = 0; from < g.size(); from += block) {
+                List<Object> part = g.subList(from, Math.min(g.size(), from + block));
+                String at = spanFrom(colName(s0[0]) + (s0[1] + from), part);
+                HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet) + rangePath(at))).bearer(token).header("workbook-session-id", session)
+                        .json(Map.of("values", part)).timeout(300).send(ctx);
+                ctx.info("Wrote rows " + (from + 1) + " to " + (from + part.size()) + " of " + g.size());
+            }
+        } finally {
+            try { HttpJson.req(P, "POST", book(drive, base, remote, "/workbook/closeSession")).bearer(token).header("workbook-session-id", session).json(Map.of()).send(ctx); }
+            catch (ActionException ignored) { /* the session ends by itself after a few minutes */ }
+        }
         return Map.of("address", address);
     }
+
+    /** Cells written in one request by Write Data Table (Graph refuses large requests; tests make it smaller). */
+    static int cellsPerRequest = 20_000;
 
     // ------------------------------------------ Calendar -----------------------------------------
 

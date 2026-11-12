@@ -19,7 +19,31 @@ public final class GooglePackage {
     private static final String D_EP = "Replaces https://*.googleapis.com for testing or a proxy; leave empty normally.";
 
     private static String url(String defaultUrl, String override) {
-        return override == null || override.isBlank() ? defaultUrl : defaultUrl.replaceFirst("^https://[^/]+", override.replaceAll("/+$", ""));
+        String u = sharedDrives(defaultUrl);
+        return override == null || override.isBlank() ? u : u.replaceFirst("^https://[^/]+", override.replaceAll("/+$", ""));
+    }
+
+    /**
+     * K3 (batch 10): every Drive call works in shared drives too (Google answers "not found" for a shared-drive item
+     * otherwise); a search also finds items in the shared drives the account can see.
+     */
+    static String sharedDrives(String u) {
+        if (!u.matches("^https://www\\.googleapis\\.com/(upload/)?drive/v3/files.*") || u.contains("supportsAllDrives") || u.contains("/export?")) return u;   // export takes no such option
+        String sep = u.contains("?") ? "&" : "?";
+        boolean search = u.matches("^https://www\\.googleapis\\.com/drive/v3/files(\\?.*)?$") && !u.contains("includeItemsFromAllDrives");
+        return u + sep + "supportsAllDrives=true" + (search ? "&includeItemsFromAllDrives=true" : "");
+    }
+
+    /** Files larger than this (bytes) go up with a resumable upload, read from disk as they are sent (tests make it smaller). */
+    static long resumableFrom = 5L * 1024 * 1024;
+
+    /** Google's resumable upload: a session for the metadata, then the content streamed from the file in one request. */
+    private static Map<String, Object> resumable(ActionContext ctx, Object token, String method, String sessionUrl, Map<String, Object> meta, Path p, long size, String ep) {
+        HttpJson.Response open = HttpJson.req(P, method, url(sessionUrl, ep)).bearer(token).json(meta)
+                .header("X-Upload-Content-Type", "application/octet-stream").header("X-Upload-Content-Length", String.valueOf(size)).send(ctx);
+        String location = open.header("Location");
+        if (location == null || location.isBlank()) throw new ActionException(P + ".UPLOAD_FAILED", "Google did not open an upload session", "Try again.", true);
+        return HttpJson.req(P, "PUT", location).bearer(token).file(p, "application/octet-stream").timeout(3600).send(ctx).map();
     }
 
     /** The range to read: the given range, or all cells of the named sheet (the first sheet when none is named) when no range is given. */
@@ -126,7 +150,7 @@ public final class GooglePackage {
         return Map.of("table", Values.table(List.of("id", "name", "mime_type", "size", "modified"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "drive_upload", name = "Upload to Drive", category = "Drive", timeoutSeconds = 600, capabilities = {"network", "filesystem"}, description = "Upload a local file to a Drive folder.",
+    @Action(id = "drive_upload", name = "Upload to Drive", category = "Drive", timeoutSeconds = 3600, capabilities = {"network", "filesystem"}, description = "Upload a local file to a Drive folder.",
             panel = "access_token, local_path, folder_id, overwrite | name, description, base_url")
     @Output(name = "file_id", type = OoaType.STRING, description = "New file id.")
     public Map<String, Object> driveUpload(ActionContext ctx,
@@ -138,15 +162,19 @@ public final class GooglePackage {
             @Input(name = "description", type = OoaType.STRING, required = false, description = "Description stored with the file.") String description,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         Path p = ctx.resolvePath(local);
-        byte[] data;
-        try { data = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+        long size;
+        try { size = Files.size(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+        boolean big = size > resumableFrom;
+        byte[] data = big ? null : HttpJson.readFile(p);
         String fileName = name == null || name.isBlank() ? p.getFileName().toString() : name;
         if (overwrite) {
             List<String> q = new ArrayList<>(List.of("trashed = false", "name = " + quoted(fileName), quoted(blank(folder) ? "root" : folder) + " in parents"));
             List<Object> same = list(call(ctx, token, "GET", DRIVE + "?" + HttpJson.query(Map.of("q", String.join(" and ", q), "fields", "files(id)", "supportsAllDrives", true, "includeItemsFromAllDrives", true)), ep, null).get("files"));
             if (!same.isEmpty()) {
                 String fid = str(obj(same.get(0)).get("id"));
-                Map<String, Object> r = HttpJson.req(P, "PATCH", url("https://www.googleapis.com/upload/drive/v3/files/" + HttpJson.enc(fid) + "?uploadType=media&fields=id&supportsAllDrives=true", ep))
+                Map<String, Object> r = big
+                        ? resumable(ctx, token, "PATCH", "https://www.googleapis.com/upload/drive/v3/files/" + HttpJson.enc(fid) + "?uploadType=resumable&fields=id", Map.of(), p, size, ep)
+                        : HttpJson.req(P, "PATCH", url("https://www.googleapis.com/upload/drive/v3/files/" + HttpJson.enc(fid) + "?uploadType=media&fields=id&supportsAllDrives=true", ep))
                         .bearer(token).bytes(data, "application/octet-stream").timeout(600).send(ctx).map();
                 if (!blank(description)) call(ctx, token, "PATCH", DRIVE + "/" + HttpJson.enc(fid) + "?supportsAllDrives=true", ep, Map.of("description", description));
                 return Out.of("file_id", r.get("id"));
@@ -156,6 +184,7 @@ public final class GooglePackage {
         meta.put("name", fileName);
         if (!blank(description)) meta.put("description", description);
         if (folder != null && !folder.isBlank()) meta.put("parents", List.of(folder));
+        if (big) return Out.of("file_id", resumable(ctx, token, "POST", "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id", meta, p, size, ep).get("id"));
         Object[] mp = HttpJson.multipart("related", List.of(
                 new Object[]{"Content-Type: application/json; charset=UTF-8", JsonLite.write(meta).getBytes(StandardCharsets.UTF_8)},
                 new Object[]{"Content-Type: application/octet-stream", data}));
@@ -184,10 +213,9 @@ public final class GooglePackage {
         };
         String u = export != null ? "https://www.googleapis.com/drive/v3/files/" + HttpJson.enc(id) + "/export?mimeType=" + HttpJson.enc(export)
                 : "https://www.googleapis.com/drive/v3/files/" + HttpJson.enc(id) + "?alt=media";
-        byte[] data = HttpJson.req(P, "GET", url(u, ep)).bearer(token).binaryResponse().timeout(600).send(ctx).bytes();
         Path p = freeName(ctx.resolvePath(local), overwrite);
-        try { if (p.getParent() != null) Files.createDirectories(p.getParent()); Files.write(p, data); }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        // K3 (batch 10): straight to the file, so a file of any size does not pass through memory
+        HttpJson.req(P, "GET", url(u, ep)).bearer(token).timeout(3600).download(ctx, p);
         return Map.of("path", p.toString());
     }
 

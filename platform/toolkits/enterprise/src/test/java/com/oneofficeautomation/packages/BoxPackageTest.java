@@ -81,6 +81,33 @@ class BoxPackageTest {
         }
     }
 
+    /** K3 (batch 10): a file over Box's one-upload limit goes up in parts through an upload session, each with its SHA-1. */
+    @Test void largeFilesGoUpInParts() throws Exception {
+        long from = BoxPackage.chunkedFrom;
+        BoxPackage.chunkedFrom = 10;
+        try (Fake f = new Fake()) {
+            List<String> ranges = new ArrayList<>();
+            java.util.concurrent.atomic.AtomicInteger commits = new java.util.concurrent.atomic.AtomicInteger();
+            f.on("POST /api/2.0/files/upload_sessions", c -> status(201, "{\"id\":\"S1\",\"part_size\":10,\"total_parts\":3}"))
+             .on("PUT /api/2.0/files/upload_sessions/S1", c -> { ranges.add(c.header("Content-Range") + " " + c.header("Digest")); return ok("{\"part\":{\"part_id\":\"P" + ranges.size() + "\",\"offset\":0,\"size\":10}}"); })
+             .on("POST /api/2.0/files/upload_sessions/S1/commit", c -> commits.incrementAndGet() == 1
+                    ? new Object[]{202, "", Map.of("Retry-After", "0")}
+                    : status(201, "{\"entries\":[{\"type\":\"file\",\"id\":\"7777\"}]}"));
+            Path w = PackagesTest.tmp();
+            Files.writeString(w.resolve("big.bin"), "0123456789abcdefghijKLMNO");   // 25 bytes: three parts
+            assertEquals("7777", pkg.upload(ctx(w), "big.bin", "42", null, false, TOKEN, null, f.url(), f.url()).get("file_id"));
+            assertEquals(Map.of("folder_id", "42", "file_size", new java.math.BigDecimal(25), "file_name", "big.bin"), f.last("POST", "/api/2.0/files/upload_sessions").json());
+            assertEquals(3, ranges.size());
+            String sha = java.util.Base64.getEncoder().encodeToString(java.security.MessageDigest.getInstance("SHA-1").digest("0123456789".getBytes()));
+            assertEquals("bytes 0-9/25 sha=" + sha, ranges.get(0));
+            assertTrue(ranges.get(2).startsWith("bytes 20-24/25 "));
+            String whole = java.util.Base64.getEncoder().encodeToString(java.security.MessageDigest.getInstance("SHA-1").digest("0123456789abcdefghijKLMNO".getBytes()));
+            assertEquals("sha=" + whole, f.last("POST", "/api/2.0/files/upload_sessions/S1/commit").header("Digest"));
+            assertTrue(f.last("POST", "/api/2.0/files/upload_sessions/S1/commit").text().contains("\"P3\""), "every part is committed");
+            assertEquals(2, commits.get(), "asked again after Box said 202");
+        } finally { BoxPackage.chunkedFrom = from; }
+    }
+
     @Test void copyMoveRenameDeleteAndInfo() throws Exception {
         try (Fake f = new Fake()) {
             f.on("POST /2.0/files/5/copy", c -> status(201, "{\"id\":\"6\"}"))
