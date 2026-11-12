@@ -1,3 +1,4 @@
+import { enumWord } from "./enumWords";
 import type { FieldSpec, FlowStep, PackageManifest } from "../api/client";
 
 /**
@@ -18,7 +19,23 @@ export function shownWhen(rule: Record<string, unknown[]> | undefined, value: (n
 export function helpText(spec: FieldSpec & { minimum?: number; maximum?: number }, required: boolean): string {
   const limits = spec.minimum !== undefined && spec.maximum !== undefined ? `From ${spec.minimum} to ${spec.maximum}.`
     : spec.minimum !== undefined ? `Smallest value: ${spec.minimum}.` : spec.maximum !== undefined ? `Largest value: ${spec.maximum}.` : "";
-  return [required ? "Required." : "", spec.description ?? "", limits].filter(Boolean).join(" ");
+  return [required ? "Required." : "", choiceWords(spec), limits].filter(Boolean).join(" ");
+}
+
+/**
+ * K8 (batch 10): help that explains each choice by its stored code ("client_credentials: ...; password: ...") names it
+ * as the list shows it ("Client credentials: ...; Password: ..."), so the help and the list say the same.
+ */
+export function choiceWords(spec: FieldSpec): string {
+  const text = spec.description ?? "";
+  if (!Array.isArray(spec.enum) || !spec.enum.length) return text;
+  let out = text;
+  for (const v of spec.enum) {
+    const code = String(v);
+    if (!/^[A-Za-z0-9_-]+$/.test(code)) continue;
+    out = out.replace(new RegExp("(^|; |\\. )" + code + ":", "g"), (_m, pre: string) => pre + enumWord(code) + ":");
+  }
+  return out;
 }
 
 // ---- element actions (web pages and desktop controls) ----

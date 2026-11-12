@@ -283,6 +283,7 @@ public final class FlowValidator {
 
     /** Unknown, missing and literal values of an action, condition or loop type, against its manifest. */
     private static void checkArgs(P p, String sid, String prefix, String what, ActionSpec spec, Map<String, Object> args, boolean connection, boolean dynamicArgs) {
+        args = spec.currentArgs(args);   // K8: a renamed input's former name is still accepted
         for (String k : args.keySet())
             if (spec.input(k).isEmpty()) p.add(sid, prefix + k, "Unknown input '" + k + "' for " + what,
                     "Valid inputs: " + (spec.inputs().isEmpty() ? "none" : String.join(", ", spec.inputs().stream().map(ActionSpec.InputSpec::name).toList())) + ".");

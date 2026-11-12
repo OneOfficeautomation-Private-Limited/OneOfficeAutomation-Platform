@@ -61,7 +61,7 @@ public final class PackageIntrospector {
             if (in.description().isBlank()) throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' has no description");
             Object def = in.defaultValue().isEmpty() ? null : JsonLite.parse(in.defaultValue());
             inputs.add(new ActionSpec.InputSpec(in.name(), in.type(), in.description(), in.label(), in.required(), def,
-                    in.pattern(), List.of(in.enumValues()), in.example(), in.visibleWhen(), in.min(), in.max()));
+                    in.pattern(), List.of(in.enumValues()), in.example(), in.visibleWhen(), in.min(), in.max(), List.of(in.formerNames())));
         }
         for (ActionSpec.InputSpec in : inputs)
             for (String other : in.visibleRule().keySet())

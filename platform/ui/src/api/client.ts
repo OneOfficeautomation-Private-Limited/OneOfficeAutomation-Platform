@@ -20,6 +20,8 @@ export type FieldSpec = {
   "x-ooa-type"?: string; "x-ooa-label"?: string;
   /** Shown only when another input has one of these values, e.g. { iterator: ["while"] }. */
   "x-ooa-visible-when"?: Record<string, unknown[]>;
+  /** Names the input had before it was renamed; Studio moves a value under one to the current name. */
+  "x-ooa-former-names"?: string[];
 };
 /** A command panel's entry: a field, a choice of options each showing its own fields, or a tick box that shows its fields. */
 export type PanelEntry = string | { choice: string; options: { label: string; fields: string[] }[] } | { tick: string; fields: string[] };

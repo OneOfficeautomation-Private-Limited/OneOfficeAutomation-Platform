@@ -439,15 +439,16 @@ public final class Microsoft365Package {
     }
 
     @Action(id = "list_events", name = "Get calendar events", category = "Calendar", idempotent = true, capabilities = "network", description = "List events between two dates.",
-            panel = "access_token, from, to, subject_contains | time_zone, calendar_id, mailbox, base_url")
+            panel = "access_token, start, end, subject_contains | time_zone, calendar, mailbox, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, subject, start, end, location, organizer.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listEvents(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "from", type = OoaType.DATETIME, description = "Start of the period (UTC).") LocalDateTime from,
-            @Input(name = "to", type = OoaType.DATETIME, description = "End of the period (UTC).") LocalDateTime to,
+            @Input(name = "start", type = OoaType.DATETIME, formerNames = "from", description = "Start of the period (UTC).") LocalDateTime from,
+            @Input(name = "end", type = OoaType.DATETIME, formerNames = "to", description = "End of the period (UTC).") LocalDateTime to,
             @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Only events whose title contains this text.") String subject,
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone of the returned start and end times, e.g. Europe/London.") String tz,
-            @Input(name = "calendar_id", type = OoaType.STRING, required = false, description = "Read this calendar instead of the default one.") String calendar,
+            @Input(name = "calendar", type = OoaType.STRING, required = false, formerNames = "calendar_id", description = "Read this calendar instead of the default one.") String calendar,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
         String cal = calendar == null || calendar.isBlank() ? "" : "/calendars/" + HttpJson.enc(calendar);
@@ -462,7 +463,7 @@ public final class Microsoft365Package {
                     e.get("location") instanceof Map<?, ?> l ? l.get("displayName") : null,
                     e.get("organizer") instanceof Map<?, ?> og && og.get("emailAddress") instanceof Map<?, ?> ea ? ea.get("address") : null)));
         }
-        return Map.of("table", Values.table(List.of("id", "subject", "start", "end", "location", "organizer"), rows));
+        return Map.of("table", Values.table(List.of("id", "subject", "start", "end", "location", "organizer"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     private static String drive(String drive, String base) {
@@ -631,6 +632,7 @@ public final class Microsoft365Package {
     @Action(id = "list_files", name = "List files (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network", description = "List the files and folders in a drive folder.",
             panel = "access_token, folder | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, type, size, modified, web_url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listFiles(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Folder path; the root when empty.") String folder,
@@ -646,7 +648,7 @@ public final class Microsoft365Package {
             }
             url = (String) page.get("@odata.nextLink");
         }
-        return Map.of("table", Values.table(List.of("id", "name", "type", "size", "modified", "web_url"), rows));
+        return Map.of("table", Values.table(List.of("id", "name", "type", "size", "modified", "web_url"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     public Map<String, Object> teamsMessage(ActionContext ctx, Object token, String team, String channel, String message, boolean html, String subject,
@@ -1517,6 +1519,7 @@ public final class Microsoft365Package {
             description = "List who can open or edit a file or folder, including sharing links.",
             panel = "access_token, item | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, roles, granted_to, link_type, link_scope, link_url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listPermissions(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
@@ -1529,7 +1532,7 @@ public final class Microsoft365Package {
             rows.add(new ArrayList<>(Arrays.asList(p.get("id"), String.join(",", list(p.get("roles")).stream().map(o -> String.valueOf(o)).toList()),
                     String.join(";", who), at(p, "link", "type"), at(p, "link", "scope"), at(p, "link", "webUrl"))));
         }
-        return Map.of("table", Values.table(List.of("id", "roles", "granted_to", "link_type", "link_scope", "link_url"), rows));
+        return Map.of("table", Values.table(List.of("id", "roles", "granted_to", "link_type", "link_scope", "link_url"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     @Action(id = "check_permissions", name = "Check file permission (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network",
@@ -2557,6 +2560,7 @@ public final class Microsoft365Package {
             description = "List the Excel tables in a workbook, or on one worksheet.",
             panel = "access_token, remote_path, [Only one worksheet: sheet] | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, style, show_headers.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> excelListTables(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
@@ -2567,7 +2571,7 @@ public final class Microsoft365Package {
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> t : pages(ctx, token, book(drive, base, remote, path), 0, null))
             rows.add(new ArrayList<>(Arrays.asList(t.get("id"), t.get("name"), t.get("style"), t.get("showHeaders"))));
-        return Map.of("table", Values.table(List.of("id", "name", "style", "show_headers"), rows));
+        return Map.of("table", Values.table(List.of("id", "name", "style", "show_headers"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     @Action(id = "excel_create_table", name = "Create table (Excel online)", category = "Excel online", capabilities = "network",
@@ -2928,15 +2932,15 @@ public final class Microsoft365Package {
 
     @Action(id = "find_meeting_times", name = "Find free meeting times", category = "Calendar", idempotent = true, capabilities = "network",
             description = "Suggest time slots in a period when the attendees are free for a meeting of the given length.",
-            panel = "access_token, attendees, duration_minutes, from, to | include_outside_working_hours, time_zone, max_results, mailbox, base_url")
+            panel = "access_token, attendees, duration_minutes, start, end | include_outside_working_hours, time_zone, max_results, mailbox, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: start, end, confidence, organizer_availability.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of suggestions.")
     @Output(name = "reason", type = OoaType.STRING, description = "Why there are no suggestions, when there are none.")
     public Map<String, Object> findMeetingTimes(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "attendees", description = "Attendee address(es).") Object attendees,
-            @Input(name = "from", type = OoaType.DATETIME, description = "Start of the search period.") LocalDateTime from,
-            @Input(name = "to", type = OoaType.DATETIME, description = "End of the search period.") LocalDateTime to,
+            @Input(name = "start", type = OoaType.DATETIME, formerNames = "from", description = "Start of the search period.") LocalDateTime from,
+            @Input(name = "end", type = OoaType.DATETIME, formerNames = "to", description = "End of the search period.") LocalDateTime to,
             @Input(name = "duration_minutes", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Meeting length in minutes.") int minutes,
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone of from, to and the results.") String tz,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "Most suggestions.") int max,
@@ -2983,13 +2987,14 @@ public final class Microsoft365Package {
             description = "List the Microsoft Teams teams the user belongs to.",
             panel = "access_token, user | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listTeams(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = "me, or a user's id or email address.") String user,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> t : joinedTeams(ctx, token, base, user)) rows.add(new ArrayList<>(Arrays.asList(t.get("id"), t.get("displayName"), t.get("description"))));
-        return Map.of("table", Values.table(List.of("id", "name", "description"), rows));
+        return Map.of("table", Values.table(List.of("id", "name", "description"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     @Action(id = "get_team_by_name", name = "Get team by name (Teams)", category = "Teams", idempotent = true, capabilities = "network",
@@ -3008,6 +3013,7 @@ public final class Microsoft365Package {
             description = "List the channels of a team.",
             panel = "access_token, team_id | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description, membership_type.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listChannels(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
@@ -3015,7 +3021,7 @@ public final class Microsoft365Package {
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> c : channels(ctx, token, base, team))
             rows.add(new ArrayList<>(Arrays.asList(c.get("id"), c.get("displayName"), c.get("description"), c.get("membershipType"))));
-        return Map.of("table", Values.table(List.of("id", "name", "description", "membership_type"), rows));
+        return Map.of("table", Values.table(List.of("id", "name", "description", "membership_type"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     public Map<String, Object> channelByName(ActionContext ctx, Object token, String team, String name, String base) {
@@ -3164,6 +3170,7 @@ public final class Microsoft365Package {
             description = "List the lists and libraries of a SharePoint site.",
             panel = "access_token, site | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, display_name, template, web_url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listLists(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
@@ -3171,7 +3178,7 @@ public final class Microsoft365Package {
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> l : pages(ctx, token, site(base, site) + "/lists", 0, null))
             rows.add(new ArrayList<>(Arrays.asList(l.get("id"), l.get("name"), l.get("displayName"), at(l, "list", "template"), l.get("webUrl"))));
-        return Map.of("table", Values.table(List.of("id", "name", "display_name", "template", "web_url"), rows));
+        return Map.of("table", Values.table(List.of("id", "name", "display_name", "template", "web_url"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
     @Action(id = "get_list_items", name = "Get SharePoint list items", category = "SharePoint", idempotent = true, capabilities = "network",

@@ -407,10 +407,11 @@ public final class Runner {
                 throw new OoaException("CONNECTION.WRONG_TOOLKIT", "Connection '" + name + "' is for " + cp + ", not " + pid, "Choose a connection made for " + pid + ".");
             Map<String, Object> out = new LinkedHashMap<>(raw == null ? Map.of() : raw);
             java.util.function.Predicate<String> empty = k -> out.get(k) == null || (out.get(k) instanceof String s && s.isBlank());
+            // K8: a connection saved under an input's former name still fills the renamed input
             if (conn.get("values") instanceof Map<?, ?> vals)
-                for (var e : ((Map<String, Object>) vals).entrySet()) if (spec.input(e.getKey()).isPresent() && empty.test(e.getKey())) out.put(e.getKey(), e.getValue());
+                for (var e : spec.currentArgs((Map<String, Object>) vals).entrySet()) if (spec.input(e.getKey()).isPresent() && empty.test(e.getKey())) out.put(e.getKey(), e.getValue());
             if (conn.get("credentials") instanceof Map<?, ?> creds)
-                for (var e : ((Map<String, Object>) creds).entrySet()) {
+                for (var e : spec.currentArgs((Map<String, Object>) creds).entrySet()) {
                     if (spec.input(e.getKey()).isEmpty() || !empty.test(e.getKey())) continue;
                     CredentialVault vault = (CredentialVault) services.get("vault");
                     if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault configured for the credentials of connection '" + name + "'");
@@ -1665,6 +1666,7 @@ public final class Runner {
         }
 
         Map<String, Object> prepareArgs(ActionSpec spec, Map<String, Object> raw) {
+            raw = spec.currentArgs(raw);
             Map<String, Object> out = new LinkedHashMap<>();
             for (ActionSpec.InputSpec in : spec.inputs()) {
                 Object v = raw == null ? null : raw.get(in.name());
@@ -1831,7 +1833,7 @@ public final class Runner {
             while (true) {
                 OoaException err;
                 try {
-                    Map<String, Object> raw = (Map<String, Object>) resolve(step.getOrDefault("args", Map.of()));
+                    Map<String, Object> raw = spec.currentArgs((Map<String, Object>) resolve(step.getOrDefault("args", Map.of())));
                     if (step.get("connection") instanceof String cn && !cn.isBlank()) raw = withConnection(cn.strip(), pid, spec, raw);
                     Map<String, Object> args = prepareArgs(spec, raw);
                     ActionContext c = ctx(sid);

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
@@ -50,6 +50,19 @@ export function StepForm({ step, packages, onArg, onNote }:
   const [showConn, setShowConn] = useState(false);
   const [advanced, setAdvanced] = useState(timeoutAdvanced);
   const [, redraw] = useState(0);
+  // K8 (batch 10): a value under an input's former name moves to its current name when the step is opened
+  useEffect(() => {
+    if (!vars) return;
+    let f = vars.flow, moved = false;
+    for (const [n, s] of Object.entries(props))
+      for (const old of s["x-ooa-former-names"] ?? [])
+        if (step.args?.[old] !== undefined) {
+          if (step.args?.[n] === undefined) f = setArg(f, step.id, n, step.args[old]);
+          f = setArg(f, step.id, old, undefined);
+          moved = true;
+        }
+    if (moved) vars.edit(f);
+  }, [step.id, step.action]);   // eslint-disable-line react-hooks/exhaustive-deps
   // one element field: the captured object, or the selector when the step uses one (or the person asks for it)
   const capturable = "object" in props && step.action.startsWith("ooa.desktop_ui/") || ("object" in props && "selector" in props && step.action.startsWith("ooa.browser/"));
   const bySelector = capturable && step.action.startsWith("ooa.browser/") && step.args?.object === undefined && (step.args?.selector !== undefined || bySelectorAsked.has(step.id));
