@@ -571,3 +571,26 @@ SigV4; PGP signing and verifying (AA has neither); Kafka with manual commit; MCP
 | **R3** | A choice with nothing filled in shows its empty option ("No sign-in", "None") before an option that only has a default. | Small |
 | **P1** | PGP built in (Bouncy Castle, the Java OpenPGP library): create keys, encrypt, decrypt, sign, verify and import work without GnuPG, with key files and passphrases from the vault; GnuPG is used when a step names a GnuPG home (its keyring). The PGP tests then always run. | Medium |
 | **S1** | Command samples for FTP and SFTP (stand-in servers), PGP (after P1), custom connectors (a local OpenAPI file and a stand-in API), Kafka (stand-in REST proxy) and MCP (stand-in server). SNMP and SAP BAPI stay with their unit tests. | Medium |
+
+**Built 12 Nov 2026 (all)** on ui/usage-review. What changed:
+- **R1**: a vault secret in a header, query value, form field or JSON body reaches the server as the secret (Send
+  request, Upload file, Download file, SOAP); custom connectors already did. Still masked in logs.
+- **R2**: one sign-in for every web step (WebSignIn): Upload file now goes through Send request, Download file and SOAP
+  use the same checks and the OAuth send-and-retry; all four offer none, user name, bearer, OAuth 2.0, OAuth 1.0a and
+  Windows. base_url on all four, so a step's address can be a path. REST and SOAP can have saved connections (base
+  address, headers, sign-in, proxy, client certificate), and batch 7's renewing sign-in fills their bearer token. One
+  CommandCenter now accepts a connection's headers. Old method signatures kept.
+- **R3**: a choice with nothing filled in shows its empty option first. Seven panels changed what they open on, each now
+  showing what the runner does with the fields empty (Send request: No sign-in; Show callout: the mouse pointer; PDF:
+  all pages; Word: the whole document; autofit: every used column; restore version: the previous one; background
+  typing: the focused control).
+- **P1**: PGP built in with Bouncy Castle when GnuPG is not installed: create keys (Ed25519 with a Curve25519 subkey, or
+  RSA, as GnuPG makes them), import, encrypt (keys, key files, passphrase, cipher, compression, armor), decrypt (with
+  tamper detection), sign and verify, with the same inputs and error codes; keys in a folder like GnuPG's keyring
+  (gnupg_home, or .ooa/pgp-keys in the runner account). GnuPG stays in use where it is installed. Not checked here:
+  files exchanged with a real GnuPG (none on this machine).
+- **S1**: 33 samples (56-integration.json): FTP and SFTP against in-process servers (every command), PGP, custom
+  connectors from an OpenAPI file, MCP, Kafka. They found one gap, fixed: Create folder now makes the missing folders on
+  its path. SNMP and SAP BAPI stay with their unit tests.
+- Tests: full suite with --continue (public-site samples off): 2,908 fresh results, none failed. Tried in One AgentStudio:
+  a new Send request opens on No sign-in; Upload file offers the same six sign-ins; REST steps offer a saved connection.
