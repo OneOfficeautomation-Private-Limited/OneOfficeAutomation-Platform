@@ -679,3 +679,5 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-key-mod { font-size: 12px; }
 .st-conn-sub { font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
 .st-signin { display: flex; flex-direction: column; gap: 8px; }
+.st-switch-pick > * { flex: 1; min-width: 0; }
+.st-switch-report { margin: 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; }

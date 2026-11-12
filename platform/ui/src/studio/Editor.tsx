@@ -37,6 +37,7 @@ import { VariableChooser } from "./ValueSources";
 import { agentRows, describeAction, startState, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
 import { AA_NAMES } from "./aaNames";
 import { FORMER_NAMES } from "./formerNames";
+import { MailSwitchDialog } from "./MailSwitchDialog";
 
 /**
  * Actions kept so older agents still run, but no longer offered in the library (usage review item 26): Open file is
@@ -268,7 +269,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const rightPanel = useRef<HTMLElement | null>(null);
   const [drop, setDrop] = useState<{ key: string | null; where: Place } | null>(null);
   const [bottomTab, setBottomTab] = useState("problems");
-  const [tool, setTool] = useState<"connections" | "connectors" | "sap" | null>(null);
+  const [tool, setTool] = useState<"connections" | "connectors" | "sap" | "mail" | null>(null);
   const [checking, setChecking] = useState(false);
   /** Checks the agent as it is in the editor, without saving it. */
   const checkNow = async () => {
@@ -652,6 +653,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               { key: "connections", label: "Saved connections…", description: "A connector's address and sign-in, kept once", separatorBefore: true, onSelect: () => setTool("connections") },
               { key: "connectors", label: "Custom connectors…", description: "Import an OpenAPI, Swagger or Postman file; add a step for an operation", onSelect: () => setTool("connectors") },
               { key: "sap", label: "Import SAP GUI recording…", description: "Turn a script recorded in SAP GUI into SAP GUI steps", onSelect: () => setTool("sap") },
+              { key: "mail", label: "Switch mail service…", description: "Turn the mail steps into another service's, e.g. Exchange to Microsoft 365", onSelect: () => setTool("mail") },
             ]} trigger={<button type="button" className="st-tool" aria-label="More" title="More step actions"><Icon name="more" size={16} stroke={3} /></button>} />
             {finding !== null && <span className="st-find">
               <input ref={findBox} type="search" aria-label="Find in this agent" placeholder="Find in this agent" value={finding}
@@ -847,6 +849,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
       {tool === "connections" && <SavedConnectionsDialog api={api} packages={packages} onClose={() => setTool(null)} onNotice={onNotice} onError={onError} />}
       {tool === "connectors" && <ConnectorsDialog api={api} onClose={() => setTool(null)} onNotice={onNotice} onError={onError}
         onInsert={(step) => { insertSteps(flow, [step]); onNotice("Added a Call operation step for " + String(step.note ?? "the operation") + "."); }} />}
+      {tool === "mail" && <MailSwitchDialog flow={flow} packages={packages} onClose={() => setTool(null)}
+        onApply={(f, note) => { onEdit(f); setTool(null); onNotice(note); }} />}
       {tool === "sap" && <SapImportDialog onClose={() => setTool(null)} onInsert={(steps, note) => { insertSteps(flow, steps); setTool(null); onNotice(note); }} />}
       {recording && <Dialog open title="Recording" width={460} onClose={() => { api.recordCancel().catch(() => {}); }}
         footer={<Button kind="secondary" onClick={() => { api.recordCancel().catch(() => {}); }}>Cancel</Button>}>
