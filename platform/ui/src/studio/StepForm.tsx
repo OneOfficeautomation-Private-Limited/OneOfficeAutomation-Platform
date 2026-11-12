@@ -17,6 +17,7 @@ import { AssignmentsEditor, AssignValue, CommitInput, OutputChooser, RunAgentFie
 import { useVars } from "./VariablesPanel";
 import { BoolField, CollectionField, CredentialField, DateField, FileField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
 import { pickerFor } from "./Pickers";
+import { hasReadState, readState, readStateArgs, READ_STATES, type ReadState } from "./mailFields";
 
 export { CommitInput };
 
@@ -93,6 +94,15 @@ export function StepForm({ step, packages, onArg, onNote }:
   const plainInput = (name: string, label: string) => <InputField key={step.id + ":" + name} action={step.action} name={name} label={label} spec={props[name] ?? {}}
     required={req(name)} value={step.args?.[name]} onCommit={(v) => onArg(name, v)} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
   const field = (name: string) => {
+    // A4: unread_only and read_only as one choice (stored as the two ticks)
+    if (name === "read_only" && hasReadState(props as Record<string, unknown>)) return null;
+    if (name === "unread_only" && hasReadState(props as Record<string, unknown>)) return <Field key={step.id + ":read_state"} label="Read state" layout="beside"
+      info="Which emails count: all of them, only unread ones, or only ones already read.">{(id) =>
+      <Select id={id} value={readState(step.args)} options={READ_STATES} onChange={(e) => {
+        if (!vars) return;
+        const t = readStateArgs(e.target.value as ReadState);
+        vars.edit(setArg(setArg(vars.flow, step.id, "unread_only", t.unread_only), step.id, "read_only", t.read_only));
+      }} />}</Field>;
     if (step.action.startsWith("core/") && name === "condition") return <Field key={step.id + ":condition"} label={isLoop ? "Repeat while" : "Condition"} info={props[name]?.description}>{() =>
       <ConditionEditor key={step.id} value={step.args?.condition} onCommit={(v) => onArg(name, v)} />}</Field>;
     if (step.action === "core/set" && name === "value") return <Field key={step.id + ":value"} label={"Value" + (req(name) ? " *" : "")} info={props[name]?.description}>{() =>

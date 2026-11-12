@@ -109,7 +109,7 @@ permission. The Excel toolkit can also open workbooks on OneDrive or SharePoint 
 
 The **Google Workspace** group takes a Google OAuth **Access token** from the vault:
 
-- **Gmail**: Send Gmail, List Gmail messages, Read Gmail message, Reply, Forward, Move, Delete, Save Gmail attachments.
+- **Gmail**: Send email (Gmail), Find emails (Gmail), Read email (Gmail), Reply, Forward, Move, Delete, Save email attachments (Gmail).
 - **Drive**: List Drive files, Upload to Drive, Download from Drive, Create Drive folder, Copy/Move/Rename/Delete Drive
   item, Find Drive items, Share Drive item, permissions, Export Google file.
 - **Sheets**: Read sheet range, Write to sheet, Append rows to sheet, Create spreadsheet, sheets, cells, formulas,

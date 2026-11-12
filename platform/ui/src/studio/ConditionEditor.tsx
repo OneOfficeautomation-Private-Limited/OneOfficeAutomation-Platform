@@ -5,6 +5,7 @@ import { parseLoose, showValue } from "./flowEdit";
 import { OPS, conditionText } from "./toolkits";
 import { CommitInput } from "./ValueSources";
 import { WindowField, isWindowTitle } from "./FieldKinds";
+import { hasReadState, readState, readStateArgs, READ_STATES, type ReadState } from "./mailFields";
 import { useVars } from "./VariablesPanel";
 
 /**
@@ -139,6 +140,12 @@ export function SpecFields({ args, spec, keyPrefix, onChange }: { args: Record<s
     <div className="st-cond-fields">
       {names.map((name) => {
         const s = props[name];
+        // A4: a mail loop's unread_only and read_only as one choice, stored as the two ticks
+        if (name === "read_only" && hasReadState(props)) return null;
+        if (name === "unread_only" && hasReadState(props))
+          return <label key={name} className="st-cond-field"><span>Read state</span>
+            <Select aria-label="Read state" value={readState(node.args)} options={READ_STATES}
+              onChange={(e) => onChange({ ...node.args, ...readStateArgs(e.target.value as ReadState) })} /></label>;
         const label = labelOf(name, s) + (required.has(name) ? " *" : "");
         const cur = node.args[name];
         if (Array.isArray(s.enum) && s.enum.length)

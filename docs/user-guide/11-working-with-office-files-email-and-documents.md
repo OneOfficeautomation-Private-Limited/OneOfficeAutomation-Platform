@@ -284,9 +284,9 @@ use the Microsoft 365 toolkit for Microsoft 365 mailboxes.
 **Send email**, **Reply to email**, **Forward email**, **Save attachments**, **Move email**, **Mark read or unread**,
 **Delete email**, **Get folders**, including shared mailboxes. It needs a signed-in Windows desktop.
 
-**Google Workspace** needs a Google OAuth **Access token** from the vault: **Send Gmail**, **List Gmail messages**,
-**Read Gmail message**, **Reply to Gmail message**, **Forward Gmail message**, **Save Gmail attachments**,
-**Move Gmail message**, **Change Gmail message status**, **Delete Gmail message** and the "all matching" versions.
+**Google Workspace** needs a Google OAuth **Access token** from the vault: **Send email (Gmail)**, **Find emails (Gmail)**,
+**Read email (Gmail)**, **Reply to email (Gmail)**, **Forward email (Gmail)**, **Save email attachments (Gmail)**,
+**Move email (Gmail)**, **Change email status (Gmail)**, **Delete email (Gmail)** and the "all matching" versions.
 
 ## 12. Worked examples
 

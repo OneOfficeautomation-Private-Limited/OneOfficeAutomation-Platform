@@ -36,6 +36,7 @@ const openUrl = (flow: Flow): string | undefined => {
 import { VariableChooser } from "./ValueSources";
 import { agentRows, describeAction, startState, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
 import { AA_NAMES } from "./aaNames";
+import { FORMER_NAMES } from "./formerNames";
 
 /**
  * Actions kept so older agents still run, but no longer offered in the library (usage review item 26): Open file is
@@ -44,6 +45,8 @@ import { AA_NAMES } from "./aaNames";
 export const RETIRED_ACTIONS = new Set(["ooa.application/open_file"]);
 /** The AA command name that matched a search, when the action's own name did not. */
 const aaMatch = (id: string, q: string) => q ? AA_NAMES[id]?.find((n) => n.toLowerCase().includes(q)) : undefined;
+/** A name the action had before it was renamed, when it matched a search and its own name did not. */
+const formerMatch = (id: string, q: string) => q ? FORMER_NAMES[id]?.find((n) => n.toLowerCase().includes(q)) : undefined;
 
 /** Drag data: a step being moved, or an action from the library being added. */
 const STEP_DRAG = "application/x-ooa-step";
@@ -74,7 +77,7 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
     return (all.find((a) => a.name === q) ?? all.find((a) => a.name.startsWith(q)) ?? all[0])?.id;
   };
   // a search also finds an action by its AA command name ("Open program/file", "Simulate keystrokes")
-  const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || !!aaMatch(p.id + "/" + a.id, q)) : p.actions }))
+  const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || !!aaMatch(p.id + "/" + a.id, q) || !!formerMatch(p.id + "/" + a.id, q)) : p.actions }))
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
   return (
     <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions"
@@ -118,7 +121,8 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
                 <li key={a.id}><button type="button" className="st-action" title={a.description} draggable
                   onDragStart={(e) => { e.dataTransfer.setData(ACTION_DRAG, p.id + "/" + a.id); e.dataTransfer.effectAllowed = "copy"; }}
                   onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}
-                  {(() => { const aa = !a.name.toLowerCase().includes(q) ? aaMatch(p.id + "/" + a.id, q) : undefined; return aa && <span className="st-aa-name">AA: {aa}</span>; })()}</button></li>
+                  {(() => { const own = a.name.toLowerCase().includes(q); const aa = !own ? aaMatch(p.id + "/" + a.id, q) : undefined; const was = !own && !aa ? formerMatch(p.id + "/" + a.id, q) : undefined;
+                    return aa ? <span className="st-aa-name">AA: {aa}</span> : was ? <span className="st-aa-name">Formerly: {was}</span> : null; })()}</button></li>
               ))}</ul>}
             </li>
           );

@@ -190,6 +190,19 @@ public final class DesktopPackage {
     }
 
     /** Mouse move without a starting point (the signature before from_x and from_y were added). */
+    /** Earlier signatures, kept for callers written before the window size (M2). */
+    public Map<String, Object> click(ActionContext ctx, int x, int y, String b, boolean dbl, String buttonAction, String relativeTo, String window, String modifiers) {
+        return click(ctx, x, y, b, dbl, buttonAction, relativeTo, window, modifiers, null, null);
+    }
+
+    public Map<String, Object> move(ActionContext ctx, int x, int y, String relativeTo, String window, int duration, Integer fromX, Integer fromY) {
+        return move(ctx, x, y, relativeTo, window, duration, fromX, fromY, null, null);
+    }
+
+    public Map<String, Object> scroll(ActionContext ctx, int amount, String direction, Integer x, Integer y, String relativeTo, String window, int delay) {
+        return scroll(ctx, amount, direction, x, y, relativeTo, window, delay, null, null);
+    }
+
     public Map<String, Object> move(ActionContext ctx, int x, int y, String relativeTo, String window, int duration) {
         return move(ctx, x, y, relativeTo, window, duration, null, null, null, null);
     }

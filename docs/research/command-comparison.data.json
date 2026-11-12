@@ -744,7 +744,7 @@
     "Microsoft 365 Outlook/Reply All": "ooa.microsoft365/reply_all_mail",
     "Microsoft 365 Outlook/Save all attachments": "ooa.microsoft365/save_all_mail_attachments",
     "Microsoft 365 Outlook/Save attachments": "ooa.microsoft365/save_mail_attachments",
-    "Microsoft 365 Outlook/Save email": "ooa.microsoft365/save_mail_attachments",
+    "Microsoft 365 Outlook/Save email": "ooa.microsoft365/save_mail_as_eml",
     "Microsoft 365 Outlook/Send": "ooa.microsoft365/send_mail",
     "Microsoft Teams/Get channel by name": "ooa.microsoft365/get_channel_by_name",
     "Microsoft Teams/Get channel details": "ooa.microsoft365/list_channels",
@@ -1030,7 +1030,9 @@
     "Interactive forms/Highlight": "ooa.forms/highlight",
     "Interactive forms/Unhighlight": "ooa.forms/unhighlight",
     "Interactive forms/Change label": "ooa.forms/change_label",
-    "Interactive forms/Dynamic area": "ooa.forms/dynamic_area"
+    "Interactive forms/Dynamic area": "ooa.forms/dynamic_area",
+    "Email/Connect to EWS server": "ooa.exchange/connect",
+    "Email/Connect to Outlook": "-: Outlook desktop needs no connect step: its steps use the runner's Outlook profile (ooa.outlook_desktop)"
   },
   "packages": {
     "core": {
