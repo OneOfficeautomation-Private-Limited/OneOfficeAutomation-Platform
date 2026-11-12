@@ -62,7 +62,7 @@ public final class DllPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, description = "Session from Open DLL; used instead of library.") String session,
             @Input(name = "calling_convention", type = OoaType.STRING, required = false, defaultValue = "\"c\"", enumValues = {"c", "stdcall"},
                     description = "How the function expects its arguments; matters only for 32-bit DLLs (Win32 API functions use stdcall).") String convention) {
-        if (function == null || !function.matches("^[A-Za-z_][A-Za-z0-9_@]{0,127}$")) throw new ActionException("DLL.BAD_NAME", "Invalid function name '" + function + "'");
+        if (function == null || !function.matches("^[A-Za-z_][A-Za-z0-9_@]{0,127}$")) throw new ActionException("DLL.BAD_NAME", "Invalid function name '" + function + "'", "Use the function's exported name (letters, digits and _).");
         Object[] in = new Object[args == null ? 0 : args.size()];
         for (int i = 0; i < in.length; i++) {
             in[i] = args.get(i) instanceof Map<?, ?> m ? arg(m) : plain(args.get(i), i + 1);
@@ -72,7 +72,7 @@ public final class DllPackage {
         if (session != null && !session.isBlank()) {
             lib = ctx.session(session, DllSession.class).lib();
             library = lib.getName();
-        } else if (library == null || library.isBlank()) throw new ActionException("DLL.NO_LIBRARY", "Give the library or a session from Open DLL");
+        } else if (library == null || library.isBlank()) throw new ActionException("DLL.NO_LIBRARY", "Give the library or a session from Open DLL", "Fill in the library's path, or the session from an Open DLL step.");
         else lib = load(library);
         Function f;
         try { f = lib.getFunction(function, flags); }
@@ -116,7 +116,7 @@ public final class DllPackage {
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "library", type = OoaType.STRING, example = "C:/Tools/calc.dll", description = "Library name or full path of the DLL.") String library,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"dll\"", description = "Session name for later steps.") String session) {
-        if (library == null || library.isBlank()) throw new ActionException("DLL.NO_LIBRARY", "Give the library to open");
+        if (library == null || library.isBlank()) throw new ActionException("DLL.NO_LIBRARY", "Give the library to open", "Fill in the library's path.");
         NativeLibrary lib = load(library);
         ctx.warn("Loaded native library " + library);
         ctx.sessions().put(session, new DllSession(lib));

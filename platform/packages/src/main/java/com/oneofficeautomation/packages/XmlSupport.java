@@ -69,7 +69,7 @@ final class XmlSupport {
             StringWriter w = new StringWriter();
             t.transform(new DOMSource(doc), new StreamResult(w));
             return w.toString();
-        } catch (Exception e) { throw new ActionException("XML.WRITE_FAILED", e.getMessage()); }
+        } catch (Exception e) { throw new ActionException("XML.WRITE_FAILED", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
     }
 
     /** Element to Dictionary: attributes as "@name", text as "#text" (or the plain value when there is nothing else), repeated children as lists. */

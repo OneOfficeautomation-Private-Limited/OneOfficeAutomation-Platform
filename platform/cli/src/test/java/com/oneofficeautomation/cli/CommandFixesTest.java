@@ -16,17 +16,19 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * Error batch E3 (13 Nov 2026): every command error says what to do. A toolkit's errors carry their own fix (this test
- * keeps new ones from leaving it out); any other command's error without one gets the fix for its code.
+ * Error batches E3 and E3b (13 Nov 2026): every command error says what to do. Toolkit and core package errors carry
+ * their own fix (this test keeps new ones from leaving it out); any other command's error without one gets the fix for its code.
  */
 class CommandFixesTest {
     static final Path ROOT = Files.isDirectory(Path.of("sdk")) ? Path.of(".") : Path.of("..");
     static final Pattern NEW = Pattern.compile("new (ActionException|OoaException)\\(");
 
     @Test
-    void everyToolkitErrorCarriesItsOwnFix() throws IOException {
+    void everyCommandErrorCarriesItsOwnFix() throws IOException {
         List<String> missing = new ArrayList<>();
-        try (Stream<Path> files = Files.walk(ROOT.resolve("toolkits"))) {
+        // the toolkits (E3), the core packages (E3b) and the CLI, Studio and runner (E5), 13 Nov 2026
+        for (String root : List.of("toolkits", "packages", "packages-browser", "packages-email", "packages-office", "packages-pdf", "packages-transfer", "packages-windows", "cli", "runner"))
+        try (Stream<Path> files = Files.walk(ROOT.resolve(root))) {
             for (Path p : files.filter(f -> f.toString().endsWith(".java") && f.toString().replace('\\', '/').contains("/src/main/")).toList()) {
                 String s = Files.readString(p);
                 Matcher m = NEW.matcher(s);
@@ -37,7 +39,7 @@ class CommandFixesTest {
                 }
             }
         }
-        assertTrue(missing.isEmpty(), "Toolkit errors without a suggested fix (give each a third argument saying what to do):\n" + String.join("\n", missing));
+        assertTrue(missing.isEmpty(), "Command errors without a suggested fix (give each a third argument saying what to do):\n" + String.join("\n", missing));
     }
 
     @Test

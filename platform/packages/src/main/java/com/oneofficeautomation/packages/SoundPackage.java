@@ -118,7 +118,7 @@ public final class SoundPackage {
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Media file not found: " + p, "Check the path.");
         String ext = extension(p);
         if (!MEDIA.contains(ext)) throw new ActionException("SOUND.UNSUPPORTED", "Unsupported media type '." + ext + "'", "Use " + String.join(", ", new TreeSet<>(MEDIA)) + ".");
-        if (volume < 0 || volume > 100) throw new ActionException("SOUND.BAD_VOLUME", "volume_percent must be 0 to 100, not " + volume, null);
+        if (volume < 0 || volume > 100) throw new ActionException("SOUND.BAD_VOLUME", "volume_percent must be 0 to 100, not " + volume, "Set volume_percent between 0 and 100.");
         int loops = Math.max(1, Math.min(100, repeat));
         List<String> cmd = mediaCommand(p, showVideo);
         String stdin = ProcessRunner.WINDOWS ? String.join("\n", p.toAbsolutePath().toString(), String.valueOf(volume / 100.0), String.valueOf(loops), String.valueOf(showVideo),
@@ -244,7 +244,7 @@ public final class SoundPackage {
             while (System.currentTimeMillis() < end) { ctx.checkCancelled(); Thread.sleep(50); }
         } catch (UnsupportedAudioFileException e) { throw new ActionException("SOUND.UNSUPPORTED", "Unsupported sound format", "Use a WAV file.");
         } catch (LineUnavailableException | IllegalArgumentException e) { throw new ActionException("SOUND.NO_DEVICE", "No audio runner available: " + e.getMessage(), "Run on a runner with sound output.");
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } catch (InterruptedException e) { Thread.currentThread().interrupt();
         } finally { if (clip != null) clip.close(); }
         return Map.of();

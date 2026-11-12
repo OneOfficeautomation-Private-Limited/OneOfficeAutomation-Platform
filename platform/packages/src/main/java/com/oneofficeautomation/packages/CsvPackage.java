@@ -93,7 +93,7 @@ public final class CsvPackage {
         if (skipLines < 0) throw new ActionException("CSV.BAD_OPTION", "skip_lines cannot be negative", "Use 0 or more.");
         String text;
         try { text = new String(Files.readAllBytes(p), encoding(enc).charset()); }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), null, true); }
+        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         if (!text.isEmpty() && text.charAt(0) == '\uFEFF') text = text.substring(1);
         for (int i = 0; i < skipLines && !text.isEmpty(); i++) { int nl = text.indexOf('\n'); text = nl < 0 ? "" : text.substring(nl + 1); }
         List<List<String>> rows = parse(text, delim(d));
@@ -209,7 +209,7 @@ public final class CsvPackage {
             byte[] bytes = sb.toString().getBytes(e.charset());
             if (append) Files.write(p, bytes, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
             else Files.write(p, bytes);
-        } catch (IOException ex) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + p + ": " + ex.getMessage(), null, true); }
+        } catch (IOException ex) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + p + ": " + ex.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Out.of();
     }
 

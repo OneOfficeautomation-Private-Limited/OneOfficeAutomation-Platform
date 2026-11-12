@@ -65,7 +65,7 @@ public final class TerminalPackage {
                     prev = line;
                 }
                 throw new ActionException("TERMINAL.ENDED", "The terminal engine stopped unexpectedly", "Check the host address and network.");
-            } catch (IOException e) { throw new ActionException("TERMINAL.IO_ERROR", e.getMessage(), null, true); }
+            } catch (IOException e) { throw new ActionException("TERMINAL.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         }
         @Override public void close() {
             try { cmd("Quit"); } catch (RuntimeException ignored) { }
@@ -116,14 +116,14 @@ public final class TerminalPackage {
             @Input(name = "emulation", type = OoaType.STRING, required = false, defaultValue = "\"vt100\"", enumValues = {"vt100", "vt220", "xterm", "ansi"}, visibleWhen = VT, description = "Terminal kind reported to the SSH host; it decides which control codes the host sends.") String emulation,
             @Input(name = "screen_rows", type = OoaType.NUMBER, required = false, defaultValue = "24", min = 5, max = 255, visibleWhen = VT, description = "Screen height in rows for SSH hosts.") int screenRows,
             @Input(name = "screen_columns", type = OoaType.NUMBER, required = false, defaultValue = "80", min = 20, max = 255, visibleWhen = VT, description = "Screen width in columns for SSH hosts.") int screenCols) {
-        if (host == null || !host.matches("^[A-Za-z0-9.-]{1,253}$")) throw new ActionException("TERMINAL.BAD_HOST", "Invalid host '" + host + "'");
+        if (host == null || !host.matches("^[A-Za-z0-9.-]{1,253}$")) throw new ActionException("TERMINAL.BAD_HOST", "Invalid host '" + host + "'", "Give a host name or IP address (letters, digits, . - and :).");
         String type = terminalType == null || terminalType.isBlank() ? "tn3270e" : terminalType.trim().toLowerCase(Locale.ROOT);
         if (!List.of("tn3270e", "tn3270", "tn5250", "vt-ssh").contains(type))
             throw new ActionException("TERMINAL.UNSUPPORTED_TYPE", "Terminal type '" + terminalType + "' is not supported", "Use tn3270e or tn3270 for IBM 3270 hosts, tn5250 for IBM i hosts, or vt-ssh for VT100/ANSI hosts over SSH.");
         int p = port == null ? (type.equals("vt-ssh") ? 22 : 23) : port;
         if (p < 1 || p > 65535) throw new ActionException("TERMINAL.BAD_PORT", "Invalid port " + p, "Use 23 for telnet, 992 for TLS or 22 for SSH.");
         if (type.equals("vt-ssh")) return connectVt(ctx, host, p, session, connectTimeout, waitForInput, waitText, user, password, keyFile, keyPassphrase, fingerprint, emulation, screenRows, screenCols);
-        if (luName != null && !luName.isBlank() && !luName.matches("^[A-Za-z0-9#@$._-]{1,16}$")) throw new ActionException("TERMINAL.BAD_LU", "Invalid LU name '" + luName + "'");
+        if (luName != null && !luName.isBlank() && !luName.matches("^[A-Za-z0-9#@$._-]{1,16}$")) throw new ActionException("TERMINAL.BAD_LU", "Invalid LU name '" + luName + "'", "Give the LU name as the host administrator gave it (letters and digits).");
         if (codePage != null && !codePage.isBlank() && !codePage.matches("^[A-Za-z0-9_-]{1,32}$")) throw new ActionException("TERMINAL.BAD_CODE_PAGE", "Invalid code page '" + codePage + "'", "Example: cp037.");
         int wait = Math.max(1, connectTimeout <= 0 ? 30 : connectTimeout);
         if (type.equals("tn5250")) {
@@ -212,7 +212,7 @@ public final class TerminalPackage {
             @Input(name = "wait_for_text", type = OoaType.STRING, required = false, description = "Text that must appear on the screen afterwards (waits up to timeout_seconds); no check when empty.") String waitText) {
         Session t = s(ctx, session);
         if (row != null && col != null) {
-            if (row < 1 || col < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row and column start at 1");
+            if (row < 1 || col < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row and column start at 1", "Give row and column numbers from 1 (the top-left corner is row 1, column 1).");
             t.cmd("MoveCursor(" + (row - 1) + "," + (col - 1) + ")");
         }
         if (clear) t.cmd("EraseEOF");
@@ -239,7 +239,7 @@ public final class TerminalPackage {
             @Input(name = "delay_after_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Extra pause after the key, in milliseconds.") int delay,
             @Input(name = "wait_for_text", type = OoaType.STRING, required = false, description = "Text that must appear on the screen after the key (waits up to timeout_seconds); no check when empty.") String waitText) {
         Session t = s(ctx, session);
-        if (repeat < 1 || repeat > 200) throw new ActionException("TERMINAL.BAD_REPEAT", "Repeat must be between 1 and 200");
+        if (repeat < 1 || repeat > 200) throw new ActionException("TERMINAL.BAD_REPEAT", "Repeat must be between 1 and 200", "Set Repeat between 1 and 200.");
         for (int i = 0; i < repeat; i++) press(t, key, waitForHost, timeout);
         after(ctx, session, delay, waitText, timeout);
         return Map.of();
@@ -249,7 +249,7 @@ public final class TerminalPackage {
     public Map<String, Object> sendKey(ActionContext ctx, String key, String session) { return sendKey(ctx, key, session, true, 30, 1, 0, null); }
 
     private void after(ActionContext ctx, String session, int delayMs, String waitText, int timeout) {
-        if (delayMs < 0 || delayMs > 600_000) throw new ActionException("TERMINAL.BAD_DELAY", "The delay must be between 0 and 600000 ms");
+        if (delayMs < 0 || delayMs > 600_000) throw new ActionException("TERMINAL.BAD_DELAY", "The delay must be between 0 and 600000 ms", "Set the delay between 0 and 600,000 ms.");
         if (delayMs > 0) HttpJson.pause(ctx, delayMs);
         if (waitText != null && !waitText.isEmpty()) waitForText(ctx, waitText, Math.max(1, timeout), session, null, null, true, false, true, 500);
     }
@@ -282,7 +282,7 @@ public final class TerminalPackage {
             @Input(name = "length", type = OoaType.NUMBER, description = "Number of characters.") int len,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
             @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove leading and trailing spaces.") boolean trim) {
-        if (row < 1 || col < 1 || len < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row, column and length start at 1");
+        if (row < 1 || col < 1 || len < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row, column and length start at 1", "Give row, column and length from 1.");
         List<String> d = s(ctx, session).cmd("Ascii(" + (row - 1) + "," + (col - 1) + "," + len + ")");
         String v = String.join("", d);
         return Map.of("text", trim ? v.strip() : v);
@@ -305,7 +305,7 @@ public final class TerminalPackage {
             @Input(name = "fail_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Stop with an error on timeout; when off, found is false instead.") boolean failOnTimeout,
             @Input(name = "poll_interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "How often to look at the screen.") int poll) {
         Session t = s(ctx, session);
-        if (row != null && (row < 1 || col == null || col < 1)) throw new ActionException("TERMINAL.BAD_POSITION", "Give both row and column, starting at 1");
+        if (row != null && (row < 1 || col == null || col < 1)) throw new ActionException("TERMINAL.BAD_POSITION", "Give both row and column, starting at 1", "Fill in both row and column, from 1.");
         String want = cs ? text : text.toLowerCase(Locale.ROOT);
         long end = System.nanoTime() + (long) (timeout * 1e9);
         while (true) {
@@ -342,7 +342,7 @@ public final class TerminalPackage {
             @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Column (1-based) for cursor_at and cursor_leaves.") Integer col) {
         Session t = s(ctx, session);
         String c = condition == null ? "input_field" : condition;
-        if (timeout < 1 || timeout > 3600) throw new ActionException("TERMINAL.BAD_TIMEOUT", "The timeout must be between 1 and 3600 seconds");
+        if (timeout < 1 || timeout > 3600) throw new ActionException("TERMINAL.BAD_TIMEOUT", "The timeout must be between 1 and 3600 seconds", "Set the timeout between 1 and 3600 seconds.");
         if (Set.of("screen_blank", "cursor_at", "cursor_leaves").contains(c)) {
             if (!c.equals("screen_blank") && (row == null || col == null || row < 1 || col < 1))
                 throw new ActionException("TERMINAL.NO_POSITION", "Give the row and column for " + c, "Rows and columns start at 1.");
@@ -486,7 +486,7 @@ public final class TerminalPackage {
         java.util.regex.Pattern p;
         try { p = java.util.regex.Pattern.compile(prompt == null || prompt.isBlank() ? "[$#>%]\\s*$" : prompt); }
         catch (java.util.regex.PatternSyntaxException e) { throw new ActionException("TERMINAL.BAD_PATTERN", "Invalid prompt pattern: " + e.getDescription(), "Use a regular expression such as [$#>]\\s*$."); }
-        if (timeout <= 0 || timeout > 3600) throw new ActionException("TERMINAL.BAD_TIMEOUT", "The timeout must be between 1 and 3600 seconds");
+        if (timeout <= 0 || timeout > 3600) throw new ActionException("TERMINAL.BAD_TIMEOUT", "The timeout must be between 1 and 3600 seconds", "Set the timeout between 1 and 3600 seconds.");
         long end = System.nanoTime() + (long) (timeout * 1e9);
         String last = null;
         long stableSince = System.nanoTime();
@@ -774,7 +774,7 @@ public final class TerminalPackage {
             @Input(name = "row", type = OoaType.NUMBER, description = "Row (1-based).") int row,
             @Input(name = "column", type = OoaType.NUMBER, description = "Column (1-based).") int col,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
-        if (row < 1 || col < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row and column start at 1");
+        if (row < 1 || col < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row and column start at 1", "Give row and column numbers from 1 (the top-left corner is row 1, column 1).");
         s(ctx, session).cmd("MoveCursor(" + (row - 1) + "," + (col - 1) + ")");
         return Map.of();
     }

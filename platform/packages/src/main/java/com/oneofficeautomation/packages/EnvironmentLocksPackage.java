@@ -54,7 +54,7 @@ public final class EnvironmentLocksPackage {
     static String checkedName(String name) {
         String n = name == null ? "" : name.trim();
         if (n.isEmpty()) throw new ActionException("LOCK.BAD_NAME", "Give the lock a name", "Use the name of the system it guards, e.g. SAP production login.");
-        if (n.length() > 200) throw new ActionException("LOCK.BAD_NAME", "A lock's name has at most 200 characters", null);
+        if (n.length() > 200) throw new ActionException("LOCK.BAD_NAME", "A lock's name has at most 200 characters", "Shorten the lock's name to 200 characters or fewer.");
         return n;
     }
 
@@ -103,7 +103,7 @@ public final class EnvironmentLocksPackage {
             @Input(name = "fail_if_not_acquired", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Fail with LOCK.TIMEOUT when the lock is not acquired, instead of returning acquired false.") boolean failIfNot) {
         String n = checkedName(name);
-        if (leaseSeconds < 5 || leaseSeconds > 604800) throw new ActionException("LOCK.BAD_LEASE", "The lease is between 5 seconds and 7 days (604800 seconds)", null);
+        if (leaseSeconds < 5 || leaseSeconds > 604800) throw new ActionException("LOCK.BAD_LEASE", "The lease is between 5 seconds and 7 days (604800 seconds)", "Give a lease between 5 seconds and 7 days.");
         int wait = Math.max(0, Math.min(MAX_WAIT, waitSeconds));
         Store store = store(ctx);
         long deadline = System.nanoTime() + wait * 1_000_000_000L;
@@ -129,7 +129,7 @@ public final class EnvironmentLocksPackage {
     private static void sleep(ActionContext ctx, long ms) {
         ctx.checkCancelled();
         try { Thread.sleep(ms); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run was stopped while waiting for a lock"); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run was stopped while waiting for a lock", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         ctx.checkCancelled();
     }
 
@@ -196,7 +196,7 @@ public final class EnvironmentLocksPackage {
                     Lock l = LOCKS.get(key);
                     yield answer(l != null && l.expires().isAfter(now) ? l : null, runId, false);
                 }
-                default -> throw new OoaException("CR.BAD_INPUT", "Unknown lock operation " + op);
+                default -> throw new OoaException("CR.BAD_INPUT", "Unknown lock operation " + op, "Choose acquire, release or renew.");
             };
         }
 

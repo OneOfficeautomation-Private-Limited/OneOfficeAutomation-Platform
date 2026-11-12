@@ -135,7 +135,7 @@ public final class PdfPackage {
                 Files.writeString(out, text, java.nio.charset.StandardCharsets.UTF_8);
             }
             return Map.of("text", text, "page_count", BigDecimal.valueOf(d.getNumberOfPages()));
-        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
     }
 
     @Action(id = "extract_area_text", name = "Extract text from area", category = "Text", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
@@ -159,7 +159,7 @@ public final class PdfPackage {
             s.addRegion("area", new java.awt.geom.Rectangle2D.Double(x, y, width, height));
             s.extractRegions(d.getPage(page - 1));
             return Map.of("text", s.getTextForRegion("area").strip());
-        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
     }
 
     @Action(id = "page_count", name = "Get page count", category = "Document", idempotent = true, capabilities = "filesystem", description = "Return the number of pages.",
@@ -169,7 +169,7 @@ public final class PdfPackage {
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
         try (PDDocument d = load(ctx, path, password)) { return Map.of("count", BigDecimal.valueOf(d.getNumberOfPages())); }
-        catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage()); }
+        catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
     }
 
     public Map<String, Object> merge(ActionContext ctx, List<Object> files, String target) { return merge(ctx, files, target, true, null, null); }
@@ -190,7 +190,7 @@ public final class PdfPackage {
             Comparator<java.nio.file.Path> byName = Comparator.comparing(x -> x.getFileName().toString().toLowerCase(Locale.ROOT));
             found.sort("modified".equals(sortBy) ? Comparator.comparingLong((java.nio.file.Path x) -> x.toFile().lastModified()).thenComparing(byName) : byName);
             return new ArrayList<>(found.stream().map(java.nio.file.Path::toString).toList());
-        } catch (IOException e) { throw new ActionException("PDF.MERGE_FAILED", "Cannot list " + dir + ": " + e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.MERGE_FAILED", "Cannot list " + dir + ": " + e.getMessage(), "Check that the folder exists and that the runner's account may read it."); }
     }
 
     @Action(id = "merge", name = "Merge PDFs", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
@@ -228,7 +228,7 @@ public final class PdfPackage {
             }
             save(ctx, out, target);
             return Map.of("page_count", BigDecimal.valueOf(out.getNumberOfPages()), "files", new ArrayList<>(files));
-        } catch (IOException e) { throw new ActionException("PDF.MERGE_FAILED", e.getMessage());
+        } catch (IOException e) { throw new ActionException("PDF.MERGE_FAILED", e.getMessage(), "Check that every file to merge is a valid PDF.");
         } finally { for (PDDocument d : sources) try { d.close(); } catch (IOException ignored) { } }
     }
 
@@ -314,7 +314,7 @@ public final class PdfPackage {
                     created.add(ctx.resolvePath(rel).toString());
                 }
             }
-        } catch (IOException e) { throw new ActionException("PDF.SPLIT_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.SPLIT_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
         return Map.of("files", created);
     }
 
@@ -360,7 +360,7 @@ public final class PdfPackage {
                 if (form != null) for (PDField f : form.getFieldTree()) if (f.getFieldType() != null) out.put(f.getFullyQualifiedName(), f.getValueAsString());
                 return Map.of("fields", out);
             }
-            if (form == null) throw new ActionException("PDF.NO_FORM", "This PDF has no form fields");
+            if (form == null) throw new ActionException("PDF.NO_FORM", "This PDF has no form fields", "Use a PDF with form fields, or write the text onto the page instead.");
             List<String> missing = new ArrayList<>();
             for (String name : wanted) {
                 PDField f = form.getField(name);
@@ -368,7 +368,7 @@ public final class PdfPackage {
             }
             if (!missing.isEmpty()) throw new ActionException("PDF.NO_FIELD", "Fields not found: " + missing, "Use Read form fields without field names to see the exact names.");
             return Map.of("fields", out);
-        } catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
     }
 
     public Map<String, Object> readForm(ActionContext ctx, String path, Object password) {
@@ -392,7 +392,7 @@ public final class PdfPackage {
         try (PDDocument d = load(ctx, path, password)) {
             if (d.isEncrypted()) d.setAllSecurityToBeRemoved(true);
             PDAcroForm form = d.getDocumentCatalog().getAcroForm();
-            if (form == null) throw new ActionException("PDF.NO_FORM", "This PDF has no form fields");
+            if (form == null) throw new ActionException("PDF.NO_FORM", "This PDF has no form fields", "Use a PDF with form fields, or write the text onto the page instead.");
             int n = 0;
             List<String> missing = new ArrayList<>();
             for (var e : values.entrySet()) {
@@ -405,7 +405,7 @@ public final class PdfPackage {
             if (flatten) form.flatten();
             save(ctx, d, target);
             return Map.of("filled", BigDecimal.valueOf(n));
-        } catch (IOException e) { throw new ActionException("PDF.FORM_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.FORM_FAILED", e.getMessage(), "Check the field names (List form fields shows them) and the values' types."); }
     }
 
     /**
@@ -474,7 +474,7 @@ public final class PdfPackage {
             spp.setPreferAES(true);
             d.protect(spp);
             save(ctx, d, target, overwrite);
-        } catch (IOException e) { throw new ActionException("PDF.ENCRYPT_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.ENCRYPT_FAILED", e.getMessage(), "Check that the PDF is not already encrypted and that the output folder may be written."); }
         return Map.of();
     }
 
@@ -490,7 +490,7 @@ public final class PdfPackage {
         try (PDDocument d = load(ctx, path, password)) {
             d.setAllSecurityToBeRemoved(true);
             save(ctx, d, target, overwrite);
-        } catch (IOException e) { throw new ActionException("PDF.DECRYPT_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.DECRYPT_FAILED", e.getMessage(), "Check the password."); }
         return Map.of();
     }
 
@@ -554,7 +554,7 @@ public final class PdfPackage {
                 writeImage(r.renderImageWithDPI(pg - 1, Math.max(36, Math.min(600, dpi)), type), fmt, f, fmt.equals("jpg") || fmt.equals("tiff") ? jpegQuality : null, tiffCompression);
                 out.add(f.getPath());
             }
-        } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
         return Map.of("files", out);
     }
 
@@ -583,7 +583,7 @@ public final class PdfPackage {
                     "width_points", BigDecimal.valueOf(turned ? box.getHeight() : box.getWidth()).setScale(2, java.math.RoundingMode.HALF_UP),
                     "height_points", BigDecimal.valueOf(turned ? box.getWidth() : box.getHeight()).setScale(2, java.math.RoundingMode.HALF_UP),
                     "page_count", BigDecimal.valueOf(d.getNumberOfPages()));
-        } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
     }
 
     @Action(id = "read_text_ocr", name = "Read text with OCR", category = "Document", idempotent = true, timeoutSeconds = 1800, capabilities = "filesystem",
@@ -612,7 +612,7 @@ public final class PdfPackage {
                 if (all.length() > 0) all.append('\n');
                 all.append(t);
             }
-        } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
         // the markers may sit on different pages, so they apply to the whole text
         return Map.of("text", com.oneofficeautomation.packages.OcrPackage.filterText(all.toString(), after, before, trim), "pages", each);
     }
@@ -769,7 +769,7 @@ public final class PdfPackage {
                 m.put("custom", custom);
             }
             return Map.of("properties", m);
-        } catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
     }
 
     private static String nz(String s) { return s == null ? "" : s; }
@@ -970,7 +970,7 @@ public final class PdfPackage {
                 }
                 if (!found.isEmpty()) lastPage = pg;
             }
-        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
         List<Object> tables = new ArrayList<>();
         for (List<List<String>> t : all) tables.add(dataTable(t, header));
         Object first = tables.isEmpty() ? Values.table(new ArrayList<>(), new ArrayList<>()) : tables.get(0);
@@ -1009,7 +1009,7 @@ public final class PdfPackage {
             return Map.of("text", String.join("\n\n", texts.stream().map(String::valueOf).toList()), "pages", texts, "page_count", BigDecimal.valueOf(texts.size()));
         } catch (java.util.zip.ZipException e) {
             throw new ActionException("PDF.INVALID", "Cannot read " + p + ": it is not an XPS file", "Check it is an .xps or .oxps file.");
-        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
     }
 
     /** Names in natural order, so 2.fpage comes before 10.fpage. */

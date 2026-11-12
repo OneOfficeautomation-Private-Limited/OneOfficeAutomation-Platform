@@ -43,14 +43,14 @@ final class DbCommand {
 
     /** A Windows account for SQL Server: DOMAIN\\name, or DOMAIN\\name$ for a group managed service account. */
     static String windowsLogin(String v) {
-        if (!v.matches("[A-Za-z0-9_.\\-]{1,64}\\\\[A-Za-z0-9_.\\-]{1,64}\\$?")) throw new OoaException("CR.DB_CONFIG", "A Windows account is DOMAIN\\name (a gMSA ends in $): " + v);
+        if (!v.matches("[A-Za-z0-9_.\\-]{1,64}\\\\[A-Za-z0-9_.\\-]{1,64}\\$?")) throw new OoaException("CR.DB_CONFIG", "A Windows account is DOMAIN\\name (a gMSA ends in $): " + v, "Write the account as DOMAIN\\name (a gMSA ends in $).");
         return v;
     }
 
     private static final java.util.regex.Pattern NAME = java.util.regex.Pattern.compile("[A-Za-z0-9_.\\-]{1,128}");
 
     private static String name(String v, String what) {
-        if (!NAME.matcher(v).matches()) throw new OoaException("CR.DB_CONFIG", what + " may hold only letters, digits, '.', '-' and '_': " + v);
+        if (!NAME.matcher(v).matches()) throw new OoaException("CR.DB_CONFIG", what + " may hold only letters, digits, '.', '-' and '_': " + v, "Use only letters, digits, '.', '-' and '_'.");
         return v;
     }
 
@@ -82,7 +82,7 @@ final class DbCommand {
             List<String> lines = new ArrayList<>(List.of("# One CommandCenter database connection (ooa db configure). Passwords: ooa db set-password [--setup]."));
             for (var e : v.entrySet()) lines.add(e.getKey() + "=" + e.getValue().replace("\\", "\\\\"));   // a properties file reads \ as an escape (paths, DOMAIN\account)
             Files.write(file, lines);
-        } catch (java.io.IOException e) { throw new OoaException("CR.DB_CONFIG", "Cannot write " + file + ": " + e.getMessage()); }
+        } catch (java.io.IOException e) { throw new OoaException("CR.DB_CONFIG", "Cannot write " + file + ": " + e.getMessage(), "Check that you may write the configuration folder (run the command as an administrator)."); }
         System.out.println("Wrote " + file);
         if (v.containsKey("auth")) System.out.println("Windows sign-in: give One CommandCenter's account (for example DOMAIN\\ooa-svc$) a login and db_owner, then run ooa db init as that account" + (v.containsKey("setup.user") ? " (or set the setup password: ooa db set-password --setup)." : "."));
         else if (!engine.equals("h2")) System.out.println("Next: ooa db set-password, ooa db set-password --setup, then ooa db init.");
@@ -272,10 +272,10 @@ final class DbCommand {
                             if (++batch % 500 == 0) ps.executeBatch();
                         }
                         ps.executeBatch();
-                    } catch (SQLException e) { throw new OoaException("CR.DB_COPY", "Copying " + table + " failed: " + e.getMessage()); }
+                    } catch (SQLException e) { throw new OoaException("CR.DB_COPY", "Copying " + table + " failed: " + e.getMessage(), "Check that the new database is reachable and empty, then copy again."); }
                     return null;
                 });
-            } catch (SQLException e) { throw new OoaException("CR.DB_COPY", "Reading " + table + " failed: " + e.getMessage()); }
+            } catch (SQLException e) { throw new OoaException("CR.DB_COPY", "Reading " + table + " failed: " + e.getMessage(), "Check that the old database is reachable, then copy again."); }
             return null;
         });
     }

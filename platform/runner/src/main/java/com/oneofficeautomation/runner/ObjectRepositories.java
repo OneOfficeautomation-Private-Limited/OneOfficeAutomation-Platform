@@ -55,9 +55,9 @@ public final class ObjectRepositories {
     /** A repository file, checked to be inside the workspace and read again only when it changed. */
     @SuppressWarnings("unchecked")
     public static Map<String, Object> read(Path workDir, String repo) {
-        if (!repo.endsWith(SUFFIX)) throw new OoaException("OBJECT.BAD_REPOSITORY", "An object repository is a file ending in " + SUFFIX + ": " + repo, null);
+        if (!repo.endsWith(SUFFIX)) throw new OoaException("OBJECT.BAD_REPOSITORY", "An object repository is a file ending in " + SUFFIX + ": " + repo, "Choose an object repository file (.objects.json) inside the workspace; Capture makes one.");
         Path root = workDir.toAbsolutePath().normalize(), p = root.resolve(repo.replace('\\', '/')).normalize();
-        if (!p.startsWith(root)) throw new OoaException("OBJECT.BAD_REPOSITORY", "The object repository must be inside the workspace: " + repo, null);
+        if (!p.startsWith(root)) throw new OoaException("OBJECT.BAD_REPOSITORY", "The object repository must be inside the workspace: " + repo, "Choose an object repository file (.objects.json) inside the workspace; Capture makes one.");
         if (!Files.isRegularFile(p)) throw new OoaException("OBJECT.REPOSITORY_NOT_FOUND", "Object repository not found: " + repo,
                 "Check the path. From One CommandCenter, check the repository file in with the agent.");
         try {
@@ -65,12 +65,12 @@ public final class ObjectRepositories {
             Cached c = CACHE.get(p);
             if (c != null && c.modified == mod && c.size == size) return c.repo;
             Object parsed = JsonLite.parse(Files.readString(p, StandardCharsets.UTF_8));
-            if (!(parsed instanceof Map<?, ?> m) || !KIND.equals(m.get("kind"))) throw new OoaException("OBJECT.BAD_REPOSITORY", repo + " is not an object repository", null);
+            if (!(parsed instanceof Map<?, ?> m) || !KIND.equals(m.get("kind"))) throw new OoaException("OBJECT.BAD_REPOSITORY", repo + " is not an object repository", "Choose an object repository file (.objects.json) inside the workspace; Capture makes one.");
             if (CACHE.size() > 200) CACHE.clear();
             CACHE.put(p, new Cached(mod, size, (Map<String, Object>) m));
             return (Map<String, Object>) m;
         } catch (IOException | IllegalArgumentException e) {
-            throw new OoaException("OBJECT.BAD_REPOSITORY", "Cannot read the object repository " + repo + ": " + e.getMessage(), null);
+            throw new OoaException("OBJECT.BAD_REPOSITORY", "Cannot read the object repository " + repo + ": " + e.getMessage(), "Choose an object repository file (.objects.json) inside the workspace; Capture makes one.");
         }
     }
 

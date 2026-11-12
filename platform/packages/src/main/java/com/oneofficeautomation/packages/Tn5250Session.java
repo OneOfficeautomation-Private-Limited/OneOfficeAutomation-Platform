@@ -458,7 +458,7 @@ final class Tn5250Session extends TerminalPackage.Session {
         if (ended) throw new ActionException("TERMINAL.ENDED", "The host closed the connection", "Connect again; the host may have signed the session out.");
         try {
             synchronized (toHost) { toHost.write(o.toByteArray()); toHost.flush(); }
-        } catch (IOException e) { throw new ActionException("TERMINAL.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("TERMINAL.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     /** Sends the cursor, the attention key and the fields the pending read asks for (all input fields, or the changed ones with their address). */
@@ -511,7 +511,7 @@ final class Tn5250Session extends TerminalPackage.Session {
         if ((m = MOVE.matcher(action)).matches()) {
             int r = Integer.parseInt(m.group(1)), c = Integer.parseInt(m.group(2));
             synchronized (lock) {
-                if (r >= rows || c >= cols) throw new ActionException("TERMINAL.BAD_POSITION", "Row " + (r + 1) + ", column " + (c + 1) + " is outside the " + rows + " x " + cols + " screen");
+                if (r >= rows || c >= cols) throw new ActionException("TERMINAL.BAD_POSITION", "Row " + (r + 1) + ", column " + (c + 1) + " is outside the " + rows + " x " + cols + " screen", "Give a row and column inside the screen size the message names.");
                 cursor = r * cols + c;
             }
             return List.of();
@@ -716,7 +716,7 @@ final class Tn5250Session extends TerminalPackage.Session {
                             + " in " + seconds + " s" + (lastProblem == null ? "" : "; last problem: " + lastProblem), "Allow more time, or wait for specific text instead.");
                 }
                 try { lock.wait(Math.max(1, Math.min(50, left / 1_000_000))); }
-                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("TERMINAL.INTERRUPTED", "Stopped while waiting for the host"); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("TERMINAL.INTERRUPTED", "Stopped while waiting for the host", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             }
         }
     }
@@ -750,7 +750,7 @@ final class Tn5250Session extends TerminalPackage.Session {
         synchronized (lock) {
             char[] s = rendered();
             int from = row * cols + col;
-            if (from >= s.length) throw new ActionException("TERMINAL.BAD_POSITION", "Row " + (row + 1) + ", column " + (col + 1) + " is outside the " + rows + " x " + cols + " screen");
+            if (from >= s.length) throw new ActionException("TERMINAL.BAD_POSITION", "Row " + (row + 1) + ", column " + (col + 1) + " is outside the " + rows + " x " + cols + " screen", "Give a row and column inside the screen size the message names.");
             return new String(s, from, Math.min(len, s.length - from));
         }
     }

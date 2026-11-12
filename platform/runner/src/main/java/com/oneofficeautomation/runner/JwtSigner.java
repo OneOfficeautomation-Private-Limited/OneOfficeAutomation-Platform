@@ -58,7 +58,7 @@ public final class JwtSigner {
             s.initSign(key);
             s.update(body.getBytes(StandardCharsets.US_ASCII));
             return body + "." + b64.encodeToString(s.sign());
-        } catch (GeneralSecurityException e) { throw new OoaException("CONNECTION.SIGN_IN_FAILED", "Cannot sign the sign-in request: " + e.getMessage()); }
+        } catch (GeneralSecurityException e) { throw new OoaException("CONNECTION.SIGN_IN_FAILED", "Cannot sign the sign-in request: " + e.getMessage(), "Check the private key in the connection (PEM or the JSON key file as the service gave it)."); }
     }
 
     /** SHA256:base64 of the public key (DER), as Snowflake names a key pair; computed from the private key. */

@@ -112,7 +112,7 @@ public final class ServicesPackage {
             }
             return r;
         } catch (IOException e) {
-            throw new ActionException("FILE.IO_ERROR", "Cannot write the sign-in script: " + e.getMessage(), null, true);
+            throw new ActionException("FILE.IO_ERROR", "Cannot write the sign-in script: " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally {
             if (script != null) try { Files.deleteIfExists(script); } catch (IOException ignored) { }
         }
@@ -134,7 +134,7 @@ public final class ServicesPackage {
             case 1052 -> new ActionException("SERVICES.CANNOT_PAUSE", "'" + name + "' does not support pause and resume", "Use Stop service and Start service instead.");
             case 1058 -> new ActionException("SERVICES.DISABLED", "'" + name + "' is disabled" + t.label(), "Set its startup type to Manual or Automatic first.");
             case 1053 -> new ActionException("SERVICES.NOT_RESPONDING", "'" + name + "' did not respond to the request in time" + t.label(), "Check the service's own logs.", true);
-            default -> new ActionException("SERVICES.FAILED", "sc " + verb + " " + name + t.label() + " failed: " + ApplicationPackage.tail(out.strip()), null);
+            default -> new ActionException("SERVICES.FAILED", "sc " + verb + " " + name + t.label() + " failed: " + ApplicationPackage.tail(out.strip()), "Run the runner with an account that may manage Windows services, and check the service's name.");
         };
     }
 
@@ -161,7 +161,7 @@ public final class ServicesPackage {
         if (timeoutSeconds < 0) return;  // asked not to wait
         long end = System.currentTimeMillis() + timeoutSeconds * 1000L;
         while (!status(ctx, t, name).equals(wanted)) {
-            if (System.currentTimeMillis() > end) throw new ActionException("SERVICES.TIMEOUT", "'" + name + "'" + t.label() + " did not reach " + wanted + " within " + timeoutSeconds + " s", null, true);
+            if (System.currentTimeMillis() > end) throw new ActionException("SERVICES.TIMEOUT", "'" + name + "'" + t.label() + " did not reach " + wanted + " within " + timeoutSeconds + " s", "Raise the timeout, or check the service's own log for why it does not start or stop.", true);
             try { Thread.sleep(t.remote() ? 1000 : 500); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
             ctx.checkCancelled();
         }

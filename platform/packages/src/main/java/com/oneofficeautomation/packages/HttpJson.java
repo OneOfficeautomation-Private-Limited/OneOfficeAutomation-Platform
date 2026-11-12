@@ -57,7 +57,7 @@ final class HttpJson {
             headers.put("Authorization", "Bearer " + s.reveal()); return this;
         }
         Req basic(String user, Object password) {
-            if (!(password instanceof SecureString s)) throw new ActionException(prefix + ".NO_PASSWORD", "A password or API token from the vault is required");
+            if (!(password instanceof SecureString s)) throw new ActionException(prefix + ".NO_PASSWORD", "A password or API token from the vault is required", "Choose the password or API token's credential in the step's connection.");
             headers.put("Authorization", "Basic " + Base64.getEncoder().encodeToString((user + ":" + s.reveal()).getBytes(StandardCharsets.UTF_8))); return this;
         }
         /** Authorization header with a custom scheme, e.g. "SSWS" for Okta API tokens. */
@@ -97,7 +97,7 @@ final class HttpJson {
                     try { r = CLIENT.send(b.build(), HttpResponse.BodyHandlers.ofFile(tmp)); }
                     catch (HttpTimeoutException e) { throw new ActionException(prefix + ".TIMEOUT", "No response within " + timeout + " s from " + host(url), "Try again later or raise the timeout.", true); }
                     catch (IOException e) { throw new ActionException(prefix + ".UNREACHABLE", "Cannot reach " + host(url) + ": " + NetErrors.reason(e, null), "Check the URL, proxy and network access.", true); }
-                    catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+                    catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
                     long wait = r.statusCode() == 429 && attempt < MAX_RATE_RETRIES ? retryAfterMillis(r.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
                     if (wait < 0) break;
                     ctx.warn(host(url) + " is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s (" + (attempt + 1) + " of " + MAX_RATE_RETRIES + ")");
@@ -135,7 +135,7 @@ final class HttpJson {
                 try { r = CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray()); }
                 catch (HttpTimeoutException e) { throw new ActionException(prefix + ".TIMEOUT", "No response within " + timeout + " s from " + host(url), "Try again later or raise the timeout.", true); }
                 catch (IOException e) { throw new ActionException(prefix + ".UNREACHABLE", "Cannot reach " + host(url) + ": " + NetErrors.reason(e, null), "Check the URL, proxy and network access.", true); }
-                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
                 // HTTP 429: the request was not processed, so it is sent again after the wait the service asks for
                 long wait = r.statusCode() == 429 && attempt < MAX_RATE_RETRIES ? retryAfterMillis(r.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
                 if (wait < 0) break;
@@ -264,7 +264,7 @@ final class HttpJson {
     /** Waits between status checks; stops early if the run is cancelled. */
     static void pause(ActionContext ctx, long millis) {
         ctx.checkCancelled();
-        try { Thread.sleep(millis); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        try { Thread.sleep(millis); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         ctx.checkCancelled();
     }
 

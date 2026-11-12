@@ -41,12 +41,12 @@ public final class ScriptPackage {
                 // Windows PowerShell 5.1 reads a .ps1 without a byte order mark as ANSI, so "Grüße" in a typed script broke
                 if (ext.equals(".ps1")) Files.writeString(temp, "\uFEFF" + script, StandardCharsets.UTF_8);
                 else Files.writeString(temp, script, ext.equals(".vbs") ? StandardCharsets.ISO_8859_1 : StandardCharsets.UTF_8);
-            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
             target = temp;
         } else throw new ActionException("SCRIPT.NO_SCRIPT", "Give the script text or a script file", "Fill in 'script' or 'file'.");
         if (ext.equals(".ps1")) {
             try { boot = powershellBootstrap(target); }
-            catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the PowerShell start file: " + e.getMessage(), null, true); }
+            catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the PowerShell start file: " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
             target = boot;
         }
         try {
@@ -61,7 +61,7 @@ public final class ScriptPackage {
                     Map<String, String> env = ApplicationPackage.env(environment);
                     Path dir = workingFolder == null || workingFolder.isBlank() ? ctx.workDir() : ctx.resolvePath(workingFolder);
                     ProcessRunner.Result r = ProcessRunner.run(ctx, cmd, dir, input, timeout, env.isEmpty() ? null : env, StandardCharsets.UTF_8);
-                    if (storeAlias(r)) { last = new ActionException("PROCESS.NOT_FOUND", interp + " is only the Microsoft Store shortcut, not an installed Python"); continue; }
+                    if (storeAlias(r)) { last = new ActionException("PROCESS.NOT_FOUND", interp + " is only the Microsoft Store shortcut, not an installed Python", "Install Python from python.org (or turn off the Microsoft Store shortcut in App execution aliases), then try again."); continue; }
                     if (fail && r.exitCode() != 0)
                         throw new ActionException("SCRIPT.FAILED", "Script exited with code " + r.exitCode() + ": " + ApplicationPackage.tail(r.stderr().isBlank() ? r.stdout() : r.stderr()),
                                 "Read the error output, fix the script, or set fail_on_error to false.");
@@ -238,7 +238,7 @@ public final class ScriptPackage {
             if (t.startsWith("{") || t.startsWith("[")) try { json = JsonLite.parse(t); } catch (IllegalArgumentException ignored) { }
             out.put("json", json);
             return out;
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally {
             for (Path p : new Path[]{user, wrapper}) if (p != null) try { Files.deleteIfExists(p); } catch (IOException ignored) { }
         }
@@ -306,7 +306,7 @@ public final class ScriptPackage {
                 Path tmp = Files.createTempFile("ooa-function-", ext);
                 Files.writeString(tmp, script, java.nio.charset.StandardCharsets.UTF_8);
                 return tmp;
-            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the script to a temporary file: " + e.getMessage(), null, true); }
+            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the script to a temporary file: " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         }
         if (file == null || file.isBlank()) throw new ActionException("SCRIPT.NO_SOURCE", "Give the " + language + " file or type the script", "Fill in file or script.");
         Path p = ctx.resolvePath(file);
@@ -515,7 +515,7 @@ public final class ScriptPackage {
         // arguments travel in environment variables: Windows command-line quoting would lose quotes inside them
         Map<String, Object> env = new LinkedHashMap<>();
         int n = args == null ? 0 : args.size();
-        if (n > 64) throw new ActionException("SCRIPT.BAD_ARGUMENT", "At most 64 arguments can be passed to a VBScript function");
+        if (n > 64) throw new ActionException("SCRIPT.BAD_ARGUMENT", "At most 64 arguments can be passed to a VBScript function", "Pass at most 64 arguments; put more in a file or a list the function reads.");
         for (int i = 0; i < n; i++) {
             Object a = args.get(i);
             // numbers and true/false arrive as VBScript numbers and booleans (Add(2, 3) is 5, not "23"); the first letter

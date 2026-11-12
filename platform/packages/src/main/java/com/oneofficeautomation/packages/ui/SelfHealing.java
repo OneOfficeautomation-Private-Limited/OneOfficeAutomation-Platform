@@ -38,7 +38,7 @@ public final class SelfHealing {
     public static final Timer SYSTEM = new Timer() {
         public long nowMillis() { return System.currentTimeMillis(); }
         public void sleep(long ms) {
-            try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+            try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     };
 

@@ -63,7 +63,7 @@ final class ProcessRunner {
         } catch (InterruptedException e) {
             p.destroyForcibly();
             Thread.currentThread().interrupt();
-            throw new ActionException("RUN.CANCELLED", "Interrupted");
+            throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on.");
         }
         boolean trunc = out.size() >= MAX_OUTPUT || err.size() >= MAX_OUTPUT;
         return new Result(p.exitValue(), ctx.redact(out.toString(cs)), ctx.redact(err.toString(cs)), trunc);

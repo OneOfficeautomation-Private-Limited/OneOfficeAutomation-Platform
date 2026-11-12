@@ -85,7 +85,7 @@ public final class PowerPointDesktopPackage {
                         "Check the presentation and the file paths.", true);
             }
             return r;
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally { if (script != null) try { Files.deleteIfExists(script); } catch (IOException ignored) { } }
     }
 
@@ -99,7 +99,7 @@ public final class PowerPointDesktopPackage {
         if (saveAs == null || saveAs.isBlank()) return "";
         Path t = ctx.resolvePath(saveAs).toAbsolutePath();
         if (!overwrite && Files.exists(t)) throw new ActionException("POWERPOINT_DESKTOP.EXISTS", "A file already exists at " + t, "Set overwrite to true or choose another path.");
-        try { if (t.getParent() != null) Files.createDirectories(t.getParent()); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+        try { if (t.getParent() != null) Files.createDirectories(t.getParent()); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
         return t.toString();
     }
 

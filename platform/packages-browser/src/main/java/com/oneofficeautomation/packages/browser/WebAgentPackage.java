@@ -180,8 +180,8 @@ public final class WebAgentPackage {
             @Input(name = "output_path", type = OoaType.FILE, required = false, description = "Also write the data output to this JSON file when the goal is reached.") String outputPath,
             @Input(name = "save_trajectory_to", type = OoaType.FILE, required = false, example = "logs/web-agent-run.json",
                     description = "Keep a record of the run in this JSON file: each step's action, the model's reasoning and a screenshot (saved in a folder next to it). Secrets appear only as placeholders.") String trajectoryPath) {
-        if (goal == null || goal.isBlank()) throw new ActionException(P + ".NO_GOAL", "Describe the goal");
-        if (maxSteps < 1 || maxSteps > 60) throw new ActionException(P + ".BAD_OPTION", "max_steps must be between 1 and 60");
+        if (goal == null || goal.isBlank()) throw new ActionException(P + ".NO_GOAL", "Describe the goal", "Describe the goal in a sentence, for example: download last month's invoice.");
+        if (maxSteps < 1 || maxSteps > 60) throw new ActionException(P + ".BAD_OPTION", "max_steps must be between 1 and 60", "Set max_steps between 1 and 60.");
         if (trajectoryPath != null && !trajectoryPath.isBlank() && !trajectoryPath.strip().toLowerCase(Locale.ROOT).endsWith(".json"))
             throw new ActionException(P + ".BAD_OPTION", "save_trajectory_to must be a .json file: " + trajectoryPath, "Example: logs/web-agent-run.json");
         if (ctx.sessions().get(session) instanceof ExtensionBridge.TabSession)
@@ -192,7 +192,7 @@ public final class WebAgentPackage {
         Map<String, String> secretValues = new LinkedHashMap<>();
         Set<String> passwordOnly = new HashSet<>();
         if (secrets != null) secrets.forEach((k, v) -> {
-            if (!k.matches("^[A-Za-z0-9_-]{1,40}$")) throw new ActionException(P + ".BAD_SECRET", "Secret names use letters, digits, - and _: " + k);
+            if (!k.matches("^[A-Za-z0-9_-]{1,40}$")) throw new ActionException(P + ".BAD_SECRET", "Secret names use letters, digits, - and _: " + k, "Name secrets with letters, digits, - and _.");
             if (!(v instanceof SecureString ss)) throw new ActionException(P + ".BAD_SECRET", "The secret '" + k + "' must be a Credential", "Map it to a Credential variable.");
             secretValues.put(k, ss.reveal());
             if (ss.passwordOnly()) passwordOnly.add(k);
@@ -379,9 +379,9 @@ public final class WebAgentPackage {
                 Locator l = control(page, a);
                 while (m.find()) {
                     String v = secrets.get(m.group(1));
-                    if (v == null) throw new ActionException(P + ".NO_SECRET", "There is no secret named " + m.group(1));
+                    if (v == null) throw new ActionException(P + ".NO_SECRET", "There is no secret named " + m.group(1), "Add the secret the message names to the step's secrets.");
                     if (passwordOnly.contains(m.group(1)) && !"password".equals(l.evaluate("e => (e.getAttribute('type') || '').toLowerCase()")))
-                        throw new ActionException("VAULT.PASSWORD_ONLY", "The secret " + m.group(1) + " may only be typed into password fields");
+                        throw new ActionException("VAULT.PASSWORD_ONLY", "The secret " + m.group(1) + " may only be typed into password fields", "Nothing to change: the agent may type this secret only into a password field.");
                     m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(v));
                 }
                 m.appendTail(sb);
@@ -407,9 +407,9 @@ public final class WebAgentPackage {
     }
 
     static Locator control(Page page, Map<String, Object> a) {
-        if (!(a.get("id") instanceof Number n)) throw new ActionException(P + ".BAD_STEP", "No control number given");
+        if (!(a.get("id") instanceof Number n)) throw new ActionException(P + ".BAD_STEP", "No control number given", "Run the step again; the model's answer named no control.");
         Locator l = page.locator("[data-ooa-ai=\"" + n.intValue() + "\"]");
-        if (l.count() == 0) throw new ActionException(P + ".NO_CONTROL", "There is no control " + n.intValue() + " on the page now");
+        if (l.count() == 0) throw new ActionException(P + ".NO_CONTROL", "There is no control " + n.intValue() + " on the page now", "Run the step again; the page changed while the agent was working.");
         return l.first();
     }
 

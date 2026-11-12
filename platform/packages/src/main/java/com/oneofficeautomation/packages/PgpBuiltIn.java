@@ -41,7 +41,7 @@ final class PgpBuiltIn {
     static Path keyFolder(ActionContext ctx, String home) {
         Path p = home != null && !home.isBlank() ? ctx.resolvePath(home)
                 : Path.of(System.getProperty("ooa.pgp.keys", Path.of(System.getProperty("user.home"), ".ooa", "pgp-keys").toString()));
-        try { Files.createDirectories(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot create the key folder " + p + ": " + e.getMessage()); }
+        try { Files.createDirectories(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot create the key folder " + p + ": " + e.getMessage(), "Check that the runner's account may create the key folder."); }
         return p;
     }
 
@@ -64,12 +64,12 @@ final class PgpBuiltIn {
         try {
             write(folder.resolve("pubring.asc"), k.pub().getEncoded());
             write(folder.resolve("secring.asc"), k.sec().getEncoded());
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the keys in " + folder + ": " + e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the keys in " + folder + ": " + e.getMessage(), "Check that the runner's account may write the key folder."); }
     }
 
     private static void write(Path file, byte[] encoded) {
         try (OutputStream o = new ArmoredOutputStream(Files.newOutputStream(file))) { o.write(encoded); }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + file + ": " + e.getMessage()); }
+        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + file + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
     }
 
     /** Public and secret key rings read from a key file (armored or binary, one or several keys). */
@@ -383,7 +383,7 @@ final class PgpBuiltIn {
 
     private static Path out(ActionContext ctx, String p) {
         Path f = ctx.resolvePath(p);
-        try { if (f.getParent() != null) Files.createDirectories(f.getParent()); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+        try { if (f.getParent() != null) Files.createDirectories(f.getParent()); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
         return f;
     }
 }

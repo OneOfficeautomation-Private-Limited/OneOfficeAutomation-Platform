@@ -100,7 +100,7 @@ public final class Toxicity {
     /** Reads and checks the step's toxicity inputs. */
     public static Setting setting(String action, String level, List<Object> terms, String prefix) {
         String a = action == null || action.isBlank() ? "off" : action.trim().toLowerCase(Locale.ROOT);
-        if (!Set.of("off", "log", "block").contains(a)) throw new ActionException(prefix + ".BAD_OPTION", "The toxicity guardrail is off, log or block, not '" + action + "'", null);
+        if (!Set.of("off", "log", "block").contains(a)) throw new ActionException(prefix + ".BAD_OPTION", "The toxicity guardrail is off, log or block, not '" + action + "'", "Set the toxicity guardrail to off, log or block.");
         String l = level == null || level.isBlank() ? "medium" : level.trim().toLowerCase(Locale.ROOT);
         if (!Set.of("low", "medium", "high").contains(l)) throw new ActionException(prefix + ".BAD_OPTION", "The toxicity level is low, medium or high, not '" + level + "'", "low catches swearing too; high only threats, self-harm and hate.");
         List<String> t = new ArrayList<>();

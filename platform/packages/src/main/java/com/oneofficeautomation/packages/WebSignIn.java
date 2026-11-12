@@ -96,7 +96,7 @@ final class WebSignIn {
         if (!given(baseUrl))
             throw new ActionException(p + ".BAD_URL", "'" + u + "' is not a full address and there is no base_url", "Give an address starting with https://, or choose a connection that has a base address.");
         String base = baseUrl.strip();
-        if (!base.matches("(?i)^https?://.*")) throw new ActionException(p + ".BAD_URL", "base_url must start with http:// or https://, not '" + base + "'");
+        if (!base.matches("(?i)^https?://.*")) throw new ActionException(p + ".BAD_URL", "base_url must start with http:// or https://, not '" + base + "'", "Give base_url starting with https:// (or http:// on this computer's network).");
         if (u.isEmpty()) return base;
         return (base.endsWith("/") ? base.substring(0, base.length() - 1) : base) + (u.startsWith("/") || u.startsWith("?") ? u : "/" + u);
     }

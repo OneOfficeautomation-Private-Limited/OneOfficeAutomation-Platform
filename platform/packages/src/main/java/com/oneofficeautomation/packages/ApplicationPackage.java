@@ -237,7 +237,7 @@ public final class ApplicationPackage {
         List<ProcessHandle> targets = new ArrayList<>();
         if (pid != null) ProcessHandle.of(pid).ifPresent(targets::add);
         else if (name != null && !name.isBlank()) ProcessHandle.allProcesses().filter(h -> matches(h, name)).forEach(targets::add);
-        else throw new ActionException("APPLICATION.NO_TARGET", "Give a process id or a program name");
+        else throw new ActionException("APPLICATION.NO_TARGET", "Give a process id or a program name", "Fill in the process id or the program's name (for example notepad.exe).");
         int n = 0;
         for (ProcessHandle h : targets) {
             if (h.pid() == self) continue;
@@ -381,7 +381,7 @@ public final class ApplicationPackage {
         long deadline = System.nanoTime() + (long) (Math.max(0, Math.min(3500, timeout)) * 1e9);
         CommandSession.Read r;
         try { r = s.read(pattern, all, deadline, 500, false, ctx::checkCancelled); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         String out = ctx.redact(s.mask(r.output()));
         if (pattern != null && !r.matched() && failOnTimeout) {
             String why = r.exited() ? "the program ended (exit code " + s.process.exitValue() + ") before '" + waitFor + "' appeared"

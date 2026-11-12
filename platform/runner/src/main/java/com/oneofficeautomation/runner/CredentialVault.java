@@ -33,7 +33,7 @@ public interface CredentialVault {
                 throw new OoaException("VAULT.DENIED", "'" + principal + "' is not a consumer of vault folder '" + parts[0] + "'",
                         "Ask the vault folder owner to add you or your role as a consumer.");
             String v = values.get(ref);
-            if (v == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found");
+            if (v == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found", "Check the credential's name and folder in the vault, and that the agent may use it.");
             return new SecureString(v, ref);
         }
     }

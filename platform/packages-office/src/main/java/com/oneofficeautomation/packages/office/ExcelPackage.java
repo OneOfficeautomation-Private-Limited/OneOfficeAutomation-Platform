@@ -137,7 +137,7 @@ public final class ExcelPackage {
     static String cloudPath(String path) {
         if (path == null || !path.regionMatches(true, 0, CLOUD, 0, CLOUD.length())) return null;
         String r = path.substring(CLOUD.length()).replace('\\', '/').replaceAll("^/+", "");
-        if (r.isBlank() || r.contains("..")) throw new ActionException("EXCEL.BAD_PATH", "Give the workbook's path in the drive after onedrive:, for example onedrive:Reports/2026/sales.xlsx");
+        if (r.isBlank() || r.contains("..")) throw new ActionException("EXCEL.BAD_PATH", "Give the workbook's path in the drive after onedrive:, for example onedrive:Reports/2026/sales.xlsx", "Write the path after onedrive:, for example onedrive:Reports/2026/sales.xlsx.");
         return r;
     }
 
@@ -849,7 +849,7 @@ public final class ExcelPackage {
             Sheet dst = s.wb.createSheet(uniqueSheetName(s.wb, newName == null || newName.isBlank() ? src.getSheetName() : newName));
             copySheetInto(src, dst);
             return out("name", dst.getSheetName());
-        } catch (IOException e) { throw new ActionException("EXCEL.OPEN_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("EXCEL.OPEN_FAILED", e.getMessage(), "Check that the workbook exists, is a valid .xlsx or .xls file, and is not open in Excel with a lock."); }
     }
 
     @Action(id = "copy_sheet", name = "Copy worksheet", category = "Sheets", description = "Duplicate a worksheet inside the same workbook under a new name.",

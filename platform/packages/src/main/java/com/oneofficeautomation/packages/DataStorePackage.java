@@ -41,7 +41,7 @@ public final class DataStorePackage {
     }
 
     static String need(String v, String what) {
-        if (v == null || v.isBlank()) throw new ActionException("DATA.MISSING", "Give the " + what);
+        if (v == null || v.isBlank()) throw new ActionException("DATA.MISSING", "Give the " + what, "Fill in what the message names.");
         return v.trim();
     }
 
@@ -131,10 +131,10 @@ public final class DataStorePackage {
             @Input(name = "path", type = OoaType.STRING, required = false, description = "Its path in the bucket (empty: the file's name).") String path,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file already at that path.") boolean overwrite) {
         Path p = ctx.resolvePath(need(file, "file"));
-        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p);
+        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path; the file may have been moved or renamed.");
         byte[] b;
-        try { b = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
-        if (b.length > 200L * 1024 * 1024) throw new ActionException("DATA.TOO_LARGE", "Files of up to 200 MB go to a bucket");
+        try { b = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
+        if (b.length > 200L * 1024 * 1024) throw new ActionException("DATA.TOO_LARGE", "Files of up to 200 MB go to a bucket", "Store files larger than 200 MB in a share the runner reads, not in a bucket.");
         String to = path == null || path.isBlank() ? p.getFileName().toString() : path.trim();
         Map<String, Object> r = store(ctx).call(req("upload", "bucket", need(bucket, "bucket"), "path", to, "content", Base64.getEncoder().encodeToString(b), "overwrite", overwrite));
         return Map.of("path", r.getOrDefault("path", to), "bytes", r.getOrDefault("bytes", b.length));
@@ -153,7 +153,7 @@ public final class DataStorePackage {
         try {
             if (out.getParent() != null) Files.createDirectories(out.getParent());
             Files.write(out, Base64.getDecoder().decode(String.valueOf(r.get("content"))));
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of("file", out.toString());
     }
 
@@ -190,12 +190,12 @@ public final class DataStorePackage {
             try {
                 if (r.containsKey("bucket")) return bucket(work.resolve("buckets").resolve(safe(String.valueOf(r.get("bucket")))), op, r);
                 return entity(work.resolve("data-store").resolve(safe(String.valueOf(r.get("entity"))) + ".json"), op, r);
-            } catch (IOException e) { throw new ActionException("DATA.IO", e.getMessage(), null, true); }
+            } catch (IOException e) { throw new ActionException("DATA.IO", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         }
 
         static String safe(String name) {
             String n = name.trim();
-            if (!n.matches("[A-Za-z0-9 _.-]{1,80}") || n.contains("..")) throw new ActionException("DATA.BAD_NAME", "The name '" + name + "' is not allowed");
+            if (!n.matches("[A-Za-z0-9 _.-]{1,80}") || n.contains("..")) throw new ActionException("DATA.BAD_NAME", "The name '" + name + "' is not allowed", "Use letters, digits, spaces, - and _ in the name.");
             return n;
         }
 
@@ -217,14 +217,14 @@ public final class DataStorePackage {
                     return rec;
                 }
                 case "update" -> {
-                    if (found == null) throw new ActionException("DATA.NOT_FOUND", "No record " + id);
+                    if (found == null) throw new ActionException("DATA.NOT_FOUND", "No record " + id, "Check the record's id; it may have been deleted.");
                     Map<String, Object> d = new LinkedHashMap<>((Map<String, Object>) found.get("data"));
                     data.forEach((k, v) -> { if (v == null || "".equals(v)) d.remove(k); else d.put(k, v); });
                     found.put("data", d); found.put("updated", Instant.now().toString());
                     save(f, recs);
                     return found;
                 }
-                case "get" -> { if (found == null) throw new ActionException("DATA.NOT_FOUND", "No record " + id); return found; }
+                case "get" -> { if (found == null) throw new ActionException("DATA.NOT_FOUND", "No record " + id, "Check the record's id; it may have been deleted."); return found; }
                 case "delete" -> { boolean had = found != null; recs.remove(found); if (had) save(f, recs); return Map.of("deleted", had); }
                 case "query" -> {
                     List<Object> hits = new ArrayList<>();
@@ -248,7 +248,7 @@ public final class DataStorePackage {
                     int from = Math.min(off, hits.size());
                     return Map.of("records", hits.subList(from, Math.min(hits.size(), from + lim)), "total", hits.size());
                 }
-                default -> throw new ActionException("DATA.BAD_OP", "Unknown operation " + op);
+                default -> throw new ActionException("DATA.BAD_OP", "Unknown operation " + op, "Choose one of the operations the step offers.");
             }
         }
 
@@ -266,7 +266,7 @@ public final class DataStorePackage {
             return switch (op) {
                 case "=" -> c == 0; case "!=" -> c != 0; case ">" -> c > 0; case ">=" -> c >= 0; case "<" -> c < 0; case "<=" -> c <= 0;
                 case "contains" -> h.contains(w); case "starts_with" -> h.startsWith(w);
-                default -> throw new ActionException("DATA.BAD_FILTER", "Unknown comparison '" + op + "'");
+                default -> throw new ActionException("DATA.BAD_FILTER", "Unknown comparison '" + op + "'", "Use one of the comparisons the step offers (equals, not_equals, contains, greater_than and so on).");
             };
         }
 
@@ -290,7 +290,7 @@ public final class DataStorePackage {
                 return Map.of("files", out);
             }
             Path p = base.resolve(String.valueOf(r.get("path")).replace('\\', '/')).normalize();
-            if (!p.startsWith(base.normalize())) throw new ActionException("DATA.BAD_PATH", "The path leaves the bucket");
+            if (!p.startsWith(base.normalize())) throw new ActionException("DATA.BAD_PATH", "The path leaves the bucket", "Give a path inside the bucket, without .. or a leading /.");
             return switch (op) {
                 case "upload" -> {
                     if (!Boolean.FALSE.equals(r.get("overwrite")) || !Files.exists(p)) {
@@ -299,14 +299,14 @@ public final class DataStorePackage {
                         Files.write(p, b);
                         yield Map.of("path", base.relativize(p).toString().replace('\\', '/'), "bytes", b.length);
                     }
-                    throw new ActionException("DATA.EXISTS", "The bucket already has " + r.get("path"));
+                    throw new ActionException("DATA.EXISTS", "The bucket already has " + r.get("path"), "Choose another path, or delete the file that is there first.");
                 }
                 case "download" -> {
-                    if (!Files.isRegularFile(p)) throw new ActionException("DATA.NOT_FOUND", "The bucket has no file " + r.get("path"));
+                    if (!Files.isRegularFile(p)) throw new ActionException("DATA.NOT_FOUND", "The bucket has no file " + r.get("path"), "Check the file's path in the bucket.");
                     yield Map.of("content", Base64.getEncoder().encodeToString(Files.readAllBytes(p)));
                 }
                 case "delete_file" -> Map.of("deleted", Files.deleteIfExists(p));
-                default -> throw new ActionException("DATA.BAD_OP", "Unknown operation " + op);
+                default -> throw new ActionException("DATA.BAD_OP", "Unknown operation " + op, "Choose one of the operations the step offers.");
             };
         }
     }

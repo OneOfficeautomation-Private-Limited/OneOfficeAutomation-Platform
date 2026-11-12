@@ -115,7 +115,7 @@ public final class FormsPackage {
             if (left <= 0) return null;
             Map<String, Object> e;
             try { e = s.events.poll(Math.min(left, 250_000_000L), TimeUnit.NANOSECONDS); }
-            catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Stopped while waiting for the form"); }
+            catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Stopped while waiting for the form", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             if (e == null) continue;
             String t = String.valueOf(e.get("type"));
             if (t.equals("close") || types.contains("any") || types.contains(t)) return e;
@@ -271,7 +271,7 @@ public final class FormsPackage {
         if (!Set.of("replace", "append").contains(m)) throw new ActionException("FORMS.BAD_MODE", "Unknown mode '" + mode + "'", "Use replace or append.");
         FormWindow.Session s = session(ctx, name);
         Map<String, Object> f = element(s, element);
-        if (!Set.of("dropdown", "radio").contains(String.valueOf(f.get("type")))) throw new ActionException("FORMS.NOT_A_LIST", "'" + element + "' is not a drop-down or choice field", null);
+        if (!Set.of("dropdown", "radio").contains(String.valueOf(f.get("type")))) throw new ActionException("FORMS.NOT_A_LIST", "'" + element + "' is not a drop-down or choice field", "Choose a drop-down or choice field of the form.");
         List<String> given = options == null ? List.of() : options.stream().map(o -> o == null ? "" : String.valueOf(o)).toList();
         synchronized (s) {
             String id = element.strip();
@@ -414,12 +414,12 @@ public final class FormsPackage {
         List<Map<String, Object>> fs = new ArrayList<>();
         Set<String> ids = new HashSet<>();
         for (Object o : list == null ? List.of() : list) {
-            if (!(o instanceof Map<?, ?> m)) throw new ActionException("FORMS.BAD_FIELD", "Each field must be a Dictionary with at least id and type", null);
+            if (!(o instanceof Map<?, ?> m)) throw new ActionException("FORMS.BAD_FIELD", "Each field must be a Dictionary with at least id and type", "Give each field as a dictionary with at least id and type.");
             Map<String, Object> f = new LinkedHashMap<>((Map<String, Object>) m);
             String id = String.valueOf(f.getOrDefault("id", ""));
-            if (!id.matches("^[A-Za-z_][A-Za-z0-9_]{0,63}$") || !ids.add(id)) throw new ActionException("FORMS.BAD_FIELD", "Field ids must be unique and use letters, digits and _ ('" + id + "')", null);
+            if (!id.matches("^[A-Za-z_][A-Za-z0-9_]{0,63}$") || !ids.add(id)) throw new ActionException("FORMS.BAD_FIELD", "Field ids must be unique and use letters, digits and _ ('" + id + "')", "Give every field its own id of letters, digits and _.");
             f.putIfAbsent("type", "text");
-            if ("area".equals(f.get("type"))) throw new ActionException("FORMS.BAD_FIELD", "A dynamic area cannot hold another area", null);
+            if ("area".equals(f.get("type"))) throw new ActionException("FORMS.BAD_FIELD", "A dynamic area cannot hold another area", "Put the inner area's fields directly in the outer area.");
             fs.add(f);
         }
         synchronized (s) {

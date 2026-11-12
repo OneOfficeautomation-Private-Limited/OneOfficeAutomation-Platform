@@ -176,7 +176,7 @@ public final class OcrPackage {
 
     private static Path temp(BufferedImage img) {
         try { Path p = Files.createTempFile("ooa-ocr-", ".png"); ImageIO.write(img, "png", p.toFile()); return p; }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     private static BufferedImage capture(Integer x, Integer y, Integer w, Integer h) {
@@ -255,7 +255,7 @@ public final class OcrPackage {
             cmd.addAll(args);
             return ProcessRunner.run(ctx, cmd, null, null, timeout, null, java.nio.charset.StandardCharsets.UTF_8);
         } catch (java.io.IOException e) {
-            throw new ActionException("FILE.IO_ERROR", "Cannot write the OCR script: " + e.getMessage(), null, true);
+            throw new ActionException("FILE.IO_ERROR", "Cannot write the OCR script: " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally { if (file != null) try { java.nio.file.Files.deleteIfExists(file); } catch (java.io.IOException ignored) { } }
     }
 
@@ -350,7 +350,7 @@ public final class OcrPackage {
             throw new ActionException("OCR.DOWNLOAD_FAILED", "Cannot download " + u + ": " + e.getMessage(), "Check the address and the network.", true);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ActionException("RUN.CANCELLED", "Interrupted");
+            throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on.");
         }
     }
 
@@ -412,11 +412,11 @@ public final class OcrPackage {
                 case "azure" -> new AzureAiPackage().documentRead(ctx, session == null || session.isBlank() ? "azure_ai" : session, file, null, lang, 120);
                 case "google" -> new GoogleAiPackage().visionOcr(ctx, session == null || session.isBlank() ? "google_ai" : session, file, "document",
                         lang == null || lang.isBlank() ? null : List.of(lang));
-                default -> throw new ActionException("OCR.BAD_ENGINE", "The cloud engine is azure or google");
+                default -> throw new ActionException("OCR.BAD_ENGINE", "The cloud engine is azure or google", "Set the cloud engine to azure or google.");
             };
             return Map.of("text", String.valueOf(r.getOrDefault("text", "")), "engine", e);
         } catch (IOException ex) {
-            throw new ActionException("OCR.SCREEN", "Cannot keep the screen picture: " + ex.getMessage());
+            throw new ActionException("OCR.SCREEN", "Cannot keep the screen picture: " + ex.getMessage(), "Check that the runner's temporary folder has space and may be written.");
         } finally {
             if (shot != null) try { Files.deleteIfExists(shot); } catch (IOException ignored) { }
         }
@@ -479,7 +479,7 @@ public final class OcrPackage {
         while (System.nanoTime() < end) {
             ctx.checkCancelled();
             try { Thread.sleep(Math.min(100, Math.max(1, (end - System.nanoTime()) / 1_000_000))); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 

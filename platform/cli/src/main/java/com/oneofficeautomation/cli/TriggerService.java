@@ -62,10 +62,10 @@ final class TriggerService {
         List<Map<String, Object>> out = new ArrayList<>();
         Set<String> ids = new HashSet<>();
         for (Object o : raw) {
-            if (!(o instanceof Map)) throw new OoaException("TRIGGER.INVALID", "Each trigger must be an object");
+            if (!(o instanceof Map)) throw new OoaException("TRIGGER.INVALID", "Each trigger must be an object", "Reload the page and save the triggers again.");
             Map<String, Object> t = new LinkedHashMap<>((Map<String, Object>) o);
             String id = String.valueOf(t.get("id"));
-            if (!id.matches("^[A-Za-z0-9_-]{1,40}$") || !ids.add(id)) throw new OoaException("TRIGGER.BAD_ID", "Trigger ids must be unique: letters, digits, - and _");
+            if (!id.matches("^[A-Za-z0-9_-]{1,40}$") || !ids.add(id)) throw new OoaException("TRIGGER.BAD_ID", "Trigger ids must be unique: letters, digits, - and _", "Give every trigger its own id of letters, digits, - and _.");
             String bot = String.valueOf(t.get("bot"));
             if (!bot.endsWith(Workspace.BOT_SUFFIX) || !Files.isRegularFile(ws.resolve(bot))) throw new OoaException("TRIGGER.BAD_BOT", "Trigger '" + id + "': agent not found: " + bot, "Choose an agent from the workspace.");
             String type = String.valueOf(t.get("type"));
@@ -77,14 +77,14 @@ final class TriggerService {
                 }
                 case "schedule" -> {
                     boolean every = t.get("every_minutes") != null, daily = t.get("daily_at") != null;
-                    if (every == daily) throw new OoaException("TRIGGER.BAD_SCHEDULE", "Trigger '" + id + "': give either every_minutes or daily_at (HH:mm)");
-                    if (every && Integer.parseInt(String.valueOf(t.get("every_minutes")).replaceAll("\\..*", "")) < 1) throw new OoaException("TRIGGER.BAD_SCHEDULE", "every_minutes must be at least 1");
-                    if (daily && !String.valueOf(t.get("daily_at")).matches("^([01]\\d|2[0-3]):[0-5]\\d$")) throw new OoaException("TRIGGER.BAD_SCHEDULE", "daily_at must look like 08:30");
+                    if (every == daily) throw new OoaException("TRIGGER.BAD_SCHEDULE", "Trigger '" + id + "': give either every_minutes or daily_at (HH:mm)", "Fill in either every_minutes or daily_at.");
+                    if (every && Integer.parseInt(String.valueOf(t.get("every_minutes")).replaceAll("\\..*", "")) < 1) throw new OoaException("TRIGGER.BAD_SCHEDULE", "every_minutes must be at least 1", "Set every_minutes to 1 or more.");
+                    if (daily && !String.valueOf(t.get("daily_at")).matches("^([01]\\d|2[0-3]):[0-5]\\d$")) throw new OoaException("TRIGGER.BAD_SCHEDULE", "daily_at must look like 08:30", "Write the time as hours and minutes, for example 08:30.");
                 }
                 case "webhook" -> {
-                    if (!(t.get("secret") instanceof String s) || s.length() < 16) throw new OoaException("TRIGGER.WEAK_SECRET", "Trigger '" + id + "': webhook secret must be at least 16 characters");
+                    if (!(t.get("secret") instanceof String s) || s.length() < 16) throw new OoaException("TRIGGER.WEAK_SECRET", "Trigger '" + id + "': webhook secret must be at least 16 characters", "Use a webhook secret of at least 16 characters.");
                 }
-                default -> throw new OoaException("TRIGGER.BAD_TYPE", "Trigger '" + id + "': type must be file, schedule or webhook");
+                default -> throw new OoaException("TRIGGER.BAD_TYPE", "Trigger '" + id + "': type must be file, schedule or webhook", "Choose file, schedule or webhook.");
             }
             t.putIfAbsent("enabled", true);
             out.add(t);
@@ -169,7 +169,7 @@ final class TriggerService {
 
     RunResult runNow(String id) {
         Map<String, Object> t = triggers.stream().filter(x -> id.equals(x.get("id"))).findFirst()
-                .orElseThrow(() -> new OoaException("TRIGGER.NOT_FOUND", "Trigger '" + id + "' not found"));
+                .orElseThrow(() -> new OoaException("TRIGGER.NOT_FOUND", "Trigger '" + id + "' not found", "Reload Details > Triggers; it may have been deleted."));
         RunResult r = runBot.apply((String) t.get("bot"), Map.of());
         addLog(t, "manual test", r.status(), r, r.error() == null ? null : String.valueOf(r.error().get("code")));
         return r;
@@ -177,10 +177,10 @@ final class TriggerService {
 
     Map<String, Object> webhook(String id, String secret, Object payload) {
         Map<String, Object> t = triggers.stream().filter(x -> id.equals(x.get("id")) && "webhook".equals(x.get("type"))).findFirst()
-                .orElseThrow(() -> new OoaException("TRIGGER.NOT_FOUND", "Webhook '" + id + "' not found"));
-        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("TRIGGER.DISABLED", "Webhook '" + id + "' is disabled");
+                .orElseThrow(() -> new OoaException("TRIGGER.NOT_FOUND", "Webhook '" + id + "' not found", "Check the webhook's address in Details > Triggers."));
+        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("TRIGGER.DISABLED", "Webhook '" + id + "' is disabled", "Enable the webhook in Details > Triggers.");
         if (secret == null || !java.security.MessageDigest.isEqual(secret.getBytes(StandardCharsets.UTF_8), String.valueOf(t.get("secret")).getBytes(StandardCharsets.UTF_8)))
-            throw new OoaException("TRIGGER.FORBIDDEN", "Wrong webhook secret");
+            throw new OoaException("TRIGGER.FORBIDDEN", "Wrong webhook secret", "Use the webhook's current secret from Details > Triggers.");
         fire(t, "webhook", payload == null ? Map.of() : Map.of("payload", payload), false);
         return Map.of("accepted", true);
     }

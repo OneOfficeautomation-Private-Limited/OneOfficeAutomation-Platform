@@ -34,7 +34,7 @@ public final class IdpPackage {
         if (types == null || types.isEmpty()) throw new ActionException("IDP.NO_TYPES", "Give the document types", "Each: {\"name\": \"invoice\", \"keywords\": [\"invoice\", \"VAT\"], \"description\": \"a supplier invoice\"}");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Object o : types) {
-            if (!(o instanceof Map<?, ?> m) || !(m.get("name") instanceof String n) || n.isBlank()) throw new ActionException("IDP.BAD_TYPE", "Each document type needs a name");
+            if (!(o instanceof Map<?, ?> m) || !(m.get("name") instanceof String n) || n.isBlank()) throw new ActionException("IDP.BAD_TYPE", "Each document type needs a name", "Give every document type a name.");
             out.add((Map<String, Object>) m);
         }
         return out;
@@ -132,7 +132,7 @@ public final class IdpPackage {
                 if (rule.get("regex") instanceof String re) {
                     Matcher m;
                     try { m = Pattern.compile(re, Pattern.MULTILINE).matcher(t); }
-                    catch (RuntimeException x) { throw new ActionException("IDP.BAD_RULE", "The rule for " + e.getKey() + " is not a valid regular expression: " + x.getMessage()); }
+                    catch (RuntimeException x) { throw new ActionException("IDP.BAD_RULE", "The rule for " + e.getKey() + " is not a valid regular expression: " + x.getMessage(), "Correct the rule's regular expression; the message names where it breaks."); }
                     if (m.find()) v = (m.groupCount() >= 1 && m.group(1) != null ? m.group(1) : m.group()).strip();
                 } else if (rule.get("after") instanceof String label) {
                     int at = t.toLowerCase(Locale.ROOT).indexOf(label.toLowerCase(Locale.ROOT));
@@ -144,7 +144,7 @@ public final class IdpPackage {
                         v = line.replaceFirst("^[\\s:#\\-]+", "").strip();
                         if (v.isEmpty()) v = null;
                     }
-                } else throw new ActionException("IDP.BAD_RULE", "The rule for " + e.getKey() + " needs regex or after");
+                } else throw new ActionException("IDP.BAD_RULE", "The rule for " + e.getKey() + " needs regex or after", "Give the rule either a regex or an after text.");
             }
             if (v == null) missing.add(e.getKey()); else fields.put(e.getKey(), v);
         }
@@ -155,7 +155,7 @@ public final class IdpPackage {
     @SuppressWarnings("unchecked")
     static Map<String, Object> readExamples(Path f) {
         try { return Files.isRegularFile(f) ? new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(f, StandardCharsets.UTF_8))) : new LinkedHashMap<>(); }
-        catch (IOException | RuntimeException e) { throw new ActionException("IDP.BAD_EXAMPLES", "Cannot read the example file " + f + ": " + e.getMessage()); }
+        catch (IOException | RuntimeException e) { throw new ActionException("IDP.BAD_EXAMPLES", "Cannot read the example file " + f + ": " + e.getMessage(), "Check that the file exists, is not open in another program, and that the runner's account may read it."); }
     }
 
     @SuppressWarnings("unchecked")
@@ -168,8 +168,8 @@ public final class IdpPackage {
             @Input(name = "document_type", type = OoaType.STRING, example = "invoice", description = "The document type.") String type,
             @Input(name = "text", type = OoaType.STRING, description = "The document's text (the first 1,500 characters are kept).") String text,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "The validated values, as a person checked them.") Map<String, Object> fields) {
-        if (type == null || type.isBlank()) throw new ActionException("IDP.NO_TYPE", "Give the document type");
-        if (fields == null || fields.isEmpty()) throw new ActionException("IDP.NO_FIELDS", "Give the validated values");
+        if (type == null || type.isBlank()) throw new ActionException("IDP.NO_TYPE", "Give the document type", "Fill in the document type.");
+        if (fields == null || fields.isEmpty()) throw new ActionException("IDP.NO_FIELDS", "Give the validated values", "Give the validated values.");
         Path f = ctx.resolvePath(file);
         Map<String, Object> all = readExamples(f);
         List<Object> list = new ArrayList<>(all.get(type) instanceof List<?> l ? l : List.of());
@@ -182,7 +182,7 @@ public final class IdpPackage {
             Path tmp = f.resolveSibling(f.getFileName() + ".tmp");
             Files.writeString(tmp, JsonLite.write(all), StandardCharsets.UTF_8);
             Files.move(tmp, f, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + f + ": " + e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + f + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of("count", list.size());
     }
 
@@ -204,7 +204,7 @@ public final class IdpPackage {
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base,
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = GenAiPackage.D_MASK) boolean mask) {
-        if (fields == null || fields.isEmpty()) throw new ActionException("IDP.NO_FIELDS", "Give the fields to extract");
+        if (fields == null || fields.isEmpty()) throw new ActionException("IDP.NO_FIELDS", "Give the fields to extract", "Name the fields to extract.");
         List<Object> examples = List.of();
         if (file != null && !file.isBlank() && type != null && !type.isBlank()) {
             List<?> all = readExamples(ctx.resolvePath(file)).get(type) instanceof List<?> l ? l : List.of();

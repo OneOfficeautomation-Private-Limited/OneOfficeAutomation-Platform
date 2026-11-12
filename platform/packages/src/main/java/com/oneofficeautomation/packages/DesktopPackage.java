@@ -484,7 +484,7 @@ public final class DesktopPackage {
             if (p.getParent() != null) Files.createDirectories(p.getParent());
             BufferedImage img = r.createScreenCapture(area);
             ImageFiles.write(img, fmt, p.toFile(), "jpg".equals(fmt) ? (quality == null ? 90 : quality) : null, null);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of("path", p.toString());
     }
 
@@ -518,7 +518,7 @@ public final class DesktopPackage {
         try {
             Transferable t = Toolkit.getDefaultToolkit().getSystemClipboard().getContents(null);
             return t != null && t.isDataFlavorSupported(DataFlavor.stringFlavor) ? (String) t.getTransferData(DataFlavor.stringFlavor) : "";
-        } catch (UnsupportedFlavorException | IOException | IllegalStateException e) { throw new ActionException("CLIPBOARD.BUSY", "Clipboard unavailable: " + e.getMessage(), null, true); }
+        } catch (UnsupportedFlavorException | IOException | IllegalStateException e) { throw new ActionException("CLIPBOARD.BUSY", "Clipboard unavailable: " + e.getMessage(), "Close programs that hold the clipboard (some remote-desktop tools do), then run the step again.", true); }
     }
 
     @Action(id = "clipboard_get", name = "Get clipboard text", category = "Clipboard", capabilities = "desktop",
@@ -548,7 +548,7 @@ public final class DesktopPackage {
         DesktopSupport.requireDesktop();
         String value = append ? clipboardText() + (text == null ? "" : text) : (text == null ? "" : text);
         try { Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(value), null); }
-        catch (IllegalStateException e) { throw new ActionException("CLIPBOARD.BUSY", "Clipboard unavailable: " + e.getMessage(), null, true); }
+        catch (IllegalStateException e) { throw new ActionException("CLIPBOARD.BUSY", "Clipboard unavailable: " + e.getMessage(), "Close programs that hold the clipboard (some remote-desktop tools do), then run the step again.", true); }
         return Map.of();
     }
 
@@ -561,8 +561,8 @@ public final class DesktopPackage {
         AtomicReference<T> ref = new AtomicReference<>();
         AtomicReference<Exception> err = new AtomicReference<>();
         try { SwingUtilities.invokeAndWait(() -> { try { ref.set(c.call()); } catch (Exception e) { err.set(e); } }); }
-        catch (Exception e) { throw new ActionException("DESKTOP.DIALOG_FAILED", e.getMessage()); }
-        if (err.get() != null) throw new ActionException("DESKTOP.DIALOG_FAILED", err.get().getMessage());
+        catch (Exception e) { throw new ActionException("DESKTOP.DIALOG_FAILED", e.getMessage(), "Make sure the runner has an unlocked desktop session where the dialog can open."); }
+        if (err.get() != null) throw new ActionException("DESKTOP.DIALOG_FAILED", err.get().getMessage(), "Make sure the runner has an unlocked desktop session where the dialog can open.");
         return ref.get();
     }
 
@@ -718,7 +718,7 @@ public final class DesktopPackage {
             return null;
         });
         if (wait) {
-            try { Thread.sleep(seconds * 1000L + 200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            try { Thread.sleep(seconds * 1000L + 200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
         return Map.of();
     }
@@ -802,7 +802,7 @@ public final class DesktopPackage {
             dialog(pane, title, timeout, onTop).setVisible(true);
             return Objects.equals(pane.getValue(), JOptionPane.OK_OPTION) ? f.getPassword() : null;
         });
-        if (pw == null) throw new ActionException("DESKTOP.CANCELLED", "The user cancelled the password prompt, or it timed out");
+        if (pw == null) throw new ActionException("DESKTOP.CANCELLED", "The user cancelled the password prompt, or it timed out", "Type the password when the prompt opens, or raise the step's time limit.");
         SecureString s = new SecureString(new String(pw), "prompt");
         Arrays.fill(pw, '\0');
         return Map.of("password", s);
@@ -944,7 +944,7 @@ public final class DesktopPackage {
                 "OOA_SCAN", switch (k) { case "num_lock" -> "69"; case "scroll_lock" -> "70"; default -> "58"; }, "OOA_ON", on ? "1" : "0");
         ProcessRunner.Result r = ProcessRunner.run(ctx, encodedPowershell(LOCK_KEY_SCRIPT), null, null, 30, env, java.nio.charset.StandardCharsets.UTF_8);
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("was=([01]);now=([01])").matcher(r.stdout());
-        if (!m.find()) throw new ActionException("DESKTOP.FAILED", "Cannot set " + k.replace('_', ' ') + ": " + ApplicationPackage.tail(r.stderr() + r.stdout()), null, true);
+        if (!m.find()) throw new ActionException("DESKTOP.FAILED", "Cannot set " + k.replace('_', ' ') + ": " + ApplicationPackage.tail(r.stderr() + r.stdout()), "Make sure the runner has an unlocked desktop session, then run the step again; the message has Windows' answer.", true);
         if (m.group(2).equals("1") != on)
             throw new ActionException("DESKTOP.KEY_STATE_UNCHANGED", "Windows did not turn " + k.replace('_', ' ') + (on ? " on" : " off"),
                     "The desktop may be locked, or another program holds the keyboard; try again with the desktop unlocked.", true);
@@ -1034,7 +1034,7 @@ public final class DesktopPackage {
         if (m.find())
             return Out.of("timed_out", false, "input", names.getOrDefault(Integer.parseInt(m.group(1)), m.group(1)),
                     "x", new BigDecimal(m.group(2)), "y", new BigDecimal(m.group(3)));
-        if (r.exitCode() != 0) throw new ActionException("DESKTOP.FAILED", "Waiting for input failed: " + ApplicationPackage.tail(r.stderr() + out), null, true);
+        if (r.exitCode() != 0) throw new ActionException("DESKTOP.FAILED", "Waiting for input failed: " + ApplicationPackage.tail(r.stderr() + out), "Make sure the runner has an unlocked desktop session, then run the step again; the message has Windows' answer.", true);
         if (failOnTimeout) throw new ActionException("DESKTOP.INPUT_TIMEOUT", "Nothing was pressed or clicked within " + timeout + " s", "Raise timeout_seconds, or turn off fail_on_timeout.", true);
         return Out.of("timed_out", true, "input", "", "x", null, "y", null);
     }
@@ -1080,7 +1080,7 @@ public final class DesktopPackage {
             }
             p.destroyForcibly();
             throw new ActionException("DESKTOP.NEEDS_ADMIN", "Windows did not allow blocking the mouse and keyboard", "Run the agent as administrator, or leave this step out.", false);
-        } catch (IOException e) { throw new ActionException("DESKTOP.FAILED", "Cannot start the input block: " + e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("DESKTOP.FAILED", "Cannot start the input block: " + e.getMessage(), "Make sure the runner has an unlocked desktop session, then run the step again; the message has Windows' answer.", true); }
     }
 
     private static boolean unblock(ActionContext ctx) {

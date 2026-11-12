@@ -62,7 +62,7 @@ public final class WorkloadPackage {
                     }
                     return result;
                 }
-            } catch (IOException e) { throw new ActionException("QUEUE.IO_ERROR", "Queue '" + queue + "' could not be read or saved: " + e.getMessage(), null, true); }
+            } catch (IOException e) { throw new ActionException("QUEUE.IO_ERROR", "Queue '" + queue + "' could not be read or saved: " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         }
     }
 
@@ -97,7 +97,7 @@ public final class WorkloadPackage {
             if (t.length() > 50 || t.contains(",")) throw new ActionException("QUEUE.BAD_TAG", "Tag '" + t + "' is not allowed", "Tags have at most 50 characters and no commas.");
             if (out.stream().noneMatch(x -> x.equalsIgnoreCase(t))) out.add(t);
         }
-        if (out.size() > MAX_TAGS) throw new ActionException("QUEUE.BAD_TAG", "An item has at most " + MAX_TAGS + " tags");
+        if (out.size() > MAX_TAGS) throw new ActionException("QUEUE.BAD_TAG", "An item has at most " + MAX_TAGS + " tags", "Give an item at most the number of tags the message names.");
         return out;
     }
 
@@ -112,13 +112,13 @@ public final class WorkloadPackage {
 
     private static String ifExists(String v) {
         String s = v == null || v.isBlank() ? "error" : v;
-        if (!Set.of("error", "skip", "update").contains(s)) throw new ActionException("QUEUE.BAD_INPUT", "if_exists is error, skip or update, not '" + v + "'");
+        if (!Set.of("error", "skip", "update").contains(s)) throw new ActionException("QUEUE.BAD_INPUT", "if_exists is error, skip or update, not '" + v + "'", "Set if_exists to error, skip or update.");
         return s;
     }
 
     private static String kind(String v) {
         String s = v == null || v.isBlank() ? "system" : v;
-        if (!Set.of("business", "system").contains(s)) throw new ActionException("QUEUE.BAD_INPUT", "kind is business or system, not '" + v + "'");
+        if (!Set.of("business", "system").contains(s)) throw new ActionException("QUEUE.BAD_INPUT", "kind is business or system, not '" + v + "'", "Set kind to business or system.");
         return s;
     }
 
@@ -128,7 +128,7 @@ public final class WorkloadPackage {
      */
     private static Map<String, Object> addOne(List<Map<String, Object>> items, Object data, String reference, List<String> tags, String ifExists) {
         String ref = reference == null || reference.isBlank() ? null : reference.trim();
-        if (ref != null && ref.length() > 200) throw new ActionException("QUEUE.BAD_INPUT", "A reference has at most 200 characters");
+        if (ref != null && ref.length() > 200) throw new ActionException("QUEUE.BAD_INPUT", "A reference has at most 200 characters", "Shorten the reference to 200 characters or fewer.");
         Map<String, Object> same = ref == null ? null : items.stream().filter(i -> ref.equals(i.get("reference"))).findFirst().orElse(null);
         if (same != null) {
             switch (ifExists) {
@@ -159,7 +159,7 @@ public final class WorkloadPackage {
             throw new ActionException("QUEUE.NO_CENTRAL", "One CommandCenter work queues can only be used by runs started from One CommandCenter",
                     "Turn central off to use the queue file in the workspace, or start the agent from One CommandCenter.");
         }
-        if (queue == null || queue.isBlank()) throw new ActionException("QUEUE.BAD_NAME", "Give the name of the One CommandCenter queue");
+        if (queue == null || queue.isBlank()) throw new ActionException("QUEUE.BAD_NAME", "Give the name of the One CommandCenter queue", "Fill in the queue's name as Manage > Work queues shows it.");
         Map<String, Object> req = new LinkedHashMap<>();
         req.put("op", op);
         req.put("queue", queue);
@@ -169,7 +169,7 @@ public final class WorkloadPackage {
 
     /** Takes an item now, or asks again until one arrives or wait_seconds have passed (the run's stop ends the wait). */
     static Map<String, Object> waitFor(ActionContext ctx, int waitSeconds, long pollMillis, Supplier<Map<String, Object>> take) {
-        if (waitSeconds < 0 || waitSeconds > MAX_WAIT) throw new ActionException("QUEUE.BAD_INPUT", "wait_seconds is from 0 to " + MAX_WAIT);
+        if (waitSeconds < 0 || waitSeconds > MAX_WAIT) throw new ActionException("QUEUE.BAD_INPUT", "wait_seconds is from 0 to " + MAX_WAIT, "Set wait_seconds within the range the message names.");
         long deadline = System.nanoTime() + waitSeconds * 1_000_000_000L;
         while (true) {
             Map<String, Object> r = take.get();
@@ -225,7 +225,7 @@ public final class WorkloadPackage {
         String mode = ifExists(ifExists);
         List<String> t = tags(tags);
         int refAt = refColumn == null || refColumn.isBlank() ? -1 : cols.stream().map(String::valueOf).toList().indexOf(refColumn);
-        if (refColumn != null && !refColumn.isBlank() && refAt < 0) throw new ActionException("QUEUE.BAD_INPUT", "The table has no column '" + refColumn + "'");
+        if (refColumn != null && !refColumn.isBlank() && refAt < 0) throw new ActionException("QUEUE.BAD_INPUT", "The table has no column '" + refColumn + "'", "Use a column the table has, or add the column first.");
         List<Map<String, Object>> list = new ArrayList<>();
         for (Object r : rows) {
             Map<String, Object> d = new LinkedHashMap<>();
@@ -373,7 +373,7 @@ public final class WorkloadPackage {
             @Input(name = "result", type = OoaType.DICTIONARY, required = false, description = "Result fields to keep with the item.") Map<String, Object> result) {
         String st = status == null || status.isBlank() ? "unchanged" : status;
         if (!Set.of("unchanged", "reprocess", "on_hold").contains(st)) throw new ActionException("QUEUE.BAD_STATUS", "Unknown status '" + status + "'", "Use unchanged, reprocess or on_hold.");
-        if (until != null && !st.equals("on_hold")) throw new ActionException("QUEUE.BAD_STATUS", "on_hold_until needs status on_hold");
+        if (until != null && !st.equals("on_hold")) throw new ActionException("QUEUE.BAD_STATUS", "on_hold_until needs status on_hold", "Set status to on_hold when you give on_hold_until.");
         if (until != null && until.isBefore(LocalDateTime.now(ZoneOffset.UTC))) throw new ActionException("QUEUE.BAD_TIME", "on_hold_until is in the past", "Give a future time (UTC).");
         @SuppressWarnings("unchecked")
         String after = update(ctx, queue, true, items -> {
@@ -519,7 +519,7 @@ public final class WorkloadPackage {
             @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also delete items that are new, deferred or in progress.") boolean force,
             @Input(name = "central", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = CENTRAL) boolean central) {
         String st = status == null || status.isBlank() ? "finished" : status;
-        if (!Set.of("finished", "completed", "failed", "new", "deferred", "in_progress", "any").contains(st)) throw new ActionException("QUEUE.BAD_STATUS", "Unknown status '" + status + "'");
+        if (!Set.of("finished", "completed", "failed", "new", "deferred", "in_progress", "any").contains(st)) throw new ActionException("QUEUE.BAD_STATUS", "Unknown status '" + status + "'", "Use one of the statuses the step offers.");
         if (!force && Set.of("new", "deferred", "in_progress").contains(st))
             throw new ActionException("QUEUE.NEEDS_FORCE", "Items that are " + st + " are only deleted with force on", "Turn force on, or delete finished items.");
         List<String> wanted = tags(tags);
@@ -580,7 +580,7 @@ public final class WorkloadPackage {
             return Map.of("count", r.getOrDefault("count", BigDecimal.ZERO), "skipped", r.getOrDefault("skipped", BigDecimal.ZERO));
         }
         file(ctx, to);
-        if (to.equals(queue)) throw new ActionException("QUEUE.BAD_INPUT", "Choose another queue to " + (move ? "move" : "copy") + " the items to");
+        if (to.equals(queue)) throw new ActionException("QUEUE.BAD_INPUT", "Choose another queue to " + (move ? "move" : "copy") + " the items to", "Choose a different queue from the one the items are in.");
         List<Map<String, Object>> picked = update(ctx, queue, false, items -> items.stream()
                 .filter(i -> !"in_progress".equals(i.get("status")) && (status == null || status.isBlank() || status.equals(i.get("status")))
                         && hasTags(i, wanted) && (only == null || only.contains(String.valueOf(i.get("id")))))

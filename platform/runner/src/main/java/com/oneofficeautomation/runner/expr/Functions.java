@@ -31,7 +31,7 @@ public final class Functions {
     private static void need(List<Object> a, int min, int max, String fn) {
         if (a.size() < min || a.size() > max)
             throw new OoaException("EXPR.INVALID", "Wrong number of arguments for " + fn + "(): expected "
-                    + (min == max ? min : min + ".." + max) + ", got " + a.size());
+                    + (min == max ? min : min + ".." + max) + ", got " + a.size(), "Correct the expression the message names; Help > Expressions lists the functions and their arguments.");
     }
 
     private static void def(String name, int min, int max, Function<List<Object>, Object> f) {
@@ -171,7 +171,7 @@ public final class Functions {
         });
         def("jsonParse", 1, 1, a -> {
             try { return JsonLite.parse(s(a, 0)); }
-            catch (IllegalArgumentException e) { throw new OoaException("EXPR.INVALID", "jsonParse() failed: " + e.getMessage()); }
+            catch (IllegalArgumentException e) { throw new OoaException("EXPR.INVALID", "jsonParse() failed: " + e.getMessage(), "Give jsonParse() valid JSON text."); }
         });
         def("jsonStringify", 1, 1, a -> JsonLite.write(Values.toJsonable(a.get(0))));
         def("if", 3, 3, a -> Expressions.truthy(a.get(0)) ? a.get(1) : a.get(2));
@@ -231,7 +231,7 @@ public final class Functions {
         } catch (OoaException e) {
             throw e;
         } catch (RuntimeException e) {
-            throw new OoaException("EXPR.INVALID", fn + "() failed: " + e.getMessage());
+            throw new OoaException("EXPR.INVALID", fn + "() failed: " + e.getMessage(), "Correct the expression the message names; Help > Expressions lists the functions and their arguments.");
         }
     }
 
@@ -241,7 +241,7 @@ public final class Functions {
 
     private static int whole(List<Object> a, int i, String what) {
         BigDecimal v = n(a, i);
-        if (v.stripTrailingZeros().scale() > 0) throw new OoaException("EXPR.INVALID", "time(): the " + what + " must be a whole number, got " + v.toPlainString());
+        if (v.stripTrailingZeros().scale() > 0) throw new OoaException("EXPR.INVALID", "time(): the " + what + " must be a whole number, got " + v.toPlainString(), "Give time() whole numbers.");
         return v.intValue();
     }
 
@@ -251,7 +251,7 @@ public final class Functions {
 
     private static Pattern regex(String p) {
         try { return Pattern.compile(p); }
-        catch (PatternSyntaxException e) { throw new OoaException("EXPR.INVALID", "Invalid regular expression: " + e.getDescription()); }
+        catch (PatternSyntaxException e) { throw new OoaException("EXPR.INVALID", "Invalid regular expression: " + e.getDescription(), "Correct the regular expression; the message names where it breaks."); }
     }
 
     /** Translates Python/C strftime patterns (the Flow format) to java.time patterns. */
@@ -268,7 +268,7 @@ public final class Functions {
                     case 'I' -> "hh"; case 'M' -> "mm"; case 'S' -> "ss"; case 'p' -> "a"; case 'b' -> "MMM";
                     case 'B' -> "MMMM"; case 'a' -> "EEE"; case 'A' -> "EEEE"; case 'j' -> "DDD"; case 'f' -> "SSSSSS";
                     case '%' -> null;
-                    default -> throw new OoaException("EXPR.INVALID", "Unsupported date format code %" + d);
+                    default -> throw new OoaException("EXPR.INVALID", "Unsupported date format code %" + d, "Use a date format code the help lists.");
                 };
                 if (p == null) lit.append('%'); else { flush.run(); out.append(p); }
             } else lit.append(c);

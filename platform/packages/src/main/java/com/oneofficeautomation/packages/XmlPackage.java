@@ -24,7 +24,7 @@ public final class XmlPackage {
         if (path == null || path.isBlank()) throw new ActionException("XML.NO_SOURCE", "Give either XML text or a file path", "Fill in 'xml' or 'path'.");
         Path p = ctx.resolvePath(path);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
-        try { return Files.readString(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        try { return Files.readString(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     private static NodeList select(Document doc, String xpath) { return select(doc, xpath, null); }
@@ -103,7 +103,7 @@ public final class XmlPackage {
         try {
             if (out.getParent() != null) Files.createDirectories(out.getParent());
             Files.writeString(out, XmlSupport.write(doc, false));
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + out + ": " + e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + out + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     private static String needFile(String path) {
@@ -253,7 +253,7 @@ public final class XmlPackage {
                     if (many && n.item(i) instanceof Element e)
                         for (Map.Entry<String, Object> a : attributes.entrySet()) e.setAttribute(a.getKey(), a.getValue() == null ? "" : String.valueOf(a.getValue()));
                 }
-            } catch (DOMException e) { throw new ActionException("XML.BAD_NAME", "Invalid attribute name: " + e.getMessage()); }
+            } catch (DOMException e) { throw new ActionException("XML.BAD_NAME", "Invalid attribute name: " + e.getMessage(), "Use an XML name: letters, digits, - _ and ., starting with a letter."); }
         });
         return Out.of("count", BigDecimal.valueOf(count[0]), "xml", out);
     }
@@ -334,7 +334,7 @@ public final class XmlPackage {
                     if (pos.equals("start")) target.insertBefore(el, target.getFirstChild()); else target.appendChild(el);
                     count[0]++;
                 }
-            } catch (DOMException e) { throw new ActionException("XML.BAD_NAME", "Invalid element or attribute name: " + e.getMessage()); }
+            } catch (DOMException e) { throw new ActionException("XML.BAD_NAME", "Invalid element or attribute name: " + e.getMessage(), "Use an XML name: letters, digits, - _ and ., starting with a letter."); }
         });
         return Out.of("count", BigDecimal.valueOf(count[0]), "xml", out);
     }
@@ -402,7 +402,7 @@ public final class XmlPackage {
             v.validate(new StreamSource(new StringReader(text)));
         } catch (SAXException e) {
             throw new ActionException("XML.BAD_SCHEMA", "Cannot use schema " + xsdPath + ": " + e.getMessage(), "Check the XSD file.");
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Out.of("valid", errors.isEmpty(), "errors", errors);
     }
 
@@ -476,7 +476,7 @@ public final class XmlPackage {
         try {
             if (out.getParent() != null) Files.createDirectories(out.getParent());
             Files.writeString(out, text);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + out + ": " + e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + out + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Out.of("path", out.toString());
     }
 

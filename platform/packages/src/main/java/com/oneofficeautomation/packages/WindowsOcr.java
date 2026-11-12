@@ -142,7 +142,7 @@ final class WindowsOcr {
             if (r.exitCode() != 0) throw new ActionException("OCR.FAILED", "Windows OCR failed: " + ApplicationPackage.tail(r.stderr().isBlank() ? r.stdout() : r.stderr()), "Check the image is readable.");
             return r;
         } catch (IOException e) {
-            throw new ActionException("FILE.IO_ERROR", "Cannot write the OCR script: " + e.getMessage(), null, true);
+            throw new ActionException("FILE.IO_ERROR", "Cannot write the OCR script: " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally { if (script != null) try { Files.deleteIfExists(script); } catch (IOException ignored) { } }
     }
 

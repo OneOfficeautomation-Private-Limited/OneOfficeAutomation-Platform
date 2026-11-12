@@ -38,7 +38,7 @@ final class JavaArgs {
         if (t == SecureString.class)
             throw new ActionException("VAR.SECURE_REQUIRED", "Input '" + name + "' needs a Credential, not plain text",
                     "Give a vault reference {\"$credential\": \"locker/credential/attribute\"} or a Credential variable.");
-        throw new ActionException("ACTION.INPUT_INVALID", "Input '" + name + "' cannot be converted to " + t.getSimpleName());
+        throw new ActionException("ACTION.INPUT_INVALID", "Input '" + name + "' cannot be converted to " + t.getSimpleName(), "Give a value of the type the input expects.");
     }
 
     /** Measures where a fraction is meaningful but the command works in whole units: rounded to the nearest one. */
@@ -57,7 +57,7 @@ final class JavaArgs {
             throw new ActionException("ACTION.INPUT_INVALID", "Input '" + name + "' must be a whole number, got " + n.stripTrailingZeros().toPlainString(),
                     "Round the value first (Number > Round), or check the calculation that produced it.");
         if (n.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0 || n.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0)
-            throw new ActionException("ACTION.INPUT_INVALID", "Input '" + name + "' is too large: " + n.toPlainString());
+            throw new ActionException("ACTION.INPUT_INVALID", "Input '" + name + "' is too large: " + n.toPlainString(), "Give a smaller number.");
         return n;
     }
 }

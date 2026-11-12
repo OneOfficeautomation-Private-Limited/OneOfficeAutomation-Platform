@@ -89,20 +89,20 @@ public final class CodedAgentPackage {
         Set<String> allowed = new HashSet<>();
         if (uses != null) for (Object u : uses) allowed.add(Values.text(u).strip());
         String fn = entry == null || entry.isBlank() ? "main" : entry.strip();
-        if (!fn.matches("[A-Za-z_][A-Za-z0-9_]*")) throw new ActionException("CODE.BAD_ENTRY", "The function name '" + fn + "' is not allowed");
+        if (!fn.matches("[A-Za-z_][A-Za-z0-9_]*")) throw new ActionException("CODE.BAD_ENTRY", "The function name '" + fn + "' is not allowed", "Use a Python function name: letters, digits and _, not starting with a digit.");
         Path module, temp = null, bridge;
         try {
             if (file != null && !file.isBlank()) {
                 module = ctx.resolvePath(file);
-                if (!Files.isRegularFile(module)) throw new ActionException("FILE.NOT_FOUND", "Python module not found: " + module);
+                if (!Files.isRegularFile(module)) throw new ActionException("FILE.NOT_FOUND", "Python module not found: " + module, "Check the path; the file may have been moved or renamed.");
             } else if (code != null && !code.isBlank()) {
                 temp = Files.createTempFile("ooa-agent-", ".py");
                 Files.writeString(temp, code, StandardCharsets.UTF_8);
                 module = temp;
-            } else throw new ActionException("CODE.NO_CODE", "Give the module's file or its code");
+            } else throw new ActionException("CODE.NO_CODE", "Give the module's file or its code", "Fill in either Module file or Code.");
             bridge = Files.createTempFile("ooa-bridge-", ".py");
             Files.writeString(bridge, BRIDGE, StandardCharsets.UTF_8);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         Function<Map<String, Object>, Object> invoker;
         try { invoker = ctx.service(INVOKER, Function.class); } catch (OoaException e) { invoker = null; }
         try {
@@ -162,11 +162,11 @@ public final class CodedAgentPackage {
                             String action = String.valueOf(m.get("action"));
                             int slash = action.lastIndexOf('/');
                             String pid = slash < 0 ? action : action.substring(0, slash);
-                            if (slash < 0) throw new ActionException("CODE.BAD_CALL", "Name the command as toolkit/command, such as ooa.excel/read_range");
-                            if (pid.equals("ooa.coded")) throw new ActionException("CODE.BAD_CALL", "Coded agents cannot start coded agents through ooa.call");
+                            if (slash < 0) throw new ActionException("CODE.BAD_CALL", "Name the command as toolkit/command, such as ooa.excel/read_range", "Write the command as toolkit/command, for example ooa.excel/read_range.");
+                            if (pid.equals("ooa.coded")) throw new ActionException("CODE.BAD_CALL", "Coded agents cannot start coded agents through ooa.call", "Use a Run agent step for the other coded agent instead.");
                             if (!allowed.contains(pid)) throw new ActionException("CODE.TOOLKIT_NOT_LISTED", "The code called " + action + ", but " + pid + " is not in the step's Toolkits it may call",
                                 "Add " + pid + " to Toolkits it may call.");
-                            if (invoker == null) throw new ActionException("CODE.NO_RUNNER", "Toolkit commands can only be called while the agent runs");
+                            if (invoker == null) throw new ActionException("CODE.NO_RUNNER", "Toolkit commands can only be called while the agent runs", "Call toolkit commands only from code that the agent runs.");
                             Map<String, Object> req = new LinkedHashMap<>();
                             req.put("action", action);
                             req.put("inputs", m.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of());
@@ -194,10 +194,10 @@ public final class CodedAgentPackage {
             throw new ActionException("CODE.ENDED", "The Python process ended (exit code " + code + ") before main returned", "Read the run's log.");
         } catch (IOException e) {
             if (!p.isAlive() && calls == 0) return null;
-            throw new ActionException("CODE.IO", "Lost the connection to the Python process: " + e.getMessage(), null, true);
+            throw new ActionException("CODE.IO", "Lost the connection to the Python process: " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new OoaException("RUN.CANCELLED", "Run thread interrupted");
+            throw new OoaException("RUN.CANCELLED", "Run thread interrupted", "The run was stopped before this step finished. Run the agent again when it should go on.");
         } finally {
             if (p.isAlive()) p.destroyForcibly();
         }

@@ -42,7 +42,7 @@ final class StudioDebugger implements Runner.Debugger {
             reason = bp ? "breakpoint" : "step";
             lock.notifyAll();
             while (stopped == frame && !cancel.get()) {
-                try { lock.wait(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted"); }
+                try { lock.wait(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             }
         }
     }
@@ -50,7 +50,7 @@ final class StudioDebugger implements Runner.Debugger {
     /** continue, stepInto, stepOver or stepOut. */
     void command(String cmd) {
         synchronized (lock) {
-            if (stopped == null) throw new OoaException("DEBUG.NOT_STOPPED", "The run is not stopped at a step");
+            if (stopped == null) throw new OoaException("DEBUG.NOT_STOPPED", "The run is not stopped at a step", "Wait until the run stops at a breakpoint or step, then try again.");
             int level = stopped.level();
             switch (cmd) {
                 case "continue" -> mode = Mode.RUN;
@@ -68,7 +68,7 @@ final class StudioDebugger implements Runner.Debugger {
 
     void setVariable(String name, Object value) {
         synchronized (lock) {
-            if (stopped == null) throw new OoaException("DEBUG.NOT_STOPPED", "Variables can be changed only while the run is stopped at a step");
+            if (stopped == null) throw new OoaException("DEBUG.NOT_STOPPED", "Variables can be changed only while the run is stopped at a step", "Pause the run at a step first, then change the variable.");
             stopped.setVariable(name, value);
         }
     }

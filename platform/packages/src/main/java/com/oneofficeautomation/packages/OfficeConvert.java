@@ -72,7 +72,7 @@ public final class OfficeConvert {
         try {
             if (target.getParent() != null) Files.createDirectories(target.getParent());
             Files.deleteIfExists(target);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot replace " + target + ": " + e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot replace " + target + ": " + e.getMessage(), "Close the file if it is open in another program, and check that the runner's account may write there."); }
         if (ProcessRunner.WINDOWS) {
             String name = app.equals("word") ? "Microsoft Word" : "Microsoft PowerPoint";
             Path script = null;

@@ -80,7 +80,7 @@ public final class LongRunningPackage {
         Map<String, Object> r = cc.apply(Map.of("call", "suspend", "args", args));
         ctx.info("Suspended until " + what + (timeoutSeconds != null && timeoutSeconds > 0 ? " (at most " + Math.round(timeoutSeconds) + " s)" : "")
                 + "; wait " + r.get("wait_id") + ". The runner is free; a new run carries on from this step.");
-        throw new OoaException(RunSuspension.CODE, "Suspended: waiting for " + what + " (wait " + r.get("wait_id") + ")");
+        throw new OoaException(RunSuspension.CODE, "Suspended: waiting for " + what + " (wait " + r.get("wait_id") + ")", "Nothing to do: the run goes on when the wait ends.");
     }
 
     // ---------- making things to wait for ----------
@@ -154,7 +154,7 @@ public final class LongRunningPackage {
         String ref;
         if (until != null && !until.isBlank()) ref = instant(until.strip()).toString();
         else if (delay != null && delay >= 1) ref = String.valueOf(Math.round(delay));
-        else throw new ActionException("LONGRUN.NO_TIME", "Say how long to wait, or until when");
+        else throw new ActionException("LONGRUN.NO_TIME", "Say how long to wait, or until when", "Fill in either Wait for (a length of time) or Until (a date and time).");
         Map<String, Object> r = suspend(ctx, "time", ref, null, "error", pool, until != null && !until.isBlank() ? until.strip() : Math.round(delay) + " s");
         return Map.of("resumed_by", r.get("resumed_by"));
     }
@@ -222,7 +222,7 @@ public final class LongRunningPackage {
             @Input(name = "on_timeout", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "continue"}, description = "error: fail with LONGRUN.TIMEOUT; continue: carry on with Timed out true.") String onTimeout,
             @Input(name = "pool", type = OoaType.STRING, required = false, description = "Carry on on any runner of this pool; on the same runner when empty.") String pool) {
         String id = id(jobId, "run id", "Take it from List jobs or a Run agent step.");
-        if (id.equals(ctx.runId())) throw new ActionException("LONGRUN.SELF", "A run cannot wait for itself");
+        if (id.equals(ctx.runId())) throw new ActionException("LONGRUN.SELF", "A run cannot wait for itself", "Wait for another run's id.");
         return suspend(ctx, "job", id, timeout, onTimeout, pool, "run " + id);
     }
 }

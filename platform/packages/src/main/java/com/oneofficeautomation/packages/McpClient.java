@@ -25,7 +25,7 @@ final class McpClient {
     private int nextId = 1;
 
     McpClient(String url, String bearer, Duration timeout) {
-        if (url == null || !url.strip().matches("(?i)https?://[^\\s]+")) throw new ActionException("MCP.BAD_URL", "The MCP server address starts with https:// (or http:// on this computer's network)");
+        if (url == null || !url.strip().matches("(?i)https?://[^\\s]+")) throw new ActionException("MCP.BAD_URL", "The MCP server address starts with https:// (or http:// on this computer's network)", "Give the MCP server's address starting with https://.");
         this.url = URI.create(url.strip());
         this.headers = bearer == null || bearer.isBlank() ? Map.of() : Map.of("Authorization", "Bearer " + bearer);
         this.timeout = timeout;
@@ -77,9 +77,9 @@ final class McpClient {
     private Map<String, Object> request(String method, Map<String, Object> params) {
         int id = nextId++;
         Object answer = send(JsonLite.write(Map.of("jsonrpc", "2.0", "id", id, "method", method, "params", params)), id);
-        if (!(answer instanceof Map<?, ?> m)) throw new ActionException("MCP.BAD_ANSWER", "The MCP server gave no answer to " + method);
+        if (!(answer instanceof Map<?, ?> m)) throw new ActionException("MCP.BAD_ANSWER", "The MCP server gave no answer to " + method, "Check that the address is an MCP server and that it is running.");
         if (m.get("error") instanceof Map<?, ?> e)
-            throw new ActionException("MCP.ERROR", "The MCP server refused " + method + ": " + e.get("message"), null, false, Map.of("code", String.valueOf(e.get("code"))));
+            throw new ActionException("MCP.ERROR", "The MCP server refused " + method + ": " + e.get("message"), "Check the tool's inputs against what the MCP server expects; the message has the server's answer.", false, Map.of("code", String.valueOf(e.get("code"))));
         return m.get("result") instanceof Map<?, ?> res ? (Map<String, Object>) res : Map.of();
     }
 
@@ -92,10 +92,10 @@ final class McpClient {
         HttpResponse<String> r;
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)); }
         catch (java.io.IOException e) { throw new ActionException("MCP.UNREACHABLE", "Cannot reach the MCP server " + url.getHost() + ": " + e.getMessage(), "Check the address and that the server is running.", true, null); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         r.headers().firstValue("Mcp-Session-Id").ifPresent(s -> session = s);
         if (r.statusCode() == 401 || r.statusCode() == 403) throw new ActionException("MCP.DENIED", "The MCP server refused the sign-in (HTTP " + r.statusCode() + ")", "Check the token.");
-        if (r.statusCode() / 100 != 2) throw new ActionException("MCP.HTTP", "The MCP server answered HTTP " + r.statusCode(), null, r.statusCode() >= 500, null);
+        if (r.statusCode() / 100 != 2) throw new ActionException("MCP.HTTP", "The MCP server answered HTTP " + r.statusCode(), "Check the MCP server's address and its sign-in token; the server may also be down.", r.statusCode() >= 500, null);
         if (id == null) return null;
         String type = r.headers().firstValue("Content-Type").orElse("");
         if (type.startsWith("text/event-stream")) {
@@ -111,7 +111,7 @@ final class McpClient {
             return null;
         }
         try { return JsonLite.parse(r.body()); }
-        catch (IllegalArgumentException e) { throw new ActionException("MCP.BAD_ANSWER", "The MCP server's answer is not JSON"); }
+        catch (IllegalArgumentException e) { throw new ActionException("MCP.BAD_ANSWER", "The MCP server's answer is not JSON", "Check that the address is an MCP server (not a web page) and that it is running."); }
     }
 
     private static Integer num(Object v) { return v instanceof Number n ? n.intValue() : null; }

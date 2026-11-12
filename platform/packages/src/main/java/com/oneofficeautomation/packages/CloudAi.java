@@ -53,7 +53,7 @@ final class CloudAi {
             try { r = HttpJson.CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray()); }
             catch (HttpTimeoutException e) { throw new ActionException(prefix + ".TIMEOUT", "No answer from " + service + " within " + timeoutSeconds + " s", "Try again later.", true); }
             catch (IOException e) { throw new ActionException(prefix + ".UNREACHABLE", "Cannot reach " + uri.getHost() + ": " + NetErrors.reason(e, null), "Check the endpoint, region, proxy and network access.", true); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             long wait = r.statusCode() == 429 && attempt < HttpJson.MAX_RATE_RETRIES ? HttpJson.retryAfterMillis(r.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
             if (wait < 0) break;
             ctx.warn(service + " is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s");

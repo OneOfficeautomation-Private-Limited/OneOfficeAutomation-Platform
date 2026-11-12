@@ -84,7 +84,7 @@ public final class BrowserPackage {
                 "Check the selector matches an element on the page, or raise timeout_ms.", true);
         if (m.contains("Executable doesn't exist") || m.contains("browserType.launch"))
             return new ActionException("BROWSER.NOT_INSTALLED", "The browser could not be started: " + m, "Use browser edge or chrome (installed), or allow Playwright to download Chromium.");
-        return new ActionException("BROWSER.ERROR", what + " failed: " + m, null);
+        return new ActionException("BROWSER.ERROR", what + " failed: " + m, "Check that the browser is still open and the page is the expected one, then run the step again.");
     }
 
     /** For helpers in this module (captured objects). */
@@ -146,7 +146,7 @@ public final class BrowserPackage {
     /** Elements matching right now (no waiting), from the captured object or the selector. */
     static int countNow(ActionContext ctx, String session, Object object, String sel) {
         if (object != null) { Map<String, Object> o = WebObjects.object(object); return WebObjects.findAll(s(ctx, session).page, o).length; }
-        if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
+        if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Capture the element (Capture in the step), or fill in its selector.");
         int n = s(ctx, session).page.locator(sel).count();
         if (n > 0) ObjectRecorder.note(ctx, s(ctx, session).page.locator(sel).first(), sel, 0);
         return n;
@@ -281,7 +281,7 @@ public final class BrowserPackage {
                 DOWNLOADED.add(which);
             } catch (java.io.IOException e) {
                 throw new ActionException("BROWSER.NOT_INSTALLED", "Cannot start the Playwright installer for " + which + ": " + e.getMessage(), "Use browser edge or chrome.");
-            } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted while downloading " + which); }
+            } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted while downloading " + which, "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 
@@ -339,8 +339,8 @@ public final class BrowserPackage {
         List<Path> files = new ArrayList<>();
         if (value instanceof List<?> list) for (Object o : list) files.add(ctx.workDir().resolve(Values.text(o)));
         else if (value != null) for (String f : String.valueOf(value).split("[;\n]")) if (!f.isBlank()) files.add(ctx.workDir().resolve(f.trim()));
-        if (files.isEmpty()) throw new ActionException("BROWSER.BAD_INPUT", "upload_file needs the file path(s) in value");
-        for (Path f : files) if (!Files.isRegularFile(f)) throw new ActionException("BROWSER.FILE_NOT_FOUND", "File not found: " + f);
+        if (files.isEmpty()) throw new ActionException("BROWSER.BAD_INPUT", "upload_file needs the file path(s) in value", "Fill in value with the file's path (several separated by |).");
+        for (Path f : files) if (!Files.isRegularFile(f)) throw new ActionException("BROWSER.FILE_NOT_FOUND", "File not found: " + f, "Check the path; the file may have been moved or renamed.");
         return files;
     }
 
@@ -550,7 +550,7 @@ public final class BrowserPackage {
             UiGuard.before(ctx);
             WaitForSelectorState st = WaitForSelectorState.valueOf(state.toUpperCase(Locale.ROOT));
             if (object == null) {
-                if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
+                if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Capture the element (Capture in the step), or fill in its selector.");
                 s(ctx, session).page.locator(sel).first().waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(st));
                 if (st == WaitForSelectorState.VISIBLE || st == WaitForSelectorState.ATTACHED) ObjectRecorder.note(ctx, s(ctx, session).page.locator(sel).first(), sel, 0);
             } else if (st == WaitForSelectorState.VISIBLE || st == WaitForSelectorState.ATTACHED) {
@@ -797,7 +797,7 @@ public final class BrowserPackage {
             long left = end - System.currentTimeMillis();
             if (left <= 0) break;
             try { Thread.sleep(Math.min(100, left)); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         } while (true);
     }
 
@@ -855,7 +855,7 @@ public final class BrowserPackage {
             try { return Files.readString(f, java.nio.charset.StandardCharsets.UTF_8); }
             catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_NOT_FOUND", "Cannot read the script file " + f + ": " + e.getMessage(), "Check the path (a .js file in the workspace)."); }
         }
-        if (script == null || script.isBlank()) throw new ActionException("BROWSER.VALUE_REQUIRED", "Give the script to run, or a script file");
+        if (script == null || script.isBlank()) throw new ActionException("BROWSER.VALUE_REQUIRED", "Give the script to run, or a script file", "Fill in Script, or Script file.");
         return script;
     }
 
@@ -866,11 +866,11 @@ public final class BrowserPackage {
             case "none" -> null;
             case "text" -> v == null ? "" : v instanceof String s ? s : com.oneofficeautomation.sdk.JsonLite.write(v);
             case "number" -> { try { yield v instanceof BigDecimal d ? d : new BigDecimal(String.valueOf(v).trim()); }
-                catch (NumberFormatException e) { throw new ActionException("BROWSER.BAD_RETURN", "The function returned '" + v + "', not a number"); } }
+                catch (NumberFormatException e) { throw new ActionException("BROWSER.BAD_RETURN", "The function returned '" + v + "', not a number", "Make the script's function return the type the step's Return as setting expects."); } }
             case "boolean" -> v instanceof Boolean b ? b : v != null && !String.valueOf(v).isEmpty() && !"false".equalsIgnoreCase(String.valueOf(v)) && !"0".equals(String.valueOf(v));
-            case "list" -> { if (v instanceof List<?>) yield v; throw new ActionException("BROWSER.BAD_RETURN", "The function did not return a list"); }
-            case "dictionary" -> { if (v instanceof Map<?, ?>) yield v; throw new ActionException("BROWSER.BAD_RETURN", "The function did not return a dictionary"); }
-            default -> throw new ActionException("BROWSER.BAD_RETURN", "Unknown return type " + type);
+            case "list" -> { if (v instanceof List<?>) yield v; throw new ActionException("BROWSER.BAD_RETURN", "The function did not return a list", "Make the script's function return the type the step's Return as setting expects."); }
+            case "dictionary" -> { if (v instanceof Map<?, ?>) yield v; throw new ActionException("BROWSER.BAD_RETURN", "The function did not return a dictionary", "Make the script's function return the type the step's Return as setting expects."); }
+            default -> throw new ActionException("BROWSER.BAD_RETURN", "Unknown return type " + type, "Choose one of the return types the step offers.");
         };
     }
 
@@ -992,7 +992,7 @@ public final class BrowserPackage {
                             java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode();
             } catch (java.net.http.HttpTimeoutException e) { error = "timeout";
             } catch (java.io.IOException | IllegalArgumentException e) { error = String.valueOf(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
-            } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             boolean ok = status >= 200 && status < 400;
             if (!onlyBroken || !ok) rows.add(new ArrayList<>(Arrays.asList(u, BigDecimal.valueOf(status), ok, error)));
         }
@@ -1035,8 +1035,8 @@ public final class BrowserPackage {
             for (var f : fs) {
                 ctx.checkCancelled();
                 try { out.addAll(f.get()); }
-                catch (java.util.concurrent.ExecutionException e) { throw new ActionException("BROWSER.ERROR", "Checking a link failed: " + e.getCause()); }
-                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+                catch (java.util.concurrent.ExecutionException e) { throw new ActionException("BROWSER.ERROR", "Checking a link failed: " + e.getCause(), "Check the link's address and that the runner can reach it."); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             }
             return out;
         } finally { pool.shutdownNow(); }
@@ -1092,7 +1092,7 @@ public final class BrowserPackage {
             c.setInstanceFollowRedirects(true);
             int code = c.getResponseCode();
             if (code == 401 || code == 407) throw new ActionException("BROWSER.SIGN_IN_FAILED", "The server refused the sign-in (" + code + ")", "Check the user name and password, or the agent user's Windows access.");
-            if (code >= 400) throw new ActionException("BROWSER.DOWNLOAD_FAILED", "The server answered " + code + " for " + url, null, code >= 500);
+            if (code >= 400) throw new ActionException("BROWSER.DOWNLOAD_FAILED", "The server answered " + code + " for " + url, "Check the address, and that the site lets the runner download the file (it may need a sign-in).", code >= 500);
             if (target.getParent() != null) Files.createDirectories(target.getParent());
             Path tmp = Files.createTempFile(target.getParent() == null ? Path.of(".") : target.getParent(), "dl", ".part");
             try (var in = c.getInputStream()) { Files.copy(in, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING); }
@@ -1201,7 +1201,7 @@ public final class BrowserPackage {
                 Files.createDirectories(target.getParent());
                 Files.copy(src, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 return Map.of("path", target.toString());
-            } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+            } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         }
         try {
             Page p = s(ctx, session).page;
@@ -1219,7 +1219,7 @@ public final class BrowserPackage {
             d.saveAs(target);
             return Map.of("path", target.toString());
         } catch (PlaywrightException e) { throw pw(e, "Downloading via " + what(object, sel));
-        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     @Action(id = "screenshot", name = "Take screenshot", category = "Page", timeoutSeconds = 120, capabilities = {"browser", "filesystem"}, description = "Save a PNG screenshot of the page or one element.",
@@ -1241,7 +1241,7 @@ public final class BrowserPackage {
             try {
                 if (p.getParent() != null) Files.createDirectories(p.getParent());
                 Files.write(p, Base64.getDecoder().decode(String.valueOf(b64)));
-            } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+            } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
             return Map.of("path", p.toString());
         }
         try {
@@ -1251,7 +1251,7 @@ public final class BrowserPackage {
             else if (sel != null && !sel.isBlank()) page.locator(sel).first().screenshot(new Locator.ScreenshotOptions().setPath(p));
             else page.screenshot(new Page.ScreenshotOptions().setPath(p).setFullPage(full));
         } catch (PlaywrightException e) { throw pw(e, "Taking a screenshot");
-        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of("path", p.toString());
     }
 
@@ -1426,7 +1426,7 @@ public final class BrowserPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "executable", type = OoaType.FILE, required = false, description = "Path of the browser program, when it is not installed in the usual place.") String executable,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = "How long to wait for the browser to start, in milliseconds.") double timeout) {
-        if (port < 1 || port > 65535) throw new ActionException("BROWSER.BAD_PORT", "The port must be between 1 and 65535");
+        if (port < 1 || port > 65535) throw new ActionException("BROWSER.BAD_PORT", "The port must be between 1 and 65535", "Use a port between 1 and 65535 (Chrome's usual debugging port is 9222).");
         String kind = "chrome".equals(which) ? "chrome" : "edge";
         String ep = "http://127.0.0.1:" + port;
         boolean started = false;
@@ -1447,7 +1447,7 @@ public final class BrowserPackage {
                     throw new ActionException("BROWSER.NOT_LISTENING", "The browser started but did not open debugging port " + port + " within " + (long) timeout + " ms",
                             "If this profile folder is already open in a browser without a debugging port, close that window, or choose another profile folder.", true);
                 }
-                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             }
             ctx.info("Started " + kind + " with debugging port " + port + " and profile " + dir);
         } else ctx.info("A browser already listens on port " + port + "; reusing it");
@@ -1951,13 +1951,13 @@ public final class BrowserPackage {
                         if (total > 50L * 1024 * 1024) throw new ActionException("BROWSER.FILE_TOO_LARGE", "Files over 50 MB in all cannot go through the browser connector", "Use Open browser with the built-in browser for large uploads.");
                         String type = Files.probeContentType(f);
                         files.add(Map.of("name", f.getFileName().toString(), "type", type == null ? "application/octet-stream" : type, "base64", Base64.getEncoder().encodeToString(b)));
-                    } catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot read " + f + ": " + e.getMessage()); }
+                    } catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot read " + f + ": " + e.getMessage(), "Check that the file exists, is not open in another program, and that the runner's account may read it."); }
                 }
                 opts.put("files", files);
                 tabAction = "upload_files";
             }
             if (action.equals("drag_to")) {
-                if (value == null || String.valueOf(value).isBlank()) throw new ActionException("BROWSER.BAD_INPUT", "drag_to needs the target selector in value");
+                if (value == null || String.valueOf(value).isBlank()) throw new ActionException("BROWSER.BAD_INPUT", "drag_to needs the target selector in value", "Fill in value with the target's selector.");
                 opts.put("target", String.valueOf(value));
             }
             Object r = onElement(ctx, tab(ctx, session), objectArg, sel, tabAction, value, timeout, opts);
@@ -1965,7 +1965,7 @@ public final class BrowserPackage {
             if (action.equals("screenshot") && r != null) {
                 Path out = ctx.workDir().resolve(String.valueOf(value));
                 try { if (out.getParent() != null) Files.createDirectories(out.getParent()); Files.write(out, Base64.getDecoder().decode(String.valueOf(r))); }
-                catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot write the screenshot: " + e.getMessage()); }
+                catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot write the screenshot: " + e.getMessage(), "Check that the screenshot's folder exists and that the runner's account may write there."); }
                 r = out.toString();
             }
             if (waitAfter > 0) { try { Thread.sleep((long) waitAfter); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
@@ -2021,7 +2021,7 @@ public final class BrowserPackage {
         try { l = object != null ? WebObjects.locate(ctx, bs, object, timeout, useCapturedPage) : element(ctx, session, sel, alternatives, timeout); }
         catch (PlaywrightException e) { throw pw(e, action + " on " + what); }
         String v = value instanceof SecureString ss ? ss.reveal() : value == null ? null : value instanceof List<?> ? null : Values.text(value);
-        java.util.function.Supplier<String> need = () -> { if (v == null || v.isEmpty()) throw new ActionException("BROWSER.VALUE_REQUIRED", "The action '" + action + "' needs a value"); return v; };
+        java.util.function.Supplier<String> need = () -> { if (v == null || v.isEmpty()) throw new ActionException("BROWSER.VALUE_REQUIRED", "The action '" + action + "' needs a value", "Fill in Value for this action."); return v; };
         List<com.microsoft.playwright.options.KeyboardModifier> mods = modifiers(modifiers);
         com.microsoft.playwright.options.Position at = offsetX != null || offsetY != null
                 ? new com.microsoft.playwright.options.Position(offsetX == null ? 1 : offsetX, offsetY == null ? 1 : offsetY) : null;
@@ -2057,7 +2057,7 @@ public final class BrowserPackage {
                 case "get_inner_html" -> result = l.innerHTML(new Locator.InnerHTMLOptions().setTimeout(timeout));
                 case "get_coordinates" -> {
                     var b = l.boundingBox(new Locator.BoundingBoxOptions().setTimeout(timeout));
-                    if (b == null) throw new ActionException("BROWSER.NOT_VISIBLE", what + " has no position because it is not visible");
+                    if (b == null) throw new ActionException("BROWSER.NOT_VISIBLE", what + " has no position because it is not visible", "Scroll the element into view or wait until it shows, then try again.");
                     result = Map.of("x", BigDecimal.valueOf(Math.round(b.x)), "y", BigDecimal.valueOf(Math.round(b.y)), "width", BigDecimal.valueOf(Math.round(b.width)), "height", BigDecimal.valueOf(Math.round(b.height)));
                 }
                 case "get_children_text" -> result = Values.toJsonable(l.evaluate("e => Array.from(e.children).map(c => (c.innerText || c.textContent || '').trim())"));
@@ -2069,7 +2069,7 @@ public final class BrowserPackage {
                           const head = rows[0].querySelector('th') ? cells(rows[0]) : cells(rows[0]).map((_, i) => 'Column' + (i + 1));
                           const body = rows.slice(rows[0].querySelector('th') ? 1 : 0).map(cells);
                           return { columns: head, rows: body }; }""");
-                    if (t == null) throw new ActionException("BROWSER.NOT_A_TABLE", what + " is not a table and contains no table rows");
+                    if (t == null) throw new ActionException("BROWSER.NOT_A_TABLE", what + " is not a table and contains no table rows", "Capture the table itself (or an element inside it).");
                     result = Values.toJsonable(t);
                 }
                 case "select_by_text" -> l.selectOption(new com.microsoft.playwright.options.SelectOption().setLabel(need.get()), new Locator.SelectOptionOptions().setTimeout(timeout).setForce(force));
@@ -2103,7 +2103,7 @@ public final class BrowserPackage {
                 case "get_status", "get_selected_index", "get_total_items", "get_total_rows", "get_total_columns", "get_cell_text", "get_cell_index_by_text",
                      "set_cell_text", "click_cell", "set_position", "get_control_type" -> {
                     if (action.endsWith("_cell") || action.startsWith("get_cell_text") || action.equals("set_cell_text"))
-                        if (row == null || column == null) throw new ActionException("BROWSER.VALUE_REQUIRED", "The action '" + action + "' needs a row and a column (1 for the first)");
+                        if (row == null || column == null) throw new ActionException("BROWSER.VALUE_REQUIRED", "The action '" + action + "' needs a row and a column (1 for the first)", "Fill in row and column, from 1.");
                     Map<String, Object> a = new LinkedHashMap<>();
                     if (row != null) a.put("row", row);
                     if (column != null) a.put("column", column);
@@ -2111,11 +2111,11 @@ public final class BrowserPackage {
                     l.waitFor(new Locator.WaitForOptions().setTimeout(timeout));
                     result = Values.toJsonable(l.evaluate(EXTRA_JS, Map.of("op", action, "a", a)));
                 }
-                default -> throw new ActionException("BROWSER.BAD_ACTION", "Unknown element action '" + action + "'");
+                default -> throw new ActionException("BROWSER.BAD_ACTION", "Unknown element action '" + action + "'", "Choose one of the actions the step offers.");
             }
         } catch (PlaywrightException e) { throw pw(e, action + " on " + what);
-        } catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot write the screenshot: " + e.getMessage());
-        } catch (NumberFormatException e) { throw new ActionException("BROWSER.BAD_INDEX", "select_by_index needs a whole number"); }
+        } catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot write the screenshot: " + e.getMessage(), "Check that the screenshot's folder exists and that the runner's account may write there.");
+        } catch (NumberFormatException e) { throw new ActionException("BROWSER.BAD_INDEX", "select_by_index needs a whole number", "Give the option's position as a whole number, from 0."); }
         if (waitAfter > 0) { try { bs.page.waitForTimeout(waitAfter); } catch (PlaywrightException ignored) { } }
         return single(result);
     }
@@ -2181,7 +2181,7 @@ public final class BrowserPackage {
             if (tab(ctx, session) != null) return Boolean.TRUE.equals(onElement(ctx, tab(ctx, session), object, sel, "is_visible", null, 0, Map.of()));
             if (object != null) { Map<String, Object> o = WebObjects.object(object); int idx = o.get("index") instanceof Number n ? n.intValue() : 0;
                 Locator[] f = WebObjects.findAll(s(ctx, session).page, o); int at = idx < 0 ? f.length + idx : idx; return at >= 0 && f.length > at && f[at].isVisible(); }
-            if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
+            if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Capture the element (Capture in the step), or fill in its selector.");
             boolean visible = s(ctx, session).page.locator(sel).first().isVisible();
             if (visible) ObjectRecorder.note(ctx, s(ctx, session).page.locator(sel).first(), sel, 0);
             return visible;
@@ -2264,7 +2264,7 @@ public final class BrowserPackage {
                 o.remove("index");
                 items = WebObjects.findAll(s(ctx, session).page, o);
             } else {
-                if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured item or a selector");
+                if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured item or a selector", "Capture the element (Capture in the step), or fill in its selector.");
                 Locator all = s(ctx, session).page.locator(sel);
                 all.first().waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(WaitForSelectorState.ATTACHED));
                 int n = all.count();
@@ -2302,7 +2302,7 @@ public final class BrowserPackage {
             @Input(name = "max_pages", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 1, description = "Stop after this many pages.") int maxPages,
             @Input(name = "wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "10000", min = 0, description = "How long to wait for the next page after clicking Next.") double waitMs,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
-        if (nextObject == null && (nextSel == null || nextSel.isBlank())) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured Next button or its selector");
+        if (nextObject == null && (nextSel == null || nextSel.isBlank())) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured Next button or its selector", "Capture the Next button, or fill in its selector.");
         return () -> new Iterator<>() {
             int page = 0;
             boolean done = false, ready = false;   // ready: the next page is showing and not yet handed out
@@ -2487,7 +2487,7 @@ public final class BrowserPackage {
                 Map<String, Object> ev;
                 try { ev = sub.next(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
                 if (ev == null) continue;
-                if ("pick_cancelled".equals(ev.get("event"))) throw new ActionException("BROWSER.NOTHING_PICKED", "Capture was cancelled in the browser (Esc)");
+                if ("pick_cancelled".equals(ev.get("event"))) throw new ActionException("BROWSER.NOTHING_PICKED", "Capture was cancelled in the browser (Esc)", "Capture again and click the element instead of pressing Esc.");
                 if ("picked".equals(ev.get("event"))) picked = new LinkedHashMap<>(ev);
             }
         } finally {
@@ -2518,7 +2518,7 @@ public final class BrowserPackage {
         Map<String, String> env = Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
         try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(browserEnv(env)))) {
             com.microsoft.playwright.Browser b = pw.chromium().connectOverCDP(ep);
-            if (b.contexts().isEmpty()) throw new ActionException("BROWSER.WINDOW_NOT_FOUND", "The browser at " + ep + " has no open window");
+            if (b.contexts().isEmpty()) throw new ActionException("BROWSER.WINDOW_NOT_FOUND", "The browser at " + ep + " has no open window", "Open a window in that browser, or start it with an Open browser step first.");
             BrowserContext c = b.contexts().get(0);
             Page page = null;
             boolean hasTitle = tabTitle != null && !tabTitle.isBlank(), hasUrl = tabUrl != null && !tabUrl.isBlank();

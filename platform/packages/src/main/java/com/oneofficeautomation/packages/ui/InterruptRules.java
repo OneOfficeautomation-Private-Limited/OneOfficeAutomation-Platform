@@ -25,11 +25,11 @@ public final class InterruptRules {
     /** One rule. Exactly one of whenWindow (title pattern) and whenElement (selector in a browser session) is set. */
     public record Rule(String name, String whenWindow, String whenElement, String session, String then, String target, Map<String, Object> inputs, int maxTimes) {
         public Rule {
-            if (name == null || name.isBlank()) throw new ActionException("INTERRUPT.BAD_RULE", "A rule needs a name");
+            if (name == null || name.isBlank()) throw new ActionException("INTERRUPT.BAD_RULE", "A rule needs a name", "Give the rule a name.");
             boolean w = whenWindow != null && !whenWindow.isBlank(), e = whenElement != null && !whenElement.isBlank();
             if (w == e) throw new ActionException("INTERRUPT.BAD_RULE", "Rule '" + name + "': give either a window title pattern or an element selector", "Use when_window or when_element, not both.");
             if (w) TitlePattern.of(whenWindow);   // validates a re: pattern
-            if (!RESPONSES.contains(then)) throw new ActionException("INTERRUPT.BAD_RULE", "Rule '" + name + "': the response must be one of " + new TreeSet<>(RESPONSES));
+            if (!RESPONSES.contains(then)) throw new ActionException("INTERRUPT.BAD_RULE", "Rule '" + name + "': the response must be one of " + new TreeSet<>(RESPONSES), "Use one of the responses the message lists.");
             if (Set.of("click", "press_keys", "run_agent").contains(then) && (target == null || target.isBlank()))
                 throw new ActionException("INTERRUPT.BAD_RULE", "Rule '" + name + "': " + then + " needs a target",
                         "click: a selector or x,y screen position; press_keys: keys like ENTER or ALT+F4; run_agent: the agent id.");

@@ -106,14 +106,14 @@ public final class FileTransferPackage {
         String m = String.valueOf(e.getMessage());
         if (e instanceof JSchException && m.contains("Auth")) return new ActionException("TRANSFER.AUTH_FAILED", "Sign-in failed: " + m, "Check the user, password or private key.");
         if (e instanceof SftpException se && se.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) return new ActionException("TRANSFER.NOT_FOUND", what + ": no such file or folder", "Check the remote path.");
-        if (e instanceof SftpException se && se.id == ChannelSftp.SSH_FX_PERMISSION_DENIED) return new ActionException("TRANSFER.ACCESS_DENIED", what + ": permission denied", null);
+        if (e instanceof SftpException se && se.id == ChannelSftp.SSH_FX_PERMISSION_DENIED) return new ActionException("TRANSFER.ACCESS_DENIED", what + ": permission denied", "Check that the server account in the connection may read or write this folder.");
         // JSch wraps the socket error ("java.net.ConnectException: Connection refused: getsockopt"): say what it means
         boolean network = e.getCause() instanceof IOException || e instanceof java.net.SocketException || e instanceof java.net.UnknownHostException
                 || (e instanceof JSchException && (m.contains("Exception") || m.contains("timeout")));
         if (network) return new ActionException("TRANSFER.UNREACHABLE", what + ": " + com.oneofficeautomation.packages.NetErrors.reason(e, null),
                 "Check the host, port and protocol (SFTP is usually port 22, FTP 21, FTPS 990), and that a firewall allows the connection.", true);
         if (e instanceof IOException && !(e instanceof FileNotFoundException)) return new ActionException("TRANSFER.FAILED", what + ": " + com.oneofficeautomation.packages.NetErrors.clean(m), "Check the connection and paths.", true);
-        return new ActionException("TRANSFER.FAILED", what + ": " + com.oneofficeautomation.packages.NetErrors.clean(m), null);
+        return new ActionException("TRANSFER.FAILED", what + ": " + com.oneofficeautomation.packages.NetErrors.clean(m), "Check the server's address, port and the sign-in in the connection; the message has the server's answer.");
     }
 
     public Map<String, Object> connect(ActionContext ctx, String protocol, String host, Integer port, String user, Object password, String key, Object keyPass,
@@ -187,7 +187,7 @@ public final class FileTransferPackage {
             long left = end - System.nanoTime();
             if (left <= 0) return;
             try { Thread.sleep(Math.min(250, Math.max(1, left / 1_000_000))); }
-            catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new ActionException("TRANSFER.CANCELLED", "Stopped while waiting to connect again", null); }
+            catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new ActionException("TRANSFER.CANCELLED", "Stopped while waiting to connect again", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 
@@ -430,7 +430,7 @@ public final class FileTransferPackage {
     }
 
     private static void removeTree(ActionContext ctx, Conn c, String dir, int[] files, int depth) throws Exception {
-        if (depth > MAX_DEPTH) throw new ActionException("TRANSFER.TOO_DEEP", "Folder nesting deeper than " + MAX_DEPTH + " levels under " + dir, null);
+        if (depth > MAX_DEPTH) throw new ActionException("TRANSFER.TOO_DEEP", "Folder nesting deeper than " + MAX_DEPTH + " levels under " + dir, "Copy a folder nearer to the files, or flatten the folder structure.");
         for (Object o : c.list(dir)) {
             ctx.checkCancelled();
             List<?> row = (List<?>) o;
@@ -478,7 +478,7 @@ public final class FileTransferPackage {
     }
 
     private static void uploadTree(ActionContext ctx, Conn c, Path local, String remote, List<Object> done, int depth, Copy o) throws Exception {
-        if (depth > MAX_DEPTH) throw new ActionException("TRANSFER.TOO_DEEP", "Folder nesting deeper than " + MAX_DEPTH + " levels under " + local, null);
+        if (depth > MAX_DEPTH) throw new ActionException("TRANSFER.TOO_DEEP", "Folder nesting deeper than " + MAX_DEPTH + " levels under " + local, "Copy a folder nearer to the files, or flatten the folder structure.");
         ensureFolder(c, remote);
         Map<String, Object> existing = new HashMap<>();  // remote name -> modified time
         if (!o.overwrite() || o.onlyNewer()) for (Object row : c.list(remote)) existing.put(String.valueOf(((List<?>) row).get(0)), ((List<?>) row).get(3));
@@ -538,14 +538,14 @@ public final class FileTransferPackage {
     }
 
     private static void downloadTree(ActionContext ctx, Conn c, String remote, Path local, List<Object> done, int depth, Copy o) throws Exception {
-        if (depth > MAX_DEPTH) throw new ActionException("TRANSFER.TOO_DEEP", "Folder nesting deeper than " + MAX_DEPTH + " levels under " + remote, null);
+        if (depth > MAX_DEPTH) throw new ActionException("TRANSFER.TOO_DEEP", "Folder nesting deeper than " + MAX_DEPTH + " levels under " + remote, "Copy a folder nearer to the files, or flatten the folder structure.");
         Files.createDirectories(local);
         for (Object entry : c.list(remote)) {
             ctx.checkCancelled();
             List<?> row = (List<?>) entry;
             String name = safeEntry(String.valueOf(row.get(0)));
             Path target = local.resolve(name).normalize();
-            if (!target.startsWith(local)) throw new ActionException("TRANSFER.UNSAFE_NAME", "The server listed an unsafe file name '" + name + "'", null);
+            if (!target.startsWith(local)) throw new ActionException("TRANSFER.UNSAFE_NAME", "The server listed an unsafe file name '" + name + "'", "Ask the server's administrator to rename the file; names with .. or / are refused to keep the runner's folders safe.");
             if (Boolean.TRUE.equals(row.get(1))) { if (o.subfolders()) downloadTree(ctx, c, join(remote, name), target, done, depth + 1, o); continue; }
             if (!o.match().test(name) || !o.when().test(row.get(3))) continue;
             if (Files.exists(target) && (!o.overwrite() || (o.onlyNewer() && !newer(row.get(3), target)))) continue;
@@ -628,7 +628,7 @@ public final class FileTransferPackage {
     }
 
     private static void scanRemote(ActionContext ctx, Conn c, String root, String rel, boolean sub, java.util.function.Predicate<String> match, SyncSide side, int depth) throws Exception {
-        if (depth > MAX_DEPTH) throw new ActionException("TRANSFER.TOO_DEEP", "Folder nesting deeper than " + MAX_DEPTH + " levels under " + root, null);
+        if (depth > MAX_DEPTH) throw new ActionException("TRANSFER.TOO_DEEP", "Folder nesting deeper than " + MAX_DEPTH + " levels under " + root, "Copy a folder nearer to the files, or flatten the folder structure.");
         for (Object o : c.listExact(rel.isEmpty() ? root : join(root, rel))) {
             ctx.checkCancelled();
             List<?> row = (List<?>) o;
@@ -721,7 +721,7 @@ public final class FileTransferPackage {
 
                 String remotePath = join(r, p);
                 Path localPath = l.resolve(p).normalize();
-                if (!localPath.startsWith(l)) throw new ActionException("TRANSFER.UNSAFE_NAME", "The server listed an unsafe file name '" + p + "'", null);
+                if (!localPath.startsWith(l)) throw new ActionException("TRANSFER.UNSAFE_NAME", "The server listed an unsafe file name '" + p + "'", "Ask the server's administrator to rename the file; names with .. or / are refused to keep the runner's folders safe.");
                 switch (action) {
                     case "upload" -> {
                         if (!dryRun) {

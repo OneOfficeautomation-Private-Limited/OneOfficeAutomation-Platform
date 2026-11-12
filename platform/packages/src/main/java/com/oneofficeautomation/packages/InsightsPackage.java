@@ -26,7 +26,7 @@ public final class InsightsPackage {
     public Map<String, Object> tag(ActionContext ctx,
             @Input(name = "category", type = OoaType.STRING, example = "invoices", description = "Category (dashboard) name.") String category,
             @Input(name = "values", type = OoaType.DICTIONARY, description = "Values to record; Credentials are refused.") Map<String, Object> values) {
-        for (Object v : values.values()) if (v instanceof SecureString) throw new ActionException("INSIGHTS.SECRET", "Credentials cannot be recorded as insights");
+        for (Object v : values.values()) if (v instanceof SecureString) throw new ActionException("INSIGHTS.SECRET", "Credentials cannot be recorded as insights", "Record a value that is not a credential, or leave the field out.");
         Map<String, Object> rec = new LinkedHashMap<>();
         rec.put("ts", LocalDateTime.now(ZoneOffset.UTC).withNano(0).toString());
         rec.put("run_id", ctx.runId());
@@ -34,7 +34,7 @@ public final class InsightsPackage {
         Path p = file(ctx, category);
         synchronized (LOCK) {
             try { Files.createDirectories(p.getParent()); Files.writeString(p, JsonLite.write(rec) + "\n", StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND); }
-            catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+            catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         }
         return Map.of();
     }
@@ -62,7 +62,7 @@ public final class InsightsPackage {
                 if (transaction != null && !transaction.isBlank() && !transaction.equals(r.get("transaction"))) continue;
                 recs.add(r);
             }
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         if (max > 0 && recs.size() > max) recs = new ArrayList<>(recs.subList(recs.size() - max, recs.size()));
         return Map.of("table", recs.isEmpty() ? Values.table(List.of(), new ArrayList<>()) : Values.coerce(recs, "Table", "records"), "count", BigDecimal.valueOf(recs.size()));
     }

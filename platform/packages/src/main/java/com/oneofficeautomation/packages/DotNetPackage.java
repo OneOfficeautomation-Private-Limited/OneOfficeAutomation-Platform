@@ -180,7 +180,7 @@ public final class DotNetPackage {
         try {
             ps = Files.createTempFile("ooa-dotnet-", ".ps1");
             Files.writeString(ps, "\uFEFF" + ScriptPackage.UTF8_PREAMBLE + "\n" + PS_COMMON + part, StandardCharsets.UTF_8);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the PowerShell file: " + e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the PowerShell file: " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         try {
             List<String> cmd = List.of("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", ps.toString());
             ProcessRunner.Result r = ProcessRunner.run(ctx, cmd, ctx.workDir(), JsonLite.write(payload), timeout, null, StandardCharsets.UTF_8);
@@ -358,13 +358,13 @@ public final class DotNetPackage {
     }
 
     private static String required(String v, String name) {
-        if (v == null || v.isBlank()) throw new ActionException("DOTNET.MISSING", "Fill in " + name, null);
+        if (v == null || v.isBlank()) throw new ActionException("DOTNET.MISSING", "Fill in " + name, "Fill in the field the message names.");
         return v.strip();
     }
 
     /** The JAR or class folder a class was loaded from, for the separate Java's class path. */
     static String codeSource(Class<?> c) {
         try { return Path.of(c.getProtectionDomain().getCodeSource().getLocation().toURI()).toString(); }
-        catch (Exception e) { throw new ActionException("JAVA.SETUP", "Cannot find the runner's own classes for the Java call: " + e.getMessage(), null); }
+        catch (Exception e) { throw new ActionException("JAVA.SETUP", "Cannot find the runner's own classes for the Java call: " + e.getMessage(), "Reinstall the runner; its program files are incomplete."); }
     }
 }

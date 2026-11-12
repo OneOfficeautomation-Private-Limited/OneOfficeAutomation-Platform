@@ -27,7 +27,7 @@ public final class GlobalValuesPackage {
             Object v = JsonLite.parse(Files.readString(p));
             if (!(v instanceof Map)) throw new ActionException("GLOBALS.INVALID", FILE + " must contain a JSON object", "Example: {\"reports_folder\": \"D:/Reports\"}");
             return (Map<String, Object>) v;
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } catch (IllegalArgumentException e) { throw new ActionException("GLOBALS.INVALID", FILE + " is not valid JSON: " + e.getMessage(), "Fix the file in the workspace."); }
     }
 
@@ -103,7 +103,7 @@ public final class GlobalValuesPackage {
         if (!all.containsKey(name)) throw new ActionException("GLOBALS.NOT_FOUND", "Shared value '" + name + "' is not defined", "Add it to " + FILE + " in the workspace first; agents change existing shared values only.");
         all.put(name, v);
         try { Files.writeString(p, JsonLite.write(all)); }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + FILE + ": " + e.getMessage(), null, true); }
+        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + FILE + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Out.of("value", v);
     }
 

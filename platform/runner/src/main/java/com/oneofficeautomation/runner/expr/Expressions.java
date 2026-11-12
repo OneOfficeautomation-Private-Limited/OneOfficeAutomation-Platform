@@ -91,7 +91,7 @@ public final class Expressions {
         Parser(String src) { this.src = src; this.toks = tokenize(src); }
         Tok peek() { return toks.get(i); }
         Tok next() { return toks.get(i++); }
-        OoaException err(String m) { return new OoaException("EXPR.INVALID", m + " in: " + src); }
+        OoaException err(String m) { return new OoaException("EXPR.INVALID", m + " in: " + src, "Correct the expression the message names; Help > Expressions lists the functions and their arguments."); }
         void expect(String t) {
             Tok k = next();
             if (!k.text().equals(t)) throw err("Expected '" + t + "' but found '" + (k.text().isEmpty() ? "end" : k.text()) + "'");
@@ -209,7 +209,7 @@ public final class Expressions {
                 try { int idx = Values.toNumber(key).intValueExact(); return idx >= 0 && idx < s.length() ? String.valueOf(s.charAt(idx)) : null; }
                 catch (ArithmeticException | OoaException e) { return null; }
             }
-            throw new OoaException("EXPR.INVALID", "Cannot read field '" + key + "' of a " + Values.typeName(base));
+            throw new OoaException("EXPR.INVALID", "Cannot read field '" + key + "' of a " + Values.typeName(base), "Read fields only from a dictionary or a record.");
         }
         if (n instanceof Unary u) {
             Object v = eval(u.arg(), lookup);
@@ -259,7 +259,7 @@ public final class Expressions {
                 else if (p[0] instanceof java.time.LocalDateTime x && p[1] instanceof java.time.LocalDateTime y) r = x.compareTo(y);
                 else if (p[0] instanceof LocalTime x && p[1] instanceof LocalTime y) r = x.compareTo(y);
                 else if (p[0] instanceof Duration x && p[1] instanceof Duration y) r = x.compareTo(y);
-                else throw new OoaException("EXPR.INVALID", "Cannot compare " + Values.typeName(a) + " with " + Values.typeName(b) + " using " + op);
+                else throw new OoaException("EXPR.INVALID", "Cannot compare " + Values.typeName(a) + " with " + Values.typeName(b) + " using " + op, "Compare values of the same type; convert one first (number(), text()).");
                 return switch (op) { case "<" -> r < 0; case "<=" -> r <= 0; case ">" -> r > 0; default -> r >= 0; };
             }
         }

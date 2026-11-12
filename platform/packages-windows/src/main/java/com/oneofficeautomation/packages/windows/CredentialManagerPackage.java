@@ -64,7 +64,7 @@ public final class CredentialManagerPackage {
 
     static String target(String t) {
         if (t == null || t.isBlank()) throw new ActionException(P + ".NO_TARGET", "Give the credential's target name", "For example MyApp/service-account.");
-        if (t.length() > 32767) throw new ActionException(P + ".BAD_TARGET", "The target name is too long");
+        if (t.length() > 32767) throw new ActionException(P + ".BAD_TARGET", "The target name is too long", "Shorten the target name.");
         return t;
     }
 
@@ -77,7 +77,7 @@ public final class CredentialManagerPackage {
                     "Run the agent under a user account with a loaded profile.");
             case ERROR_BAD_USERNAME, ERROR_INVALID_PARAMETER -> new ActionException(P + ".INVALID", "Windows rejected the credential for '" + target + "' (error " + code + ")",
                     "Check the target name and user name.");
-            default -> new ActionException(P + ".FAILED", what + " failed for '" + target + "' (Windows error " + code + ")", null, true);
+            default -> new ActionException(P + ".FAILED", what + " failed for '" + target + "' (Windows error " + code + ")", "Check that Windows Credential Manager may be used by the runner's account; the message has Windows' error number.", true);
         };
     }
 
@@ -217,7 +217,7 @@ public final class CredentialManagerPackage {
             default -> throw new ActionException(P + ".BAD_PERSIST", "Unknown persist value '" + persist + "'", "Use session, local_machine or enterprise.");
         };
         byte[] blob = encode(s.reveal(), encoding);
-        if (blob.length > CRED_MAX_BLOB) throw new ActionException(P + ".TOO_LONG", "The secret is longer than Credential Manager allows (" + CRED_MAX_BLOB + " bytes)");
+        if (blob.length > CRED_MAX_BLOB) throw new ActionException(P + ".TOO_LONG", "The secret is longer than Credential Manager allows (" + CRED_MAX_BLOB + " bytes)", "Store a shorter secret, or keep it in the vault in One CommandCenter instead.");
         int blobSize = blob.length;
         Memory blobMem = new Memory(Math.max(1, blobSize));
         blobMem.write(0, blob, 0, blobSize);

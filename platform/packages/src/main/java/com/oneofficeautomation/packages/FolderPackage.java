@@ -16,7 +16,7 @@ public final class FolderPackage {
             @Input(name = "fail_if_exists", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Stop when the folder already exists instead of continuing.") boolean failIfExists) {
         Path p = ctx.resolvePath(path);
         if (failIfExists && Files.exists(p)) throw new ActionException("FOLDER.EXISTS", "Folder already exists: " + p, "Choose another name or turn off fail_if_exists.");
-        try { Files.createDirectories(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot create " + p + ": " + e.getMessage()); }
+        try { Files.createDirectories(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot create " + p + ": " + e.getMessage(), "Check that the parent folder exists and that the runner's account may create folders there."); }
         return Map.of();
     }
 
@@ -82,7 +82,7 @@ public final class FolderPackage {
             } else try (Stream<Path> w = Files.walk(p)) {
                 for (Path x : w.sorted(Comparator.reverseOrder()).toList()) Files.delete(x);
             }
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot delete " + p + ": " + e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot delete " + p + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of("deleted", true);
     }
 
@@ -94,7 +94,7 @@ public final class FolderPackage {
         if (!Files.isDirectory(p)) throw new ActionException("FILE.NOT_FOUND", "Folder not found: " + p, "Check the folder path.");
         try (Stream<Path> s = Files.list(p)) {
             return Map.of("folders", new ArrayList<Object>(s.filter(Files::isDirectory).map(Path::toString).sorted().toList()));
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
     }
 
     @LoopIterator(id = "subfolders", name = "Each folder in folder", description = "Yield the path of each folder inside a folder, optionally with all folders below it.")
@@ -107,7 +107,7 @@ public final class FolderPackage {
         PathMatcher m = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern));
         try (Stream<Path> s = deep ? Files.walk(p) : Files.list(p)) {
             return new ArrayList<>(s.filter(x -> !x.equals(p) && Files.isDirectory(x) && m.matches(x.getFileName())).map(Path::toString).sorted().toList());
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
     }
 
     @Action(id = "copy", name = "Copy folder", category = "Folders", capabilities = "filesystem", description = "Copy a folder and its contents, optionally only some files by name, size or date.",
@@ -144,7 +144,7 @@ public final class FolderPackage {
                 else Files.copy(x, dst, StandardCopyOption.REPLACE_EXISTING);
                 n++;
             }
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot copy " + s + ": " + e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot copy " + s + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of("copied", java.math.BigDecimal.valueOf(n));
     }
 

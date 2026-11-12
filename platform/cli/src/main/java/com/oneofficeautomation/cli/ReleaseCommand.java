@@ -66,7 +66,7 @@ final class ReleaseCommand {
                 list.add(m);
             }
         }
-        if (list.isEmpty()) throw new OoaException("TEMPLATES.EMPTY", "No template folders (with template.json) in " + dir);
+        if (list.isEmpty()) throw new OoaException("TEMPLATES.EMPTY", "No template folders (with template.json) in " + dir, "Put each template in its own folder with a template.json.");
         String feed = com.oneofficeautomation.controlroom.repository.Templates.makeFeed("ONEOFFICEAUTOMATION", list, License.privateKey(Files.readString(Path.of(o.get("key")))));
         Path out = Path.of(o.get("out"));
         Files.writeString(out, feed, StandardCharsets.UTF_8);
@@ -96,7 +96,7 @@ final class ReleaseCommand {
                 files.add(f);
             }
         }
-        if (files.isEmpty()) throw new OoaException("RELEASE.EMPTY", "No release files (.zip, .msi, .json, .txt) in " + dir);
+        if (files.isEmpty()) throw new OoaException("RELEASE.EMPTY", "No release files (.zip, .msi, .json, .txt) in " + dir, "Put the release files (.zip, .msi, .json, .txt) in the folder.");
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("product", "ONEOFFICEAUTOMATION");
         body.put("version", version);
@@ -112,7 +112,7 @@ final class ReleaseCommand {
             m.put("payload", Base64.getEncoder().encodeToString(payload));
             m.put("signature", Base64.getEncoder().encodeToString(sig.sign()));
             return JsonLite.write(m);
-        } catch (GeneralSecurityException e) { throw new OoaException("RELEASE.SIGN_FAILED", "Signing failed: " + e.getMessage()); }
+        } catch (GeneralSecurityException e) { throw new OoaException("RELEASE.SIGN_FAILED", "Signing failed: " + e.getMessage(), "Check the vendor signing key file."); }
     }
 
     /**
@@ -139,18 +139,18 @@ final class ReleaseCommand {
     @SuppressWarnings("unchecked")
     static Map<String, Object> readManifest(String text, PublicKey key) {
         Map<String, Object> m;
-        try { m = (Map<String, Object>) JsonLite.parse(text.trim()); } catch (RuntimeException e) { throw new OoaException("RELEASE.BAD_MANIFEST", "Not a ONEOFFICEAUTOMATION release manifest"); }
+        try { m = (Map<String, Object>) JsonLite.parse(text.trim()); } catch (RuntimeException e) { throw new OoaException("RELEASE.BAD_MANIFEST", "Not a ONEOFFICEAUTOMATION release manifest", "Use the manifest from the ONEOFFICEAUTOMATION release page."); }
         if (!FORMAT.equals(m.get("format")) || !(m.get("payload") instanceof String p) || !(m.get("signature") instanceof String s))
-            throw new OoaException("RELEASE.BAD_MANIFEST", "Not a ONEOFFICEAUTOMATION release manifest");
+            throw new OoaException("RELEASE.BAD_MANIFEST", "Not a ONEOFFICEAUTOMATION release manifest", "Use the manifest from the ONEOFFICEAUTOMATION release page.");
         byte[] payload;
         try {
             payload = Base64.getDecoder().decode(p);
             Signature v = Signature.getInstance("Ed25519");
             v.initVerify(key);
             v.update(payload);
-            if (!v.verify(Base64.getDecoder().decode(s))) throw new OoaException("RELEASE.BAD_SIGNATURE", "The manifest's signature is not valid: it was changed or not made by ONEOFFICEAUTOMATION");
+            if (!v.verify(Base64.getDecoder().decode(s))) throw new OoaException("RELEASE.BAD_SIGNATURE", "The manifest's signature is not valid: it was changed or not made by ONEOFFICEAUTOMATION", "Download the release again from the ONEOFFICEAUTOMATION release page.");
         } catch (OoaException e) { throw e; }
-        catch (Exception e) { throw new OoaException("RELEASE.BAD_SIGNATURE", "The manifest's signature is not valid: it was changed or not made by ONEOFFICEAUTOMATION"); }
+        catch (Exception e) { throw new OoaException("RELEASE.BAD_SIGNATURE", "The manifest's signature is not valid: it was changed or not made by ONEOFFICEAUTOMATION", "Download the release again from the ONEOFFICEAUTOMATION release page."); }
         return (Map<String, Object>) JsonLite.parse(new String(payload, StandardCharsets.UTF_8));
     }
 

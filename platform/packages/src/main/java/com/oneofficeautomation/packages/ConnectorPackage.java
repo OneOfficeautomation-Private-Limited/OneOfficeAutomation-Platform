@@ -44,7 +44,7 @@ public final class ConnectorPackage {
             try { text = Files.readString(p, StandardCharsets.UTF_8); }
             catch (IOException e) { throw new ActionException("CONNECTOR.SPEC_NOT_FOUND", "Cannot read " + specFile + ": " + e.getMessage(), "Check the file path."); }
         }
-        if (text == null || text.isBlank()) throw new ActionException("CONNECTOR.EMPTY_SPEC", "Give spec_file or spec_text");
+        if (text == null || text.isBlank()) throw new ActionException("CONNECTOR.EMPTY_SPEC", "Give spec_file or spec_text", "Fill in either Spec file or Spec text.");
         Map<String, Object> def = ConnectorImporter.importSpec(text, name, server);
         String path = ConnectorStore.save(ctx.workDir(), def, overwrite);
         int n = ((List<?>) def.get("operations")).size();
@@ -212,7 +212,7 @@ public final class ConnectorPackage {
         Path out = outputFile == null || outputFile.isBlank() ? null : ctx.resolvePath(outputFile);
         if (out != null) {
             try { if (out.getParent() != null) Files.createDirectories(out.getParent()); }
-            catch (IOException e) { throw new ActionException("CONNECTOR.IO", "Cannot create folder for " + outputFile + ": " + e.getMessage()); }
+            catch (IOException e) { throw new ActionException("CONNECTOR.IO", "Cannot create folder for " + outputFile + ": " + e.getMessage(), "Check that the output folder may be created and that the runner's account may write there."); }
         }
         String url = server + p + (qs.length() == 0 ? "" : "?" + qs);
         Map<String, Object> result = map(op.get("result"));
@@ -282,7 +282,7 @@ public final class ConnectorPackage {
         try { return HttpJson.CLIENT.send(b.build(), handler); }
         catch (HttpTimeoutException e) { throw new ActionException("CONNECTOR.TIMEOUT", "No response within " + timeout + " s from " + HttpJson.host(url), "Try again later or raise timeout_seconds.", true); }
         catch (IOException e) { throw new ActionException("CONNECTOR.UNREACHABLE", "Cannot reach " + HttpJson.host(url) + ": " + e.getMessage(), "Check the server URL, proxy and network access.", true); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
     }
 
     static ActionException httpError(String opId, int status, String text, Object parsed, Map<String, Object> headers) {
@@ -311,7 +311,7 @@ public final class ConnectorPackage {
         List<Object> sec = securityOf(def, op);
         if (sec.isEmpty()) return null;
         Map<String, Object> s = scheme(def, String.valueOf(sec.get(0)));
-        if (s == null) throw new ActionException("CONNECTOR.UNKNOWN_SCHEME", "Operation refers to an unknown auth scheme '" + sec.get(0) + "'");
+        if (s == null) throw new ActionException("CONNECTOR.UNKNOWN_SCHEME", "Operation refers to an unknown auth scheme '" + sec.get(0) + "'", "Add the sign-in scheme the operation names to the connector's description, or choose another operation.");
         return s;
     }
 
@@ -416,7 +416,7 @@ public final class ConnectorPackage {
                     }
                 }
             }
-            if (!(body instanceof Map<?, ?>)) throw new ActionException("CONNECTOR.BAD_BODY", opId + " takes form fields: give body as a dictionary");
+            if (!(body instanceof Map<?, ?>)) throw new ActionException("CONNECTOR.BAD_BODY", opId + " takes form fields: give body as a dictionary", "Give the body as a dictionary of form fields, for example {\"name\": \"Ana\"}.");
             Object[] mp = HttpJson.multipart("form-data", parts);
             return new Object[]{mp[0], mp[1]};
         }

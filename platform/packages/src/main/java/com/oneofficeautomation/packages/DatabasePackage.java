@@ -352,7 +352,7 @@ public final class DatabasePackage {
             return insertBatches(ctx, t, cols, () -> {
                 List<String> row;
                 try { row = in.next(); }
-                catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), null, true); }
+                catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
                 if (row == null) return null;
                 if (row.size() > cols.size())
                     throw new ActionException("DB.COLUMN_MISMATCH", "Line " + in.line + " has " + row.size() + " fields but " + cols.size() + " columns are inserted", "Give one database column per field in columns, or check the delimiter.");
@@ -360,7 +360,7 @@ public final class DatabasePackage {
                 for (String v : row) vals.add(v.isEmpty() ? null : v);
                 return vals;
             }, batchSize, session);
-        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), null, true); }
+        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     public Map<String, Object> bulkInsert(ActionContext ctx, String tableName, Map<String, Object> data, List<Object> columns, int batchSize, String session) {
