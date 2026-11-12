@@ -124,7 +124,7 @@ Wait until a document is read, or until it is also reviewed when it needs a revi
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Document ID | `document_id` | Text | Yes |  | Main | The document id that Send document to process gave (or a document_id input given by a Start-a-bot delivery). |
-| Until | `until` | Text | No | `read` | Main | read: until it is read (it may then wait for a review); reviewed: also until a person reviewed it, when it needs a review. One of: `read`, `reviewed` |
+| Until | `until` | Text | No | `read` | Main | Read: until it is read (it may then wait for a review). Reviewed: also until a person has reviewed it, when it needs a review. One of: `read`, `reviewed` |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `900` | More options | Give up after this many seconds with the error DOCS.WAIT_TIMEOUT (a review may take hours). Range: 1 to 86400 |
 | Check every (seconds) | `check_every_seconds` | Number | No | `10` | More options | How often to ask Document Automation. Range: 1 to 600 |
 

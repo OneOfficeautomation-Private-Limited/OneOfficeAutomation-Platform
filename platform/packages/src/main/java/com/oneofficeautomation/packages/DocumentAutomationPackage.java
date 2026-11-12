@@ -93,7 +93,7 @@ public final class DocumentAutomationPackage {
     public Map<String, Object> waitForDocument(ActionContext ctx,
             @Input(name = "document_id", type = OoaType.STRING, description = D_DOC_ID) String documentId,
             @Input(name = "until", type = OoaType.STRING, required = false, defaultValue = "\"read\"", enumValues = {"read", "reviewed"},
-                    description = "read: until it is read (it may then wait for a review); reviewed: also until a person reviewed it, when it needs a review.") String until,
+                    description = "Read: until it is read (it may then wait for a review). Reviewed: also until a person has reviewed it, when it needs a review.") String until,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "900", min = 1, max = 86400,
                     description = "Give up after this many seconds with the error DOCS.WAIT_TIMEOUT (a review may take hours).") int timeout,
             @Input(name = "check_every_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 1, max = 600,

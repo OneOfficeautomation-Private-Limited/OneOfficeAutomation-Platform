@@ -651,3 +651,29 @@ process with validation and review. Every field has a label and help.
 | **I3** | AA map: Comprehend to the AWS AI toolkit (and a Key phrases command there); AA Document Extraction, Google Document AI and IQ Bot commands to Document Automation and Google Document AI. | Small |
 | **D1** | Document Automation commands: Get document result (status, fields, tables, confidence per field, by document id), Wait for document (until read, or until reviewed), and List finished documents with Mark collected, so an agent can pick up reviewed documents later and none twice. | Medium |
 | **S2** | Command samples for document processing, Prompt Skills, an AI agent with a tool, communications mining, image generation and pictures in prompts, against a stand-in model server; Document Automation against One CommandCenter in the test. | Medium |
+
+**Built 12 Nov 2026 (all)** on ui/usage-review. What changed:
+- **I1**: an AI step that names no connection and sets no key, model or address of its own uses the organisation's
+  default model connection; a step with its own settings keeps them. New AI steps (Generative AI, Prompt Skills, AI
+  agents, document processing, AI screen, web goal agent, Knowledge Q&A) open on "A saved connection", with a list
+  showing "Default (name)" and the saved connections. Other choices still open where they did.
+- **I2**: Chat now has response format (JSON, with a json output), seed and top K; Prompt with pictures has top P, top
+  K, stop sequences, the two penalties and seed. The help names providers as the list does (AWS Bedrock, AWS
+  SageMaker, Google Vertex AI). Old method signatures kept.
+- **I3**: AA's AWS Comprehend commands now map to the AWS AI toolkit, which gained Key phrases on Amazon Comprehend.
+  AA Document Extraction (Extract data, Get document data, Download data), Google Document AI and IQ Bot commands are
+  mapped; the action library finds them by their AA names.
+- **D1**: Document Automation has Get document result (status, fields, tables such as line items, confidence per
+  field, reviewer), Wait for document (until read, or until reviewed when a review is needed), List finished documents
+  and Mark collected. Collected marks are kept per collector name in the Command Center (the module's own table,
+  docflow_collected; module 1.1.0), as DocFlow keeps none, so agents sharing a name never take a document twice. Each
+  call runs as the run's user, with the process folder's permissions. DocFlow itself is unchanged.
+- **S2**: 17 samples (57-ai-documents.json) against stand-in servers: document processing, Prompt Skills, an AI agent
+  calling an agent as its tool, communications mining, picture generation, pictures in prompts, JSON chat, AWS
+  language, key phrases and text in pictures, Document Automation outside One CommandCenter. Samples with agents now
+  get a bot invoker, as in Studio.
+- Tests: full suite with --continue (public-site samples off): 2,794 fresh results; the one failure (the module test
+  expected no table) fixed and its tests rerun. Tried in One AgentStudio: a new Prompt and Chat open on "A saved
+  connection" showing "Default (company)"; Chat shows Response format, Top k and Seed; Wait for document offers Read and
+  Reviewed; Bulk insert still opens on "A delimited file". Not checked here: Document Automation against a running
+  DocFlow (the agent-to-Command-Center hop is covered only by the server test).
