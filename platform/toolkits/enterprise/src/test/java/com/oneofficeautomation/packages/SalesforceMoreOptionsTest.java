@@ -23,6 +23,27 @@ class SalesforceMoreOptionsTest {
     static ActionContext ctx() throws Exception { return PackagesTestSupport.ctx(Files.createTempDirectory("ooa-sf"), Map.of()); }
     static String code(org.junit.jupiter.api.function.Executable e) { return assertThrows(ActionException.class, e).code(); }
 
+    /** K6 (batch 10): values go into SOQL quoted and escaped, so O'Brien works and a value cannot change the query. */
+    @Test void parametersAndFindRecordsQuoteValues() throws Exception {
+        assertEquals("'O\\'Brien'", SalesforcePackage.literal("O'Brien"));
+        assertEquals("'a\\\\b\\nc'", SalesforcePackage.literal("a\\b\nc"));
+        assertEquals("('x', 2, true)", SalesforcePackage.literal(List.of("x", 2, true)));
+        assertEquals("SELECT Id FROM Contact WHERE LastName = 'O\\'Brien' AND CreatedDate > LAST_N_DAYS:30 AND Note = ':name'",
+                SalesforcePackage.bind("SELECT Id FROM Contact WHERE LastName = :name AND CreatedDate > LAST_N_DAYS:30 AND Note = ':name'", Map.of("name", "O'Brien")));
+        assertEquals("SELECT Id FROM Account WHERE Name = 'x\\' OR Name != \\'y'",
+                SalesforcePackage.bind("SELECT Id FROM Account WHERE Name = :n", Map.of("n", "x' OR Name != 'y")), "the value stays one text");
+        try (Fake f = new Fake()) {
+            f.on("GET " + API + "/query", c -> ok("{\"done\":true,\"totalSize\":1,\"records\":[{\"attributes\":{},\"Id\":\"003A\",\"Name\":\"Ann O'Brien\"}]}"));
+            ActionContext ctx = ctx();
+            Map<String, Object> r = sf.findRecords(ctx, f.url(), TOK, "Contact", new LinkedHashMap<>(Map.of("LastName", "O'Brien")), List.of("Id", "Name"), "CreatedDate desc", 10, false, "v61.0");
+            assertEquals("SELECT Id, Name FROM Contact WHERE LastName = 'O\\'Brien' ORDER BY CreatedDate DESC LIMIT 10", r.get("soql"));
+            assertEquals(java.math.BigDecimal.ONE, r.get("count"));
+            assertTrue(java.net.URLDecoder.decode(q(f.last("GET", API + "/query")), java.nio.charset.StandardCharsets.UTF_8).contains("O\\'Brien"));
+            assertEquals("SALESFORCE.BAD_FIELD", code(() -> sf.findRecords(ctx, f.url(), TOK, "Contact", Map.of("Name) FROM User --", "x"), null, null, 10, false, "v61.0")));
+            assertEquals("SALESFORCE.BAD_ORDER", code(() -> sf.findRecords(ctx, f.url(), TOK, "Contact", null, null, "Name; DELETE", 10, false, "v61.0")));
+        }
+    }
+
     @Test void getRecordByExternalId() throws Exception {
         try (Fake f = new Fake()) {
             f.on("GET " + API + "/sobjects/Account/ERP_Number__c/.*", c -> c.path().endsWith("/DUP")

@@ -146,17 +146,36 @@ public final class JiraPackage {
         List<Object> want = new ArrayList<>(List.of("summary", "status", "assignee", "priority", "updated"));
         for (String m : more) if (!want.contains(m.split("\\.")[0])) want.add(m.split("\\.")[0]);
         List<Object> rows = new ArrayList<>();
+        // K6 (batch 10): Jira Cloud retired /rest/api/2/search; it searches with /rest/api/3/search/jql, paged by
+        // nextPageToken. Data Center (a personal access token) keeps /rest/api/2/search, paged by startAt; a site that
+        // does not know the new endpoint (404) is asked the old way.
+        boolean cloud = !(pat instanceof SecureString);
+        if (cloud) {
+            try {
+                String token = null;
+                while (rows.size() < max) {
+                    Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("jql", jql);
+                    body.put("maxResults", Math.min(100, max - rows.size()));
+                    body.put("fields", want);
+                    if (token != null) body.put("nextPageToken", token);
+                    Map<String, Object> r = auth(HttpJson.req(P, "POST", site.replaceAll("/+$", "") + "/rest/api/3/search/jql"), email, apiToken, pat).json(body).timeout(120).send(ctx).map();
+                    List<?> issues = (List<?>) r.getOrDefault("issues", List.of());
+                    for (Object o : issues) rows.add(row((Map<?, ?>) o, more));
+                    token = r.get("nextPageToken") instanceof String t && !t.isBlank() ? t : null;
+                    if (issues.isEmpty() || token == null || Boolean.TRUE.equals(r.get("isLast"))) break;
+                }
+            } catch (ActionException e) {
+                if (!e.code().endsWith(".NOT_FOUND") || !rows.isEmpty()) throw e;
+                cloud = false;
+            }
+        }
         int start = 0;
-        while (rows.size() < max) {
+        while (!cloud && rows.size() < max) {
             Map<String, Object> body = Map.of("jql", jql, "startAt", start, "maxResults", Math.min(100, max - rows.size()), "fields", want);
             Map<String, Object> r = auth(HttpJson.req(P, "POST", api(site) + "/search"), email, apiToken, pat).json(body).timeout(120).send(ctx).map();
             List<?> issues = (List<?>) r.getOrDefault("issues", List.of());
-            for (Object o : issues) {
-                Map<String, Object> s = summarize((Map<?, ?>) o);
-                List<Object> row = new ArrayList<>(Arrays.asList(s.get("key"), s.get("summary"), s.get("status"), s.get("assignee"), s.get("priority"), s.get("updated")));
-                for (String m : more) row.add(simple(HttpJson.path(((Map<?, ?>) o).get("fields"), m)));
-                rows.add(row);
-            }
+            for (Object o : issues) rows.add(row((Map<?, ?>) o, more));
             int total = r.get("total") instanceof BigDecimal t ? t.intValue() : 0;
             start += issues.size();
             if (issues.isEmpty() || start >= total) break;
@@ -164,6 +183,13 @@ public final class JiraPackage {
         List<String> cols = new ArrayList<>(List.of("key", "summary", "status", "assignee", "priority", "updated"));
         cols.addAll(more);
         return Map.of("table", Values.table(cols, rows), "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    private static List<Object> row(Map<?, ?> issue, List<String> more) {
+        Map<String, Object> s = summarize(issue);
+        List<Object> row = new ArrayList<>(Arrays.asList(s.get("key"), s.get("summary"), s.get("status"), s.get("assignee"), s.get("priority"), s.get("updated")));
+        for (String m : more) row.add(simple(HttpJson.path(issue.get("fields"), m)));
+        return row;
     }
 
     /** Earlier signature, kept for callers written before extra_fields. */

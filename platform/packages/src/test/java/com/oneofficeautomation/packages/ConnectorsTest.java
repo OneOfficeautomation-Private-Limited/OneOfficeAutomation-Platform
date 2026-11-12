@@ -203,6 +203,24 @@ class ConnectorsTest {
         }
     }
 
+    /** K6 (batch 10): Jira Cloud searches with /rest/api/3/search/jql and pages by nextPageToken; Data Center keeps the old search. */
+    @Test void jiraCloudSearchUsesTheNewEndpointAndDataCenterTheOld() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("POST /rest/api/3/search/jql", c -> c.text().contains("\"nextPageToken\":\"p2\"")
+                    ? ok("{\"isLast\":true,\"issues\":[{\"key\":\"OPS-2\",\"fields\":{\"summary\":\"Second\",\"status\":{\"name\":\"Done\"}}}]}")
+                    : ok("{\"nextPageToken\":\"p2\",\"issues\":[{\"key\":\"OPS-1\",\"fields\":{\"summary\":\"First\",\"status\":{\"name\":\"To Do\"}}}]}"))
+             .on("POST /rest/api/2/search", c -> ok("{\"total\":1,\"issues\":[{\"key\":\"DC-1\",\"fields\":{\"summary\":\"On premises\"}}]}"));
+            var ctx = PackagesTestSupport.ctx(tmp(), Map.of());
+            JiraPackage jira = new JiraPackage();
+            Map<String, Object> cloud = jira.search(ctx, f.url(), "project = OPS", 50, "bot@x.com", new com.oneofficeautomation.sdk.SecureString("tok", "t"), null, null);
+            assertEquals(new BigDecimal(2), cloud.get("count"), "both pages");
+            assertTrue(f.calls.stream().noneMatch(c -> c.path().equals("/rest/api/2/search")), "Cloud does not use the retired search");
+            Map<String, Object> dc = jira.search(ctx, f.url(), "project = DC", 50, null, null, new com.oneofficeautomation.sdk.SecureString("pat", "p"), null);
+            assertEquals(new BigDecimal(1), dc.get("count"));
+            assertEquals("Bearer pat", f.last("POST", "/rest/api/2/search").auth());
+        }
+    }
+
     @Test void jiraCreateSearchTransitionAndAttach() throws Exception {
         try (Fake f = new Fake()) {
             f.on("POST /rest/api/2/issue", c -> new Object[]{201, "{\"id\":\"10001\",\"key\":\"OPS-7\"}"})

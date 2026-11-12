@@ -148,7 +148,24 @@ final class HttpJson {
         return t.isEmpty() ? "(empty page)" : t.length() > 160 ? t.substring(0, 160) + "..." : t;
     }
 
-    static Req req(String prefix, String method, String url) { return new Req(prefix, method, url); }
+    static Req req(String prefix, String method, String url) { return new Req(prefix, method, plainHttpCheck(prefix, url)); }
+
+    /**
+     * K6 (command review, batch 10): toolkits whose addresses may be plain http for on-premises servers (Jira Data Center,
+     * Azure DevOps Server, GitHub Enterprise, Asana's stand-ins) send tokens over http only to this computer, or to a
+     * host the runner's administrator lists in OOA_ALLOW_PLAIN_HTTP (or -Dooa.allow_plain_http), comma separated.
+     */
+    static final Set<String> HTTPS_UNLESS_ALLOWED = Set.of("JIRA", "ASANA", "AZURE_DEVOPS", "GITHUB");
+
+    static String plainHttpCheck(String prefix, String url) {
+        if (url == null || !HTTPS_UNLESS_ALLOWED.contains(prefix) || !url.regionMatches(true, 0, "http://", 0, 7)) return url;
+        String h = host(url);
+        if (h == null || h.equalsIgnoreCase("localhost") || h.equals("127.0.0.1") || h.equals("[::1]") || h.equals("::1")) return url;
+        String allowed = System.getProperty("ooa.allow_plain_http", System.getenv().getOrDefault("OOA_ALLOW_PLAIN_HTTP", ""));
+        for (String a : allowed.split(",")) if (!a.isBlank() && a.strip().equalsIgnoreCase(h)) return url;
+        throw new ActionException(prefix + ".PLAIN_HTTP", "The address " + h + " is plain http, so the sign-in would travel unencrypted",
+                "Use https://. For an on-premises server that only has http, an administrator adds " + h + " to OOA_ALLOW_PLAIN_HTTP on the runner.");
+    }
 
     static String host(String url) { try { return URI.create(url).getHost(); } catch (Exception e) { return url; } }
 

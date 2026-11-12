@@ -67,7 +67,7 @@ public final class SalesforcePackage {
 
     @Action(id = "query", name = "Query (SOQL)", category = "Records", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Run a SOQL query and return all matching records as a table (all result pages are read).",
-            panel = "soql, include_deleted, instance_url, access_token | max_records, batch_size, api_version")
+            panel = "soql, parameters, include_deleted, instance_url, access_token | max_records, batch_size, api_version")
     @Output(name = "table", type = OoaType.TABLE, description = "Records.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     @Output(name = "total_size", type = OoaType.NUMBER, description = "Number of matching records Salesforce reports, which can be more than were read.")
@@ -78,8 +78,11 @@ public final class SalesforcePackage {
             @Input(name = "max_records", type = OoaType.NUMBER, required = false, defaultValue = "50000", description = "Safety limit.") int max,
             @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version,
             @Input(name = "include_deleted", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also return deleted and archived records (queryAll).") boolean deleted,
-            @Input(name = "batch_size", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Records per page (200-2000); Salesforce's default when 0.") int batch) {
+            @Input(name = "batch_size", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Records per page (200-2000); Salesforce's default when 0.") int batch,
+            @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, example = "{\"name\": \"O'Brien\", \"since\": \"2026-01-01\"}",
+                    description = "Values for :name in the SOQL, quoted and escaped for you, e.g. WHERE LastName = :name. A list becomes (a, b) for IN. Safer than putting values into the text.") Map<String, Object> params) {
         if (batch != 0 && (batch < 200 || batch > 2000)) throw new ActionException(P + ".BAD_BATCH", "The batch size must be between 200 and 2000");
+        soql = bind(soql, params);
         String root = instance.replaceAll("/+$", "");
         String url = base(instance, version) + (deleted ? "/queryAll?q=" : "/query?q=") + HttpJson.enc(soql);
         List<Map<String, Object>> records = new ArrayList<>();
@@ -95,6 +98,108 @@ public final class SalesforcePackage {
         }
         return Out.of("table", Values.coerce(records, "Table", "records"), "count", BigDecimal.valueOf(records.size()),
                 "total_size", total == null ? BigDecimal.valueOf(records.size()) : Values.toNumber(total));
+    }
+
+    /** Earlier signature, kept for callers written before parameters (K6, batch 10). */
+    public Map<String, Object> query(ActionContext ctx, String instance, Object token, String soql, int max, String version, boolean deleted, int batch) {
+        return query(ctx, instance, token, soql, max, version, deleted, batch, null);
+    }
+
+    // ---------- values in SOQL, safely (K6, batch 10) ----------
+
+    private static final Pattern FIELD = Pattern.compile("^[A-Za-z][A-Za-z0-9_]{0,79}(\\.[A-Za-z][A-Za-z0-9_]{0,79}){0,4}$");
+
+    /** A value as a SOQL literal: text quoted with \\ \' \" and line breaks escaped, numbers and true/false bare, dates as SOQL dates, a list as (a, b). */
+    static String literal(Object v) {
+        if (v == null) return "null";
+        if (v instanceof Boolean b) return b.toString();
+        if (v instanceof Number n) return new BigDecimal(n.toString()).toPlainString();
+        if (v instanceof java.time.LocalDate d) return d.toString();
+        if (v instanceof java.time.LocalDateTime t) return t.withNano(0) + "Z";
+        if (v instanceof java.time.OffsetDateTime t) return t.withNano(0).toString();
+        if (v instanceof Collection<?> c) {
+            if (c.isEmpty()) throw new ActionException(P + ".BAD_PARAMETER", "An empty list cannot go into SOQL", "Give at least one value, or leave the condition out.");
+            StringJoiner j = new StringJoiner(", ", "(", ")");
+            for (Object o : c) j.add(literal(o));
+            return j.toString();
+        }
+        String t = Values.text(v);
+        StringBuilder b = new StringBuilder("'");
+        for (char ch : t.toCharArray()) switch (ch) {
+            case '\\' -> b.append("\\\\");
+            case '\'' -> b.append("\\'");
+            case '"' -> b.append("\\\"");
+            case '\n' -> b.append("\\n");
+            case '\r' -> b.append("\\r");
+            case '\t' -> b.append("\\t");
+            default -> b.append(ch);
+        }
+        return b.append('\'').toString();
+    }
+
+    /** Puts each parameter in place of :name outside quoted text; a :name with no parameter is left for Salesforce to refuse. */
+    static String bind(String soql, Map<String, Object> params) {
+        if (params == null || params.isEmpty() || soql == null) return soql;
+        StringBuilder out = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < soql.length(); i++) {
+            char c = soql.charAt(i);
+            if (c == '\\' && quoted && i + 1 < soql.length()) { out.append(c).append(soql.charAt(++i)); continue; }
+            if (c == '\'') quoted = !quoted;
+            if (c == ':' && !quoted && i + 1 < soql.length() && Character.isLetter(soql.charAt(i + 1))) {
+                int j = i + 1;
+                while (j < soql.length() && (Character.isLetterOrDigit(soql.charAt(j)) || soql.charAt(j) == '_')) j++;
+                String name = soql.substring(i + 1, j);
+                if (params.containsKey(name)) { out.append(literal(params.get(name))); i = j - 1; continue; }
+            }
+            out.append(c);
+        }
+        return out.toString();
+    }
+
+    @Action(id = "find_records", name = "Find records", category = "Records", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+            description = "Find records of an object whose fields have the values you give (each value quoted and escaped), without writing SOQL.",
+            panel = "object, conditions, fields, instance_url, access_token | order_by, max_records, include_deleted, api_version")
+    @Output(name = "table", type = OoaType.TABLE, description = "Records, one column per field asked for.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
+    @Output(name = "soql", type = OoaType.STRING, description = "The SOQL that was run.")
+    public Map<String, Object> findRecords(ActionContext ctx,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "object", type = OoaType.STRING, label = "Object (API name)", example = "Contact", description = "Object API name.") String obj,
+            @Input(name = "conditions", type = OoaType.DICTIONARY, required = false, example = "{\"LastName\": \"O'Brien\", \"Account.Industry\": [\"Retail\", \"Banking\"]}",
+                    description = "Field to the value it must have; a list means any of them. Every condition must hold. Empty: every record.") Map<String, Object> conditions,
+            @Input(name = "fields", type = OoaType.LIST, required = false, description = "Fields to read, e.g. [\"Id\", \"Name\", \"Email\"]. Id and Name when empty.") List<Object> fields,
+            @Input(name = "order_by", type = OoaType.STRING, required = false, example = "CreatedDate DESC", description = "A field to sort by, then ASC or DESC.") String orderBy,
+            @Input(name = "max_records", type = OoaType.NUMBER, required = false, defaultValue = "2000", min = 1, description = "At most this many records.") int max,
+            @Input(name = "include_deleted", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also return deleted and archived records.") boolean deleted,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version) {
+        List<String> cols = new ArrayList<>();
+        if (fields != null) for (Object f : fields) cols.add(field(Values.text(f).strip()));
+        if (cols.isEmpty()) cols.addAll(List.of("Id", "Name"));
+        StringBuilder q = new StringBuilder("SELECT ").append(String.join(", ", cols)).append(" FROM ").append(object(obj.strip()));
+        if (conditions != null && !conditions.isEmpty()) {
+            StringJoiner where = new StringJoiner(" AND ");
+            for (Map.Entry<String, Object> e : conditions.entrySet())
+                where.add(field(e.getKey().strip()) + (e.getValue() instanceof Collection<?> ? " IN " : e.getValue() == null ? " = " : " = ") + literal(e.getValue()));
+            q.append(" WHERE ").append(where);
+        }
+        if (orderBy != null && !orderBy.isBlank()) {
+            String[] parts = orderBy.strip().split("\\s+");
+            if (parts.length > 2 || (parts.length == 2 && !parts[1].matches("(?i)ASC|DESC"))) throw new ActionException(P + ".BAD_ORDER", "Sort by one field, then ASC or DESC", "Example: CreatedDate DESC.");
+            q.append(" ORDER BY ").append(field(parts[0])).append(parts.length == 2 ? " " + parts[1].toUpperCase(Locale.ROOT) : "");
+        }
+        q.append(" LIMIT ").append(Math.max(1, max));
+        Map<String, Object> r = query(ctx, instance, token, q.toString(), max, version, deleted, 0, null);
+        Map<String, Object> out = new LinkedHashMap<>(r);
+        out.remove("total_size");
+        out.put("soql", q.toString());
+        return out;
+    }
+
+    private static String field(String f) {
+        if (!FIELD.matcher(f).matches()) throw new ActionException(P + ".BAD_FIELD", "Invalid field name '" + f + "'", "Example: Name, Email or Account.Industry.");
+        return f;
     }
 
     /** Earlier signature, kept for callers written before include_deleted and batch_size. */
@@ -124,7 +229,7 @@ public final class SalesforcePackage {
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "object", type = OoaType.STRING, example = "Account", description = "Object API name.") String obj,
+            @Input(name = "object", type = OoaType.STRING, label = "Object (API name)", example = "Account", description = "Object API name.") String obj,
             @Input(name = "id", type = OoaType.STRING, description = "Record id, or the external id value when external_id_field is filled in.") String rid,
             @Input(name = "fields", type = OoaType.LIST, required = false, description = "Fields to return; all when empty.") List<Object> fields,
             @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version,
@@ -149,7 +254,7 @@ public final class SalesforcePackage {
     public Map<String, Object> create(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "object", type = OoaType.STRING, example = "Case", description = "Object API name.") String obj,
+            @Input(name = "object", type = OoaType.STRING, label = "Object (API name)", example = "Case", description = "Object API name.") String obj,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value.") Map<String, Object> fields,
             @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version) {
         Map<String, Object> r = HttpJson.req(P, "POST", base(instance, version) + "/sobjects/" + object(obj)).bearer(token).json(fields).send(ctx).map();
@@ -161,7 +266,7 @@ public final class SalesforcePackage {
     public Map<String, Object> update(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "object", type = OoaType.STRING, description = "Object API name.") String obj,
+            @Input(name = "object", type = OoaType.STRING, label = "Object (API name)", description = "Object API name.") String obj,
             @Input(name = "id", type = OoaType.STRING, description = "Record id.") String rid,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to new value.") Map<String, Object> fields,
             @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version) {
@@ -174,7 +279,7 @@ public final class SalesforcePackage {
     public Map<String, Object> delete(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "object", type = OoaType.STRING, description = "Object API name.") String obj,
+            @Input(name = "object", type = OoaType.STRING, label = "Object (API name)", description = "Object API name.") String obj,
             @Input(name = "id", type = OoaType.STRING, description = "Record id.") String rid,
             @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version) {
         HttpJson.req(P, "DELETE", base(instance, version) + "/sobjects/" + object(obj) + "/" + id(rid)).bearer(token).send(ctx);
@@ -204,7 +309,7 @@ public final class SalesforcePackage {
     public Map<String, Object> upsert(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "object", type = OoaType.STRING, example = "Account", description = "Object API name.") String obj,
+            @Input(name = "object", type = OoaType.STRING, label = "Object (API name)", example = "Account", description = "Object API name.") String obj,
             @Input(name = "external_id_field", type = OoaType.STRING, example = "ERP_Number__c", description = "API name of the external id field.") String field,
             @Input(name = "external_id_value", type = OoaType.STRING, description = "External id value to match.") String value,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value (do not repeat the external id field).") Map<String, Object> fields,
