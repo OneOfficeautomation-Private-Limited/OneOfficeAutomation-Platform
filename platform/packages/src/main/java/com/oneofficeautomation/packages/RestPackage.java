@@ -106,9 +106,9 @@ public final class RestPackage {
         HttpRequest.Builder b;
         try { b = HttpRequest.newBuilder(URI.create(u.toString())).timeout(Duration.ofSeconds(timeout)); }
         catch (IllegalArgumentException e) { throw new ActionException("REST.BAD_URL", "Invalid URL: " + url, "Check the address, e.g. https://api.example.com/orders."); }
-        if (headers != null) headers.forEach((k, v) -> b.header(k, String.valueOf(v)));
+        if (headers != null) headers.forEach((k, v) -> b.header(k, HttpJson.sendable(v)));
         HttpRequest.BodyPublisher pub = HttpRequest.BodyPublishers.noBody();
-        if (json != null) { pub = HttpRequest.BodyPublishers.ofString(JsonLite.write(json)); b.header("Content-Type", "application/json"); }
+        if (json != null) { pub = HttpRequest.BodyPublishers.ofString(JsonLite.write(HttpJson.revealed(json))); b.header("Content-Type", "application/json"); }
         else if (form != null) { pub = HttpRequest.BodyPublishers.ofString(encode(form)); b.header("Content-Type", "application/x-www-form-urlencoded"); }
         else if (multipart != null) {
             Object[] mp = HttpJson.multipart("form-data", multipartParts(ctx, multipart));
@@ -150,7 +150,7 @@ public final class RestPackage {
         if (o2 == null && o1 == null) resp = sendHonouringRateLimit(ctx, client, b.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
         else {
             List<String[]> formFields = new ArrayList<>();
-            if (form != null) form.forEach((k, v) -> formFields.add(new String[]{k, String.valueOf(v)}));
+            if (form != null) form.forEach((k, v) -> formFields.add(new String[]{k, HttpJson.sendable(v)}));
             for (int attempt = 0; ; attempt++) {
                 HttpRequest.Builder rb = b.copy();
                 rb.setHeader("Authorization", o2 != null ? RestSignIn.authorization(ctx, client, o2, attempt > 0, timeout)
@@ -211,7 +211,7 @@ public final class RestPackage {
 
     /** The request body as bytes, for the Windows sign-in path (which sends it itself); sets Content-Type for a multipart body. */
     private static byte[] bodyBytes(ActionContext ctx, Object json, Map<String, Object> form, Map<String, Object> multipart, String body, String bodyFile, Map<String, String> headers) {
-        if (json != null) return JsonLite.write(json).getBytes(StandardCharsets.UTF_8);
+        if (json != null) return JsonLite.write(HttpJson.revealed(json)).getBytes(StandardCharsets.UTF_8);
         if (form != null) return encode(form).getBytes(StandardCharsets.UTF_8);
         if (multipart != null) {
             Object[] mp = HttpJson.multipart("form-data", multipartParts(ctx, multipart));
@@ -281,7 +281,7 @@ public final class RestPackage {
         HttpRequest.Builder b;
         try { b = HttpRequest.newBuilder(URI.create(u.toString())).timeout(Duration.ofSeconds(Math.max(1, timeout))); }
         catch (IllegalArgumentException e) { throw new ActionException("REST.BAD_URL", "Invalid URL: " + url, "Check the address, e.g. https://api.example.com/orders."); }
-        if (headers != null) headers.forEach((k, v) -> b.header(k, String.valueOf(v)));
+        if (headers != null) headers.forEach((k, v) -> b.header(k, HttpJson.sendable(v)));
         if (basicUser != null && vaultSecret(basicPassword, "basic_password") instanceof SecureString pw)
             b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((basicUser + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
         if (vaultSecret(bearer, "bearer_token") instanceof SecureString t) b.header("Authorization", "Bearer " + t.reveal());
@@ -471,7 +471,7 @@ public final class RestPackage {
 
     private static String encode(Map<String, Object> m) {
         StringJoiner j = new StringJoiner("&");
-        m.forEach((k, v) -> j.add(URLEncoder.encode(k, StandardCharsets.UTF_8) + "=" + URLEncoder.encode(String.valueOf(v), StandardCharsets.UTF_8)));
+        m.forEach((k, v) -> j.add(URLEncoder.encode(k, StandardCharsets.UTF_8) + "=" + URLEncoder.encode(HttpJson.sendable(v), StandardCharsets.UTF_8)));
         return j.toString();
     }
 }

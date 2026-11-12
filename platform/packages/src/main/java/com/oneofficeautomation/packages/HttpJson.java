@@ -17,6 +17,24 @@ import java.util.*;
  * retryable flags (429, 5xx), and secret masking in logs.
  */
 final class HttpJson {
+    /**
+     * A value on its way to a server: a vault secret as the secret itself, anything else as text (R1, command review
+     * batch 8). Turning a secret into text gives its mask, so a header taken from the vault used to be sent as ****.
+     * The run still masks the secret in logs and run output.
+     */
+    static String sendable(Object v) {
+        if (v instanceof SecureString s) return s.reveal();
+        return String.valueOf(v);
+    }
+
+    /** A JSON value, map or list with every vault secret inside it replaced by the secret, for a request body. */
+    static Object revealed(Object v) {
+        if (v instanceof SecureString s) return s.reveal();
+        if (v instanceof Map<?, ?> m) { Map<String, Object> out = new LinkedHashMap<>(); m.forEach((k, x) -> out.put(String.valueOf(k), revealed(x))); return out; }
+        if (v instanceof List<?> l) { List<Object> out = new ArrayList<>(); for (Object x : l) out.add(revealed(x)); return out; }
+        return v;
+    }
+
     /** Address pattern: https for real servers; plain http only for this computer (local test and mock servers). */
     static final String HTTPS_OR_LOCAL = "^(https://|http://(localhost|127\\.0\\.0\\.1)(:|/|$))";
 

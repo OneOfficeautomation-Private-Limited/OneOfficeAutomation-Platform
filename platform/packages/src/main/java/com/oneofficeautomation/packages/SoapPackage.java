@@ -52,7 +52,7 @@ public final class SoapPackage {
         String ct = v12 ? "application/soap+xml; charset=utf-8" + (action != null ? "; action=\"" + action + "\"" : "") : "text/xml; charset=utf-8";
         b.header("Content-Type", ct);
         if (!v12 && action != null) b.header("SOAPAction", "\"" + action + "\"");
-        if (headers != null) headers.forEach((k, v) -> b.header(k, String.valueOf(v)));
+        if (headers != null) headers.forEach((k, v) -> b.header(k, HttpJson.sendable(v)));
         if (user != null && password instanceof SecureString pw)
             b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((user + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
         HttpResponse<String> resp;
