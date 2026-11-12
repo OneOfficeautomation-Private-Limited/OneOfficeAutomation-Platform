@@ -241,13 +241,15 @@ Click, double-click, or press or release a mouse button at a point on the screen
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Window | `window` | Text | No |  | Main | Window to bring to the front first: text in its title, a pattern with * or ?, or re:regex. Empty uses the window that is in front. |
+| Relative to | `relative_to` | Text | No | `screen` | Main | screen: x and y are measured from the top-left of the screen; window: from the top-left of the chosen window. One of: `screen`, `window` |
 | X | `x` | Number | Yes |  | Main | Horizontal position in pixels from the left. |
 | Y | `y` | Number | Yes |  | Main | Vertical position in pixels from the top. |
 | Button | `button` | Text | No | `left` | Main | Mouse button. One of: `left`, `right`, `middle` |
 | Button action | `button_action` | Text | No | `click` | Main | click presses and releases; down only presses (hold, e.g. to start a drag); up only releases. One of: `click`, `down`, `up` |
 | Double-click | `double_click` | Yes/No | No | No | Main | Double-click. |
-| Relative to | `relative_to` | Text | No | `screen` | More options | screen: x and y are measured from the top-left of the screen; window: from the top-left of the chosen window. One of: `screen`, `window` |
 | Modifier keys | `modifier_keys` | Text | No |  | More options | Keys held during the click, e.g. CTRL, SHIFT or CTRL+SHIFT. Example: `CTRL` |
+| Window width | `window_width` | Number | No |  | More options; tick Put the window back to this size first | Outer width the window is given first, in pixels (with window_height), so a point measured from its corner lands where it was taken; Pick on screen fills it in. |
+| Window height | `window_height` | Number | No |  | More options; tick Put the window back to this size first | Outer height the window is given first, in pixels (with window_width). |
 
 *Time limit 60 s; needs: desktop.*
 
@@ -268,6 +270,8 @@ Move the pointer to a point on the screen or in a window, at once or gradually.
 | Duration (milliseconds) | `duration_ms` | Number | No | `0` | Main | Glide to the point over this many milliseconds; 0 jumps there at once. Range: 0 to  |
 | From x | `from_x` | Number | No |  | More options; tick Start from another point | Put the pointer at this point first (with from_y, measured like x and y), then move to x, y; e.g. after pressing a button down, for a drag. |
 | From y | `from_y` | Number | No |  | More options; tick Start from another point | Vertical position of the starting point (with from_x). |
+| Window width | `window_width` | Number | No |  | More options; tick Put the window back to this size first | Outer width the window is given first, in pixels (with window_height), so a point measured from its corner lands where it was taken; Pick on screen fills it in. |
+| Window height | `window_height` | Number | No |  | More options; tick Put the window back to this size first | Outer height the window is given first, in pixels (with window_width). |
 
 *Time limit 60 s; needs: desktop.*
 
@@ -284,10 +288,12 @@ Scroll the mouse wheel up, down, left or right, optionally over a chosen point o
 | Direction | `direction` | Text | No |  | Main | Scroll direction; when empty the sign of amount decides (positive scrolls down). Left and right hold SHIFT while scrolling. One of: `up`, `down`, `left`, `right` |
 | Amount | `amount` | Number | Yes |  | Main | Wheel notches; negative scrolls up (or left) when direction is empty. |
 | Delay (milliseconds) | `delay_ms` | Number | No | `0` | Main | Pause between notches; 0 scrolls all notches at once. Range: 0 to  |
-| X | `x` | Number | No |  | More options | Move the pointer here before scrolling (with y). |
-| Y | `y` | Number | No |  | More options | Vertical position to scroll at (with x). |
 | Window | `window` | Text | No |  | More options | Window to bring to the front first: text in its title, a pattern with * or ?, or re:regex. Empty uses the window that is in front. |
 | Relative to | `relative_to` | Text | No | `screen` | More options | screen: x and y are measured from the top-left of the screen; window: from the top-left of the chosen window. One of: `screen`, `window` |
+| X | `x` | Number | No |  | More options | Move the pointer here before scrolling (with y). |
+| Y | `y` | Number | No |  | More options | Vertical position to scroll at (with x). |
+| Window width | `window_width` | Number | No |  | More options; tick Put the window back to this size first | Outer width the window is given first, in pixels (with window_height), so a point measured from its corner lands where it was taken; Pick on screen fills it in. |
+| Window height | `window_height` | Number | No |  | More options; tick Put the window back to this size first | Outer height the window is given first, in pixels (with window_width). |
 
 *Time limit 60 s; needs: desktop.*
 

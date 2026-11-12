@@ -100,10 +100,10 @@ values and `$variable` references; Credential fields take a credential from the 
 | [SOAP Web Service](ooa-soap.md) | `ooa.soap` | 2 | 0 | 0 | Read a service's WSDL, call SOAP 1.1/1.2 web services and read the response as a dictionary. |
 | [String](ooa-string.md) | `ooa.string` | 16 | 2 | 0 | Text manipulation: extract, replace, split, change case. |
 | [System](ooa-system.md) | `ooa.system` | 15 | 0 | 0 | Read environment variables and runner information; lock, sign out, restart or shut down the runner. |
-| [Terminal emulator (TN3270, TN5250, VT over SSH)](ooa-terminal.md) | `ooa.terminal` | 19 | 0 | 0 | Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. |
+| [Terminal emulator (TN3270, TN5250, VT over SSH)](ooa-terminal.md) | `ooa.terminal` | 19 | 0 | 0 | Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. 3270 needs the free wc3270 engine on the runner (wc3270 installer); 5250 and SSH need nothing. |
 | [Trigger Loop](ooa-triggerloop.md) | `ooa.triggerloop` | 0 | 1 | 5 | Wait for events (new files, timer ticks, process starts, key presses, clicks) and run the loop's nested steps once per event. |
 | [Web goal agent](ooa-web_agent.md) | `ooa.web_agent` | 3 | 0 | 0 | Reach a goal on a web page described in plain words: an AI model reads the page and clicks, types and selects until done. |
-| [Window](ooa-window.md) | `ooa.window` | 16 | 2 | 0 | Find, activate, move, resize, minimise, maximise, close and capture application windows on Windows. |
+| [Window](ooa-window.md) | `ooa.window` | 17 | 2 | 0 | Find, activate, move, resize, minimise, maximise, close and capture application windows on Windows. |
 | [Windows Credential Manager](ooa-credential_manager.md) | `ooa.credential_manager` | 4 | 1 | 0 | Read, list, save and remove generic credentials in the Windows Credential Manager of the agent's user account. |
 | [Windows services](ooa-services.md) | `ooa.services` | 6 | 1 | 0 | Get the status of, start, stop, pause, resume and restart Windows services on this or another computer. |
 | [Word (no Office needed)](ooa-word.md) | `ooa.word` | 16 | 0 | 0 | Open or create .docx documents, read text and tables, replace text, add paragraphs and tables, save. |
@@ -112,4 +112,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 101 toolkits, 1287 actions, 50 conditions and 15 loop types.
+In all: 101 toolkits, 1288 actions, 50 conditions and 15 loop types.
