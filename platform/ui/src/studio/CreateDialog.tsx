@@ -1,26 +1,39 @@
-import { useState } from "react";
+import { type ReactElement, useMemo, useState } from "react";
 import { ApiFailure, type Blueprint, type NewItemKind } from "../api/client";
-import { Button, Dialog, Field, IconTile, SearchSelect, TextInput } from "../components";
+import { Button, Dialog, IconTile } from "../components";
 import type { ItemType } from "./itemTypes";
 
 /**
- * Step 3 of creating, in AA's order: the folder is already chosen, the type picked from Create; here the name, and
- * for an agent what to start from (blank or a blueprint). Templates live only here, not in the menu. The folder is
- * shown; Change picks another here, from every folder of the workspace (type to search).
+ * Step 3 of creating, in AA's order: the type is picked from Create; here what to start from, the name and the folder.
+ * Create A (improvement list 12 Nov 2026, item 5, chosen on the design canvas 13 Nov 2026): for an agent, three panes
+ * side by side: Start from (Blank or Template) on the left; the templates in the middle, one line each, with a search
+ * and a chip per toolkit (no list to open and close); the name and a folder tree with folder icons on the right.
+ * Other types show only the name and the folder. Cancel, the close button and Esc close it; Enter creates.
  */
 export function CreateDialog({ type, folderPath, folders, blueprints = [], onCreate, onClose, onChangeFolder }:
   { type: ItemType | null; folderPath: string; folders: string[]; blueprints?: Blueprint[]; onCreate: (kind: NewItemKind, name: string, from: Blueprint | null) => Promise<void>;
     onClose: () => void; onChangeFolder: (path: string) => void }) {
   const [name, setName] = useState("");
-  const [picking, setPicking] = useState(false);
+  const [mode, setMode] = useState<"blank" | "template">("blank");
   const [start, setStart] = useState("");
+  const [q, setQ] = useState("");
+  const [kit, setKit] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const offers = type?.kind === "TaskBot" ? blueprints : [];
+  const kits = useMemo(() => {
+    const n = new Map<string, number>();
+    offers.forEach((b) => n.set(toolkitOf(b), (n.get(toolkitOf(b)) ?? 0) + 1));
+    return [...n.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [offers]);
   if (!type) return null;
-  const offers = type.kind === "TaskBot" ? blueprints : [];
-  const from = offers.find((b) => b.id === start) ?? null;
+  const from = mode === "template" ? offers.find((b) => b.id === start) ?? null : null;
+  const t = q.trim().toLowerCase();
+  const shown = offers.filter((b) => (!kit || toolkitOf(b) === kit) && (!t || (b.name + " " + b.description).toLowerCase().includes(t)));
+  const pick = (b: Blueprint) => { setStart(b.id); if (!name.trim() || offers.some((o) => o.name === name)) setName(b.name); };
 
   const submit = async () => {
+    if (mode === "template" && !from) { setError("Choose a template, or start from Blank."); return; }
     if (!name.trim()) { setError("Give it a name."); return; }
     setBusy(true); setError(null);
     try { await onCreate(type.kind, name.trim(), from); }
@@ -28,33 +41,108 @@ export function CreateDialog({ type, folderPath, folders, blueprints = [], onCre
     finally { setBusy(false); }
   };
 
+  const place = (
+    <div className="st-create-place">
+      <label className="st-create-label" htmlFor="st-create-name">Name</label>
+      <input id="st-create-name" className="ui-input" data-autofocus value={name} placeholder="For example: Invoice intake Germany"
+        onChange={(e) => setName(e.target.value)} aria-invalid={!!error && !name.trim()} />
+      <span className="st-create-label" id="st-create-folder">Save in</span>
+      <FolderTree folders={folders} value={folderPath} onChange={onChangeFolder} labelledBy="st-create-folder" />
+      <span className="st-create-path">{["Workspace", ...folderPath.split("/").filter(Boolean)].join(" / ")}{name.trim() && " / " + name.trim()}</span>
+    </div>
+  );
+
   return (
-    <Dialog open onClose={onClose} title={"New " + type.name.toLowerCase()} icon={<IconTile name={type.icon} color={type.color} size={28} />}
+    <Dialog open onClose={onClose} title={"New " + type.name.toLowerCase()} width={offers.length ? 900 : 480}
+      icon={<IconTile name={type.icon} color={type.color} size={24} />}
       footer={<>
+        <span className="st-create-esc">Esc closes</span>
         <Button kind="secondary" onClick={onClose}>Cancel</Button>
         <Button kind="primary" onClick={submit} disabled={busy}>{busy ? "Creating…" : "Create and edit"}</Button>
       </>}>
-      <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="st-form">
-        <Field label="Name">{(id) => <TextInput id={id} value={name} placeholder={"For example: Invoice intake Germany"}
-          onChange={(e) => setName(e.target.value)} aria-invalid={!!error} />}</Field>
-        {offers.length > 0 && (
-          <Field label="Start from" hint={(from ? from.description : "An empty agent.") + " Type to search."}>{(id) =>
-            <SearchSelect id={id} value={start} placeholder="Search blueprints" onChange={(v) => {
-              const b = offers.find((x) => x.id === v);
-              setStart(v);
-              if (b && !name.trim()) setName(b.name);   // a sensible name to start with; it can be changed
-            }} options={[{ value: "", label: "Blank agent", description: "An empty agent." }, ...offers.map((b) => ({ value: b.id, label: b.name, description: b.description }))]} />}</Field>
-        )}
-        <Field label="Folder" hint={picking ? "Type to search the folders." : undefined}>{(id) => picking
-          ? <SearchSelect id={id} value={folderPath} placeholder="Search folders" onChange={(v) => { onChangeFolder(v); setPicking(false); }}
-              options={["", ...folders.filter((f) => f !== "")].map((f) => ({ value: f, label: f ? f.replace(/\//g, " › ") : "Workspace", description: f ? undefined : "The top of the workspace" }))} />
-          : <div className="st-folder-line" id={id}>
-            <IconTile name="folder" color="#a16207" size={20} /><span className="st-folder-name">{folderPath ? folderPath.replace(/\//g, " › ") : "Workspace"}</span>
-            <Button kind="plain" onClick={() => setPicking(true)}>Change</Button>
-          </div>}</Field>
-        {error && <p role="alert" className="st-error">{error}</p>}
+      <form onSubmit={(e) => { e.preventDefault(); submit(); }} className={"st-create" + (offers.length ? " has-start" : "")}>
+        {offers.length > 0 && <>
+          <div className="st-create-from" role="radiogroup" aria-label="Start from">
+            <span className="st-create-head">Start from</span>
+            <button type="button" role="radio" aria-checked={mode === "blank"} onClick={() => setMode("blank")}>
+              <b>Blank</b><span>An empty agent</span></button>
+            <button type="button" role="radio" aria-checked={mode === "template"} onClick={() => setMode("template")}>
+              <b>Template</b><span>{offers.length} ready-made start{offers.length === 1 ? "" : "s"}</span></button>
+          </div>
+          <div className="st-create-list">
+            {mode === "blank" ? <p className="st-create-blank">An empty agent: you add its steps in the editor.<br />Choose <b>Template</b> to start from a ready-made agent instead.</p> : <>
+              <input type="search" className="ui-input" aria-label="Search templates" placeholder={"Search " + offers.length + " templates"} value={q}
+                onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape" && q) { e.stopPropagation(); setQ(""); } }} />
+              {kits.length > 1 && <div className="st-create-chips" role="group" aria-label="Toolkit">
+                <button type="button" aria-pressed={!kit} onClick={() => setKit("")}>All</button>
+                {kits.map(([k, n]) => <button key={k} type="button" aria-pressed={kit === k} onClick={() => setKit(kit === k ? "" : k)}>{k} <span>{n}</span></button>)}
+              </div>}
+              {shown.length ? <ul className="st-create-templates" role="listbox" aria-label="Templates">
+                {shown.map((b) => <li key={b.id} role="option" aria-selected={b.id === start} tabIndex={0} onClick={() => pick(b)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(b); } }}>
+                  <b>{b.name}</b><span>{toolkitOf(b)} · {b.steps.length} step{b.steps.length === 1 ? "" : "s"}</span></li>)}
+              </ul> : <p className="st-create-blank">Nothing matches “{q.trim()}”.</p>}
+              {from && <p className="st-create-about">{from.description}</p>}
+            </>}
+          </div>
+        </>}
+        {place}
+        {error && <p role="alert" className="st-error st-create-error">{error}</p>}
         <button type="submit" hidden />
       </form>
     </Dialog>
   );
+}
+
+/** The toolkit a template mostly uses, by name (ooa.excel/open is Excel), to group the templates. */
+function toolkitOf(b: Blueprint): string {
+  const n = new Map<string, number>();
+  for (const s of b.steps) { const k = /^ooa\.([a-z0-9-]+)\//i.exec(s.action ?? "")?.[1]; if (k) n.set(k, (n.get(k) ?? 0) + 1); }
+  const top = [...n.entries()].sort((a, c) => c[1] - a[1])[0]?.[0];
+  if (!top) return "General";
+  return top.length <= 3 ? top.toUpperCase() : top.charAt(0).toUpperCase() + top.slice(1).replace(/-/g, " ");
+}
+
+/** A folder icon, open for the chosen folder: a darker outline keeps it clear on white. */
+function FolderIcon({ open }: { open: boolean }) {
+  return <svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true" className="st-folder-icon">
+    <path d="M1 2.5h5l1.6 1.8H15V13H1z" fill="#f2b84b" stroke="#a16207" strokeWidth="1" strokeLinejoin="round" />
+    {open && <path d="M1 13l2-6.5h13L14 13z" fill="#fad48a" stroke="#a16207" strokeWidth="1" strokeLinejoin="round" />}
+  </svg>;
+}
+
+type Node = { path: string; name: string; children: Node[] };
+
+/** Every folder of the workspace as a tree; a click chooses the folder, the arrow opens and closes it. */
+function FolderTree({ folders, value, onChange, labelledBy }: { folders: string[]; value: string; onChange: (p: string) => void; labelledBy: string }) {
+  const root = useMemo(() => {
+    const top: Node = { path: "", name: "Workspace", children: [] };
+    const byPath = new Map<string, Node>([["", top]]);
+    for (const f of [...new Set(folders.filter(Boolean))].sort()) {
+      const parts = f.split("/");
+      parts.forEach((part, i) => {
+        const p = parts.slice(0, i + 1).join("/");
+        if (byPath.has(p)) return;
+        const node: Node = { path: p, name: part, children: [] };
+        byPath.set(p, node);
+        byPath.get(parts.slice(0, i).join("/"))!.children.push(node);
+      });
+    }
+    return top;
+  }, [folders]);
+  const ancestors = (p: string) => p.split("/").map((_, i, a) => a.slice(0, i).join("/"));
+  const [open, setOpen] = useState<Set<string>>(() => new Set(["", ...ancestors(value)]));
+  const toggle = (p: string) => setOpen((o) => { const n = new Set(o); if (n.has(p)) n.delete(p); else n.add(p); return n; });
+  const row = (n: Node, depth: number): ReactElement => {
+    const isOpen = open.has(n.path), chosen = n.path === value;
+    return <li key={n.path} role="treeitem" aria-selected={chosen} aria-expanded={n.children.length ? isOpen : undefined}>
+      <div className={"st-tree-row" + (chosen ? " is-chosen" : "")} style={{ paddingLeft: 6 + depth * 16 }}>
+        {n.children.length ? <button type="button" className="st-tree-caret" aria-label={(isOpen ? "Close " : "Open ") + n.name} onClick={() => toggle(n.path)}>{isOpen ? "▾" : "▸"}</button>
+          : <span className="st-tree-caret" />}
+        <button type="button" className="st-tree-name" onClick={() => onChange(n.path)}><FolderIcon open={chosen} />{n.name}</button>
+      </div>
+      {n.children.length > 0 && isOpen && <ul role="group">{n.children.map((c) => row(c, depth + 1))}</ul>}
+    </li>;
+  };
+  return <ul className="st-create-tree" role="tree" aria-labelledby={labelledBy}>{row(root, 0)}</ul>;
 }

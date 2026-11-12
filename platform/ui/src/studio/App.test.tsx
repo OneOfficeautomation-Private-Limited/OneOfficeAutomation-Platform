@@ -271,15 +271,14 @@ describe("new Studio", () => {
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
     expect(within(dialog).getByText("Finance")).toBeTruthy();
     expect(document.activeElement).toBe(within(dialog).getByLabelText("Name"));
-    // Change picks another folder in the dialog (it once closed the dialog instead), then back to Finance
-    fireEvent.click(within(dialog).getByRole("button", { name: "Change" }));
-    fireEvent.focus(within(dialog).getByLabelText("Folder"));
-    fireEvent.mouseDown(within(dialog).getByRole("option", { name: /^Workspace/ }));
-    expect(within(dialog).getByText("Workspace")).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Change" }));
-    fireEvent.focus(within(dialog).getByLabelText("Folder"));
-    fireEvent.mouseDown(within(dialog).getByRole("option", { name: "Finance" }));
-    expect(within(dialog).getByText("Finance")).toBeTruthy();
+    // Create A (13 Nov 2026): the folder tree picks another folder in the dialog, then back to Finance
+    const tree2 = within(dialog).getByRole("tree", { name: "Save in" });
+    const chosen = () => within(tree2).getAllByRole("treeitem").filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.querySelector(".st-tree-name")!.textContent);
+    expect(chosen()).toEqual(["Finance"]);
+    fireEvent.click(within(tree2).getByRole("button", { name: "Workspace" }));
+    expect(chosen()).toEqual(["Workspace"]);
+    fireEvent.click(within(tree2).getByRole("button", { name: "Finance" }));
+    expect(chosen()).toEqual(["Finance"]);
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Invoice intake Germany" } });
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create and edit" })); });
 
@@ -356,7 +355,7 @@ describe("new Studio", () => {
     location.hash = "#private/new";
     render(<App api={fakeServer().api} />);
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
-    expect(within(dialog).getByText("Workspace")).toBeTruthy();
+    expect(within(dialog).getByRole("treeitem", { selected: true }).textContent).toContain("Workspace");   // the top of the workspace is chosen
     expect(location.hash).toBe("");
   });
 
@@ -435,21 +434,19 @@ describe("new Studio", () => {
     await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Agent, Steps in apps/ }));
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
-    const start = within(dialog).getByRole("combobox", { name: "Start from" });
-    act(() => start.focus());
-    expect(within(dialog).getAllByRole("option").map((o) => o.querySelector("strong")!.textContent)).toEqual(["Blank agent", "Loop through Excel rows"]);
-    // type to search (name or description), nothing matches shows a message, then pick with the keyboard
-    fireEvent.keyDown(start, { key: "Escape" });   // Esc closes the list, not the dialog
-    expect(within(dialog).queryByRole("listbox")).toBeNull();
-    expect(screen.getByRole("dialog", { name: "New agent" })).toBeTruthy();
-    act(() => { start.blur(); start.focus(); });
-    fireEvent.change(start, { target: { value: "zzz" } });
+    // Create A (13 Nov 2026): Start from Blank or Template; templates are one line each, with a search
+    const start = within(dialog).getByRole("radiogroup", { name: "Start from" });
+    expect(within(start).getByRole("radio", { name: /^Blank/ }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(within(start).getByRole("radio", { name: /^Template/ }));
+    const names = () => within(dialog).getAllByRole("option").map((o) => o.querySelector("b")!.textContent);
+    expect(names()).toEqual(["Loop through Excel rows"]);
+    const search = within(dialog).getByRole("searchbox", { name: "Search templates" });
+    fireEvent.change(search, { target: { value: "zzz" } });
     expect(within(dialog).getByText("Nothing matches “zzz”.")).toBeTruthy();
-    fireEvent.change(start, { target: { value: "workbook" } });
-    expect(within(dialog).getAllByRole("option").map((o) => o.querySelector("strong")!.textContent)).toEqual(["Loop through Excel rows"]);
-    fireEvent.keyDown(start, { key: "Enter" });
-    expect(within(dialog).queryByRole("listbox")).toBeNull();
-    expect((start as HTMLInputElement).value).toBe("Loop through Excel rows");
+    fireEvent.change(search, { target: { value: "workbook" } });   // name or description
+    expect(names()).toEqual(["Loop through Excel rows"]);
+    fireEvent.keyDown(within(dialog).getByRole("option"), { key: "Enter" });
+    expect(within(dialog).getByRole("option").getAttribute("aria-selected")).toBe("true");
     expect((within(dialog).getByLabelText("Name") as HTMLInputElement).value).toBe("Loop through Excel rows");
     expect(within(dialog).getByText(/^Open a workbook and handle each row./)).toBeTruthy();
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create and edit" })); });

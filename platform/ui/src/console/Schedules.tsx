@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CrFailure, type CrApi, type CrUser, type HolidayCalendar, type Runner, type RunnerPool, type Schedule, type SchedulePreview } from "../api/cr";
+import { type CrApi, type CrUser, type HolidayCalendar, type Runner, type RunnerPool, type Schedule, type SchedulePreview } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
@@ -355,7 +355,7 @@ function NextRuns({ api, timing }: { api: CrApi; timing: Record<string, unknown>
   const key = JSON.stringify(timing);
   useEffect(() => {
     let live = true;
-    const t = setTimeout(() => api.previewSchedule(JSON.parse(key)).then((r) => { if (live) { setP(r); setError(null); } }, (e) => { if (live) { setP(null); setError(message(e) + (e instanceof CrFailure && e.error.suggestedFix ? " " + e.error.suggestedFix : "")); } }), 300);
+    const t = setTimeout(() => api.previewSchedule(JSON.parse(key)).then((r) => { if (live) { setP(r); setError(null); } }, (e) => { if (live) { setP(null); setError(message(e)); /* the message carries the fix */ } }), 300);
     return () => { live = false; clearTimeout(t); };
   }, [api, key]);
   return <div className="cc-nextruns" aria-live="polite">

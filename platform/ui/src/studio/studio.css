@@ -681,3 +681,89 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-signin { display: flex; flex-direction: column; gap: 8px; }
 .st-switch-pick > * { flex: 1; min-width: 0; }
 .st-switch-report { margin: 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; }
+
+/* ---- Create A (improvement list 12 Nov 2026, item 5): Start from | templates | name and folder ---- */
+.st-create { display: grid; grid-template-columns: 1fr; gap: 0; margin: -18px -20px; min-height: 260px; font-size: 12.5px; }
+.st-create.has-start { grid-template-columns: 170px minmax(0, 1fr) 250px; height: 440px; }
+.st-create-from { display: flex; flex-direction: column; gap: 6px; padding: 12px 8px; background: var(--ui-tint, #f7f8fa); border-right: 1px solid var(--ui-divider); }
+.st-create-head { padding: 0 6px 2px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ui-text-2); }
+.st-create-from button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border: 1px solid var(--ui-field); border-radius: var(--ui-radius);
+  background: var(--ui-bg); color: var(--ui-text); font: inherit; text-align: left; cursor: pointer; }
+.st-create-from button span { font-size: 11.5px; color: var(--ui-text-2); }
+.st-create-from button[aria-checked="true"] { border: 2px solid var(--ui-accent); padding: 6px 9px; background: var(--ui-selected); }
+.st-create-from button[aria-checked="true"] b { color: var(--ui-accent-text); }
+.st-create-list { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; min-height: 0; min-width: 0; }
+.st-create-list .ui-input { height: 28px; }
+.st-create-blank { margin: 8px 0 0; color: var(--ui-text-2); line-height: 1.6; }
+.st-create-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-create-chips button { height: 24px; padding: 0 10px; border: 1px solid var(--ui-field); border-radius: 12px; background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12px; cursor: pointer; }
+.st-create-chips button span { color: var(--ui-text-2); }
+.st-create-chips button[aria-pressed="true"] { background: var(--ui-accent); border-color: var(--ui-accent); color: #ffffff; font-weight: 600; }
+.st-create-chips button[aria-pressed="true"] span { color: #ffffff; }
+.st-create-templates { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); }
+.st-create-templates li { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 10px; border-bottom: 1px solid var(--ui-divider); cursor: pointer; }
+.st-create-templates li b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.st-create-templates li span { color: var(--ui-text-2); white-space: nowrap; }
+.st-create-templates li:hover { background: var(--ui-row-hover); }
+.st-create-templates li[aria-selected="true"] { background: var(--ui-selected); box-shadow: inset 3px 0 0 var(--ui-accent); }
+.st-create-templates li:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.st-create-about { margin: 0; color: var(--ui-text-2); }
+.st-create-place { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; min-width: 0; min-height: 0; }
+.st-create.has-start .st-create-place { border-left: 1px solid var(--ui-divider); }
+.st-create-label { font-weight: 600; }
+.st-create-place .ui-input { height: 28px; margin-bottom: 4px; }
+.st-create-tree { list-style: none; margin: 0; padding: 4px 0; flex: 1; min-height: 120px; max-height: 260px; overflow-y: auto; border: 1px solid var(--ui-field); border-radius: var(--ui-radius); }
+.st-create-tree ul { list-style: none; margin: 0; padding: 0; }
+.st-tree-row { display: flex; align-items: center; gap: 2px; height: 26px; padding-right: 6px; }
+.st-tree-row.is-chosen { background: var(--ui-selected); box-shadow: inset 3px 0 0 var(--ui-accent); }
+.st-tree-row.is-chosen .st-tree-name { font-weight: 600; }
+.st-tree-caret { width: 16px; height: 20px; flex: none; padding: 0; border: 0; background: transparent; color: var(--ui-text-2); font: inherit; font-size: 11px; cursor: pointer; }
+.st-tree-name { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; height: 22px; padding: 0 4px; border: 0; border-radius: 4px; background: transparent; color: var(--ui-text);
+  font: inherit; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.st-tree-name:hover { background: var(--ui-row-hover); }
+.st-folder-icon { flex: none; }
+.st-create-path { font-size: 11.5px; color: var(--ui-text-2); word-break: break-word; }
+.st-create-error { grid-column: 1 / -1; margin: 0 14px 10px; }
+.st-create-esc { margin-right: auto; align-self: center; font-size: 12px; color: var(--ui-text-2); }
+
+/* ---- Editor A (improvement list 12 Nov 2026, item 6; chosen 13 Nov 2026) ----
+   Smaller Save, Run and Debug; Assistant, Capture and Record as extra-small text buttons; Common / All as one switch;
+   the command list with smaller toolkit rows and commands under a guide line in the toolkit's colour; a tighter Details panel. */
+.st-app:not(.cc-app) .st-top-actions .ui-btn { height: 26px; padding: 0 10px; font-size: 12px; gap: 5px; }
+.st-app:not(.cc-app) .st-top-actions .ui-btn > svg { width: 13px; height: 13px; }
+.st-tool-text { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; flex: none; border: 1px solid var(--ui-field); border-radius: 11px;
+  background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 11.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.st-tool-text:hover, .st-tool-text[data-state="open"] { background: var(--ui-selected); }
+.st-tool-text:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+.st-tool-text.is-ai { color: #5b21b6; }      /* 9.0:1 on white */
+.st-tool-text.is-cap { color: #0f5f59; }     /* 7.5:1 */
+.st-tool-text.is-rec { color: #b42318; }     /* 6.6:1 */
+.st-tool-text .st-rec-dot { width: 7px; height: 7px; margin: 0; }
+:root[data-theme="dark"] .st-tool-text.is-ai { color: #c4b5fd; }
+:root[data-theme="dark"] .st-tool-text.is-cap { color: #5eead4; }
+:root[data-theme="dark"] .st-tool-text.is-rec { color: #fca5a5; }
+.st-common-switch { display: flex; margin: 8px 10px 0; padding: 2px; border-radius: var(--ui-radius); background: var(--ui-soft); border: 1px solid var(--ui-divider); }
+.st-common-switch button { flex: 1; height: 24px; border: 0; border-radius: 5px; background: transparent; color: var(--ui-text-2); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.st-common-switch button[aria-checked="true"] { background: var(--ui-bg); color: var(--ui-accent-text); font-weight: 700; box-shadow: 0 1px 2px rgba(15, 20, 29, .25); }
+.st-common-switch button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.st-actions .st-panel-search { padding-top: 6px; }
+.st-actions .st-panel-search .ui-input { height: 26px; font-size: 12px; }
+.st-actions .st-panel-hint { font-size: 11.5px; }
+.st-actions .st-group { height: 28px; gap: 7px; padding: 0 8px; font-size: 12.5px; }
+.st-actions .st-group-name { font-weight: 700; }
+.st-actions .st-count { font-size: 11.5px; color: var(--ui-text-2); }
+.st-actions .st-group-actions { margin: 0 0 4px 17px; border-left: 2px solid var(--kit, var(--ui-guide)); }
+.st-actions .st-action { padding: 3px 8px 3px 12px; font-size: 12px; line-height: 18px; border-radius: 0 4px 4px 0; }
+.st-actions .st-action:hover, .st-actions .st-action:focus-visible { background: var(--ui-selected); color: var(--ui-accent-text); }
+.st-actions .st-trigger-where { padding-left: 12px; font-size: 11px; }
+.st-right { font-size: 12px; }
+.st-right .ui-input, .st-right select, .st-right .ui-search-select-field { height: 26px; font-size: 12px; }
+.st-right textarea.ui-input, .st-right .ui-textarea { height: auto; }
+.st-right .ui-field-label, .st-right label { font-size: 12px; }
+.st-right .ui-field-hint { font-size: 11.5px; }
+.st-right .st-prop-head { gap: 8px; padding: 8px 12px; }
+.st-right .st-prop-head strong { font-size: 13px; }
+.st-right .st-prop-head .ui-tile { width: 22px !important; height: 22px !important; }
+.st-right .st-prop-about { font-size: 11.5px; }
+.st-right [role="tab"] { height: 30px; font-size: 12px; }
+.st-right .st-prop-section { font-size: 12px; }

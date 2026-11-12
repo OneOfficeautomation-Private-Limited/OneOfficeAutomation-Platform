@@ -1,3 +1,4 @@
+import { noAnswer, withFix } from "./cr";
 /**
  * Typed client for the Studio API. The screens call the server only through here. The base is the folder the API
  * lives in: locally Studio's own /api/ (or /studio/api/ under `ooa server`); later One CommandCenter (V2).
@@ -6,7 +7,7 @@
 export type ApiError = { code: string; message: string; hint?: string; suggestedFix?: string | null };
 
 export class ApiFailure extends Error {
-  constructor(readonly status: number, readonly error: ApiError) { super(error.message); }
+  constructor(readonly status: number, readonly error: ApiError) { super(withFix({ ...error, suggestedFix: error.suggestedFix ?? undefined })); }
 }
 
 export type WorkspaceNode = {
@@ -165,14 +166,19 @@ export class StudioApi {
   constructor(private readonly base = defaultBase(), private readonly fetcher: typeof fetch = (...a) => fetch(...a)) {}
 
   private async call<T>(method: string, route: string, body?: unknown): Promise<T> {
-    const res = await this.fetcher(this.base + route, {
-      method, credentials: "same-origin",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await this.fetcher(this.base + route, {
+        method, credentials: "same-origin",
+        headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch { throw new ApiFailure(0, noAnswer("One AgentStudio", 0)); }
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new ApiFailure(res.status, data.error ?? { code: "HTTP." + res.status, message: res.statusText || "Request failed" });
+    let data: { error?: ApiError } = {};
+    try { data = text ? JSON.parse(text) : {}; }
+    catch { throw new ApiFailure(res.status, res.ok ? { code: "HTTP.NOT_JSON", message: "One AgentStudio answered with a page instead of data", suggestedFix: "Reload the page; if it keeps happening, check the address you use." } : noAnswer("One AgentStudio", res.status, res.statusText)); }
+    if (!res.ok) throw new ApiFailure(res.status, data.error ?? noAnswer("One AgentStudio", res.status, res.statusText));
     return data as T;
   }
 

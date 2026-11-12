@@ -1138,9 +1138,10 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows the frame of the design plan's step 1: where you are, one search, open alerts, help; a menu that finds a page, keeps one section open and collapses from the bottom", async () => {
     location.hash = "";
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
-    const here = await screen.findByRole("navigation", { name: "You are here" });
-    expect(here.textContent).toBe("Home");
+    // Console A (13 Nov 2026): where you are is a line above the page title, not in the top bar; Home needs none
     expect((await screen.findByRole("link", { name: "Open alerts: 1" })).getAttribute("href")).toBe("#/alerts");
+    expect(screen.queryByRole("navigation", { name: "You are here" })).toBeNull();
+    expect(document.querySelector(".cc-top")!.textContent).toContain("ONEOFFICE AUTOMATION");
     await go("Users");
     await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Administration›Users"));
     const menu = screen.getByRole("navigation", { name: "One CommandCenter" });

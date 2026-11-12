@@ -27,7 +27,7 @@ import { Templates } from "./Templates";
 import { Toolkits } from "./Toolkits";
 import { Triggers } from "./Triggers";
 import { Users } from "./Users";
-import { EnvironmentLabel, TopBar } from "./TopBar";
+import { Breadcrumb, EnvironmentLabel, TopBar } from "./TopBar";
 import { listKeys } from "./listKeys";
 import { Vault } from "./Vault";
 
@@ -122,6 +122,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
         <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
           home={{ onClick: () => setPage("home"), current: page === "home" }} viewer={{ permissions: user.permissions, leadsTeam: user.leads_team }} console groups={MENU_GROUPS} />
         <main className="st-main cc-main" onKeyDown={listKeys}>
+          <Breadcrumb user={user} page={page} onPage={setPage} />
           <GroupTabs page={page} user={user} onPage={setPage} hrefFor={hrefFor} />
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
           {MODULE_PAGES[page]?.({ api, user, onNotice: setNotice, setPage, studio })}

@@ -82,13 +82,17 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
   return (
     <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions"
-      actions={<>{onSimple && <button type="button" className={"st-simple-toggle" + (simple ? " is-on" : "")} aria-pressed={simple} onClick={() => onSimple(!simple)}
-        title={simple ? "Simple mode is on: everyday actions only. Press for every action." : "Show everyday actions only (Excel, e-mail, websites, files), for business users"}>Simple</button>}
-        <HelpButton topic={ACTIONS_HELP} /></>}
+      actions={<HelpButton topic={ACTIONS_HELP} />}
       style={width ? { width } : undefined} panelRef={(el) => { panel.current = el; }}>
+      {/* Editor A (improvement list 12 Nov 2026, item 6): Simple became Common, a two-way switch beside All */}
+      {onSimple && <div className="st-common-switch" role="radiogroup" aria-label="Which actions">
+        <button type="button" role="radio" aria-checked={simple} onClick={() => onSimple(true)}
+          title="The everyday actions only (Excel, e-mail, websites, files), for business users"><span aria-hidden="true">★ </span>Common</button>
+        <button type="button" role="radio" aria-checked={!simple} onClick={() => onSimple(false)} title="Every action of every toolkit">All</button>
+      </div>}
       <div className="st-panel-search"><TextInput aria-label="Search actions" placeholder={`Search ${total.toLocaleString()} actions`} value={query} onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && q) { e.preventDefault(); const b = best(); if (b) onAdd(b); } }} /></div>
-      <p className="st-panel-hint">{simple ? "Everyday actions. Click one to add it after the selected step, or drag it to where it goes. Turn Simple off for every action."
+      <p className="st-panel-hint">{simple ? "Everyday actions. Click one to add it after the selected step, or drag it to where it goes. All shows every action."
         : "Click an action to add it after the selected step, or drag it to where it goes. Enter adds the best match."}</p>
       <ul className="st-groups">
         {onTrigger && (() => {
@@ -101,7 +105,7 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
           const isOpen = open === "triggers" || (!!q && list.length <= 3);
           return <li>
             <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : "triggers")}>
-              <IconTile name="bolt" color="#b45309" size={22} /><span className="st-group-name">Triggers</span><span className="st-count">{kinds.reduce((n, [, ks]) => n + ks.length, 0)}</span>
+              <IconTile name="bolt" color="#b45309" size={18} /><span className="st-group-name">Triggers</span><span className="st-count">{kinds.reduce((n, [, ks]) => n + ks.length, 0)}</span>
             </button>
             {isOpen && <ul className="st-group-actions">{kinds.map(([g, ks]) => <li key={g}>
               <span className="st-trigger-where">{g}</span>
@@ -116,9 +120,9 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
           return (
             <li key={p.id}>
               <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : p.id)}>
-                <IconTile name={m.icon} color={m.color} size={22} /><span className="st-group-name">{p.name}</span><span className="st-count">{actions.length}</span>
+                <IconTile name={m.icon} color={m.color} size={18} /><span className="st-group-name">{p.name}</span><span className="st-count">{actions.length}</span>
               </button>
-              {isOpen && <ul className="st-group-actions">{actions.map((a) => (
+              {isOpen && <ul className="st-group-actions" style={{ "--kit": m.color } as CSSProperties}>{actions.map((a) => (
                 <li key={a.id}><button type="button" className="st-action" title={a.description} draggable
                   onDragStart={(e) => { e.dataTransfer.setData(ACTION_DRAG, p.id + "/" + a.id); e.dataTransfer.effectAllowed = "copy"; }}
                   onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}
@@ -669,16 +673,17 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             <div className="st-seg st-view-seg" role="radiogroup" aria-label="Show the steps as">
               {([["list", "List"], ["flow", "Flow"]] as const).map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={view === k} className="st-seg-btn" onClick={() => setView(k)}>{t}</button>)}
             </div>
-            <button type="button" className="st-tool" aria-label="Assistant" title="Assistant: build steps from a description, or explain this agent" onClick={() => setAssistant("build")}><Icon name="spark" size={16} /></button>
+            {/* Editor A (item 6): Assistant, Capture and Record as small text buttons */}
+            <button type="button" className="st-tool-text is-ai" title="Assistant: build steps from a description, or explain this agent" onClick={() => setAssistant("build")}>Assistant</button>
             {recording
               ? <span className="st-tool-busy" role="status"><span className="st-rec-dot" aria-hidden="true" />Recording…</span>
-              : <button type="button" className="st-tool st-record-btn" aria-label="Record" title={withKey("Record actions in a web browser or a Windows application", "steps.record")} onClick={record}><span className="st-rec-dot" aria-hidden="true" /></button>}
+              : <button type="button" className="st-tool-text is-rec" title={withKey("Record actions in a web browser or a Windows application", "steps.record")} onClick={record}><span className="st-rec-dot" aria-hidden="true" />Record</button>}
             {capturing
               ? <span className="st-tool-busy" role="status">Capturing…</span>
               : <Menu label="Capture" align="start" items={[
                   { key: "web", label: "Capture a web element", description: "Click it in a browser; adds an action for it", onSelect: () => captureStep(false) },
                   { key: "desktop", label: "Capture a desktop control", description: "Hover it in a Windows application and press Ctrl+Shift+C", onSelect: () => captureStep(true) },
-                ]} trigger={<button type="button" className="st-tool" aria-label="Capture" title="Capture a web element or a desktop control"><Icon name="target" size={16} /></button>} />}
+                ]} trigger={<button type="button" className="st-tool-text is-cap" title="Capture a web element or a desktop control">Capture</button>} />}
             <button type="button" className="ui-icon-btn st-full-btn" aria-pressed={full} onClick={() => toggleFull()}
               aria-label={full ? "Exit full screen" : "Full screen"} title={full ? "Exit full screen (Esc)" : "Full screen: only the canvas"}>
               <Icon name={full ? "shrink" : "expand"} size={16} stroke={2.2} /></button>

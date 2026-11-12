@@ -4,11 +4,11 @@
 .df-start-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .df-start-state { display: flex; align-items: center; gap: 10px; }
 .df-start-steps ol { margin: 4px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
-.df-start-h { margin: 6px 0 0; font-size: 15px; }
+.df-start-h { margin: 6px 0 0; font-size: 14px; }
 .df-start-areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 .df-start-area { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; min-height: 96px; background: var(--ui-bg); color: var(--ui-text);
   border: 1px solid var(--ui-border); border-radius: var(--ui-radius); text-decoration: none; }
-.df-start-area span { font-size: 13px; color: var(--ui-text-2); flex: 1; }
+.df-start-area span { font-size: 12.5px; color: var(--ui-text-2); flex: 1; }
 .df-start-area .df-start-go { flex: none; color: var(--ui-accent-text); font-weight: 600; }
 .df-start-area:hover, .df-start-area:focus-visible { border-color: var(--ui-accent); box-shadow: 0 0 0 1px var(--ui-accent); }
 @media (max-width: 900px) { .df-start-grid { grid-template-columns: minmax(0, 1fr); } }
