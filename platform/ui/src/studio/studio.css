@@ -865,3 +865,27 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-create-templates li { display: grid; grid-template-columns: minmax(0, 1fr) 110px 60px; gap: 0; padding: 0; min-height: 30px; }
 .st-create-templates li > * { padding: 0 10px; }
 .st-create-templates li .is-steps { text-align: right; }
+
+
+/* ---- Studio's menu, grouped like the console's since 13 Nov 2026 (item 3): the console's menu rules, for Studio ---- */
+.st-app:not(.cc-app) .st-menu.is-console:not(.is-mini) { position: absolute; top: 0; bottom: 0; left: 0; z-index: 40; width: min(300px, 86vw) !important; box-shadow: 4px 0 16px rgba(0, 0, 0, .25); }
+.st-app:not(.cc-app) .st-menu.is-console { padding: 8px 6px; }
+.st-app:not(.cc-app) .st-menu-home { height: 30px; font-size: 13px; }
+.st-app:not(.cc-app) .st-menu-section.is-grouped { margin-top: 2px; padding-top: 2px; border-top: 1px solid var(--ui-frame-line); }
+.st-app:not(.cc-app) .st-menu-section.is-grouped:first-of-type { border-top: 0; }
+.st-app:not(.cc-app) button.st-menu-group-head { height: 30px; padding: 0 6px 0 8px; color: #ffffff; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.st-app:not(.cc-app) .st-menu-group-head .ui-tile { width: 18px !important; height: 18px !important; }
+.st-app:not(.cc-app) .st-menu-group-head .st-menu-caret { color: #9aa6b8; }   /* 6.9:1 */
+.st-app:not(.cc-app) .st-menu-section.is-grouped .st-menu-items { margin: 0 0 6px 17px; padding: 0 0 0 6px; border-left: 1px solid var(--ui-frame-guide); gap: 1px; }
+.st-app:not(.cc-app) .st-menu-entry { height: 28px; gap: 8px; padding: 0 8px; font-size: 13px; font-weight: 400; color: #c8d1de; border-radius: 0 5px 5px 0; }   /* 11.1:1 */
+.st-app:not(.cc-app) .st-menu-entry > svg { width: 15px; height: 15px; opacity: .9; }
+.st-app:not(.cc-app) .st-menu-entry:hover { color: #ffffff; }
+.st-app:not(.cc-app) .st-menu-entry.is-current { background: #24406f; color: #ffffff; font-weight: 600; box-shadow: inset 3px 0 0 #4d8dff; }   /* 10.3:1 */
+.st-app:not(.cc-app) .st-menu.is-console .st-menu-find { height: 28px; font-size: 12.5px; }
+.st-app:not(.cc-app) .st-menu-section.is-grouped { border-top: 0; margin-top: 8px; padding-top: 0; }
+.st-app:not(.cc-app) button.st-menu-group-head, .st-app:not(.cc-app) .st-menu-heading { height: 26px; color: #8ea3c2; font-size: 11px; letter-spacing: .09em; }
+.st-app:not(.cc-app) button.st-menu-group-head .ui-tile, .st-app:not(.cc-app) .st-menu-heading .ui-tile { display: none; }
+.st-app:not(.cc-app) .st-menu-group-head .st-menu-caret, .st-app:not(.cc-app) .st-menu-heading .st-menu-caret { color: #6f819c; }
+.st-app:not(.cc-app) .st-menu-section.is-grouped .st-menu-items, .st-app:not(.cc-app) .st-menu-items { margin-left: 4px; border-left: 0; padding-left: 0; }
+.st-app:not(.cc-app) .st-menu-entry, .st-app:not(.cc-app) .st-menu-item { color: #ffffff; }
+.st-app:not(.cc-app) .st-menu-entry > svg { opacity: .75; }
