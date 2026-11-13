@@ -32,13 +32,14 @@ final class MyAccount {
         for (String f : List.of("first_name", "last_name")) {
             if (!changes.containsKey(f)) continue;
             String v = changes.get(f) == null ? "" : String.valueOf(changes.get(f)).strip();
-            if (v.length() > 50) throw new OoaException("CR.BAD_INPUT", f.replace('_', ' ') + " has up to 50 characters");
-            cr.db.update("UPDATE users SET " + f + " = ? WHERE id = ?", v.isEmpty() ? null : v, u.id());
+            if (v.length() > 50) throw new OoaException("CR.BAD_INPUT", f.replace('_', ' ') + " has up to 50 characters", "Shorten it to 50 characters or fewer.");
+            String sql = f.equals("first_name") ? "UPDATE users SET first_name = ? WHERE id = ?" : "UPDATE users SET last_name = ? WHERE id = ?";
+            cr.db.update(sql, v.isEmpty() ? null : v, u.id());
             done.put(f, v);
         }
         if (changes.containsKey("email")) {
             String e = changes.get("email") == null ? "" : String.valueOf(changes.get("email")).strip().toLowerCase(Locale.ROOT);
-            if (!e.isEmpty() && (e.length() > 200 || !e.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))) throw new OoaException("CR.BAD_INPUT", "Not an e-mail address: " + e);
+            if (!e.isEmpty() && (e.length() > 200 || !e.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))) throw new OoaException("CR.BAD_INPUT", "Not an e-mail address: " + e, "Write it as name@example.com.");
             if (!e.isEmpty() && cr.db.one("SELECT id FROM users WHERE LOWER(email) = ? AND id <> ?", e, u.id()) != null)
                 throw new OoaException("CR.CONFLICT", "Another user has the e-mail address " + e, "Use another address, or ask an administrator.");
             cr.db.update("UPDATE users SET email = ? WHERE id = ?", e.isEmpty() ? null : e, u.id());

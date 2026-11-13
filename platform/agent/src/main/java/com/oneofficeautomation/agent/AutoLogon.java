@@ -111,7 +111,7 @@ public final class AutoLogon {
      */
     public static void check(String user, String password) {
         if (!DesktopSession.WINDOWS) throw new OoaException("SYSTEM.WINDOWS_ONLY", "Device credentials are checked on Windows runners", "Check them on a Windows runner.");
-        if (user == null || user.isBlank() || password == null) throw new OoaException("AGENT.BAD_INPUT", "No device credentials were given");
+        if (user == null || user.isBlank() || password == null) throw new OoaException("AGENT.BAD_INPUT", "No device credentials were given", "Enter them in My account > My devices > Device credentials.");
         String u = user.strip(), d = null;
         int slash = u.indexOf('\\');
         if (slash > 0) { d = u.substring(0, slash); u = u.substring(slash + 1); }
