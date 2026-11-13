@@ -32,7 +32,7 @@ Further decisions (2026-11-07, chosen for future development and upgrades):
 | One repository or one per module | One repository, one Gradle project per module | One build and one CI see every module together, so a kernel change is tested against all modules at once; boundaries are enforced by tests, not by repository walls. Separate repositories would bring version skew between kernel and modules on every release |
 | Turn modules on and off by licence | Not now: every edition ships every module (as decided for Document Automation's engine packs). The contract already allows it later: a module missing from the class path simply is not there | Avoids a licence check in every module; one licence covers the platform |
 | Who owns a module's permissions | The module, through the contract (`ModuleContext.permission(name, roles...)`, phase 8): it names the built-in roles that have it; administrators have all. Shared permissions (`runs.start`, `repo.view`, `settings.manage`) stay the kernel's | Each module's permissions come and go with it; the built-in roles keep exactly what they had (`ModulePermissionsTest`) |
-| The classic console (`cr.js`) | Frozen: no new features; new screens only in the new console, under `ui/src/modules/<name>` | One place per screen; the classic console retires once nothing needs it |
+| The classic console (`cr.js`) | Removed on 13 Nov 2026 (improvement list item 8): one console; its addresses forward to the same page there |
 | Version numbers | Each module has its own (`version()`), the platform release lists them; the DocFlow pin stays in the module | A fix in one module ships without renumbering the rest |
 
 Five layers; a module uses only modules in lower layers and the kernel:

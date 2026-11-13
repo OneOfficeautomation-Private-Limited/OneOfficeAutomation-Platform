@@ -179,9 +179,9 @@ password.
   to its first page.
 - **Search pages and agents** (Ctrl+K): type part of a page's or an agent's name, or paste a run id to open that run.
 - The bell shows how many alerts are open; click it to open **Alerts**.
-- **Help** (the question mark): **Keyboard shortcuts**, and **Classic console**, the earlier console, which still has
-  the user menu with **API keys**, **Change password**, **Two-step sign-in** and **Language**.
-- Your account: **Sign out**.
+- **Help** (the question mark): **Keyboard shortcuts**.
+- Your account: **Phone notifications**, **Your API keys**, **Change password**, **Turn on two-step sign-in** (until it
+  is on) and **Sign out**.
 
 Banners can appear under the top bar: an administrator's **announcement** (for example planned maintenance), a
 warning that your password must be changed soon, and, for administrators, the **licence banner** (evaluation days
