@@ -45,9 +45,9 @@ work on work queue items. Creating schedules, triggers, work queues and Agent AP
 ### The In progress tab
 
 Every queued and running run, one line each; the list refreshes every 5 seconds. Columns: **Status** (**Queued**,
-**Running**, **Paused**, **Stopping**), **Agent** (with its version), **Folder**, **Progress** (**Step n of m: action
-name**, or "Waiting for the runner"), **Runner**, **Started by** (for example `admin as jane`), **How started** (for
-example **Schedule**), **Queued** and **Started**.
+**Running**, **Paused**, **Stopping**), **Agent** (with its version), **Folder**, **Current step** (**Step n of m: action
+name**, or "Waiting for the runner"), **Runner**, **Started by**, **Run as user** (whose account it runs as; under
+**Columns**), **Trigger** (for example **Schedule**), **Queue time** and **Start time**.
 
 With `runs.stop`, tick runs and use these buttons above the list (a run's **⋯** menu also has **Stop**):
 
@@ -85,10 +85,11 @@ disabled, its runner removed or disabled, no licence) ends **Failed** with `LONG
 
 ### The Completed tab
 
-Runs that ended (completed, failed, stopped) in the chosen period, 25 per page, newest first and grouped by day.
-Columns: **Status**, **Agent**, **Runner**, **Started by**, **How started**, **Started**, **Took** and **Why it ended**
-(the error code and message, cut short; hover for the whole text). **Columns** adds **Folder**, **Ended** and **Steps**
-(they start hidden so a run fits on one line at 1366 px). Tick
+Runs that ended (completed, failed, stopped) in the chosen period, 25 per page, as one list with the newest first.
+Columns: **Status**, **Agent**, **Runner**, **Started by**, **Trigger**, **Start time**, **End time**, **Duration** and
+**Error message** (the error code and message, cut short to the room left; hover for the whole text). **Columns** adds
+**Folder**, **Run as user** and **Steps** (they start hidden so a run fits on one line at 1366 px). Every tab shows how
+many runs it holds. Tick
 runs and press **Run again**, or choose **Run again** in a run's **⋯** menu.
 
 Filters (above the table):
@@ -97,7 +98,7 @@ Filters (above the table):
 - **Period**: Last 24 hours, Last 7 days, Last 90 days (the default) or Chosen dates;
 - **Status**: Completed, Failed, Stopped;
 - **Agent**, **Runner**;
-- **How started**: Run now, Schedule, Trigger, Work queue, API, Run again, AI assistant (MCP);
+- **Trigger**: Run now, Schedule, Trigger, Work queue, API, Run again, AI assistant (MCP);
 - **More filters**: **Started by (user name)** and, for Chosen dates, **From** and **To** (whole days in your time
   zone);
 - **Clear filters**, **Columns**, and **Export CSV** (every run that matches the filters; with runs ticked, **Export

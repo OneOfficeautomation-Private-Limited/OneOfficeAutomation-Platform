@@ -123,4 +123,5 @@ body.cc-printing .cc-top, body.cc-printing nav, body.cc-printing .cc-list-head, 
 .cc-app .cc-main .ov-icon-btn { width: 32px; height: 32px; }
 .cc-app .cc-main .ov-icon-btn > svg { width: 18px; height: 18px; }
 .cc-app .cc-main .ov-ic svg { width: 12px; height: 12px; }
-
+/* a shorter cut for a long reason (moved from console.css on 13 Nov 2026: only Insights uses it now) */
+.cc-clip.cc-clip-sm { max-width: 220px; }

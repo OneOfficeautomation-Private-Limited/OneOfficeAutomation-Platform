@@ -189,15 +189,17 @@ left, a licence about to expire).
 
 ### The menu on the left
 
-The menu has **Home** and five sections. Click a section name to open it. The section of the page you are on is
-always open. Type in **Find a page** at the top to search all pages; press Enter to open the first match. The button
-at the bottom makes the menu narrow (icons only) or full again.
+The menu has **Home** and five sections, each a row with its icon and name. Click a section to open it; one section is
+open at a time, so the whole menu fits on the screen, and the section of the page you are on opens by itself. Type in
+**Find a page** at the top to search all pages; press Enter to open the first match. **Collapse menu** at the bottom
+makes the menu narrow (icons only) or full again; when it is narrow, point at (or click) a section's icon to see its
+pages and open one. The menu is the same in One AgentStudio.
 
 | Section | Pages | What you do there |
 | --- | --- | --- |
 | **Build** | Automation (Public: the agent repository; Private: your own workspace), Agent Templates, Agent APIs, Agent tests | Find, build and run agents, install ready-made ones, publish agents as web services, test agents |
 | **Manage** | Agent Activity, Task inbox, Runner Machines, Schedules, Triggers, Work queues, Workflow, Shared Global values, Connections, Credential vault, Agent ToolKits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows, secrets and the shared settings agents use |
-| **Operational Insights** | Overview, Alerts, Operations, Business | How things stand now, alerts, how agents, runners and queues worked (Operations), and what the work is worth (Business). See [05 Operator's guide](05-operators-guide.md#11-operational-insights-overview-alerts-and-operations) |
+| **Operational insights** | Overview, Alerts, Operations, Business | How things stand now, alerts, how agents, runners and queues worked (Operations), and what the work is worth (Business). See [05 Operator's guide](05-operators-guide.md#11-operational-insights-overview-alerts-and-operations) |
 | **Administration** | Users, Roles, Teams, Policies, Audit Trail, Licenses, Settings | People, access, rules for agents' folders, audit, licences and system settings |
 | **AI** | Model Connections, Prompt Skills, Document Automation, AI governance | Model connections, AI prompts, reading documents with AI (an add-on module; the page says when it is not installed) and the record of AI use |
 

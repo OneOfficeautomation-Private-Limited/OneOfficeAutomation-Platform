@@ -39,7 +39,11 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
   const toggleSection = (label: string) => setClosed(closed.includes(label) ? closed.filter((x) => x !== label) : [...closed, label]);
   const shown = sections.map((s) => ({ ...s, pages: s.pages.filter((p) => canSee(p, viewer)) })).filter((s) => s.pages.length);
   // the console opens one section at a time: the current page's, or the one the person opened last
-  const sectionOf = (id: string | null) => shown.find((s) => s.pages.some((p) => p.id === id))?.label ?? null;
+  // a page in a group belongs where its group is (Agent ToolKits is a page of Manage but shows under Build > Automation)
+  const sectionOf = (id: string | null) => {
+    const g = id ? groups?.find((x) => x.pages.includes(id)) : undefined;
+    return (g ? sections.find((s) => s.id === g.section)?.label : undefined) ?? shown.find((s) => s.pages.some((p) => p.id === id))?.label ?? null;
+  };
   const [openOne, setOpenOne] = useState<string | null>(() => sectionOf(current));
   useEffect(() => { const s = sectionOf(current); if (s) setOpenOne(s); }, [current]);   // eslint-disable-line react-hooks/exhaustive-deps
   const isOpen = (label: string) => groups || inConsole ? openOne === label : !closed.includes(label);

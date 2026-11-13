@@ -126,7 +126,6 @@ pre.cc-log { white-space: pre-wrap; word-break: break-word; }
 .cc-myvalue { margin: 4px 0; }
 .cc-test { margin-top: 8px; flex-wrap: wrap; }
 .cc-clip { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cc-clip.cc-clip-sm { max-width: 220px; }
 /* columns that are also on another page */
 .cc-meter { display: inline-block; width: 120px; height: 8px; border-radius: 4px; background: var(--ui-soft); border: 1px solid var(--ui-divider); overflow: hidden; vertical-align: middle; }
 .cc-meter > span { display: block; height: 100%; background: var(--ui-success); }
