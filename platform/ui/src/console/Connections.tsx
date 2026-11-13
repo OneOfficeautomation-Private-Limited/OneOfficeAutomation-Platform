@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConnectionKind, CrApi, CrUser, SavedConnection } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Manage > Connections, after UiPath's Integration Service connections (checked against its docs; AA keeps a connector's
@@ -59,7 +60,7 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
     <section className="st-page cc-home cc-list" aria-labelledby="cc-conn-title">
       <header className="cc-list-head">
         <h1 id="cc-conn-title">Connections</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:savedconn" />
         {list && <span className="cc-list-count">{list.length} connection{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" disabled={!kinds.length} onClick={() => setDialog({ c: null })}>Create connection</Button>}

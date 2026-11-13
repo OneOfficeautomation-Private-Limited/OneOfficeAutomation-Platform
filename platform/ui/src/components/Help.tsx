@@ -33,7 +33,8 @@ export function HelpButton({ topic }: { topic: HelpTopic }) {
 }
 
 /** The panel at the right of the page; `page` closes it when the page changes. */
-export function HelpPanel({ page }: { page?: string }) {
+/** `links`: the page's Read the documentation and Watch how to use it (round 3, item 6), shown under its summary. */
+export function HelpPanel({ page, links }: { page?: string; links?: ReactNode }) {
   const help = useContext(HelpContext);
   const topic = help?.topic ?? null;
   const [width, setWidth] = usePanelSize("help");
@@ -57,6 +58,7 @@ export function HelpPanel({ page }: { page?: string }) {
       </div>
       <div className="ui-help-body">
         {topic.about && <p className="ui-help-about">{topic.about}</p>}
+        {links && <div className="ui-help-links">{links}</div>}
         {(topic.items ?? []).map((i) => <div key={i.name} className="ui-help-item"><strong>{i.name}</strong><p>{i.text}</p></div>)}
       </div>
     </aside>

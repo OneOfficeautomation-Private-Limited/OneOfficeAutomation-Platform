@@ -11,6 +11,7 @@ import { RefreshButton, rowClick, when } from "../../console/ListParts";
 import { Operations } from "./Operations";
 import { QueueInsights } from "../../console/QueueInsights";
 import { Value } from "./Value";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Operational Insights, item 7 step 1 (1 Nov 2026, design A on the canvas). AA splits Bot Insight into Operations and
@@ -116,7 +117,7 @@ function AuditFiguresTab({ api, title, tabs }: { api: CrApi; title: string; tabs
     <section className="st-page cc-home cc-list" aria-labelledby="cc-ins-title">
       <header className="cc-list-head">
         <h1 id="cc-ins-title">{title}</h1>
-        <HelpButton topic={HELP_AUDIT} />
+        <HelpButton topic={HELP_AUDIT} /><PageIntro k="page:operations" />
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => { location.hash = trail(); }}>Open in Audit Trail</Button>
       </header>

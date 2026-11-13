@@ -132,6 +132,10 @@ public final class Platform {
         DEFAULTS.put("signin_notice", "");              // shown on the sign-in page (terms of use, a consent statement)
         DEFAULTS.put("signin_notice_accept", 0);        // people tick it before they can sign in
         DEFAULTS.put("api_key_max_days", 0);            // the longest an API key may last; 0: up to 730 days, or no end
+        // help links (13 Nov 2026 round 3, item 6): where every Docs and Video link points; empty: the product's own
+        // addresses. A company without internet points these at its own copy of the documentation and videos.
+        DEFAULTS.put("help_docs_base", "");
+        DEFAULTS.put("help_video_base", "");
         // runners and runs (Settings item 4, batch 2)
         DEFAULTS.put("runner_registration_open", 1);    // new runners may register with a key
         DEFAULTS.put("runner_require_https", 0);        // runners connect only over HTTPS (this computer always may)
@@ -352,6 +356,8 @@ public final class Platform {
                     }
                     s = String.join(",", off);
                 }
+                if ((k.equals("help_docs_base") || k.equals("help_video_base")) && !s.isEmpty() && !s.matches("(?i)https?://[^\\s\"'<>]+"))
+                    throw new OoaException("CR.BAD_INPUT", "The help address is a web address, for example https://docs.example.com/ooa/");
                 if (k.equals("outbound_proxy") && !s.isEmpty() && !s.matches("(?i)http://[A-Za-z0-9.\\-]+:\\d{1,5}/?"))
                     throw new OoaException("CR.BAD_INPUT", "The proxy is http://host:port, for example http://proxy.example.com:8080");
                 if (k.equals("outbound_proxy_bypass") && !s.isEmpty() && !s.matches("[A-Za-z0-9.*\\-|,; ]+"))

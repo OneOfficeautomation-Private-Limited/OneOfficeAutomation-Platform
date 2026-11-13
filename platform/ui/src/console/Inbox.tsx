@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, HumanTask, TaskFormField } from "../api/cr";
 import { Button, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Manage > Task inbox, built as AA's Co-Pilot tasks and UiPath's Action Center (checked against their docs and Blue
@@ -79,7 +80,7 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className={"st-page cc-home cc-list" + (open ? " has-run" : "")} aria-labelledby="cc-inbox-title">
       <header className="cc-list-head">
         <h1 id="cc-inbox-title">Task inbox</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:inbox" />
         {tasks && <span className="cc-list-count">{tab === "open" ? tasks.length + " to do" + (overdue ? " · " + overdue + " overdue" : "") : tasks.length + " done"}</span>}
         <span className="ov-fill" />
       </header>

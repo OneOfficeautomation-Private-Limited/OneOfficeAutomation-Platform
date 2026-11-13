@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, EnvironmentLock } from "../api/cr";
 import { Button, HelpButton, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, when } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Manage > Environment locks (gap G33, after Blue Prism's environment locks): the named locks runs hold now, so two
@@ -45,7 +46,7 @@ export function EnvironmentLocks({ api, user, onNotice }: { api: CrApi; user: Cr
     <section className="st-page cc-home cc-list" aria-labelledby="cc-locks-title">
       <header className="cc-list-head">
         <h1 id="cc-locks-title">Environment locks</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:locks" />
         {list && <span className="cc-list-count">{list.length} held</span>}
         <span className="ov-fill" />
       </header>

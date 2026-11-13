@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ItemModel, RunnerPool, WorkItem, WorkQueue } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Manage > Work queues, built as AA's Workload queues (checked against AA's docs, UiPath's queues and Blue Prism's work
@@ -125,7 +126,7 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
     <section className="st-page cc-home cc-list" aria-labelledby="cc-queues-title">
       <header className="cc-list-head">
         <h1 id="cc-queues-title">Work queues</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:queues" />
         {list && <span className="cc-list-count">{list.length} queue{list.length === 1 ? "" : "s"} · {totals.waiting} item{totals.waiting === 1 ? "" : "s"} waiting{totals.failed ? " · " + totals.failed + " failed" : ""}{totals.overdue ? " · " + totals.overdue + " past the service level" : ""}</span>}
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => setDialog({ kind: "models" })}>Work item models</Button>

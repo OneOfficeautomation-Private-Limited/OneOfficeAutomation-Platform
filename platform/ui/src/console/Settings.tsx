@@ -3,6 +3,8 @@ import type { CrApi, ScimToken } from "../api/cr";
 import { Button, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { SETTING_HELP } from "./settingsHelp";
 import { ROLE_NAMES } from "./roleNames";
+import { PageIntro } from "../shell/PageIntro";
+import { HelpLinks } from "../shell/HelpLinks";
 
 /**
  * Administration > Settings, built as AA's Settings (checked against AA's docs, UiPath's tenant and organisation
@@ -41,6 +43,10 @@ const SECTIONS: Section[] = [
       { key: "currency", label: "Currency", hint: "A three-letter code: INR, USD, EUR.", kind: "text", placeholder: "INR" }] },
     { title: "Templates", settings: [
       { key: "template_catalog_url", label: "Template catalogue", hint: "An https address of templates.json. Empty: none.", kind: "text" }] },
+    // round 3, item 6: where every Docs and Video link points; a company's own copy for servers with no internet
+    { title: "Help links", settings: [
+      { key: "help_docs_base", label: "Documentation address", hint: "Where every Docs link points. Empty: the product's documentation.", kind: "text", placeholder: "https://docs.example.com/ooa/" },
+      { key: "help_video_base", label: "Video address", hint: "Where every Video link points. Empty: the product's videos.", kind: "text", placeholder: "https://videos.example.com/ooa/" }] },
   ] },
   { id: "security", title: "Sign-in and security", mark: "S", colour: "#be185d", about: "Sessions, passwords, two-step sign-in, and which addresses may connect. This computer is always allowed.", groups: [
     { title: "Sessions", settings: [
@@ -293,7 +299,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
     <section className="st-page cc-home cc-list" aria-labelledby="cc-settings-title">
       <header className="cc-list-head">
         <h1 id="cc-settings-title">Settings</h1>
-        <HelpButton topic={PAGE_HELP} />
+        <HelpButton topic={PAGE_HELP} /><PageIntro k="page:settings" />
         <span className="cc-list-count">For everyone · each section saves on its own · every change goes to the Audit Trail</span>
         <span className="ov-fill" />
         <span className="cc-list-search"><TextInput type="search" aria-label="Search settings" placeholder="Find a setting" value={q} onChange={(e) => setQ(e.target.value)} /></span>
@@ -329,7 +335,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
             options={SECTIONS.map((x) => ({ value: x.id, label: x.title + (changedIn(x).length ? " (" + changedIn(x).length + " not saved)" : "") }))} />
         </div>
         <div className="cc-set-form" role="region" aria-label={current.title}>
-            <div className="cc-set-head"><h2>{current.title}{current.groups.length > 0 && <HelpButton topic={helpOf(current.title, settingsOf(current), current.about)} />}</h2><p>{current.about}</p>
+            <div className="cc-set-head"><h2>{current.title}{current.groups.length > 0 && <HelpButton topic={helpOf(current.title, settingsOf(current), current.about)} />}<HelpLinks k={"setting:" + current.id} label={current.title} /></h2><p>{current.about}</p>
               {current.id === "sso" && <p>Register these with your provider. OpenID Connect redirect: <code>{(saved.public_url || location.origin) + "/api/auth/sso/callback"}</code>.
                 SAML metadata: <code>{(saved.public_url || location.origin) + "/api/auth/saml/metadata"}</code>.</p>}</div>
             {current.groups.map((g) => <Fragment key={g.title}>

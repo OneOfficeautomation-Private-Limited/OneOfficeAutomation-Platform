@@ -4,6 +4,7 @@ import type { Alert, AlertKind, CrApi, CrUser } from "../../api/cr";
 import type { AlertRule } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Operational Insights > Alerts, as UiPath's real-time monitoring alerts on processes, queues and machines and AA's
@@ -124,7 +125,7 @@ export function Alerts({ api, user, onNotice, view = "alerts" }: { api: CrApi; u
     <section className="st-page cc-home cc-list" aria-labelledby="cc-al-title">
       <header className="cc-list-head">
         <h1 id="cc-al-title">{tab === "rules" ? "Alert rules" : "Alerts"}</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k={tab === "rules" ? "page:alert-rules" : "page:alerts"} />
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setEditing("new")}>New alert rule</Button>}
       </header>

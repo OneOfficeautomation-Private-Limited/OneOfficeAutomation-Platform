@@ -921,3 +921,27 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-brand-product { color: #ffffff; font-size: 15px; font-weight: 600; white-space: nowrap; }
 .st-company { flex: 1 1 auto; min-width: 0; text-align: center; color: #b8c4d6; font-size: 13px; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 1100px) { .st-company { visibility: hidden; } }
+
+/* 13 Nov 2026 round 3, items 5 and 6: one line after each page's title and ⓘ: what the page does (extra small, still
+   7:1 on white), then Docs and Video; the video plays in a panel beside the page */
+.st-page-intro { display: inline-flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.st-page-desc { font-size: 12px; font-weight: 400; color: #4a5568; }
+.st-help-links { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+.st-help-link { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; font: inherit; font-size: 12px;
+  font-weight: 500; color: #1d5bc8; text-decoration: none; cursor: pointer; }
+.st-help-link:hover { text-decoration: underline; }
+.st-help-link:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; border-radius: 3px; }
+.st-help-links.is-compact { gap: 6px; }
+.st-help-links.is-compact .st-help-link { color: #4a5568; }
+.st-help-links.is-compact .st-help-link:hover { color: #1d5bc8; }
+.st-video-panel { position: fixed; right: 16px; bottom: 16px; z-index: 70; width: min(560px, calc(100vw - 32px)); background: var(--ui-bg); border: 1px solid var(--ui-border);
+  border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, .25); overflow: hidden; display: flex; flex-direction: column; }
+.st-video-head { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--ui-border); font-size: 12.5px; }
+.st-video-head a { color: #1d5bc8; }
+.st-video-head .st-top-icon { color: var(--ui-text); border-color: var(--ui-border); background: transparent; }
+.st-video-panel iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; background: #0f141d; }
+/* round 3, item 6: a command's Docs and Video in the Actions list, shown on hover or keyboard focus */
+.st-action-row { position: relative; }
+.st-action-row > .st-help-links { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); opacity: 0; background: var(--ui-bg); padding-left: 4px; }
+.st-action-row:hover > .st-help-links, .st-action-row:focus-within > .st-help-links { opacity: 1; }
+.st-prop-head .st-help-links { margin-top: 2px; }

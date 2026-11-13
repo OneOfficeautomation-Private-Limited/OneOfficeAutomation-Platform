@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrTeam, CrUser } from "../api/cr";
 import { Button, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Administration > Teams. AA has no teams of its own (it maps directory groups to roles); this follows UiPath's groups
@@ -93,7 +94,7 @@ export function Teams({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className="st-page cc-home cc-list" aria-labelledby="cc-teams-title">
       <header className="cc-list-head">
         <h1 id="cc-teams-title">Teams</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:teams" />
         {teams && <span className="cc-list-count">{teams.length} team{teams.length === 1 ? "" : "s"} · {inTeams} {inTeams === 1 ? "person" : "people"} in them</span>}
         <span className="ov-fill" />
         {admin && <Button kind="primary" onClick={() => setPage({ team: null })}>Create team</Button>}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ModelConnection } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * AI > Model Connections, built as AA's Model connections (checked against AA's docs and UiPath's AI Trust Layer, 31 Oct
@@ -71,7 +72,7 @@ export function ModelConnections({ api, user, onNotice }: { api: CrApi; user: Cr
     <section className="st-page cc-home cc-list" aria-labelledby="cc-mc-title">
       <header className="cc-list-head">
         <h1 id="cc-mc-title">Model Connections</h1>
-        <HelpButton topic={PAGE_HELP} />
+        <HelpButton topic={PAGE_HELP} /><PageIntro k="page:connections" />
         {list && <span className="cc-list-count">{list.length} model connection{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ c: null })}>Create connection</Button>}

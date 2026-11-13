@@ -4,6 +4,7 @@ import type { CrApi } from "../../api/cr";
 import type { AiGovernance } from "./consoleApi";
 import { Button, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, rowClick } from "../../console/ListParts";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * AI > AI governance, built as AA's AI governance (prompt logs) and UiPath's AI Trust Layer audit (checked against their
@@ -60,7 +61,7 @@ export function Governance({ api, onNotice }: { api: CrApi; onNotice: (t: string
     <section className="st-page cc-home cc-list" aria-labelledby="cc-gov-title">
       <header className="cc-list-head">
         <h1 id="cc-gov-title">AI governance</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:governance" />
       </header>
       {error && <PageError text={error} />}
       <div className="cc-list-tools">

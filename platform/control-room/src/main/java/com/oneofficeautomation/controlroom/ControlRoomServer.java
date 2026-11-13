@@ -24,6 +24,8 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -668,6 +670,12 @@ public final class ControlRoomServer {
                 else notFound(ex);
             }
             case "governance" -> sendJson(ex, 200, cr.platform.aiGovernance(u, ControlRoom.intOr(q.get("days"), 30)));
+            // help links (13 Nov 2026 round 3, item 6): where the Docs and Video links point, and links changed after
+            // a release without rebuilding, from <data>/config/help-links.json ({"links": {"page:activity": {"doc": ".."}}})
+            case "help-links" -> {
+                if (!m.equals("GET")) { notFound(ex); return; }
+                sendJson(ex, 200, helpLinks());
+            }
             case "database" -> {
                 if (!m.equals("GET")) { notFound(ex); return; }
                 cr.require(u, "settings.manage", "see the database details");
@@ -1057,6 +1065,31 @@ public final class ControlRoomServer {
                 else mr.handle(ex, u, m, route.startsWith(seg[0] + "/") ? route.substring(seg[0].length() + 1) : "", ip);
             }
         }
+    }
+
+    /**
+     * The help links' addresses (Settings: help_docs_base, help_video_base; empty: the UI's own) and the links set
+     * in {@code <data>/config/help-links.json}, read on each call so a changed file applies at once. A file that does
+     * not parse is reported in the answer and ignored, so a typo never takes the help links away.
+     */
+    Map<String, Object> helpLinks() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("version", ControlRoom.VERSION);   // the documentation of the release people are on
+        out.put("docs_base", String.valueOf(cr.platform.setting("help_docs_base")).trim());
+        out.put("video_base", String.valueOf(cr.platform.setting("help_video_base")).trim());
+        Path file = cr.dataDir == null ? null : cr.dataDir.resolve("config").resolve("help-links.json");
+        Object links = Map.of();
+        if (file != null && Files.isRegularFile(file)) {
+            try {
+                Object parsed = JsonLite.parse(Files.readString(file, StandardCharsets.UTF_8));
+                if (parsed instanceof Map<?, ?> top && top.get("links") instanceof Map<?, ?> l) links = l;
+                else out.put("problem", "help-links.json has no \"links\" object");
+            } catch (Exception e) {
+                out.put("problem", "help-links.json could not be read: " + e.getMessage());
+            }
+        }
+        out.put("links", links);
+        return out;
     }
 
     private static void notFound(HttpExchange ex) throws IOException { sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown API route"))); }

@@ -4,6 +4,7 @@ import type { CrApi, CrUser } from "../../api/cr";
 import type { AppComponent, AppDefinition, AppEmbed, AppInfo } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Build > Apps (gap G67, after UiPath Apps): low-code apps that business people use in the console. An app is pages of
@@ -45,7 +46,7 @@ export function Apps({ api, user, onNotice }: { api: CrApi; user: CrUser; onNoti
     <section className="st-page cc-home cc-list" aria-labelledby="cc-apps-title">
       <header className="cc-list-head">
         <h1 id="cc-apps-title">Apps</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:apps" />
         {list && <span className="cc-list-count">{list.length}</span>}
         <span className="ov-fill" />
         {maker && <Button kind="primary" onClick={() => setEditing("new")}>New app</Button>}

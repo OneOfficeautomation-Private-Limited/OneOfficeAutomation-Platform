@@ -4,6 +4,7 @@ import type { CrApi, CrUser } from "../../api/cr";
 import type { KnowledgeBase } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, TextArea, TextInput, type HelpTopic } from "../../components";
 import { RefreshButton, RowMenu, when } from "../../console/ListParts";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * AI > Knowledge bases (gap G71): knowledge indexes kept in One CommandCenter. An indexing agent fills and refreshes a
@@ -35,7 +36,7 @@ export function KnowledgeBases({ api, user, onNotice }: { api: CrApi; user: CrUs
     <section className="st-page cc-home cc-list" aria-labelledby="cc-kb-title">
       <header className="cc-list-head">
         <h1 id="cc-kb-title">Knowledge bases</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:knowledge" />
         {list && <span className="cc-list-count">{list.length}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setEditing("new")}>New knowledge base</Button>}

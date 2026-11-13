@@ -3,6 +3,7 @@ import type { CrApi, CrRole } from "../api/cr";
 import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { roleName } from "./roleNames";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Administration > Roles, built as AA's Roles page (checked against AA's docs, UiPath's roles and Blue Prism's user
@@ -210,7 +211,7 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
     <section className="st-page cc-home cc-list" aria-labelledby="cc-roles-title">
       <header className="cc-list-head">
         <h1 id="cc-roles-title">Roles</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:roles" />
         {data && <span className="cc-list-count">{builtins} built-in · {data.roles.length - builtins} custom</span>}
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setPage({ role: null })}>Create role</Button>

@@ -7,8 +7,9 @@ import { IconButton } from "./Button";
  * while it is open and returns it to the button that opened it. It opens with the cursor in the first field, so
  * people can type straight away.
  */
-export function Dialog({ open, onClose, title, icon, children, footer, width = 560 }:
-  { open: boolean; onClose: () => void; title: string; icon?: ReactNode; children: ReactNode; footer: ReactNode; width?: number }) {
+/** `help`: the dialog's Docs and Video (round 3, item 6), beside its title. */
+export function Dialog({ open, onClose, title, icon, children, footer, width = 560, help }:
+  { open: boolean; onClose: () => void; title: string; icon?: ReactNode; children: ReactNode; footer: ReactNode; width?: number; help?: ReactNode }) {
   const body = useRef<HTMLDivElement>(null);
   const focusFirstField = (e: Event) => {
     // a field marked data-autofocus first (the Create dialog's Name sits right of its other panes), else the first field
@@ -28,6 +29,7 @@ export function Dialog({ open, onClose, title, icon, children, footer, width = 5
           <div className="ui-dialog-head">
             {icon}
             <RadixDialog.Title className="ui-dialog-title">{title}</RadixDialog.Title>
+            {help && <span className="ui-dialog-help">{help}</span>}
             <RadixDialog.Close asChild><IconButton icon="close" label="Close" /></RadixDialog.Close>
           </div>
           <div className="ui-dialog-body" ref={body}>{children}</div>

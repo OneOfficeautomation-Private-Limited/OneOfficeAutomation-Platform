@@ -2,6 +2,7 @@ import { type ReactElement, useMemo, useState } from "react";
 import { type Blueprint, type NewItemKind, errorText } from "../api/client";
 import { Button, Dialog, IconTile } from "../components";
 import type { ItemType } from "./itemTypes";
+import { HelpLinks } from "../shell/HelpLinks";
 
 /**
  * Step 3 of creating, in AA's order: the type is picked from Create; here what to start from, the name and the folder.
@@ -70,7 +71,7 @@ export function CreateDialog({ type, folderPath, folders, blueprints = [], onCre
   );
 
   return (
-    <Dialog open onClose={onClose} title={"New " + type.name.toLowerCase()} width={offers.length ? 900 : 480}
+    <Dialog open onClose={onClose} title={"New " + type.name.toLowerCase()} width={offers.length ? 900 : 480} help={<HelpLinks k={"item:" + type.kind} label={type.name} />}
       icon={<IconTile name={type.icon} color={type.color} size={24} />}
       footer={<>
         <span className="st-create-esc">Esc closes</span>

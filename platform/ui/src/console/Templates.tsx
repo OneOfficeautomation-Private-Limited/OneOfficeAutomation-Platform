@@ -3,6 +3,7 @@ import type { AgentTemplate, CrApi, CrUser, TemplateProcessResult } from "../api
 import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { FolderIcon } from "./Repository";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Build > Agent Templates, built as AA's Bot Store and UiPath's Marketplace (checked 31 Oct 2026): ready-made agents to
@@ -167,7 +168,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-tpl-title">
       <header className="cc-list-head">
         <h1 id="cc-tpl-title">Agent Templates</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:templates" />
         {data && <span className="cc-list-count">{all.length} template{all.length === 1 ? "" : "s"}{repo.length ? " · " + installed + " installed" : ""} · {folders.length} folder{folders.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {manage.length > 0 && <Menu label="Manage" align="end" items={manage} trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>} />}

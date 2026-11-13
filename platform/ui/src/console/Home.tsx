@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CrApi, CrUser, Dashboard } from "../api/cr";
 import { HelpButton, IconTile, type HelpTopic, PageError } from "../components";
+import { PageIntro } from "../shell/PageIntro";
 
 const HELP: HelpTopic = { title: "Home", about: "How your agents are doing at a glance, and a way back to what you were working on. Only what your role may see is shown.",
   items: [
@@ -68,7 +69,7 @@ export function Home({ api, user, pageHref }: { api: CrApi; user: CrUser; pageHr
 
   return (
     <section className="st-page cc-home" aria-labelledby="cc-home-title">
-      <header className="st-page-head"><div><div className="st-head-row"><h1 id="cc-home-title">Home</h1><HelpButton topic={HELP} /></div><p>Welcome, {user.display_name}. Here is what your agents have been doing.</p></div></header>
+      <header className="st-page-head"><div><div className="st-head-row"><h1 id="cc-home-title">Home</h1><HelpButton topic={HELP} /><PageIntro k="page:home" /></div><p>Welcome, {user.display_name}. Here is what your agents have been doing.</p></div></header>
       {error && <PageError text={error} />}
       {!d && !error && <p className="st-muted" role="status">Loading…</p>}
       {d && <>

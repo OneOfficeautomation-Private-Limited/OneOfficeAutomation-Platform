@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Toolkit } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RowMenu, rowClick, when, CloseView } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Manage > Agent ToolKits, built as AA's Packages (checked against AA's docs, UiPath's libraries and feeds, and Blue
@@ -81,7 +82,7 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     <section className="st-page cc-home cc-list" aria-labelledby="cc-tk-title">
       <header className="cc-list-head">
         <h1 id="cc-tk-title">Agent ToolKits</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:toolkits" />
         {list && <span className="cc-list-count">{list.length} toolkit{list.length === 1 ? "" : "s"} · {list.filter((t) => t.enabled).length} on · {list.filter((t) => t.custom).length} your own</span>}
         <span className="ov-fill" />
         {manage && <>          <Button kind="secondary" onClick={() => setDialog({ kind: "publishers" })}>Trusted publishers</Button>

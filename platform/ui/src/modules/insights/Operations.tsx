@@ -6,6 +6,7 @@ import type { AgentStats, RunStats, VariableProfile } from "./consoleApi";
 import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { howStarted } from "../../console/Activity";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Operational Insights > Operations, rebuilt from today's console with AA's Bot Insight operational dashboards, UiPath
@@ -101,7 +102,7 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
     <section className="st-page cc-home cc-list" aria-labelledby="cc-op-title">
       <header className="cc-list-head">
         <h1 id="cc-op-title">Operations</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:operations" />
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => csv("run_history")}>Run history CSV</Button>
       </header>

@@ -4,6 +4,7 @@ import type { CrApi, CrUser } from "../../api/cr";
 import type { BucketFile, DataBucket, DataEntity, DataField, DataRecord } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TabPanel, Tabs, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Manage > Data store (gap G66, after UiPath's Data Service and Storage Buckets): entities (tables of business records
@@ -33,7 +34,7 @@ export function DataStore({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     <section className="st-page cc-home cc-list" aria-labelledby="cc-data-title">
       <header className="cc-list-head">
         <h1 id="cc-data-title">Data store</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:data" />
         <span className="ov-fill" />
       </header>
       <Tabs label="Data store" value={tab} onChange={setTab} tabs={[{ value: "entities", label: "Entities" }, { value: "buckets", label: "Storage buckets" }]}>

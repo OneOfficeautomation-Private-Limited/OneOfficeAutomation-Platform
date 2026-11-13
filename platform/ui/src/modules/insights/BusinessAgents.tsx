@@ -4,6 +4,7 @@ import type { CrApi, CrUser } from "../../api/cr";
 import type { AgentStats, BusinessAgent, DashWidget, VariableProfile } from "./consoleApi";
 import { Button, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Operational Insights > Business > Agents (item 7 step 2, 1 Nov 2026), as AA's Business dashboards: every agent whose
@@ -59,7 +60,7 @@ export function BusinessAgents({ api, user, onNotice, title, tabs }: { api: CrAp
     <section className="st-page cc-home cc-list" aria-labelledby="cc-ba-title">
       <header className="cc-list-head">
         <h1 id="cc-ba-title">{title}</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:business" />
       </header>
       {tabs}
       <div className="cc-list-tools">

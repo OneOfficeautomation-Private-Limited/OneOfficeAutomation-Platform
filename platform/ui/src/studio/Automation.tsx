@@ -7,6 +7,7 @@ import { CreateDialog } from "./CreateDialog";
 import type { RepoRequest } from "./ControlRoom";
 import type { StudioView } from "./CommandMenu";
 import { ITEM_TYPES, displayName, typeLabel, type ItemType } from "./itemTypes";
+import { PageIntro } from "../shell/PageIntro";
 
 const VIEW_TITLE: Record<StudioView, [string, (n: WorkspaceNode) => boolean]> = {
   automation: ["Agents", (n) => n.type !== "folder"],
@@ -268,7 +269,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
       <header className="st-page-head">
         <div className="st-head-row">
           <h1 id="st-page-title">{title}</h1>
-          <HelpButton topic={isPublic ? PUBLIC_HELP : AUTOMATION_HELP} />
+          <HelpButton topic={isPublic ? PUBLIC_HELP : AUTOMATION_HELP} /><PageIntro k={isPublic ? "studio:agents-public" : "studio:agents-private"} />
           {!isPublic && <span className="st-head-count">{q ? count(rows.length) + " matching “" + search.trim() + "” in the whole workspace"
             : count(everything(tree).filter((n) => n.type !== "folder").length) + " · " + everything(tree).filter((n) => n.type === "bot").length + " agents"}</span>}
         </div>

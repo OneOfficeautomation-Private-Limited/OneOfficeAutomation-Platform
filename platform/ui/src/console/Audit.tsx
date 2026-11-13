@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { AuditRecord, CrApi } from "../api/cr";
 import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Administration > Audit Trail, built as AA's Audit log (checked against AA's docs, UiPath's Audit page and Blue
@@ -228,7 +229,7 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
     <section className={"st-page cc-home cc-list cc-au" + (open ? " has-panel" : "")} aria-labelledby="cc-audit-title">
       <header className="cc-list-head">
         <h1 id="cc-audit-title">Audit Trail</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:audit" />
         {data && <span className="cc-list-count">{data.total} record{data.total === 1 ? "" : "s"} {f.around ? "within 5 minutes of " + hhmm(f.around) : RANGE_WORDS[range]}</span>}
         {check && <span className={"cc-pill is-" + (check.valid ? "success" : "failed")} role="status"><span className="cc-pill-dot" />{check.text}</span>}
         <span className="ov-fill" />

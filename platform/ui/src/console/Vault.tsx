@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CredentialExpiry, CrApi, CrUser, VaultCredential, VaultFolder, VaultRequest, VaultStatus } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
+import { HelpLinks } from "../shell/HelpLinks";
 
 /**
  * Administration > Credential vault, built as AA's Credentials page (checked against AA's docs, UiPath's credential
@@ -175,7 +177,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className="st-page cc-home cc-list" aria-labelledby="cc-vault-title">
       <header className="cc-list-head">
         <h1 id="cc-vault-title">Credential vault</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:credentials" />
         {folders && <span className="cc-list-count">{rows.length} credential{rows.length === 1 ? "" : "s"} · {folders.length} vault folder{folders.length === 1 ? "" : "s"}{missing ? " · " + missing + " need your own value" : ""}{expired ? " · " + expired + " expired" : ""}{soon ? " · " + soon + " expiring soon" : ""}</span>}
         <span className="ov-fill" />
         {can("lockers.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "key" })}>Vault key</Button>}
@@ -336,7 +338,7 @@ function CreateCredential({ api, folders, onClose, onCreated }: { api: CrApi; fo
     } catch (e) { setError(message(e)); }
   };
   return (
-    <Dialog open title="Create credential" width={640} onClose={onClose} footer={<>
+    <Dialog open title="Create credential" width={640} onClose={onClose} help={<HelpLinks k="dialog:credential" label="Credentials" />} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!ok || !folder} onClick={create}>Create credential</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}

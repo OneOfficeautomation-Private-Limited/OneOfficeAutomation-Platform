@@ -4,6 +4,7 @@ import type { CrApi } from "../../api/cr";
 import type { Idea, IdeaList } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Build > Automation ideas (gap G65, after UiPath's Automation Hub): anyone signed in suggests a process to automate
@@ -65,7 +66,7 @@ export function Ideas({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
     <section className="st-page cc-home cc-list" aria-labelledby="cc-ideas-title">
       <header className="cc-list-head">
         <h1 id="cc-ideas-title">Automation ideas</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:ideas" />
         {data && <span className="cc-list-count">{data.ideas.length}</span>}
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setEditing("new")}>Suggest an idea</Button>

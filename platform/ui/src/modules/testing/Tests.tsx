@@ -4,6 +4,7 @@ import type { CrApi, CrUser, Runner, RunnerPool, TestRunSummary, TestSet } from 
 import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FolderIcon } from "../../console/Repository";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Build > Agent tests, after UiPath's Test Manager test sets (AA keeps testing out of its Control Room; checked
@@ -177,7 +178,7 @@ export function Tests({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-tests-title">
       <header className="cc-list-head">
         <h1 id="cc-tests-title">Agent tests</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:tests" />
         {list && <span className="cc-list-count">{all.length} test set{all.length === 1 ? "" : "s"}{failing ? " · " + failing + " failing" : ""}{never ? " · " + never + " not run yet" : ""}</span>}
         <span className="ov-fill" />
         {can("repo.checkin") && <Menu label="Create" align="end" items={[{ key: "set", label: "New test set", onSelect: () => setDialog({ kind: "edit", t: null }) }]}

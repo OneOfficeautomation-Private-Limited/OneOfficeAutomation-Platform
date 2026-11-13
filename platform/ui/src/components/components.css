@@ -180,3 +180,8 @@ body.ui-resizing * { cursor: inherit !important; }
 .ui-page-error { display: flex; align-items: stretch; gap: 0; }
 .ui-page-error > .st-alert { flex: 1; margin: 0; }
 .ui-page-error > .ui-page-retry { flex: none; height: auto; border-radius: 0; border-left: 0; }
+/* round 3, item 6: the page's Read the documentation and Watch how to use it, under the help's summary */
+.ui-help-links { display: flex; gap: 14px; margin: 0 0 12px; }
+.ui-dialog-help { margin-right: auto; margin-left: 4px; }
+.ui-dialog-head:has(.ui-dialog-help) .ui-dialog-title { flex: none; }
+.ui-learn-more { color: #1d5bc8; font-weight: 500; white-space: nowrap; }

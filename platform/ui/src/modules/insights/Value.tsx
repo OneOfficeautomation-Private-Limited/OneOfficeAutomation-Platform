@@ -4,6 +4,7 @@ import type { CrApi, CrUser } from "../../api/cr";
 import type { ValueReport, ValueRow } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick } from "../../console/ListParts";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Operational Insights > Value, as AA's Center of Excellence dashboard and UiPath Insights' Business ROI (checked
@@ -101,7 +102,7 @@ export function Value({ api, user, onNotice , title, tabs }: { api: CrApi; user:
     <section className="st-page cc-home cc-list" aria-labelledby="cc-val-title">
       <header className="cc-list-head">
         <h1 id="cc-val-title">{title ?? "Value"}</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:business" />
       </header>
       {tabs}
       <div className="cc-list-tools">

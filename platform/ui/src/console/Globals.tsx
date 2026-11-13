@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrTeam, CrUser, GlobalValue } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Manage > Shared Global values, built as AA's Global values (checked against AA's docs, UiPath's assets and Blue Prism's
@@ -74,7 +75,7 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
     <section className="st-page cc-home cc-list" aria-labelledby="cc-glob-title">
       <header className="cc-list-head">
         <h1 id="cc-glob-title">Shared Global values</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:globals" />
         {list && <span className="cc-list-count">{list.length} shared value{list.length === 1 ? "" : "s"} · {list.filter((g) => g.changeable).length} people may change</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "edit", g: null })}>Create value</Button>}

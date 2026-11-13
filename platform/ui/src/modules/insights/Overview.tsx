@@ -4,6 +4,7 @@ import type { Alert, CrApi, CrUser, Dashboard, ModelConnection, Run, Runner, Sch
 import type { AlertRule, Operations } from "./consoleApi";
 import { HelpButton, type HelpTopic } from "../../components";
 import { rowClick } from "../../console/ListParts";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Operational Insights > Overview: how agents, runners, queues and AI connections are doing now, on one screen, as
@@ -156,7 +157,7 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
     <section className="st-page cc-home ov" aria-labelledby="cc-ov-title">
       <header className="ov-head">
         <h1 id="cc-ov-title">Overview</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:insights" />
         <span className="ov-fill" />
         {at && <span className="ov-meta" role="status">Updated {at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}
         <span className="ov-seg" role="group" aria-label="Period">{PERIODS.map(([v, l]) =>

@@ -30,6 +30,8 @@ import { Users } from "./Users";
 import { Breadcrumb, EnvironmentLabel, TopBar } from "./TopBar";
 import { listKeys } from "./listKeys";
 import { Vault } from "./Vault";
+import { loadHelpConfig } from "../shell/helpCatalogue";
+import { HelpLinks } from "../shell/HelpLinks";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
 /** The kernel's pages this console shows itself, and every module page (modules/<id>/pages.tsx); other pages open in today's console. */
@@ -55,6 +57,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   const [api] = useState(() => given ?? new CrApi());
   const [user, setUser] = useState<CrUser | null | undefined>(undefined);   // undefined: still asking
   const [page, setPageState] = useState(() => pageOf(location.hash));
+  useEffect(() => { if (user) loadHelpConfig(); }, [user]);   // where Docs and Video point (round 3, item 6)
   const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); };
   useEffect(() => { const on = () => setPageState(pageOf(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const [notice, setNotice] = useState<string | null>(null);
@@ -154,7 +157,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "templates" && <Templates api={api} user={user} onNotice={setNotice} />}
           </Fragment></PageRetry.Provider>
         </main>
-        <HelpPanel page={page} />
+        <HelpPanel page={page} links={<HelpLinks k={"page:" + page} long />} />
       </div></HelpProvider>
     </div>
   );

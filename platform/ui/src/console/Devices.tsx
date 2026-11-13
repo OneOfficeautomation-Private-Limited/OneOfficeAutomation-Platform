@@ -3,6 +3,7 @@ import type { CrApi, CrUser, Runner, RunnerFile, RunnerPool } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { modulePart } from "../modules/pages";
+import { PageIntro } from "../shell/PageIntro";
 
 /** Auto-scaling a pool, when the runner-management module is installed. */
 const PoolScalingDialog = modulePart<{ api: CrApi; pool: RunnerPool; onClose: () => void; onSaved: (t: string) => void }>("pool-scaling");
@@ -166,7 +167,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
     <section className="st-page cc-home cc-list" aria-labelledby="cc-dev-title">
       <header className="cc-list-head">
         <h1 id="cc-dev-title">Runner Machines</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:devices" />
         {runners && <span className="cc-list-count">{runners.length} runner{runners.length === 1 ? "" : "s"} · {online} of {runners.length} online · {pools.length} pool{pools.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {tab === "runners" && manage && <Button kind="primary" onClick={() => setDialog({ kind: "register" })}>Register a runner</Button>}

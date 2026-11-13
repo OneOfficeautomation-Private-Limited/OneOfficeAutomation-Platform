@@ -5,6 +5,8 @@
 export const SETTING_HELP: Record<string, string> = {
   // General
   announcement: "A message shown at the top of every page to everyone signed in, for example a maintenance window. Type it and save; clear the box and save to remove it.",
+  help_docs_base: "Where every Docs link in the product points. Each page, dialog and command adds its own path and the version, for example …/0.2.0/pages/activity. Set it to a company's own copy of the documentation when this server has no internet. Empty: the product's documentation site.",
+  help_video_base: "Where every Video link points. Each page and command adds its own path, for example …/pages/activity. Set it to a company's own copy of the videos when this server has no internet. Empty: the product's video site.",
   public_url: "The address people use to reach this One CommandCenter, such as https://ooa.example.com. Single sign-on sends people back to it, and links in e-mails use it. Leave it empty when everyone uses this computer's address.",
   max_upload_mb: "The biggest file anyone can upload, such as a toolkit, a template or a repository file. Raise it only when you upload large files; uploads above it are refused.",
   serverless_max_minutes: "Serverless Agent API runs (agents that only call web services and work on data, run inside One CommandCenter with no runner) stop after this long. Longer runs suit integrations that page through many records; each one holds one of the serverless places for that time.",

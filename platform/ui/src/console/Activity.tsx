@@ -13,6 +13,8 @@ function when(t?: string | null) {
 import { repeats } from "./Schedules";
 import { logFields } from "../studio/flowEdit";
 import { SuspendedRuns } from "./SuspendedRuns";
+import { PageIntro } from "../shell/PageIntro";
+import { errorLink } from "../components/errorLink";
 
 /**
  * Manage > Agent Activity, built as AA's Activity (In progress, Scheduled, Historical), with UiPath Jobs' job details
@@ -298,7 +300,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     <section className={"st-page cc-home cc-list" + (details ? " has-run" : "")} aria-labelledby="cc-act-title">
       <header className="cc-list-head">
         <h1 id="cc-act-title">Agent Activity</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:activity" />
         {data && tab === "completed" && <span className="cc-list-count">{data.total} run{data.total === 1 ? "" : "s"} {f.period === "dates" ? "between the chosen dates" : "in the " + periodWords}
           {byOutcome.map(([n, l]) => " · " + n + " " + l).join("")}</span>}
         {summary && tab === "progress" && <span className="cc-list-count">{summary.running} running · {summary.queued} waiting for a runner</span>}
@@ -603,7 +605,8 @@ function RunView({ api, user, id, names, onClose, onOpen, onNotice, onChanged, n
           {err.stepId && <div className="cc-run-at">At step <strong>{err.stepId}{errStep ? " · " + actionLabel(names, errStep.action) : ""}</strong>.
             {retry === false ? " Not retryable: the same input fails again until the agent changes." : retry ? " Retryable: running it again may work." : ""}</div>}
           {err.suggestedFix && <div>Fix: {err.suggestedFix}</div>}
-          {err.code && <span><Button kind="secondary" onClick={() => onSearch(err.code!)}>Every run that failed this way</Button></span>}
+          {err.code && <span><Button kind="secondary" onClick={() => onSearch(err.code!)}>Every run that failed this way</Button>
+            {errorLink(err.code) && <> <a className="ui-learn-more" href={errorLink(err.code)} target="_blank" rel="noopener noreferrer">Learn more</a></>}</span>}
         </div>}
         <p className="cc-run-state"><span className="cc-none">{run.status === "queued" ? "Waiting for " + (run.device_name ?? run.device_id ?? "a runner")
             : active ? "Running for " + duration(elapsed) : (run.status === "success" ? "Finished in " : "Ended after ") + duration(elapsed)}</span></p>

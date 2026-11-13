@@ -6,6 +6,8 @@ import { conditionText, describeAction, plainValue, stepRows, summarize } from "
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
 import { Analysis, ColumnsDialog, PUBLIC_COLUMNS, PUBLIC_HIDDEN, PUBLIC_HIDDEN_KEY, sizeText } from "../studio/columns";
+import { PageIntro } from "../shell/PageIntro";
+import { HelpLinks } from "../shell/HelpLinks";
 
 /**
  * Build > Agent Repository, built as AA's public workspace (checked 31 Oct 2026): a folder tree beside the agents in the
@@ -188,7 +190,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-repo-title">
       <header className="cc-list-head">
         <h1 id="cc-repo-title">Agents</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:automation" />
         {agents && <span className="cc-list-count">{total("")} agent{total("") === 1 ? "" : "s"} · {folders.length} folder{folders.length === 1 ? "" : "s"}{toDecide ? " · " + toDecide + " to approve" : ""}</span>}
         <span className="ov-fill" />
         <Menu label="Manage" align="end" items={manage} trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>} />
@@ -584,7 +586,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
   useEffect(() => { if (where === "users" && people === null) api.defaultRunners().then(setPeople, (e) => { setPeople([]); reportMinor("the run-as users", e); }); }, [where]);   // eslint-disable-line react-hooks/exhaustive-deps
   const missing = vars.some((v) => v.required && !(values[v.name] ?? "").trim());
   return (
-    <Dialog open title={"Run " + agentName(a.path)} width={620} onClose={onClose} footer={<><Button kind="plain" onClick={onClose}>Cancel</Button>
+    <Dialog open title={"Run " + agentName(a.path)} width={620} onClose={onClose} help={<HelpLinks k="dialog:run" label="Run" />} footer={<><Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!where || missing || (where === "users" && !picked.length)} onClick={run}>Run</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <p className="cc-list-hint">Runs the live version, v{a.production_version}.</p>
@@ -654,7 +656,7 @@ function FolderPermissions({ api, folder, onClose, onDone }: { api: CrApi; folde
   const label = (p: string) => p === "role:*" ? "Everyone" : p.startsWith("role:") ? "Role " + p.slice(5) : p.startsWith("team:") ? "Team " + p.slice(5) : "User " + p.slice(5);
   const plus = () => { const pr = add.user.trim() ? "user:" + add.user.trim() : add.who; if (!rows!.some((r) => r.principal === pr)) setRows([...rows!, { principal: pr, access: add.access }]); setAdd({ ...add, user: "" }); };
   return (
-    <Dialog open title={"Permissions of " + folder} width={680} onClose={onClose} footer={<><Button kind="plain" onClick={onClose}>Cancel</Button>
+    <Dialog open title={"Permissions of " + folder} width={680} onClose={onClose} help={<HelpLinks k="dialog:folder-permissions" label="Folder permissions" />} footer={<><Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!rows} onClick={() => api.saveFolderPermissions(folder, rows!).then(() => onDone("Saved the permissions of " + folder + "."), (e) => setError(message(e)))}>Save</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <p className="cc-list-hint">With permissions of its own, only those listed see the folder's agents (and its sub-folders', unless one has its own). Roles still apply: a folder never grants what a role does not allow.</p>
@@ -700,7 +702,7 @@ function Approvals({ api, user, onClose, onNotice }: { api: CrApi; user: CrUser;
   const decide = (r: ProductionRequest, how: "approve" | "reject" | "withdraw") => api.decideRequest(r.id, how, note[r.id] ?? "")
     .then(() => { onNotice(how === "approve" ? "v" + r.version + " of " + agentName(r.path) + " is live." : how === "reject" ? "Rejected." : "Withdrawn."); load(); }, (e) => setError(message(e)));
   return (
-    <Dialog open title="Production approvals" width={860} onClose={onClose} footer={null}>
+    <Dialog open title="Production approvals" width={860} onClose={onClose} help={<HelpLinks k="dialog:production-approvals" label="Production approvals" />} footer={null}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {data && <p className="st-muted">{data.on ? "A version goes live only when someone with the approval right, other than the person who asked, approves it."
         : "Approval before going live is off (Administration > Settings); requests made before still wait here."}</p>}

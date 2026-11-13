@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CrApi } from "../../api/cr";
 import type { ChatMessage } from "./consoleApi";
 import { Button, HelpButton, TextInput, type HelpTopic } from "../../components";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * AI > One Chat: run agents and check your runs in plain words. Runs start as the person, with their permissions; anything
@@ -78,7 +79,7 @@ export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRu
     <section className="st-page cc-home cc-list cc-chat-page" aria-labelledby="cc-chat-title">
       <header className="cc-list-head">
         <h1 id="cc-chat-title">One Chat</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:chat" />
         <span className="ov-fill" />
         <Button onClick={() => { resetChat(); setSession(null); setMessages([]); setText(""); input.current?.focus(); }} disabled={busy}>New chat</Button>
       </header>

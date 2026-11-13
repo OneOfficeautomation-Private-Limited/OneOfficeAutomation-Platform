@@ -5,6 +5,7 @@ import type { Policy } from "./consoleApi";
 import { Button, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "../../console/ListParts";
 import { CodeRules, codeReportCsv, ruleText, rulesToSave } from "../../console/RepoTools";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Administration > Policies, as AA's (item 5, drawn on the design canvas and approved 1 Nov 2026): named policies given
@@ -89,7 +90,7 @@ export function Policies({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     <section className="st-page cc-home cc-list" aria-labelledby="cc-policies-title">
       <header className="cc-list-head">
         <h1 id="cc-policies-title">Policies</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:policies" />
         {list && <span className="cc-list-count">{list.length} polic{list.length === 1 ? "y" : "ies"} · rules agents follow, given to folders</span>}
         <span className="ov-fill" />
         {edit && <Menu label="Create policy" title="Create policy" trigger={<Button kind="primary">Create policy ▾</Button>}

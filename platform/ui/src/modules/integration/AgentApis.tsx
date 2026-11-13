@@ -4,6 +4,7 @@ import type { AgentApi, CrApi, CrUser, Runner, RunnerPool } from "../../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FolderIcon } from "../../console/Repository";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Build > Agent APIs, built as AA's API tasks (checked against AA's docs and UiPath's API triggers, 31 Oct 2026): an
@@ -81,7 +82,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     <section className="st-page cc-home cc-explorer" aria-labelledby="cc-apis-title">
       <header className="cc-list-head">
         <h1 id="cc-apis-title">Agent APIs</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:apitasks" />
         {list && <span className="cc-list-count">{list.length} Agent API{list.length === 1 ? "" : "s"} · {list.filter((t) => t.enabled).length} on</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create Agent API</Button>}

@@ -4,6 +4,7 @@ import type { CrApi, CrUser } from "../../api/cr";
 import type { PromptSkill, SkillDefinition } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "../../console/ListParts";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * AI > Prompt Skills, built as AA's AI Skills (checked against AA's docs and UiPath's prompt and agent governance, 31 Oct
@@ -85,7 +86,7 @@ export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
     <section className="st-page cc-home cc-list" aria-labelledby="cc-sk-title">
       <header className="cc-list-head">
         <h1 id="cc-sk-title">Prompt Skills</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:skills" />
         {list && <span className="cc-list-count">{list.length} skill{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         {can("skills.manage") && <>

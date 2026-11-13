@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, EventSubscription, EventSubscriptionList } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
 
 /**
  * Administration > Event subscriptions (gap G38; UiPath's webhooks, and run logs streamed to a log platform such as
@@ -85,7 +86,7 @@ export function EventSubscriptions({ api, onNotice }: { api: CrApi; onNotice: (t
     <section className="st-page cc-home cc-list" aria-labelledby="cc-events-title">
       <header className="cc-list-head">
         <h1 id="cc-events-title">Event subscriptions</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:events" />
         {data && <span className="cc-list-count">{data.subscriptions.length}</span>}
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setEditing("new")}>New subscription</Button>

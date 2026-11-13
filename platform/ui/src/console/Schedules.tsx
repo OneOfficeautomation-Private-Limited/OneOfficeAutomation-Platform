@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { type CrApi, type CrUser, type HolidayCalendar, type Runner, type RunnerPool, type Schedule, type SchedulePreview } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
+import { PageIntro } from "../shell/PageIntro";
+import { HelpLinks } from "../shell/HelpLinks";
 
 /**
  * Manage > Schedules, built as AA's scheduled automations (checked against AA's docs, UiPath's time triggers and Blue
@@ -152,7 +154,7 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     <section className="st-page cc-home cc-list" aria-labelledby="cc-sched-title">
       <header className="cc-list-head">
         <h1 id="cc-sched-title">Schedules</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:schedules" />
         {list && <span className="cc-list-count">{list.length} schedule{list.length === 1 ? "" : "s"} · {enabled} enabled</span>}
         <span className="ov-fill" />
         <Button kind="secondary" onClick={() => setDialog({ kind: "calendars" })}>Holiday calendars</Button>
@@ -280,7 +282,7 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
   const ok = v.bot && (v.where !== "runner" || v.device) && (v.where !== "pool" || v.pool) && (v.where !== "default" || v.runAs) && (v.kind !== "weekly" || v.days.length > 0)
     && (v.kind !== "monthly" || v.monthly.mode === "weekday" || v.monthly.days.length > 0) && (v.kind !== "cron" || v.cron.trim() !== "");
   return (
-    <Dialog open title={from ? "Copy of " + from.name : "Create schedule"} width={680} onClose={onClose} footer={<>
+    <Dialog open title={from ? "Copy of " + from.name : "Create schedule"} width={680} onClose={onClose} help={<HelpLinks k="dialog:schedule" label="Schedules" />} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!ok} onClick={create}>Create schedule</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <div className="cc-grid2">
@@ -380,7 +382,7 @@ function EditSchedule({ api, s, manage, runsOn, onClose, onCopy, onSaved }: { ap
     api.updateSchedule(s.id, b).then(() => onSaved("Saved " + v.name.trim() + "."), (e) => setError(message(e)));
   };
   return (
-    <Dialog open title={"Schedule " + s.name} width={640} onClose={onClose} footer={manage ? <>
+    <Dialog open title={"Schedule " + s.name} width={640} onClose={onClose} help={<HelpLinks k="dialog:schedule" label="Schedules" />} footer={manage ? <>
       <Button kind="secondary" onClick={() => api.setScheduleEnabled(s.id, !s.enabled).then(() => onSaved((s.enabled ? "Disabled " : "Enabled ") + s.name + "."), (e) => setError(message(e)))}>{s.enabled ? "Disable" : "Enable"}</Button>
       <Button kind="secondary" onClick={onCopy}>Copy as a new schedule</Button>
       <span className="st-bar-fill" /><Button kind="primary" onClick={save}>Save changes</Button></> : null}>
@@ -422,7 +424,7 @@ function Calendars({ api, manage, onClose, onNotice }: { api: CrApi; manage: boo
   const today = new Date().toISOString().slice(0, 10);
   const allWeekend = weekend.length === DAYS.length;
   return (
-    <Dialog open title="Holiday calendars" width={680} onClose={onClose} footer={manage ? <Button kind="primary" disabled={!name.trim() || allWeekend}
+    <Dialog open title="Holiday calendars" width={680} onClose={onClose} help={<HelpLinks k="dialog:holiday-calendars" label="Holiday calendars" />} footer={manage ? <Button kind="primary" disabled={!name.trim() || allWeekend}
       onClick={() => api.saveCalendar(name.trim(), dates.split(/[\s,;]+/).filter(Boolean), DAYS.filter((d) => weekend.includes(d)))
         .then(() => { onNotice("Saved the calendar " + name.trim() + "."); setName(""); setDates(""); setWeekend(["SAT", "SUN"]); read(); }, (e) => setError(message(e)))}>Save calendar</Button> : null}>
       {error && <p className="st-alert" role="alert">{error}</p>}

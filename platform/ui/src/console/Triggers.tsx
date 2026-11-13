@@ -3,6 +3,8 @@ import type { CrApi, CrUser, Runner, Trigger } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { DOCUMENT_KINDS, KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
+import { PageIntro } from "../shell/PageIntro";
+import { HelpLinks } from "../shell/HelpLinks";
 
 /**
  * Manage > Triggers, built as AA's event triggers (checked against AA's docs, UiPath's queue and Integration Service
@@ -105,7 +107,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     <section className="st-page cc-home cc-list" aria-labelledby="cc-trig-title">
       <header className="cc-list-head">
         <h1 id="cc-trig-title">Triggers</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:triggers" />
         {list && <span className="cc-list-count">{list.length} trigger{list.length === 1 ? "" : "s"} · {listening} listening{errors ? " · " + errors + " with an error" : ""}</span>}
         <span className="ov-fill" />
         {manage && <Button kind="primary" onClick={() => setDialog({ kind: "new" })}>Create trigger</Button>}
@@ -190,7 +192,7 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
     try { const r = await api.createTrigger(b); onCreated("Created the trigger " + b.name + ".", r.secret && r.url ? { url: r.url, secret: r.secret } : undefined); } catch (e) { setError(message(e)); }
   };
   return (
-    <Dialog open title="Create trigger" width={680} onClose={onClose} footer={<>
+    <Dialog open title="Create trigger" width={680} onClose={onClose} help={<HelpLinks k="dialog:trigger" label="Triggers" />} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!bot || !device} onClick={create}>Create trigger</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <h3 className="cc-log-title">Event</h3>
@@ -224,7 +226,7 @@ function EditTrigger({ api, t, manage, where, onClose, onSaved }: { api: CrApi; 
   };
   const c = Object.entries(t.config ?? {}).filter(([k]) => !/secret|password|token/i.test(k) || k.endsWith("_ref"));
   return (
-    <Dialog open title={"Trigger " + t.name} width={640} onClose={onClose} footer={manage ? <>
+    <Dialog open title={"Trigger " + t.name} width={640} onClose={onClose} help={<HelpLinks k="dialog:trigger" label="Triggers" />} footer={manage ? <>
       <Button kind="danger" onClick={() => setConfirm(true)}>Delete</Button>
       <Button kind="secondary" onClick={() => api.pauseTrigger(t.id, t.enabled).then(() => onSaved((t.enabled ? "Paused " : "Resumed ") + t.name + "."), (e) => setError(message(e)))}>{t.enabled ? "Pause" : "Resume"}</Button>
       <span className="st-bar-fill" /><Button kind="primary" onClick={save}>Save changes</Button></> : null}>

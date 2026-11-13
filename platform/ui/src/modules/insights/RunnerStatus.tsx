@@ -3,6 +3,7 @@ import type { CrApi, Runner } from "../../api/cr";
 import { HelpButton, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton } from "../../console/ListParts";
 import { time, trouble } from "./Overview";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Operational Insights > Runner status (item 11, docs/research/input-help-check.md): every runner on its own page, not
@@ -35,7 +36,7 @@ export function RunnerStatus({ api }: { api: CrApi }) {
     <section className="st-page cc-home cc-list" aria-labelledby="cc-rs-title">
       <header className="cc-list-head">
         <h1 id="cc-rs-title">Runner status</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:runner-status" />
         {runners && <span className="cc-list-count">{online} of {all.filter((d) => d.status !== "disabled").length} online · {attention} need{attention === 1 ? "s" : ""} attention</span>}
         <span className="ov-fill" />
         <a className="ui-btn ui-btn-secondary" href="#/devices">Runner Machines</a>

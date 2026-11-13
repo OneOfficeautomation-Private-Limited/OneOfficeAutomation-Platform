@@ -3,6 +3,8 @@ import type { CrApi, CrPerson, CrUser, Runner } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { ROLE_NAMES, roleName } from "./roleNames";
+import { PageIntro } from "../shell/PageIntro";
+import { HelpLinks } from "../shell/HelpLinks";
 
 /**
  * Administration > Users, built as AA's Users page (checked against AA's docs and live Control Room, UiPath's accounts
@@ -189,7 +191,7 @@ export function Users({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
     <section className="st-page cc-home cc-list" aria-labelledby="cc-users-title">
       <header className="cc-list-head">
         <h1 id="cc-users-title">Users</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:users" />
         {people && <span className="cc-list-count">{people.length} {people.length === 1 ? "person" : "people"} · {active} active{locked ? " · " + locked + " locked" : ""}</span>}
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setDialog({ kind: "create" })}>Create user</Button>
@@ -296,7 +298,7 @@ function CreateUser({ api, roles, onClose, onCreated }: { api: CrApi; roles: str
     } catch (e) { setError(message(e)); }
   };
   return (
-    <Dialog open title="Create user" width={520} onClose={onClose} footer={<>
+    <Dialog open title="Create user" width={520} onClose={onClose} help={<HelpLinks k="dialog:user" label="Users" />} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={username.trim().length < 3} onClick={create}>Create user</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}

@@ -3,6 +3,7 @@ import type { CrApi, Schedule } from "../../api/cr";
 import { HelpButton, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton } from "../../console/ListParts";
 import { name, time } from "./Overview";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Operational Insights > Upcoming runs (item 11, docs/research/input-help-check.md): every scheduled run coming up, soonest
@@ -34,7 +35,7 @@ export function UpcomingRuns({ api }: { api: CrApi }) {
     <section className="st-page cc-home cc-list" aria-labelledby="cc-up-title">
       <header className="cc-list-head">
         <h1 id="cc-up-title">Upcoming runs</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:upcoming" />
         {list && <span className="cc-list-count">{shown.length} run{shown.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
         <a className="ui-btn ui-btn-secondary" href="#/schedules">Schedules</a>

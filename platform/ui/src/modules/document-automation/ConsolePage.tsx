@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { ConsolePlugin, CrApi } from "../../api/cr";
 import type { DocFlowVersion } from "./consoleApi";
 import { HelpButton, type HelpTopic, PageError } from "../../components";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * AI > Document Automation, as in AA's Control Room: a plug-in page. An optional module fills it (it lists itself as a
@@ -62,7 +63,7 @@ export function DocumentAutomation({ api }: { api: CrApi }) {
     <section className="st-page cc-home cc-list df-start" aria-labelledby="cc-da-title">
       <header className="cc-list-head">
         <h1 id="cc-da-title">Document Automation</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:docautomation" />
         {plugin !== undefined && <span className={"cc-pill is-" + (plugin ? "active" : "disabled")}><span className="cc-pill-dot" />{plugin ? "Installed" : "Not installed"}</span>}
       </header>
       {error && <PageError text={error} />}

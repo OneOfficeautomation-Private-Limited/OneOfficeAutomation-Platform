@@ -19,6 +19,8 @@ import { agentRows, allInstalled } from "./toolkits";
 import type { Captured } from "./capture";
 import { oneStep, runOnce } from "./runOnce";
 import { CompanyName, TopBrand } from "../shell/TopBrand";
+import { loadHelpConfig } from "../shell/helpCatalogue";
+import { HelpLinks } from "../shell/HelpLinks";
 
 /**
  * One open agent: the flow being edited, the last saved copy (to know about unsaved changes), undo and redo
@@ -46,10 +48,16 @@ const SCRIPT_ACTION: Record<string, { action: string; name: string }> = { py: { 
   ps1: { action: "ooa.script/run_powershell", name: "Run PowerShell" }, vbs: { action: "ooa.script/run_vbscript", name: "Run VBScript" }, js: { action: "ooa.script/run_javascript", name: "Run JavaScript" } };
 
 /** The new Studio (docs/architecture/12-ui-redesign.md): One CommandCenter menu, Automation page, agents in tabs. */
+/** Which tab of the Agents page is open (Automation.tsx keeps it), for the help panel's links. */
+function agentsTab(): "public" | "private" {
+  try { return localStorage.getItem("ooa.studio.automation.place") === '"public"' ? "public" : "private"; } catch { return "private"; }
+}
+
 export function App({ api: given }: { api?: StudioApi }) {
   // one client for the life of the page: a new one on every render would reload the data in a loop
   const [api] = useState(() => given ?? new StudioApi());
   const [info, setInfo] = useState<StudioInfo | null>(null);
+  useEffect(() => { loadHelpConfig(); }, []);   // where Docs and Video point (round 3, item 6); Studio on its own keeps the built-in addresses
   const [tree, setTree] = useState<WorkspaceNode | null>(null);
   const [packages, setPackages] = useState<PackageManifest[]>([]);
   const [clipboard, setClipboard] = useState<StepsClipboard | null>(null);   // copied steps, for every open agent
@@ -584,7 +592,7 @@ export function App({ api: given }: { api?: StudioApi }) {
                   api={api} onMoved={moved} onChanged={() => { loadStates(); return reloadTree(); }} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
         </main>
-        <HelpPanel page={active ?? view} />
+        <HelpPanel page={active ?? view} links={!active ? <HelpLinks k={"studio:agents-" + agentsTab()} long /> : undefined} />
         {showKeys && <ShortcutsDialog app="studio" onClose={() => setShowKeys(false)} />}
         {copyingClone && <CopyToPrivate api={api} path={copyingClone} onClose={() => setCopyingClone(null)}
           onCopied={(local, note) => { setCopyingClone(null); openLocal(local, note).catch(fail); }} />}

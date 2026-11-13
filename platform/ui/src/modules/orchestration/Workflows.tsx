@@ -5,6 +5,7 @@ import type { WorkflowRun } from "./consoleApi";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "../../console/ListParts";
 import { FormField } from "../../console/Inbox";
+import { PageIntro } from "../../shell/PageIntro";
 
 /**
  * Manage > Workflow, built as AA's Process Composer requests and UiPath Maestro's instances (checked against their docs
@@ -77,7 +78,7 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     <section className={"st-page cc-home cc-list" + (dialog?.kind === "run" ? " has-run" : "")} aria-labelledby="cc-wf-title">
       <header className="cc-list-head">
         <h1 id="cc-wf-title">Workflow</h1>
-        <HelpButton topic={HELP} />
+        <HelpButton topic={HELP} /><PageIntro k="page:workflows" />
         {runs && <span className="cc-list-count">{count("progress")} in progress · {(runs ?? []).filter((r) => r.status === "waiting").length} waiting for a person</span>}
         <span className="ov-fill" />
         {user.permissions.includes("runs.start") && <Button kind="primary" onClick={() => setDialog({ kind: "start" })}>Start a workflow</Button>}

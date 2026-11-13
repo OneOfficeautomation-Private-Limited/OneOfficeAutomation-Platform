@@ -14,6 +14,8 @@ import { Review } from "./Review";
 import { TestLab } from "./TestLab";
 import { HELP, type HelpPage } from "./help";
 import { Chip, DF_ERROR, HelpButton, HelpPanel, reportError } from "./ui";
+import { PageIntro } from "../../shell/PageIntro";
+import { loadHelpConfig } from "../../shell/helpCatalogue";
 
 /**
  * Document Automation in the Command Center: AI > Document Automation, with its own tabs. Screens are addressed by the
@@ -54,6 +56,7 @@ const TABS = TAB_GROUPS.flatMap((g) => g.tabs);
 export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], user = "Sara Khan" }:
   { api: DocFlowApi; controlRoom?: string | null; tenants?: string[]; user?: string }) {
   const [route, setRoute] = useState<Route>(() => parseRoute(location.hash));
+  useEffect(() => { loadHelpConfig(); }, []);   // where Docs and Video point (round 3, item 6)
   const [optIn, setOptIn] = useState(false);
   const [error, setError] = useState("");
   // "How to use this page" shows on a person's first visit to each page, until they hide it
@@ -105,7 +108,7 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
           {!reviewing && (
             <div className="df-head">
               <div className="df-head-row">
-                <h1>Document Automation</h1>
+                <h1>Document Automation</h1><PageIntro k={"docs:" + route.tab} />
                 {optIn
                   ? <Chip tone="ai">Cloud opt-in on: weak pages may go to cloud engines</Chip>
                   : <Chip tone="ok">Local-only: nothing leaves this server</Chip>}
