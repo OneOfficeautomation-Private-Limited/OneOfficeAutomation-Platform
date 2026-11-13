@@ -53,8 +53,9 @@ export type MyProfile = { username: string; display_name: string; first_name?: s
   last_sign_in_from?: string; roles: string[]; permissions: string[]; teams: { name: string; lead: boolean }[]; license_seats: string[]; mfa_enabled: boolean;
   sign_in: string; password_expires?: string };
 export type MySession = { id: string; created: string; expires: string; from: string; current: boolean };
-export type MyDevices = { default_runner: string | null; hint?: string;
-  runners: { id: string; name: string; computer?: string; platform?: string; version?: string; last_seen?: string; status: string; shared: boolean; default: boolean }[] };
+export type MyDevices = { default_runner: string | null; hint?: string; can_choose?: boolean; can_connect?: boolean; credentials_set?: boolean;
+  runners: { id: string; name: string; computer?: string; platform?: string; version?: string; last_seen?: string; status: string; shared: boolean; default: boolean;
+    local?: boolean; login?: { state: "waiting" | "ok" | "applied" | "failed"; error?: string; at?: string } | null }[] };
 export type CrError = { code: string; message: string; hint?: string; suggestedFix?: string };
 /** A run of an agent, as the runs list gives it; a running run carries its progress. */
 export type Run = { id: string; bot_path: string; version?: number; device_id?: string; device_name?: string | null; status: string;
@@ -573,6 +574,14 @@ export class CrApi {
   async mySessions() { return (await this.call<{ sessions: MySession[] }>("GET", "me/sessions")).sessions; }
   async endOtherSessions() { return (await this.call<{ ended: number }>("POST", "me/sessions/end-others", {})).ended; }
   myDevices() { return this.call<MyDevices>("GET", "me/devices"); }
+  // stage B (as AA's My settings): edit the profile, choose the default runner, connect this computer, device credentials
+  updateMyProfile(b: { first_name?: string; last_name?: string; email?: string }) { return this.call<MyProfile>("PUT", "me/profile", b); }
+  async runnerChoices() { return (await this.call<{ runners: { id: string; name: string; computer: string }[] }>("GET", "me/runner-choices")).runners; }
+  chooseDefaultRunner(deviceId: string) { return this.call<MyDevices>("PUT", "me/default-runner", { device_id: deviceId }); }
+  connectKey() { return this.call<{ key: string; expires_in_hours: number }>("POST", "me/connect-key", {}); }
+  setDeviceCredentials(b: { username: string; password: string; device_id?: string | null }) { return this.call<{ ok: boolean }>("PUT", "me/device-credentials", b); }
+  removeDeviceCredentials(deviceId?: string | null) { return this.call<{ ok: boolean }>("DELETE", "me/device-credentials" + (deviceId ? "?device_id=" + encodeURIComponent(deviceId) : "")); }
+  checkDeviceLogin(deviceId: string, apply = false) { return this.call<{ asked: boolean }>("POST", "me/devices/" + encodeURIComponent(deviceId) + (apply ? "/apply-login" : "/check-login"), {}); }
   createApiKey(name: string, days: number) { return this.call<{ name?: string; key: string }>("POST", "apikeys", { name, days }); }
   async revokeApiKey(id: string) { await this.call("DELETE", "apikeys/" + encodeURIComponent(id)); }
   // ---- Agent Templates: ready-made agents to install, share to the region, or load from a signed catalogue file ----

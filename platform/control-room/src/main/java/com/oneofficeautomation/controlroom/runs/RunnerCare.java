@@ -135,6 +135,7 @@ public final class RunnerCare {
         if (d.get("logs_requested") != null) out.put("send_logs", true);
         if (d.get("screen_requested") != null && cr.platform.intSetting("runner_screen_pictures") == 1) out.put("send_screen", true);
         if (d.get("maintenance") != null) out.put("maintenance", d.get("maintenance"));
+        cr.deviceLoginHeartbeat(d, out);   // a person's device credentials to check or apply (round 3, item 9 B4)
     }
 
     static Integer percent(Object v) { return v instanceof Number n && n.doubleValue() >= 0 && n.doubleValue() <= 100 ? (int) Math.round(n.doubleValue()) : null; }

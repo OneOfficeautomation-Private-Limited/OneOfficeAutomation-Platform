@@ -189,12 +189,18 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "repo/dependencies") return ok({ path: "Finance/Invoice intake.flow.json", agents: [{ bot_id: "pdf-1", path: "Shared/Read PDF.flow.json", found: true }], called_by: [], toolkits: ["ooa.excel"] });
     if (route === "repo/production") return ok({ production_request: { id: "q2" } });
     if (route === "runs" && init.method === "POST") return body?.run_as_users ? ok({ started: 1, runs: [{ run_as: "admin", run_id: "r10" }] }) : ok({ run_id: "r9", version: 3 });
-    if (route === "me/profile") return ok({ username: "admin", display_name: "Asha Admin", email: "asha@example.com", roles: ["admin"], permissions: ["users.manage", "runs.view"],
+    if (route === "me/profile" && (init.method ?? "GET") === "GET") return ok({ username: "admin", display_name: "Asha Admin", email: "asha@example.com", roles: ["admin"], permissions: ["users.manage", "runs.view"],
       teams: [{ name: "Finance", lead: true }], license_seats: ["developer"], mfa_enabled: false, sign_in: "password", last_login: "2026-11-13T08:00:00Z", last_sign_in_from: "10.0.0.5" });
     if (route === "me/sessions") return ok({ sessions: [{ id: "a1", created: "2026-11-13T08:00:00Z", expires: "2026-11-13T20:00:00Z", from: "10.0.0.5", current: true },
       { id: "b2", created: "2026-11-12T08:00:00Z", expires: "2026-11-13T18:00:00Z", from: "10.0.0.9", current: false }] });
     if (route === "me/sessions/end-others") return ok({ ended: 1 });
-    if (route === "me/devices") return ok({ default_runner: "d1", hint: "Your last run stopped because PC-1 stopped reporting.", runners: [{ id: "d1", name: "PC-1", computer: "pc-1", platform: "Windows 11", version: "0.2.0", last_seen: "2026-11-13T08:00:00Z", status: "offline", shared: false, default: true }] });
+    if (route === "me/profile" && init.method === "PUT") return ok({ username: "admin", display_name: "Asha Rao", first_name: "Asha", last_name: "Rao", email: body.email, roles: ["admin"], permissions: [], teams: [], license_seats: [], mfa_enabled: false, sign_in: "password" });
+    if (route === "me/runner-choices") return ok({ runners: [{ id: "d1", name: "PC-1", computer: "pc-1" }, { id: "d2", name: "SHARED-1", computer: "shared-1" }] });
+    if (route === "me/default-runner") return ok({ default_runner: body.device_id, can_choose: true, can_connect: true, credentials_set: false, runners: [{ id: body.device_id, name: "SHARED-1", status: "online", shared: true, default: true }] });
+    if (route === "me/connect-key") return ok({ key: "ooareg_mine", expires_in_hours: 1 });
+    if (route === "me/device-credentials") return ok({ ok: true });
+    if (route.startsWith("me/devices/") && route.endsWith("/check-login")) return ok({ asked: true });
+    if (route === "me/devices") return ok({ can_choose: true, can_connect: true, credentials_set: calls.some((c) => c.route === "me/device-credentials"), default_runner: "d1", hint: "Your last run stopped because PC-1 stopped reporting.", runners: [{ id: "d1", name: "PC-1", computer: "pc-1", platform: "Windows 11", version: "0.2.0", last_seen: "2026-11-13T08:00:00Z", status: "offline", shared: false, default: true }] });
     if (route === "apikeys" && (init.method ?? "GET") === "GET") return ok({ keys: [{ id: "k1", name: "ERP sync", created: "2026-11-01T08:00:00Z", expires: null, last_used: null }] });
     if (route === "apikeys" && init.method === "POST") return ok({ name: body.name, key: "ooa_k_shown_once" });
     if (route.startsWith("apikeys/") && init.method === "DELETE") return ok({});
@@ -493,6 +499,40 @@ describe("rebuilt One CommandCenter console", () => {
     expect(await screen.findByRole("button", { name: "Help: Home" })).toBeTruthy();   // Home has the i too
     fireEvent.keyDown(screen.getByRole("button", { name: "Help" }), { key: "Enter" });
     expect(within(await screen.findByRole("menu")).queryByRole("menuitem", { name: /^Classic console/ })).toBeNull();   // one console: the classic one was removed (13 Nov 2026)
+  });
+
+  it("lets a person edit their profile, choose their runner, connect their computer and set device credentials, as AA's My settings (round 3, item 9 B)", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.keyDown(await screen.findByRole("button", { name: /^Account: / }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^My account/ }));
+    const dlg = await screen.findByRole("dialog", { name: "My account" });
+    fireEvent.click(await within(dlg).findByRole("button", { name: "Edit profile" }));
+    const form = within(dlg).getByRole("group", { name: "Edit profile" });
+    fireEvent.change(within(form).getByLabelText("Contact e-mail"), { target: { value: "asha.rao@example.com" } });
+    await act(async () => { fireEvent.click(within(form).getByRole("button", { name: "Save changes" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "me/profile", body: expect.objectContaining({ email: "asha.rao@example.com" }) }));
+    expect(await within(dlg).findByText("asha.rao@example.com")).toBeTruthy();
+
+    fireEvent.mouseDown(within(dlg).getByRole("tab", { name: "My devices" }));
+    await act(async () => { fireEvent.click(await within(dlg).findByRole("button", { name: "Choose default runner" })); });
+    const choose = within(dlg).getByRole("group", { name: "Choose default runner" });
+    fireEvent.change(within(choose).getByLabelText("Default runner"), { target: { value: "d2" } });
+    await act(async () => { fireEvent.click(within(choose).getByRole("button", { name: "Save changes" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "me/default-runner", body: { device_id: "d2" } }));
+
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Connect to my computer" })); });
+    expect(await within(dlg).findByText(/agent register --url .* --key ooareg_mine/)).toBeTruthy();
+
+    fireEvent.click(within(dlg).getByRole("button", { name: "Set credentials" }));
+    const cred = within(dlg).getByRole("group", { name: "Device credentials" });
+    fireEvent.change(within(cred).getByLabelText("Windows user name"), { target: { value: "PC-1\asha" } });
+    fireEvent.change(within(cred).getByLabelText("Password"), { target: { value: "Windows-Pass-1" } });
+    await act(async () => { fireEvent.click(within(cred).getByRole("button", { name: "Save changes" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "me/device-credentials", body: { username: "PC-1\asha", password: "Windows-Pass-1", device_id: null } }));
+    expect(within(dlg).queryByDisplayValue("Windows-Pass-1")).toBeNull();   // never shown again
+    await act(async () => { fireEvent.click(await within(dlg).findByRole("button", { name: "Check" })); });
+    expect(calls.some((c) => c.method === "POST" && /^me\/devices\/d[12]\/check-login$/.test(c.route))).toBe(true);
   });
 
   it("shows My account and My devices from the account icon, as AA's user menu (round 3, item 9); API keys and the password open from it", async () => {

@@ -226,8 +226,25 @@ The person icon on the top bar opens **My account** (as AA's user menu):
   From here open **Your API keys**, **Change password**, **Turn on two-step sign-in** and **Phone notifications**.
   **Where you are signed in** lists your sessions; **Sign out everywhere else** ends all but this one (recorded in the
   Audit Trail).
-- **My devices**: your default runner and every runner you are a default user of, each with its status, computer,
-  version and when it last reported. When your last run stopped because its runner stopped reporting, it says so.
+- **Edit profile** (people who sign in with a password): your first name, last name and contact e-mail. With single
+  sign-on or a directory, these come from your organisation's sign-in.
+- **My devices**: your default runner, every runner you are a default user of, and the runners you connected yourself
+  (**your local runner**), each with its status, computer, version and when it last reported. When your last run
+  stopped because its runner stopped reporting, it says so. As in AA's My settings:
+  - **Choose default runner** (permission *Choose own default runner*, which runners and developers have): any switched-on
+    runner, except a single-user runner someone else already has.
+  - **Connect to my computer** (permission *Connect own computer as a runner*): gives this server's address and a key
+    that works once, for one hour. Install the runner with the setup package (`Install.cmd` asks for both) or, where the
+    product is installed, run `bin\ooa.bat agent register --url <address> --key <key>` and `bin\ooa.bat agent install-task`.
+    The runner becomes your local runner and, if you have none, your default runner. Registrations must be open
+    (Settings > Runner Machines).
+  - **Device credentials**: the Windows user name (`DOMAIN\name`, `.\name` or `AzureAD\name@company.com`) and password
+    your unattended runs sign in with, for every runner of yours or one runner only. They are kept encrypted for you
+    alone (not in the Credential vault's list), never shown again, and sent only to your own runners when you press
+    **Check** (Windows signs the account in once to test it) or **Use for automatic sign-in** (the runner sets it as its
+    Windows sign-in after a restart, as `ooa agent autologon` does; the runner needs Windows administrator rights for
+    that). The answer shows within a minute. Every change, check and use is in the Audit Trail; the password never is.
+    Administrators who prefer passwords never to reach the server keep using `ooa agent autologon` on the runner.
 
 ### Keys that save time
 

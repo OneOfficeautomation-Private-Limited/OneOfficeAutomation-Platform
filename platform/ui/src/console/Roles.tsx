@@ -34,6 +34,8 @@ const PERMS: Record<string, { area: string; kind: Kind; label: string }> = {
   "runs.stop": { area: "Runs", kind: "run", label: "Pause and stop runs" },
   "devices.view": { area: "Runner Machines", kind: "see", label: "See runners" },
   "devices.manage": { area: "Runner Machines", kind: "admin", label: "Manage runners" },
+  "devices.choose_own": { area: "Runner Machines", kind: "change", label: "Choose own default runner" },
+  "devices.register_own": { area: "Runner Machines", kind: "change", label: "Connect own computer as a runner" },
   "pools.manage": { area: "Runner Machines", kind: "admin", label: "Manage runner pools" },
   "locks.manage": { area: "Runner Machines", kind: "admin", label: "Release environment locks" },
   "ideas.manage": { area: "Agents", kind: "admin", label: "Assess automation ideas" },

@@ -1311,8 +1311,13 @@ public final class ControlRoom {
             }
             String deviceId = id("dev"), secret = Security.token(32);
             String nm = name == null || name.isBlank() ? hostname : name;
+            // a key from My devices > Connect to my computer (round 3, item 9 B3) is made by self:<user>, and so the runner is
+            // registered by self:<user>: that person's own (their local runner) and, when they have none, their default runner
+            String by = String.valueOf(k.get("created_by")), own = by.startsWith(MyAccount.SELF) ? by.substring(MyAccount.SELF.length()) : null;
             db.update("INSERT INTO devices (id, name, hostname, os, agent_version, secret_hash, enabled, last_seen, registered, registered_by, lifespan, secret_set) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                    deviceId, nm, hostname, os, agentVersion, Security.sha256(secret), true, now(), now(), k.get("created_by"), Boolean.TRUE.equals(k.get("temporary")) ? "temporary" : "persistent", now());
+                    deviceId, nm, hostname, os, agentVersion, Security.sha256(secret), true, now(), now(), by, Boolean.TRUE.equals(k.get("temporary")) ? "temporary" : "persistent", now());
+            if (own != null && db.one("SELECT device_id FROM user_devices WHERE username = ?", own) == null)
+                db.update("INSERT INTO user_devices (username, device_id, updated, updated_by) VALUES (?,?,?,?)", own, deviceId, now(), own);
             db.update("UPDATE registration_keys SET used_by = ? WHERE key_hash = ?", deviceId, k.get("key_hash"));
             audit.record("agent:" + hostname, "device.register", "device", deviceId, Map.of("name", nm), "ok", ip);
             return Map.of("device_id", deviceId, "secret", secret, "name", nm);
@@ -1758,6 +1763,9 @@ public final class ControlRoom {
     }
 
     /** Wakes runners waiting for work: a run was queued, or a run of theirs needs controlling (deviceId null: all). */
+    /** With a runner's heartbeat: a person's device credentials to check or apply, if asked (DeviceLogin, round 3 item 9 B4). */
+    public void deviceLoginHeartbeat(Map<String, Object> d, Map<String, Object> out) { DeviceLogin.heartbeat(this, d, out); }
+
     public void wake(String deviceId, boolean control) {
         if (control && deviceId != null) checkNow.add(deviceId);
         synchronized (wakeUp) { wakeUp.notifyAll(); }

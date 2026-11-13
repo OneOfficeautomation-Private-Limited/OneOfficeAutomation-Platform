@@ -920,3 +920,5 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
 .cc-my-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
 .cc-my-h { margin: 6px 0; font-size: 14px; }
 .cc-my-note { margin-top: 10px; font-size: 12px; }
+.cc-my-form { display: grid; gap: 8px; margin: 8px 0 12px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-tint, #f6f8fb); }
+.cc-my-code { margin: 0; padding: 8px; background: #0f141d; color: #e6ecf5; border-radius: 5px; font-size: 12px; white-space: pre-wrap; word-break: break-all; }

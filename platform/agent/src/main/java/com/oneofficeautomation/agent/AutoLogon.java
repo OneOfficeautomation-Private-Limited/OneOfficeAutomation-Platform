@@ -104,6 +104,47 @@ public final class AutoLogon {
         return new String[]{d, u};
     }
 
+    /**
+     * Checks a Windows user name and password on this computer (round 3, item 9 B4: My devices > Check): Windows signs
+     * the account in once without a desktop and the handle is closed at once. Accepts NAME, DOMAIN\NAME, .\NAME and
+     * name@domain (also AzureAD\name@domain). The password is never logged or kept.
+     */
+    public static void check(String user, String password) {
+        if (!DesktopSession.WINDOWS) throw new OoaException("SYSTEM.WINDOWS_ONLY", "Device credentials are checked on Windows runners", "Check them on a Windows runner.");
+        if (user == null || user.isBlank() || password == null) throw new OoaException("AGENT.BAD_INPUT", "No device credentials were given");
+        String u = user.strip(), d = null;
+        int slash = u.indexOf('\\');
+        if (slash > 0) { d = u.substring(0, slash); u = u.substring(slash + 1); }
+        if (d == null && !u.contains("@")) d = ".";
+        com.sun.jna.platform.win32.WinNT.HANDLEByReference h = new com.sun.jna.platform.win32.WinNT.HANDLEByReference();
+        boolean ok = com.sun.jna.platform.win32.Advapi32.INSTANCE.LogonUser(u, d, password,
+                com.sun.jna.platform.win32.WinBase.LOGON32_LOGON_INTERACTIVE, com.sun.jna.platform.win32.WinBase.LOGON32_PROVIDER_DEFAULT, h);
+        if (!ok) {
+            int err = com.sun.jna.platform.win32.Kernel32.INSTANCE.GetLastError();
+            throw err == 1326 ? new OoaException("AGENT.BAD_CREDENTIALS", "Windows did not accept the user name or password", "Check them in My devices > Device credentials, then check again.")
+                : err == 1385 ? new OoaException("AGENT.LOGON_NOT_ALLOWED", "This account may not sign in to this computer", "Give it the right to sign in locally on this computer.")
+                : new OoaException("AGENT.LOGON_FAILED", "Windows could not sign the account in (error " + err + ")", "Check the account on this computer.");
+        }
+        com.sun.jna.platform.win32.Kernel32.INSTANCE.CloseHandle(h.getValue());
+    }
+
+    /**
+     * Sets the account as this computer's Windows sign-in after a restart, with the password from One CommandCenter
+     * (My devices > Use for automatic sign-in) instead of ooa agent autologon: the same protected LSA secret, never plain
+     * text. Needs the runner to run with Windows administrator rights; otherwise Windows refuses and says so.
+     */
+    public static void apply(String user, String password) {
+        if (!DesktopSession.WINDOWS) throw new OoaException("SYSTEM.WINDOWS_ONLY", "Automatic sign-in is for Windows runners", "Use a Windows runner.");
+        String[] acc = account(user, null);
+        try { storeSecret(password); } catch (com.sun.jna.platform.win32.Win32Exception e) { throw denied(e.getErrorCode()); }
+        try {
+            Advapi32Util.registrySetStringValue(WinReg.HKEY_LOCAL_MACHINE, WINLOGON, "DefaultUserName", acc[1]);
+            Advapi32Util.registrySetStringValue(WinReg.HKEY_LOCAL_MACHINE, WINLOGON, "DefaultDomainName", acc[0]);
+            if (read(SECRET) != null) Advapi32Util.registryDeleteValue(WinReg.HKEY_LOCAL_MACHINE, WINLOGON, SECRET);   // never plain text
+            Advapi32Util.registrySetStringValue(WinReg.HKEY_LOCAL_MACHINE, WINLOGON, "AutoAdminLogon", "1");
+        } catch (com.sun.jna.platform.win32.Win32Exception e) { throw denied(e.getErrorCode()); }
+    }
+
     /** ooa agent autologon: --status, --off, or --user NAME [--domain D] --password-env VAR. */
     public static int run(Map<String, String> o, java.io.PrintStream out) {
         if (!DesktopSession.WINDOWS) throw new OoaException("SYSTEM.WINDOWS_ONLY", "Automatic sign-in is for Windows runners", "Run this on a Windows runner.");

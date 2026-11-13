@@ -16,10 +16,12 @@ public final class Rbac {
 
     private static final Map<String, Set<String>> PERMS = Map.of(
             "viewer", Set.of("repo.view", "runs.view", "devices.view", "schedules.view", "triggers.view", "globals.view", "queues.view"),
+            // devices.choose_own and devices.register_own (13 Nov 2026 round 3, item 9 B): as AA's Bot Runner and Bot Creator,
+            // a person picks their own default runner and connects their own computer as a runner (My devices)
             "bot_runner", Set.of("repo.view", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "triggers.view", "globals.view",
-                    "queues.view", "queues.work"),
+                    "queues.view", "queues.work", "devices.choose_own", "devices.register_own"),
             "bot_creator", Set.of("repo.view", "repo.checkin", "repo.delete", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "schedules.manage",
-                    "triggers.view", "triggers.manage", "globals.view", "lockers.own", "queues.view", "queues.work", "queues.manage"),
+                    "triggers.view", "triggers.manage", "globals.view", "lockers.own", "queues.view", "queues.work", "queues.manage", "devices.choose_own", "devices.register_own"),
             "admin", Set.of("*"));
 
     /** The kernel's permissions only administrators have unless a custom role grants them. */

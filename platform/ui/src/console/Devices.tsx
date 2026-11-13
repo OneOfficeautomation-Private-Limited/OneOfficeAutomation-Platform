@@ -6,6 +6,8 @@ import { modulePart } from "../modules/pages";
 import { PageIntro } from "../shell/PageIntro";
 
 /** Auto-scaling a pool, when the runner-management module is installed. */
+/** Who registered a runner; "self:<name>" is a person who connected their own computer (My devices, round 3 item 9 B3). */
+const byWhom = (by: string) => by.startsWith("self:") ? by.slice(5) + " (own computer)" : by;
 const PoolScalingDialog = modulePart<{ api: CrApi; pool: RunnerPool; onClose: () => void; onSaved: (t: string) => void }>("pool-scaling");
 
 /**
@@ -57,7 +59,7 @@ const COLS: Col[] = [
   { key: "after", label: "After a run", cell: (d) => AFTER_RUN[d.after_run ?? "nothing"] },
   { key: "mem", label: "Memory", cell: (d) => pct(d.mem_pct) },
   { key: "program", label: "Program", cell: program },
-  { key: "registered", label: "Registered", cell: (d) => when(d.registered) + (d.registered_by ? " by " + d.registered_by : "") },
+  { key: "registered", label: "Registered", cell: (d) => when(d.registered) + (d.registered_by ? " by " + byWhom(d.registered_by) : "") },
 ];
 /** The fields the search box can look in, as AA's search chooser. */
 const SEARCH_IN: [string, string][] = [["name", "Runner name"], ["nickname", "Nickname"], ["os", "Platform"], ["users", "Default users"], ["type", "Runner type"], ["lifespan", "Lifespan"], ["pools", "Runner pools"]];
@@ -326,7 +328,7 @@ function RunnerDetails({ api, runner: d, pools, manage, onClose, onChanged }:
         <dt>Platform</dt><dd>{d.os ?? ""}</dd>
         <dt>Runner pools</dt><dd>{poolsOf(d, pools) || "None"}</dd>
         <dt>Lifespan</dt><dd>{d.lifespan === "temporary" ? "Temporary: removed by itself after a time without contact (Settings)" : "Persistent"}</dd>
-        <dt>Registered</dt><dd>{when(d.registered)}{d.registered_by ? " by " + d.registered_by : ""}</dd>
+        <dt>Registered</dt><dd>{when(d.registered)}{d.registered_by ? " by " + byWhom(d.registered_by) : ""}</dd>
         <dt>Runner id</dt><dd className="ui-mono">{d.id}</dd>
       </dl>
       {manage && <DescribeRunner api={api} runner={d} onChanged={onChanged} />}

@@ -589,6 +589,8 @@ public final class ControlRoomServer {
                 sendJson(ex, 200, b.get("event") instanceof Map<?, ?> e ? cr.localFired(d, (String) b.get("trigger_id"), (Map<String, Object>) e) : cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file")));
             }
             else if (m.equals("POST") && (route.equals("agent/logs") || route.equals("agent/screen"))) { cr.runnerCare.receive(d, seg[1], map(body(ex))); sendJson(ex, 200, Map.of("ok", true)); }
+            // the runner's answer to a device-credentials check or apply (round 3, item 9 B4)
+            else if (m.equals("POST") && route.equals("agent/login")) { DeviceLogin.receive(cr, d, map(body(ex))); sendJson(ex, 200, Map.of("ok", true)); }
             // runner routes feature modules add (Document Automation's "Send document to process")
             else if (m.equals("POST") && cr.modules.agentRoutes.get(route.substring("agent/".length())) instanceof ModuleContext.AgentRoute ar) sendJson(ex, 200, ar.handle(ex, d, q));
             else if (m.equals("POST") && route.equals("agent/queues")) sendJson(ex, 200, cr.platform.queueTools.fromBot(d, map(body(ex))));   // work queues with central on (G31)
@@ -682,6 +684,21 @@ public final class ControlRoomServer {
                 else if (m.equals("GET") && route.equals("me/sessions")) sendJson(ex, 200, Map.of("sessions", cr.myAccount.sessions(u, token(ex))));
                 else if (m.equals("POST") && route.equals("me/sessions/end-others")) sendJson(ex, 200, Map.of("ended", cr.myAccount.signOutOthers(u, token(ex), ip)));
                 else if (m.equals("GET") && route.equals("me/devices")) sendJson(ex, 200, cr.myAccount.devices(u));
+                // stage B (as AA's My settings): edit the profile, choose the default runner, connect this computer, device credentials
+                else if (m.equals("PUT") && route.equals("me/profile")) { cr.myAccount.updateProfile(u, map(body(ex)), ip); sendJson(ex, 200, cr.myAccount.profile(u)); }
+                else if (m.equals("GET") && route.equals("me/runner-choices")) sendJson(ex, 200, Map.of("runners", cr.myAccount.runnerChoices(u)));
+                else if (m.equals("PUT") && route.equals("me/default-runner")) { cr.myAccount.chooseDefault(u, (String) map(body(ex)).get("device_id"), ip); sendJson(ex, 200, cr.myAccount.devices(u)); }
+                else if (m.equals("POST") && route.equals("me/connect-key")) sendJson(ex, 200, cr.myAccount.connectKey(u, ip));
+                else if (m.equals("PUT") && route.equals("me/device-credentials")) {
+                    Map<String, Object> b = map(body(ex));
+                    DeviceLogin.set(cr, u, (String) b.get("device_id"), (String) b.get("username"), (String) b.get("password"), ip);
+                    sendJson(ex, 200, Map.of("ok", true));
+                }
+                else if (m.equals("DELETE") && route.equals("me/device-credentials")) { DeviceLogin.clear(cr, u, q.get("device_id"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 4 && seg[1].equals("devices") && (seg[3].equals("check-login") || seg[3].equals("apply-login"))) {
+                    DeviceLogin.request(cr, u, seg[2], seg[3].equals("apply-login"), ip);
+                    sendJson(ex, 200, Map.of("asked", true));
+                }
                 else notFound(ex);
             }
             case "database" -> {

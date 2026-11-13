@@ -243,6 +243,25 @@ public final class Agent {
         catch (OoaException e) { log("warning", "Could not send the " + kind + " One CommandCenter asked for: " + e.getMessage()); }
     }
 
+    /**
+     * A person's device credentials from My devices (round 3, item 9 B4): check them on this computer, and with
+     * {@code apply} also set them as the Windows sign-in after a restart. The answer says only whether it worked.
+     */
+    void deviceLogin(Map<String, Object> dl) {
+        boolean apply = Boolean.TRUE.equals(dl.get("apply"));
+        Map<String, Object> b = new HashMap<>();
+        try {
+            AutoLogon.check((String) dl.get("username"), (String) dl.get("password"));
+            if (apply) AutoLogon.apply((String) dl.get("username"), (String) dl.get("password"));
+            b.put("ok", true);
+        } catch (RuntimeException e) { b.put("error", e.getMessage() == null ? e.toString() : e.getMessage()); }
+        try {
+            client.post("login", b);
+            if (b.containsKey("ok")) log(apply ? "Device credentials checked and set as the Windows sign-in, as asked in My devices" : "Device credentials checked, as asked in My devices");
+            else log("warning", "Device credentials did not work: " + b.get("error"));
+        } catch (OoaException e) { log("warning", "Could not answer the device credentials check: " + e.getMessage()); }
+    }
+
     // ---------------- main loop ----------------
     public void run() {
         log("ONEOFFICEAUTOMATION OneRunner " + VERSION + " for runner '" + config.get("name") + "' connected to " + config.get("url"));
@@ -294,6 +313,7 @@ public final class Agent {
             if (!Objects.equals(mt, maintenance)) { maintenance = mt; log(mt == null ? "Maintenance ended in One CommandCenter" : "In maintenance (" + mt + ", set in One CommandCenter): no new work"); }
             if (Boolean.TRUE.equals(r.get("send_logs"))) io.submit(() -> send("logs"));
             if (Boolean.TRUE.equals(r.get("send_screen"))) io.submit(() -> send("screen"));
+            if (r.get("device_login") instanceof Map<?, ?> dl) io.submit(() -> deviceLogin((Map<String, Object>) dl));
         } catch (OoaException e) { log("warning", "Heartbeat failed: " + e.getMessage()); }
         catch (RuntimeException e) { log("error", "Heartbeat error: " + e); }
     }
