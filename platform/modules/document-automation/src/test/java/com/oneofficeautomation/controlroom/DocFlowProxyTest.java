@@ -281,6 +281,11 @@ class DocFlowProxyTest {
 
     /** Improvement list item 10 (12 Nov 2026): never set up is said as such, with where to set it up. */
     @Test void serviceNeverSetUpSaysSo() throws Exception {
+        // with nothing set, the proxy tries DocFlow's usual address; on a computer where DocFlow runs there, it answers
+        try (java.net.Socket probe = new java.net.Socket()) {
+            probe.connect(new InetSocketAddress("127.0.0.1", 8085), 300);
+            Assumptions.abort("DocFlow is running on this computer at " + DocFlowProxy.DEFAULT_URL);
+        } catch (java.io.IOException nothingThere) { /* the case under test */ }
         ControlRoom.User admin = cr.session(token);
         Object url = cr.platform.setting("docflow_url"), ref = cr.platform.setting("docflow_token_ref");
         DocFlowProxy.env = k -> null;   // no OOA_DOCFLOW_URL on this machine either
