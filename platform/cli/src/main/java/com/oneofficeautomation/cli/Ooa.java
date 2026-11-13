@@ -164,6 +164,7 @@ public final class Ooa {
     }
 
     static int controlRoom(Map<String, String> o) throws Exception {
+        System.setProperty("ooa.process", "server");   // a real server: modules may start their services (DocFlow, item 9 of 13 Nov 2026)
         int port = Integer.parseInt(o.getOrDefault("port", "8720"));
         String host = o.getOrDefault("host", "127.0.0.1");
         ControlRoomSetup s = openControlRoom(o);
@@ -189,6 +190,7 @@ public final class Ooa {
      * for this computer, all in one process on one port. The local agent registers itself on first start.
      */
     static int server(Map<String, String> o) throws Exception {
+        System.setProperty("ooa.process", "server");   // a real server: modules may start their services (DocFlow, item 9 of 13 Nov 2026)
         int port = Integer.parseInt(o.getOrDefault("port", "8720"));
         String host = o.getOrDefault("host", "127.0.0.1");
         Path workspace = Path.of(o.getOrDefault("workspace", Path.of(System.getProperty("user.home"), "OOA Workspace").toString()));

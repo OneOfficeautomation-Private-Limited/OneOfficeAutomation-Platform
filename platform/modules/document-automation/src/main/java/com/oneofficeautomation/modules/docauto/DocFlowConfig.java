@@ -48,6 +48,12 @@ public final class DocFlowConfig {
         return "";   // never kept in clear text
     }
 
+    /** Records where DocFlow is installed on this computer, so it is started with the platform (13 Nov 2026, item 9). */
+    public static void setHome(Path data, Path home) {
+        Path f = file(data);
+        if (Files.isRegularFile(f)) DbConfig.setValue(f, "home", home.toString());
+    }
+
     /** Writes the address and the token (encrypted with the vault key), keeping any other lines of the file. */
     public static void save(Path data, Vault vault, String url, String token) {
         Path f = file(data);

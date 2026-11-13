@@ -143,6 +143,7 @@ const SECTIONS: Section[] = [
   ] },
   { id: "documents", title: "Document Automation", mark: "DA", colour: "#0d9488", about: "AI > Document Automation reads documents with the DocFlow service. One CommandCenter forwards each request with the person's tenant and name; the browser never sees DocFlow's address or token.", groups: [
     { title: "DocFlow service", settings: [
+      { key: "docflow_autostart", label: "Start with One CommandCenter", hint: "Starts DocFlow installed on this server, and stops it with One CommandCenter.", kind: "check" },
       { key: "docflow_url", label: "DocFlow address", hint: "Empty: http://127.0.0.1:8085.", kind: "text", placeholder: "http://127.0.0.1:8085" },
       { key: "docflow_token_ref", label: "Service token", hint: VAULT_REF, kind: "text", placeholder: "docflow/service/token" }] },
   ] },

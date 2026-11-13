@@ -60,6 +60,10 @@ public final class DocumentAutomationModule implements CommandCenterModule {
             if (saas && !v.isEmpty()) throw notInSaas();
             if (!v.isEmpty() && v.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The Document Automation token is a vault reference: vault folder/credential/attribute");
         });
+        // Settings > Document Automation > Start with One CommandCenter: 1 starts this computer's DocFlow with the platform
+        ctx.defineSetting("docflow_autostart", 1, (v, saas) -> {
+            if (!v.equals("0") && !v.equals("1")) throw new OoaException("CR.BAD_INPUT", "Setting 'docflow_autostart' must be 0 or 1");
+        });
         // Settings > AI assistants (MCP) > Document Automation tools: 1 offers the documents_ tools, 0 does not
         ctx.defineSetting("mcp_documents", 1, (v, saas) -> {
             if (!v.equals("0") && !v.equals("1")) throw new OoaException("CR.BAD_INPUT", "Setting 'mcp_documents' must be from 0 to 1");
@@ -85,6 +89,33 @@ public final class DocumentAutomationModule implements CommandCenterModule {
         for (Map.Entry<String, String> e : DocFlowProxy.EVENT_LABELS.entrySet()) ctx.triggerKind(e.getKey(), e.getValue(), DocFlowProxy::triggerConfig);
         ctx.mcpTools(new McpDocuments(ctx, docflow));
         ctx.templatePart(new DocTemplates(ctx, docflow));
+        startDocFlow(ctx);
+    }
+
+    /**
+     * Improvement list 13 Nov 2026, item 9: on premises, this computer's DocFlow is set up and started with the
+     * platform (DocFlowLauncher), in the background so One CommandCenter never waits for it.
+     */
+    private static void startDocFlow(ModuleContext ctx) {
+        if (ctx.tenant() != null || ctx.dataDir() == null) return;   // the SaaS region runs DocFlow itself
+        if (!"server".equals(System.getProperty("ooa.process"))) return;   // only a real server (ooa server / control-room), never tests or tools
+        if ("false".equalsIgnoreCase(String.valueOf(System.getenv("OOA_DOCFLOW_AUTOSTART")))) return;
+        if ("0".equals(String.valueOf(ctx.setting("docflow_autostart")))) return;
+        Thread t = new Thread(() -> {
+            try {
+                java.nio.file.Path program = null;
+                try { program = java.nio.file.Path.of(DocumentAutomationModule.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent(); }
+                catch (Exception ignored) { /* run from classes: no program folder */ }
+                java.nio.file.Path home = DocFlowLauncher.findHome(ctx.dataDir(), System::getenv, program == null ? null : program.getParent());
+                if (home == null) return;
+                String url = DocFlowLauncher.configure(ctx.dataDir(), ctx.vault(), home, String.valueOf(ctx.setting("docflow_url")), System::getenv);
+                if (url != null && !DocFlowLauncher.answers(url)) DocFlowLauncher.start(home, ctx.dataDir());
+            } catch (RuntimeException e) {
+                System.out.println("  Document Automation: DocFlow was not started: " + e.getMessage());
+            }
+        }, "start-docflow");
+        t.setDaemon(true);
+        t.start();
     }
 
     private static OoaException notInSaas() {

@@ -90,6 +90,7 @@ export const SETTING_HELP: Record<string, string> = {
   git_remote_url: "A Git repository that keeps a copy of every agent version, written as its https address. Use it for a second copy or for review in your Git tools. Leave it empty for no Git copy.",
   git_branch: "The branch the copies go to, for example main.",
   git_username: "The user name for the Git server. With a personal access token most servers accept any name.",
+  docflow_autostart: "On (the default): when DocFlow is installed on this server, One CommandCenter records its address and token if none are set, starts it when it starts, and stops it when it stops; its log is in the data folder's logs\docflow.log. Off: start DocFlow yourself (windows\start.bat in its folder). Not used when the address points at another server, nor in the SaaS service.",
   docflow_url: "Where the DocFlow service answers (it reads the documents). It usually runs next to One CommandCenter. In the SaaS service the region sets it, not the tenant.",
   docflow_token_ref: "Where DocFlow's service token is kept in the Credential vault, written as folder/credential/attribute. Put the same token in DocFlow's DOCAUTO_API_TOKEN.",
   git_token_ref: "Where the Git access token is kept in the Credential vault, written as folder/credential/attribute.",
