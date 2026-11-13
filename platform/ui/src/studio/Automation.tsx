@@ -12,6 +12,8 @@ const VIEW_TITLE: Record<StudioView, [string, (n: WorkspaceNode) => boolean]> = 
   automation: ["Automation", (n) => n.type !== "folder"],
 };
 
+/** The top folder's name on both tabs (improvement list 13 Nov 2026, item 2: one name, as Public's). */
+export const ROOT = "Automation";
 const folderTree = (n: WorkspaceNode): TreeNode => ({ id: n.path, label: n.name, children: (n.children ?? []).filter((c) => c.type === "folder").map(folderTree) });
 
 /** What opens in an editor here: agents and the other items; data files stay as they are. */
@@ -103,8 +105,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const isPublic = place === "public" && !!publicView && !search.trim();   // a search looks in the workspace
   const [title, keep] = VIEW_TITLE[view];
   const folderNode = find(tree, folder) ?? tree;
-  const folderName = folderNode.path ? folderNode.name : "Workspace";
-  const nodes = useMemo(() => [folderTree(tree)], [tree]);
+  const folderName = folderNode.path ? folderNode.name : ROOT;
+  const nodes = useMemo(() => [{ ...folderTree(tree), label: ROOT }], [tree]);
   const q = search.trim().toLowerCase();
   // a search also asks the server, which reads the agents' descriptions, actions and variables
   useEffect(() => {
@@ -112,11 +114,12 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
     const t = setTimeout(() => { api.search(q).then(setFound, () => setFound([])); }, 250);
     return () => clearTimeout(t);
   }, [api, q]);
-  // with a search, every matching item in the workspace; otherwise the chosen folder's sub-folders, then its items
+  // with a search, every matching item in the workspace; otherwise the chosen folder's items. Improvement list 13 Nov 2026,
+  // item 2 (option A): the tree chooses the folder, so its sub-folders show once, in the tree, not again as rows
   const rows: { node: WorkspaceNode; why?: string }[] = q
     ? [...everything(tree).filter((n) => keep(n) && n.name.toLowerCase().includes(q) && !found.some((f) => f.path === n.path)).map((node) => ({ node, why: "name" })),
        ...found.flatMap((f) => { const node = find(tree, f.path); return node ? [{ node, why: foundBy(f.matches) }] : []; })]
-    : [...(folderNode.children ?? []).filter((c) => c.type === "folder"), ...(folderNode.children ?? []).filter(keep)].map((node) => ({ node }));
+    : (folderNode.children ?? []).filter((c) => c.type !== "folder" && keep(c)).map((node) => ({ node }));
   const listed = kind ? rows.filter((r) => r.node.type === kind) : rows;
   const paths = listed.map((r) => r.node.path);
   const chosen = paths.filter((p) => selected.includes(p));
@@ -291,11 +294,11 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
               trigger={<button type="button" className="ui-panel-toggle" aria-label={"Folder actions for " + folderName} title="Folder actions (right-click a folder)">
                 <Icon name="more" size={14} stroke={3} /></button>} />
           </>}>
-          <div className="st-folders-tree"><Tree label="Folders" nodes={nodes} selected={folder} expanded={expanded} onSelect={setFolder} onToggle={toggle}
+          <div className="st-folders-tree"><Tree label="Folders" nodes={nodes} selected={folder} expanded={expanded} onSelect={openFolder} onToggle={toggle}
             onMenu={(id) => setTreeMenu(id)}
-            renderActions={(n) => <Menu label={"Folder " + (n.id ? n.label : "Workspace") + " menu"} title={n.id ? n.label : "Workspace"} items={folderItemsFor(n.id)}
+            renderActions={(n) => <Menu label={"Folder " + (n.id ? n.label : ROOT) + " menu"} title={n.id ? n.label : ROOT} items={folderItemsFor(n.id)}
               open={treeMenu === n.id} onOpenChange={(o) => setTreeMenu(o ? n.id : null)}
-              trigger={<button type="button" className="ui-tree-more" aria-label={"Actions for folder " + (n.id ? n.label : "Workspace")} title="Folder actions (right-click)">
+              trigger={<button type="button" className="ui-tree-more" aria-label={"Actions for folder " + (n.id ? n.label : ROOT)} title="Folder actions (right-click)">
                 <Icon name="more" size={14} stroke={3} /></button>} />}
             canDrag={(id) => id !== ""} onDragStart={(id, e) => { e.dataTransfer.setData(PATHS_DRAG, JSON.stringify([id])); e.dataTransfer.effectAllowed = "move"; }}
             onDrop={dropOn}
@@ -347,7 +350,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
                       : OPENS.includes(n.type)
                       ? <button type="button" className="st-link" onClick={(e) => { if (!e.ctrlKey && !e.metaKey && !e.shiftKey) { e.stopPropagation(); onOpen(n); } }}>{displayName(n)}</button>
                       : <span>{displayName(n)}</span>}</span>
-                      {q && <div className="st-item-path">{parentOf(n.path) || "Workspace"}</div>}</td>
+                      {q && <div className="st-item-path">{parentOf(n.path) || ROOT}</div>}</td>
                     {cols.map((c) => <td key={c.key} className={CLASS[c.key]}>{cell(c.key, n, why)}</td>)}
                     <td className="st-row-actions" onClick={(e) => e.stopPropagation()}>
                       <Menu label={displayName(n) + " menu"} items={rowMenu(n)} open={menuFor === n.path}

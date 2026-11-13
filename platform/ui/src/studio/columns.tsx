@@ -12,7 +12,7 @@ export type Column = { key: string; label: string };
  * The Public list's columns after the name, the same in One CommandCenter and in the Private workspace (as AA's one
  * Automation page, 2 Nov 2026); a search, or subfolders included, adds the folder. Both apps keep one choice of columns.
  */
-export const PUBLIC_COLUMNS: Column[] = [{ key: "type", label: "Type" }, { key: "platform", label: "Platform" }, { key: "latest", label: "Latest" },
+export const PUBLIC_COLUMNS: Column[] = [{ key: "type", label: "Type" }, { key: "platform", label: "Platform" }, { key: "latest", label: "Version" },
   { key: "live", label: "Live" }, { key: "label", label: "Label" }, { key: "analysis", label: "Code analysis" }, { key: "size", label: "Size" },
   { key: "out", label: "Checked out" }, { key: "changed", label: "Last modified" }, { key: "by", label: "Modified by" }];
 export const PUBLIC_HIDDEN_KEY = "automation.public.columns.hidden";

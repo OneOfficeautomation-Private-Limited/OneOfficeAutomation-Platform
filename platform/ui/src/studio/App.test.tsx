@@ -235,7 +235,7 @@ describe("new Studio", () => {
     render(<App api={api} />);
     // Private: some columns start hidden so a row fits on one line; Columns shows them
     const headers = () => screen.getAllByRole("columnheader").map((h) => h.textContent);
-    await screen.findByRole("button", { name: "Finance" });
+    await within(await screen.findByRole("tree", { name: "Folders" })).findByText("Finance");
     expect(headers()).not.toContain("Size");
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
     const pick = await screen.findByRole("dialog", { name: "Columns" });
@@ -244,7 +244,7 @@ describe("new Studio", () => {
     expect(headers()).toContain("Size");
     // Public: the repository's label and code analysis
     fireEvent.click(screen.getByRole("tab", { name: "Public" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    fireEvent.click(await within(await screen.findByRole("tree", { name: "Folders" })).findByText("Finance"));   // 13 Nov 2026: folders are chosen in the tree
     await screen.findByText("Invoice intake");
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
     const pick2 = await screen.findByRole("dialog", { name: "Columns" });
@@ -1111,7 +1111,7 @@ describe("new Studio", () => {
     expect(await screen.findByText("description, uses open")).toBeTruthy();
     expect(row("Invoice intake").textContent).toContain("Finance/Invoices");
     fireEvent.change(screen.getByLabelText("Search items"), { target: { value: "" } });
-    expect(await waitFor(() => row("Finance"))).toBeTruthy();   // the workspace's folders again
+    await waitFor(() => expect(screen.queryByText("description, uses open")).toBeNull());   // the chosen folder's items again (its folders are in the tree)
   });
 
   it("creates an AI agent and edits it in the AI agent editor: tools, approval, role, then tries it", async () => {
@@ -1694,9 +1694,9 @@ describe("new Studio", () => {
     await act(async () => { fireEvent.submit(form); });
     expect(created).toContainEqual({ connect: "http://cc.example:8720", user: "ravi" });
     // laid out as Private: the folders on the left, a folder's sub-folders and agents on the right
-    expect(within(await screen.findByRole("tree", { name: "Folders" })).getByText("Public")).toBeTruthy();
+    expect(within(await screen.findByRole("tree", { name: "Folders" })).getByText("Automation")).toBeTruthy();   // one top folder name on both tabs
     expect(screen.getByText("Signed in as ravi").getAttribute("title")).toBe("http://cc.example:8720");   // the address only on hover
-    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    fireEvent.click(await within(await screen.findByRole("tree", { name: "Folders" })).findByText("Finance"));   // 13 Nov 2026: folders are chosen in the tree
     const row = (await screen.findByText("Invoice intake")).closest("tr")!;
     expect(row.textContent).toContain("v2");
     expect(screen.queryByRole("button", { name: "Create ▾" })).toBeNull();   // Create belongs to the workspace
@@ -1717,7 +1717,7 @@ describe("new Studio", () => {
     await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
     render(<App api={api} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Public" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
+    fireEvent.click(await within(await screen.findByRole("tree", { name: "Folders" })).findByText("Finance"));   // 13 Nov 2026: folders are chosen in the tree
     const row = (await screen.findByText("Invoice intake")).closest("tr")!;
     expect(row.textContent).toContain("By you");
     expect(within(row).getByText("private copy").getAttribute("title")).toBe("Private copy: Finance/Invoice intake.flow.json");
@@ -1736,8 +1736,8 @@ describe("new Studio", () => {
     const { api, created } = fakeServer();
     await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
     render(<App api={api} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Invoices" }));
+    fireEvent.click(await within(await screen.findByRole("tree", { name: "Folders" })).findByText("Finance"));   // 13 Nov 2026: folders are chosen in the tree
+    fireEvent.click(await within(screen.getByRole("tree", { name: "Folders" })).findByText("Invoices"));
     const intake = (await screen.findByRole("button", { name: "Invoice intake" })).closest("tr")!;
     await waitFor(() => expect(within(intake).getByText("Checked out")).toBeTruthy());
     const approve = screen.getByRole("button", { name: "Approve" }).closest("tr")!;
@@ -1764,8 +1764,8 @@ describe("new Studio", () => {
     await act(async () => { await api.crConnect("http://cc.example:8720", "ravi", "letmein", ""); await api.crCheckout("Finance/Invoice intake.flow.json"); });
     setEdited(true);
     render(<App api={api} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Finance" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Invoices" }));
+    fireEvent.click(await within(await screen.findByRole("tree", { name: "Folders" })).findByText("Finance"));   // 13 Nov 2026: folders are chosen in the tree
+    fireEvent.click(await within(screen.getByRole("tree", { name: "Folders" })).findByText("Invoices"));
     const intake = (await screen.findByRole("button", { name: "Invoice intake" })).closest("tr")!;
     await waitFor(() => expect(within(intake).getByText("Checked out · edited")).toBeTruthy());
     fireEvent.keyDown(within(intake).getByRole("button", { name: "Actions for Invoice intake" }), { key: "Enter" });

@@ -2247,7 +2247,7 @@ describe("rebuilt One CommandCenter console", () => {
     const list = await screen.findByRole("table", { name: "Agents list" });
     expect(await within(list).findByText("By vic")).toBeTruthy();
     // AA's columns, the same as the Private workspace's Public tab; the folder because subfolders are included
-    expect(within(list).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Folder", "Type", "Latest", "Live", "Checked out", "Last modified", "Actions"]);
+    expect(within(list).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Folder", "Type", "Version", "Live", "Checked out", "Last modified", "Actions"]);
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
     fireEvent.click(within(await screen.findByRole("group", { name: "Columns shown" })).getByLabelText("Code analysis"));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));

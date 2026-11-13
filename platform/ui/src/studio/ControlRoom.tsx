@@ -62,9 +62,9 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
   );
 }
 
-/** The repository's folders as a tree, from the agents' paths (the root is "Public"). */
+/** The repository's folders as a tree, from the agents' paths (the root is "Automation", as on the Private tab). */
 function folderTree(paths: string[]): TreeNode {
-  const root: TreeNode = { id: "", label: "Public", children: [] };
+  const root: TreeNode = { id: "", label: "Automation", children: [] };
   for (const p of paths) {
     let at = root;
     const parts = folderOf(p).split("/").filter(Boolean);
@@ -170,8 +170,9 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOp
   const localOf = (path: string) => Object.keys(list?.mapping ?? {}).find((k) => list!.mapping[k] === path);
   const find = (n: TreeNode, id: string): TreeNode | null => n.id === id ? n : n.children?.reduce<TreeNode | null>((f, c) => f ?? find(c, id), null) ?? null;
   const here = find(tree, folder) ?? tree;
-  // with a search, every match in the repository; otherwise the chosen folder's sub-folders, then its agents
-  const subfolders = q ? [] : here.children ?? [];
+  // with a search, every match in the repository; otherwise the chosen folder's agents (its sub-folders are in the tree
+  // only, improvement list 13 Nov 2026, item 2)
+  const subfolders: TreeNode[] = [];
   const agents = (list?.agents ?? []).filter((a) => q || folderOf(a.path) === here.id);
   const openFolder = (id: string) => { setFolder(id); setExpanded(new Set([...expanded, ...id.split("/").map((_, i, all) => all.slice(0, i).join("/"))])); };
   const shownCols = PUBLIC_COLUMNS.filter((c) => !hiddenCols.includes(c.key));
@@ -194,6 +195,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOp
   return (
     <div className="st-cr">
       <div role="toolbar" aria-label="Agent Repository" className="st-items-bar">
+        <span className="st-items-count" aria-live="polite">{list ? agents.length + (agents.length === 1 ? " agent" : " agents") : ""}</span>
         {!status.sameServer && <span className="st-items-count" title={status.url ?? undefined}>Signed in as {me}</span>}
         <input className="ui-input st-cr-search" type="search" aria-label="Search the agent repository" placeholder="Search the agent repository" value={q} onChange={(e) => setQ(e.target.value)} />
         <Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button>
@@ -205,7 +207,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOp
       <div className="st-page-body">
         {!q && <><SidePanel title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="st-folders"
           style={foldersWidth ? { flex: `0 0 ${foldersWidth}px` } : undefined} panelRef={(el) => { foldersPanel.current = el; }}>
-          <div className="st-folders-tree"><Tree label="Folders" nodes={[tree]} selected={here.id} expanded={expanded} onSelect={setFolder}
+          <div className="st-folders-tree"><Tree label="Folders" nodes={[tree]} selected={here.id} expanded={expanded} onSelect={openFolder}
             onToggle={(id) => { const n = new Set(expanded); if (n.has(id)) n.delete(id); else n.add(id); setExpanded(n); }} renderIcon={(_, sel) => FOLDER_ICON(sel)} /></div>
         </SidePanel>
         {!foldersHidden && <Splitter label="Resize the folders panel" axis="x" grow={1} value={foldersWidth} min={180} max={520}
