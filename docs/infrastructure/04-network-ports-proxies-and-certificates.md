@@ -74,17 +74,19 @@ ooa agent network                      (shows the current settings)
 | `--proxy system` (default) | The Windows proxy settings of the account the runner runs as, including automatic configuration scripts (PAC) and WPAD discovery through WinHTTP |
 | `--proxy none` | Connect directly |
 | `--proxy http://host:port` | A fixed proxy (an `https://` proxy address is accepted too) |
+| `--proxy windows` or `--proxy windows:http://host:port` (added 14 Nov 2026) | Every request goes through Windows' own web stack (WinHTTP), which signs in to a proxy that accepts only Windows sign-in (NTLM or Kerberos/Negotiate) as the account the runner runs as, as Edge and Windows Update do; no password is stored. `windows` uses that account's proxy settings (PAC, WPAD); `windows:` names a proxy. Certificates are Windows' own: a self-signed One CommandCenter certificate must be in the Windows certificate store (`--ca` is not used). Windows runners only |
 | `--proxy-user NAME` with `--proxy-password-env VAR` | Basic sign-in at the proxy. The password is read from the variable. On Windows it is stored encrypted with DPAPI (machine scope, so a runner service and the installer can both read it); on Linux and macOS in the file `proxy-password` next to the runner's config, readable by its owner only (`file:PATH` in the config). Basic sign-in for HTTPS tunnelling is enabled by the runner. |
 | `--ca FILE` | A certificate to trust (section 8) |
 
 Notes:
 
 - One CommandCenter on `localhost`, `127.*` or `[::1]` is always reached directly.
-- Proxies that accept only Windows integrated sign-in (NTLM, Kerberos) are not supported: allow One CommandCenter's
-  address without sign-in, or use Basic.
+- For proxies that accept only Windows integrated sign-in (NTLM, Kerberos), use `--proxy windows`. A runner service
+  signs in as its service account (Local System signs in as the computer account), so give that account access at the
+  proxy, or run the service as a domain account.
 - A runner service runs as Local System (or the `--account` given), whose Windows proxy settings can differ from the
   user's. Use a fixed proxy for services.
-- Setup package: `-Proxy system|none|URL`; MSI: `PROXY=`.
+- Setup package: `-Proxy system|none|windows|URL`; MSI: `PROXY=`.
 - `ooa agent diagnose` shows which proxy is used for One CommandCenter's address.
 
 ## 4. One CommandCenter's outgoing proxy

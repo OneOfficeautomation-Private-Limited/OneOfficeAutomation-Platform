@@ -34,6 +34,8 @@ as a runner. Run it through Install.cmd. Without -Silent it asks for anything no
   -RunnerName NAME             the runner's name in One CommandCenter (default: the computer name)
   -CaFile FILE                 One CommandCenter certificate to trust (for a self-signed one)
   -Proxy system|none|URL       how the runner reaches One CommandCenter (default system: the Windows proxy)
+                               windows (or windows:http://host:port): through Windows' web stack, signing in to a
+                               proxy that accepts only Windows sign-in (NTLM, Kerberos) as the runner's Windows user
   -Service                     run the runner as a Windows service (only agents that need no screen); default: it starts
                                when the user signs in, for agents that use the screen
   Both:

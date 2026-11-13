@@ -18,7 +18,9 @@ import java.util.*;
  * <ul>
  * <li>{@code proxy}: {@code system} (default: the Windows proxy, including automatic configuration scripts and WPAD
  * through WinHTTP), {@code none}, or {@code http://host:port}. One CommandCenter on this computer is never reached
- * through a proxy.</li>
+ * through a proxy. Since 14 Nov 2026 (round 4, B2) also {@code windows} or {@code windows:http://host:port}: every
+ * request goes through Windows' own web stack (WinHttp), which signs in to a proxy that accepts only Windows sign-in
+ * (NTLM or Kerberos) as the runner's Windows user.</li>
  * <li>{@code proxy_user} and {@code proxy_password}: for a proxy that asks for a user name and password (Basic). The
  * password is stored encrypted with Windows DPAPI for this computer ({@code dpapi:}); on Linux and macOS in its own
  * file next to the config that only the runner's account may read ({@code file:PATH}); or read from an environment
@@ -40,8 +42,8 @@ record Network(Path ca, String proxy, String proxyUser, String proxyPassword) {
 
     Network {
         proxy = proxy == null || proxy.isBlank() ? "system" : proxy.strip();
-        if (!proxy.equals("system") && !proxy.equals("none") && !proxy.matches("https?://[A-Za-z0-9.\\-\\[\\]:]+:\\d{1,5}/?"))
-            throw new OoaException("AGENT.BAD_PROXY", "The proxy is system, none or http://host:port, not " + proxy, "Set the proxy to system, none or http://host:port.");
+        if (!proxy.equals("system") && !proxy.equals("none") && !proxy.equals("windows") && !proxy.matches("(windows:)?https?://[A-Za-z0-9.\\-\\[\\]:]+:\\d{1,5}/?"))
+            throw new OoaException("AGENT.BAD_PROXY", "The proxy is system, none, windows or http://host:port, not " + proxy, "Set the proxy to system, none, windows (Windows sign-in to the proxy) or http://host:port.");
     }
 
     /** From the runner's config file. */
@@ -62,7 +64,7 @@ record Network(Path ca, String proxy, String proxyUser, String proxyPassword) {
         b.sslContext(trust(ca));
         URI target = URI.create(baseUrl);
         boolean local = target.getHost() != null && (target.getHost().equals("localhost") || target.getHost().startsWith("127.") || target.getHost().equals("[::1]"));
-        if (local || proxy.equals("none")) b.proxy(HttpClient.Builder.NO_PROXY);
+        if (local || proxy.equals("none") || viaWindows()) b.proxy(HttpClient.Builder.NO_PROXY);
         else if (proxy.equals("system")) b.proxy(ProxySelector.getDefault());
         else { URI p = URI.create(proxy); b.proxy(ProxySelector.of(new InetSocketAddress(p.getHost(), p.getPort()))); }
         if (proxyUser != null && !proxyUser.isBlank() && !local) {
@@ -74,6 +76,9 @@ record Network(Path ca, String proxy, String proxyUser, String proxyPassword) {
             });
         }
     }
+
+    /** Whether requests go through Windows' web stack (WinHttp) for a proxy that wants Windows sign-in. */
+    boolean viaWindows() { return proxy.equals("windows") || proxy.startsWith("windows:"); }
 
     /** The proxy password: decrypted (dpapi:), from its own file (file:) or from an environment variable (env:). */
     static char[] password(String stored) {

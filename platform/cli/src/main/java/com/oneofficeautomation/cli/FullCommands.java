@@ -240,7 +240,7 @@ final class FullCommands {
 
     static OoaCli.Cmd network(OoaCli.Cmd c) {
         return c.opt("--ca", "FILE", "A certificate to trust for One CommandCenter (its own, or the company's CA).")
-            .opt("--proxy", "PROXY", "system (default), none, or http://host:port.")
+            .opt("--proxy", "PROXY", "system (default), none, http://host:port, or windows[:http://host:port] for a proxy that wants Windows sign-in (NTLM, Kerberos).")
             .opt("--proxy-user", "NAME", "The proxy account.")
             .opt("--proxy-password-env", "VAR", "The environment variable with the proxy password.");
     }

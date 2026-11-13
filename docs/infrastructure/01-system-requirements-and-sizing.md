@@ -36,7 +36,6 @@ runners that use the screen need Windows. A 32-bit system is a FAIL.
 Not supported in this version:
 
 - Hardware security modules (PKCS#11) for the vault key.
-- Proxies that accept only Windows (NTLM or Kerberos) sign-in, for runners.
 - Unattended runners signing a user in to a locked or signed-out desktop by themselves.
 - Windows sign-in to SQL Server from Linux (package or container).
 
