@@ -444,10 +444,13 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
     expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
     expect(screen.getByText("Welcome, Asha Admin. Here is what your agents have been doing.")).toBeTruthy();
-    const figures = await screen.findByRole("list", { name: "Figures" });
+    const figures = await screen.findByRole("group", { name: "Figures" });
+    expect(within(figures).getByRole("list", { name: "Runs · last 24 hours" })).toBeTruthy();   // round 2 item 1: two labelled strips
+    expect(within(figures).getByRole("list", { name: "Platform" })).toBeTruthy();
     expect(within(figures).getByText("93%")).toBeTruthy();
     expect(within(figures).getByText("Work items waiting").closest("a")!.getAttribute("href")).toBe("#/queues");
-    expect(within(figures).getByText("Succeeded (24 h)").closest("a")).toBeNull();   // no page for it
+    expect(within(figures).getByText("Succeeded").closest("a")!.getAttribute("href")).toBe("#/activity");
+    expect(within(figures).getByText("Hours saved (30 days)").closest("a")).toBeNull();   // no page for it
     expect(screen.getAllByText("Invoice intake", { selector: "li strong" })).toHaveLength(2);   // an agent and a run
     expect(screen.getByRole("img", { name: "Runs per day for the last 7 days" })).toBeTruthy();
     // every change carries the header the server needs against cross-site requests

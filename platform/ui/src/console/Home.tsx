@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CrApi, CrUser, Dashboard } from "../api/cr";
-import { HelpButton, Icon, IconTile, type HelpTopic, type IconName, PageError } from "../components";
+import { HelpButton, IconTile, type HelpTopic, PageError } from "../components";
 
 const HELP: HelpTopic = { title: "Home", about: "How your agents are doing at a glance, and a way back to what you were working on. Only what your role may see is shown.",
   items: [
@@ -35,20 +35,35 @@ export function Home({ api, user, pageHref }: { api: CrApi; user: CrUser; pageHr
   const can = (p: string) => user.permissions.includes(p);
   const link = (page: string, perm?: string) => !perm || can(perm) ? pageHref(page) : undefined;
 
-  const tiles: [string, string, IconName, string, string | undefined][] = d ? [
-    [String(d.running), "Running now", "pulse", "#c2410c", link("activity", "runs.view")],
-    [String(d.queued), "Waiting to start", "queue", "#b45309", link("activity", "runs.view")],
-    [String(d.success_24h), "Succeeded (24 h)", "play", "#15803d", undefined],
-    [String(d.failed_24h), "Failed (24 h)", "close", "#b91c1c", undefined],
-    [d.success_rate_24h == null ? "—" : d.success_rate_24h + "%", "Success rate (24 h)", "pulse", "#047857", undefined],
-    [d.avg_duration_ms_24h ? duration(d.avg_duration_ms_24h) : "—", "Average run time", "loop", "#0e7490", undefined],
-    [d.devices_online + " / " + d.devices_total, "Runners online", "desk", "#0369a1", link("devices", "devices.view")],
-    [String(d.bots), "Agents in the agent repository", "folder", "#6d28d9", link("automation", "repo.view")],
-    [String(d.schedules), "Active schedules", "loop", "#7c3aed", link("schedules", "schedules.view")],
-    ...(d.queue_items_waiting !== undefined ? [[String(d.queue_items_waiting), "Work items waiting", "queue", "#9333ea", link("queues")] as [string, string, IconName, string, string | undefined]] : []),
-    [(d.hours_saved_30d ?? 0) + " h", "Hours saved (30 days)", "loop", "#15803d", undefined],
-    [String(d.open_tasks ?? 0), "Tasks waiting for you", "form", "#0f766e", link("inbox")],
+  // 13 Nov 2026 round 2, item 1 (H1): two labelled strips of equal cells, no icons; red only when something is wrong
+  type Figure = { n: string; label: string; href?: string; bad?: boolean };
+  const runs: Figure[] = d ? [
+    { n: String(d.running), label: "Running now", href: link("activity", "runs.view") },
+    { n: String(d.queued), label: "Waiting to start", href: link("activity", "runs.view") },
+    { n: String(d.success_24h), label: "Succeeded", href: link("activity", "runs.view") },
+    { n: String(d.failed_24h), label: "Failed", href: link("activity", "runs.view"), bad: d.failed_24h > 0 },
+    { n: d.success_rate_24h == null ? "—" : d.success_rate_24h + "%", label: "Success rate", bad: d.success_rate_24h != null && d.success_rate_24h < 80 },
+    { n: d.avg_duration_ms_24h ? duration(d.avg_duration_ms_24h) : "—", label: "Average run time" },
   ] : [];
+  const platform: Figure[] = d ? [
+    { n: d.devices_online + " / " + d.devices_total, label: "Runners online", href: link("devices", "devices.view"), bad: d.devices_total > 0 && d.devices_online === 0 },
+    { n: String(d.bots), label: "Agents in the repository", href: link("automation", "repo.view") },
+    { n: String(d.schedules), label: "Active schedules", href: link("schedules", "schedules.view") },
+    ...(d.queue_items_waiting !== undefined ? [{ n: String(d.queue_items_waiting), label: "Work items waiting", href: link("queues") }] : []),
+    { n: (d.hours_saved_30d ?? 0) + " h", label: "Hours saved (30 days)" },
+    { n: String(d.open_tasks ?? 0), label: "Tasks waiting for you", href: link("inbox") },
+  ] : [];
+  const strip = (id: string, title: string, figures: Figure[]) => (
+    <div className="cc-strip-group">
+      <h2 id={id} className="cc-strip-title">{title}</h2>
+      <ul className="cc-strip" aria-labelledby={id} style={{ gridTemplateColumns: `repeat(${figures.length}, minmax(0, 1fr))` }}>
+        {figures.map((f) => {
+          const body = <><strong className={f.bad ? "is-bad" : undefined}>{f.n}</strong><span>{f.label}</span></>;
+          return <li key={f.label}>{f.href ? <a className="cc-strip-cell is-link" href={f.href}>{body}</a> : <div className="cc-strip-cell">{body}</div>}</li>;
+        })}
+      </ul>
+    </div>
+  );
   const max = d?.days ? Math.max(1, ...d.days.map((x) => x.success + x.failed + x.stopped + x.active)) : 1;
 
   return (
@@ -57,19 +72,17 @@ export function Home({ api, user, pageHref }: { api: CrApi; user: CrUser; pageHr
       {error && <PageError text={error} />}
       {!d && !error && <p className="st-muted" role="status">Loading…</p>}
       {d && <>
-        <ul className="cc-tiles" aria-label="Figures">
-          {tiles.map(([n, label, icon, color, href]) => {
-            const body = <><IconTile name={icon} color={color} size={30} /><span className="cc-tile-text"><strong>{n}</strong><span>{label}</span></span></>;
-            return <li key={label}>{href ? <a className="cc-tile is-link" href={href}>{body}</a> : <div className="cc-tile">{body}</div>}</li>;
-          })}
-        </ul>
+        <div className="cc-strips" role="group" aria-label="Figures">
+          {strip("cc-home-runs", "Runs · last 24 hours", runs)}
+          {strip("cc-home-platform", "Platform", platform)}
+        </div>
         {((d.my_recent_agents?.length ?? 0) > 0 || (d.my_recent_runs?.length ?? 0) > 0) && (
           <div className="cc-card">
             <h2>Pick up where you left off</h2>
             <div className="cc-two">
               <div><h3>Your agents</h3>
                 {d.my_recent_agents?.length ? <ul className="cc-list">{d.my_recent_agents.map((b) => (
-                  <li key={b.path}><Icon name="folder" size={14} /><strong>{agentName(b.path)}</strong>
+                  <li key={b.path}><IconTile name="bolt" color="#2f6fde" size={16} /><strong>{agentName(b.path)}</strong>
                     <span className="st-muted">v{b.latest_version}{b.locked_by ? " · checked out by " + b.locked_by : ""}</span><span className="st-muted cc-when">{ago(b.updated)}</span></li>))}</ul>
                   : <p className="st-muted">Agents you check in or check out show here.</p>}
               </div>
