@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon, IconTile, Splitter, usePanelSize, usePersistent } from "../components";
 import { canSee, type MenuGroup, type MenuPage, type MenuSection, type MenuViewer } from "./menu";
+import { menuFold, MENU_TOGGLE } from "./TopBrand";
 
 /**
  * One CommandCenter menu (approved look), used by Studio and the console: Home, then the sections. A page the app
@@ -35,6 +36,11 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
   const [openNarrow, setOpenNarrow] = useState(false);
   const mini = narrow ? !openNarrow : editing ? !openWhileEditing : chosenMini;
   const setMini = (m: boolean) => { if (narrow) setOpenNarrow(!m); else if (editing) setOpenWhileEditing(!m); else setChosenMini(m); };
+  // round 3 (T1, 13 Nov 2026): the menu folds from the ☰ on the top bar (TopBrand), which shows whether it is folded
+  const toggleRef = useRef(() => {});
+  toggleRef.current = () => setMini(!mini);
+  useEffect(() => { menuFold.set(mini); }, [mini]);
+  useEffect(() => { const on = () => toggleRef.current(); window.addEventListener(MENU_TOGGLE, on); return () => window.removeEventListener(MENU_TOGGLE, on); }, []);
   const [closed, setClosed] = usePersistent<string[]>("menu.closed", []);
   const toggleSection = (label: string) => setClosed(closed.includes(label) ? closed.filter((x) => x !== label) : [...closed, label]);
   const shown = sections.map((s) => ({ ...s, pages: s.pages.filter((p) => canSee(p, viewer)) })).filter((s) => s.pages.length);
@@ -69,7 +75,6 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
   const toggle = (label: string) => { if (groups || inConsole) setOpenOne(openOne === label ? null : label); else toggleSection(label); };
   const [width, setWidth] = usePanelSize("console.menu");
   const w = width ?? WIDTH.normal;
-  const resize = (by: number) => setWidth(Math.max(WIDTH.min, Math.min(WIDTH.max, w + by)));
   const [find, setFind] = useState("");
   const query = find.trim().toLowerCase();
 
@@ -78,12 +83,6 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
     ? <button type="button" className={`st-menu-home${home.current ? " is-current" : ""}`} aria-current={home.current ? "page" : undefined} title="Home" onClick={home.onClick}>{homeBody}</button>
     : home.href ? <a className="st-menu-home" href={home.href} title="Home">{homeBody}</a>
     : <span className="st-menu-home" aria-disabled="true" title={offTitle}>{homeBody}</span>;
-  const fold = (
-    <button type="button" className="st-menu-fold" aria-expanded={!mini} onClick={() => setMini(!mini)}
-      aria-label={mini ? "Expand menu" : "Collapse menu"} title={mini ? "Expand menu" : "Collapse menu"}>
-      <Icon name={mini ? "chevronRight" : "chevronLeft"} size={14} stroke={2.6} />{!mini && "Collapse menu"}
-    </button>
-  );
   /** A group's entry: its icon and name; it opens its first page and is current on any of its pages. */
   const entry = (e: Entry) => {
     const isCurrent = !!current && e.pages.includes(current);
@@ -110,7 +109,6 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
 
   return (<>
     <nav className={`st-menu${mini ? " is-mini" : ""}${inConsole ? " is-console" : ""}`} aria-label="One CommandCenter" style={inConsole && !mini ? { width: w } : undefined}>
-      {!inConsole && fold}
       {inConsole && !mini && <input type="search" className="st-menu-find" aria-label="Find a page" placeholder="Find a page" value={find}
         onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setFind(""); }} />}
       {query && !mini ? (
@@ -168,11 +166,6 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
           );
         })}
       </>}
-      {inConsole && <><span className="st-menu-fill" />
-        <div className="st-menu-foot">{fold}{!mini && <span className="st-menu-size" role="group" aria-label="Menu width">
-          <button type="button" aria-label="Narrower menu" title="Narrower" disabled={w <= WIDTH.min} onClick={() => resize(-WIDTH.step)}>−</button>
-          <button type="button" aria-label="Wider menu" title="Wider" disabled={w >= WIDTH.max} onClick={() => resize(WIDTH.step)}>+</button>
-        </span>}</div></>}
     </nav>
     {inConsole && !mini && <Splitter label="Menu width" axis="x" grow={1} value={width} min={WIDTH.min} max={WIDTH.max} measure={() => w} onChange={setWidth} />}
   </>);

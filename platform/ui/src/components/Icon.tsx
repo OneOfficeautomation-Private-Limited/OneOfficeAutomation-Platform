@@ -54,6 +54,7 @@ export const ICONS = {
   power: "M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0",
   record: "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z",
   target: "M12 3v4M12 17v4M3 12h4M17 12h4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+  menu: "M4 6h16M4 12h16M4 18h16",
 } as const;
 
 export type IconName = keyof typeof ICONS;

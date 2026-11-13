@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CrApi, CrUser, Environment } from "../api/cr";
-import { BrandMark, Icon, is, keyOf, Menu } from "../components";
+import { Icon, is, keyOf, Menu } from "../components";
+import { CompanyName, TopBrand } from "../shell/TopBrand";
 import { canSee, MENU_SECTIONS } from "../shell/menu";
 import { PhoneNotificationsDialog } from "./PhoneNotifications";
 import { ApiKeysDialog } from "./ApiKeys";
@@ -37,9 +38,10 @@ export function TopBar({ api, user, onPage, onSignOut, onShortcuts, onChangePass
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <header className="st-top cc-top">
-      <div className="st-brand"><span className="st-logo is-light"><BrandMark light /></span>One CommandCenter</div>
+      <TopBrand />
       {user.environment && <EnvironmentLabel env={user.environment} />}
       <Search api={api} user={user} onPage={onPage} />
+      <CompanyName />
       <div className="st-top-actions">
         {alerts != null && <a className="st-top-icon cc-bell" href="#/alerts" aria-label={"Open alerts: " + alerts} title="Open alerts">
           <Icon name="bell" size={16} />{alerts > 0 && <span className="cc-badge">{alerts}</span>}</a>}

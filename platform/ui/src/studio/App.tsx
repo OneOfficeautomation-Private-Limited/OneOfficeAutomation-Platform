@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
-import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
+import { Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
 import { Automation, find as findNode } from "./Automation";
 import { CheckInDialog, CopyToPrivate, PublicRepository, type CheckInDep, type RepoRequest } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
@@ -18,6 +18,7 @@ import { ConnectionWizard } from "./ConnectionWizard";
 import { agentRows, allInstalled } from "./toolkits";
 import type { Captured } from "./capture";
 import { oneStep, runOnce } from "./runOnce";
+import { CompanyName, TopBrand } from "../shell/TopBrand";
 
 /**
  * One open agent: the flow being edited, the last saved copy (to know about unsaved changes), undo and redo
@@ -474,7 +475,7 @@ export function App({ api: given }: { api?: StudioApi }) {
     <div className="st-app">
       <header className="st-top">
         {/* one One CommandCenter as AA's Control Room: only the editor (the dev canvas) is OneAgentStudio */}
-        <div className="st-brand"><span className="st-logo is-light"><BrandMark light /></span>{current ? "OneAgentStudio" : "One CommandCenter"}</div>
+        <TopBrand product={current ? "OneAgentStudio" : undefined} />
         <nav aria-label="Breadcrumb" className="st-crumbs">
           {current?.kind === "agent" && current.trail?.length
             ? current.trail.map((t, i) => <span key={i}><button type="button" className="st-crumb-link" title={"Back to " + t.name + ", at the Run agent step (line " + t.line + ")"}
@@ -490,6 +491,7 @@ export function App({ api: given }: { api?: StudioApi }) {
         </nav>
         <label className="st-search"><Icon name="search" size={14} /><input ref={searchBox} aria-label="Search items" placeholder="Search items in the workspace" value={search}
           onChange={(e) => { setSearch(e.target.value); setActive(null); }} /><span className="st-search-kbd" aria-hidden="true">{keyOf("app.search").replace("+", " ")}</span></label>
+        {!current && <CompanyName />}
         <Menu label="Display" title="Display" items={displayItems}
           trigger={<button type="button" className="st-top-icon" aria-label="Theme" title="Theme: light or dark"><Icon name="sliders" size={16} /></button>} />
         <div className="st-top-actions">

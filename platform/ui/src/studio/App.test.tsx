@@ -333,7 +333,7 @@ describe("new Studio", () => {
     render(<App api={fakeServer().api} />);
     const search = await screen.findByLabelText("Search items");
     const brand = () => document.querySelector(".st-brand")?.textContent;
-    expect([brand(), document.title]).toEqual(["One CommandCenter", "One CommandCenter"]);   // AA's one Control Room: only the editor is OneAgentStudio
+    expect([brand(), document.title]).toEqual(["", "One CommandCenter"]);   // round 3 (T1): the logo, no product name on the bar; only the editor names itself, OneAgentStudio
     fireEvent.change(search, { target: { value: "intake" } });
     fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
 
@@ -360,7 +360,7 @@ describe("new Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Don't save" }));   // the id and description changed
     expect(await screen.findByRole("heading", { name: "Agents" })).toBeTruthy();
-    expect(brand()).toBe("One CommandCenter");
+    expect(brand()).toBe("");   // back on Agents: the logo only (round 3, T1)
   });
 
   it("opens Create > Agent on the Private tab when One CommandCenter's Agents asks for a new agent (#private/new)", async () => {
@@ -399,13 +399,13 @@ describe("new Studio", () => {
     expect(within(menu).queryByRole("button", { name: "Agents" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));   // and a heading folds its own
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
-    fireEvent.click(within(menu).getByRole("button", { name: "Collapse menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse menu" }));   // ☰ on the top bar (round 3, T1)
     expect(within(menu).getByRole("button", { name: "Build" })).toBeTruthy();
 
     unmount();
     render(<App api={api} />);
     const again = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    expect(within(again).getByRole("button", { name: "Expand menu" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByRole("button", { name: "Expand menu" }).getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(within(again).getByRole("button", { name: "Manage" }));   // folded: an icon shows its section's pages in a fly-out
     expect(within(again).getByRole("button", { name: "Manage" }).getAttribute("aria-expanded")).toBe("true");
     expect(await within(again).findByRole("link", { name: "Work queues" })).toBeTruthy();

@@ -1178,7 +1178,10 @@ describe("rebuilt One CommandCenter console", () => {
     // Console A (13 Nov 2026): where you are is a line above the page title, not in the top bar; Home needs none
     expect((await screen.findByRole("link", { name: "Open alerts: 1" })).getAttribute("href")).toBe("#/alerts");
     expect(screen.queryByRole("navigation", { name: "You are here" })).toBeNull();
-    expect(document.querySelector(".cc-top .st-brand")!.textContent).toBe("One CommandCenter");   // 13 Nov 2026: light mark, one name
+    // round 3 (T1): ☰, then the company's logo; no product name on the bar; the company name in the free space
+    expect(document.querySelector(".cc-top .st-brand")!.textContent).toBe("");
+    expect(within(document.querySelector(".cc-top .st-brand") as HTMLElement).getByAltText("ONEOFFICEAUTOMATION")).toBeTruthy();
+    expect(document.querySelector(".cc-top .st-company")!.textContent).toBe("OneOfficeAutomation");
     await go("Users");
     await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Administration›Users"));
     const menu = screen.getByRole("navigation", { name: "One CommandCenter" });
@@ -1201,14 +1204,16 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(menu).getByRole("button", { name: "Scheduling" }).getAttribute("aria-current")).toBe("page");
     expect(within(menu).queryByRole("button", { name: "Triggers" })).toBeNull();   // pages are tabs, not menu entries
     expect(within(menu).queryByText("Favourites")).toBeNull();   // taken out on 1 Nov 2026
-    expect(within(within(menu).getByRole("group", { name: "Menu width" }).parentElement!).getByRole("button", { name: "Collapse menu" })).toBeTruthy();   // at the bottom
+    // round 3 (T1): the menu folds from ☰ on the top bar; no buttons at its foot; its edge still sets the width
+    expect(within(menu).queryByRole("button", { name: "Collapse menu" })).toBeNull();
+    expect(within(menu).queryByRole("group", { name: "Menu width" })).toBeNull();
     expect(menu.style.width).toBe("232px");
-    fireEvent.click(within(menu).getByRole("button", { name: "Wider menu" }));
-    expect(menu.style.width).toBe("264px");
-    fireEvent.click(within(menu).getByRole("button", { name: "Narrower menu" }));
-    fireEvent.click(within(menu).getByRole("button", { name: "Narrower menu" }));
-    expect(menu.style.width).toBe("200px");
-    expect((within(menu).getByRole("button", { name: "Narrower menu" }) as HTMLButtonElement).disabled).toBe(true);   // the narrowest
+    const fold = within(document.querySelector(".cc-top") as HTMLElement).getByRole("button", { name: "Collapse menu" });
+    expect(fold.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(fold);
+    expect(menu.className).toContain("is-mini");
+    fireEvent.click(within(document.querySelector(".cc-top") as HTMLElement).getByRole("button", { name: "Expand menu" }));
+    expect(menu.className).not.toContain("is-mini");
     expect(screen.getByRole("separator", { name: "Menu width" })).toBeTruthy();   // the edge can be dragged too
     fireEvent.change(within(menu).getByLabelText("Find a page"), { target: { value: "queue" } });
     const found = within(menu).getByRole("list", { name: "Pages found" });

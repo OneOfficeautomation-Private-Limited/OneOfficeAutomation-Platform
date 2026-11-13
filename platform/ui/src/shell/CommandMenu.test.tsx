@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandMenu } from "./CommandMenu";
 import { MENU_GROUPS, MENU_SECTIONS } from "./menu";
+import { TopBrand } from "./TopBrand";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); });
 
@@ -9,8 +10,8 @@ function screenWidth(px: number) {
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: /max-width: 640px/.test(q) && px <= 640, media: q, addEventListener: () => {}, removeEventListener: () => {} }));
 }
 
-const menu = (onLocal: (id: string) => void = () => {}) => <CommandMenu sections={MENU_SECTIONS} current="home" local={new Set(["inbox", "apps", "activity"])} onLocal={onLocal}
-  hrefFor={() => undefined} home={{ onClick: () => {}, current: true }} viewer={{ permissions: ["runs.view"] }} console />;
+const menu = (onLocal: (id: string) => void = () => {}) => <><TopBrand /><CommandMenu sections={MENU_SECTIONS} current="home" local={new Set(["inbox", "apps", "activity"])} onLocal={onLocal}
+  hrefFor={() => undefined} home={{ onClick: () => {}, current: true }} viewer={{ permissions: ["runs.view"] }} console /></>;
 
 describe("The menu on a phone (G69)", () => {
   it("starts folded, opens over the page, and folds again once a page is picked", () => {

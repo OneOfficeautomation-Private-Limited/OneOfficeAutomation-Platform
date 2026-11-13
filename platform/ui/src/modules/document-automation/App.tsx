@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { BrandMark, Icon, Menu, usePersistent } from "../../components";
+import { Icon, Menu, usePersistent } from "../../components";
+import { CompanyName, TopBrand } from "../../shell/TopBrand";
 import { CommandMenu } from "../../studio/CommandMenu";
 import type { DocFlowApi } from "./api";
 import { Builder } from "./Builder";
@@ -78,12 +79,13 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   return (
     <div className="st-app">
       <header className="st-top">
-        <div className="st-brand"><span className="st-logo is-light" aria-hidden="true"><BrandMark light /></span>One CommandCenter</div>
+        <TopBrand />
         <nav className="st-crumbs" aria-label="Breadcrumb">
           {reviewing ? <span>Manage</span> : <span>AI</span>}<Icon name="chevronRight" size={12} />
           {reviewing ? <span>Task inbox</span> : <span>Document Automation</span>}<Icon name="chevronRight" size={12} />
           <span className="st-crumb-current">{crumb}</span>
         </nav>
+        <CompanyName />
         <div className="st-top-actions">
           {tenants.length > 1 && (
             <label className="df-filter" style={{ color: "var(--ui-frame-text-2)" }}>
