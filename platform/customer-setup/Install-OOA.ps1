@@ -25,6 +25,8 @@ as a runner. Run it through Install.cmd. Without -Silent it asks for anything no
                                It runs in managed mode beside One CommandCenter on 127.0.0.1, starts with Windows (with
                                -Service) or at sign-in, and keeps its documents in One CommandCenter's data folder
                                (DATA\docflow). -DocFlowPort N (default 8085), -DocFlowDir DIR (default INSTALLDIR\DocFlow)
+  -DocFlowPackage ZIP          install Document Automation with no internet, from ooa-docflow-offline-<ref>.zip
+                               (made with Make-DocFlowOffline.ps1 on a computer with internet)
   Runner:
   -Url URL                     One CommandCenter address, for example https://ooa.example.com:8720
   -RegistrationKey KEY         a one-time key from One CommandCenter > Runners > Register a runner (not needed
@@ -68,6 +70,8 @@ param(
     [switch]$DocFlow,
     [int]$DocFlowPort = 8085,
     [string]$DocFlowDir = "",
+    # round 4 A5: install Document Automation from ooa-docflow-offline-<ref>.zip (Make-DocFlowOffline.ps1), with no internet
+    [string]$DocFlowPackage = "",
     [switch]$NoShortcuts,
     [switch]$NoStart,
     # used by the MSI: the files are already in place; only set up the role. ServiceFlag 1 = -Service.
@@ -191,6 +195,74 @@ function Ooa([string[]]$a) {
 # One CommandCenter is tested with), sets it to managed mode with a new service token, records the address and the
 # token (encrypted) for One CommandCenter (ooa docflow configure) and starts it with Windows or at sign-in.
 # Returns $true when it is set up; problems are logged and leave One CommandCenter as it is.
+# Document Automation from an offline package (round 4, A5): the package's manifest is checked first (release and
+# every file's SHA-256), then Python and Tesseract are installed from it for this program only, the packages from its
+# wheels (pip --no-index), and the language data is copied. Nothing is downloaded.
+function Install-DocFlowOffline($dir, $ref) {
+    if (-not (Test-Path $DocFlowPackage)) { throw "The Document Automation package $DocFlowPackage is not there" }
+    $work = Join-Path $env:TEMP "ooa-docflow-offline-install"
+    Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+    Log "Unpacking $DocFlowPackage"
+    Expand-Archive -Path $DocFlowPackage -DestinationPath $work
+    $m = Get-Content (Join-Path $work "manifest.json") -Raw | ConvertFrom-Json
+    if ($m.kind -ne "ooa-docflow-offline") { throw "$DocFlowPackage is not a Document Automation offline package (Make-DocFlowOffline.ps1 makes one)" }
+    if ($m.ref -ne $ref) { throw "The package holds DocFlow $($m.ref), but this release is tested with ${ref}: make the package for $ref (Make-DocFlowOffline.ps1 -Ref $ref)" }
+    foreach ($f in $m.files) {
+        $full = Join-Path $work ($f.path -replace "/", "\")
+        if (-not (Test-Path $full) -or (Get-FileHash $full -Algorithm SHA256).Hash.ToLower() -ne $f.sha256) { throw "The package is damaged: $($f.path) is missing or changed. Copy it again." }
+    }
+    Log "Package checked: DocFlow $($m.ref), Python $($m.python), $($m.tesseract), $(@($m.files).Count) files."
+
+    # DocFlow's code (its .venv, data, tessdata and backups are kept on an update)
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    Get-ChildItem (Join-Path $work "docflow") | ForEach-Object { Copy-Item -Recurse -Force $_.FullName (Join-Path $dir $_.Name) }
+
+    # Python 3.12 for this program only (not on PATH, no launcher)
+    $pyDir = Join-Path $InstallDir "DocFlowPython"
+    $py = Join-Path $pyDir "python.exe"
+    if (-not (Test-Path $py)) {
+        $setup = Get-ChildItem (Join-Path $work "python") -Filter "python-*.exe" | Select-Object -First 1
+        Log "Installing Python $($m.python) into $pyDir"
+        $p = Start-Process $setup.FullName -ArgumentList @("/quiet", "InstallAllUsers=0", "PrependPath=0", "Include_launcher=0", "Include_test=0", "Shortcuts=0", "AssociateFiles=0", "TargetDir=`"$pyDir`"") -Wait -PassThru
+        if ($p.ExitCode -ne 0 -or -not (Test-Path $py)) { throw "Python's installer stopped (exit $($p.ExitCode))" }
+    }
+
+    # Tesseract OCR beside it (its installer takes /D= as the last argument, without quotes)
+    $tessDir = Join-Path $InstallDir "Tesseract-OCR"
+    $tessExe = Join-Path $tessDir "tesseract.exe"
+    if (-not (Test-Path $tessExe)) {
+        $setup = Get-ChildItem (Join-Path $work "tesseract") -Filter "*.exe" | Select-Object -First 1
+        Log "Installing Tesseract OCR into $tessDir"
+        $p = Start-Process $setup.FullName -ArgumentList @("/S", "/D=$tessDir") -Wait -PassThru
+        if (-not (Test-Path $tessExe)) { throw "Tesseract's installer stopped (exit $($p.ExitCode)); install for all users needs an administrator's prompt" }
+    }
+    $td = Join-Path $dir "tessdata"
+    New-Item -ItemType Directory -Force (Join-Path $td "configs") | Out-Null
+    Copy-Item -Recurse -Force (Join-Path $work "tessdata\*") $td
+
+    # the virtual environment and every package from the wheels, without the internet
+    $vpy = Join-Path $dir ".venv\Scripts\python.exe"
+    if (-not (Test-Path $vpy)) { & $py -m venv (Join-Path $dir ".venv"); if ($LASTEXITCODE -ne 0) { throw "Making DocFlow's Python environment failed" } }
+    $wheels = Join-Path $work "wheels"
+    & $vpy -m pip install --no-index --find-links $wheels --upgrade pip --quiet
+    & $vpy -m pip install --no-index --find-links $wheels -r (Join-Path $dir "requirements.txt") --quiet
+    if ($LASTEXITCODE -ne 0) { throw "Installing DocFlow's packages from the package failed (pip --no-index); is the package for this DocFlow release?" }
+    if ($m.paddle) { & $vpy -m pip install --no-index --find-links $wheels paddlepaddle paddleocr --quiet; if ($LASTEXITCODE -ne 0) { Log "PaddleOCR could not be installed: DocFlow works without it." } }
+
+    # DocFlow's own settings: where Tesseract and the language data are
+    $envFile = Join-Path $dir "config\local.env"
+    if (-not (Test-Path $envFile)) { Copy-Item (Join-Path $dir "config\local.env.example") $envFile }
+    $lines = @(Get-Content $envFile)
+    foreach ($kv in @(@("TESSERACT_CMD", $tessExe), @("TESSDATA_PREFIX", $td))) {
+        $found = $false
+        $lines = @(foreach ($l in $lines) { if ($l -match "^\s*$($kv[0])=") { $found = $true; "$($kv[0])=$($kv[1])" } else { $l } })
+        if (-not $found) { $lines += "$($kv[0])=$($kv[1])" }
+    }
+    Set-Content -Path $envFile -Value $lines -Encoding UTF8
+    Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+    Log "DocFlow $ref installed from the offline package."
+}
+
 function Install-DocFlow($dataArgs) {
     try {
         $jar = Get-ChildItem (Join-Path $InstallDir "lib") -Filter "document-automation-*.jar" | Select-Object -First 1
@@ -204,6 +276,10 @@ function Install-DocFlow($dataArgs) {
         $dir = if ($DocFlowDir) { $DocFlowDir } else { Join-Path $InstallDir "DocFlow" }
         # its documents and database live with One CommandCenter's data, which uninstalling keeps
         $data = Join-Path $(if ($DataDir) { $DataDir } else { Join-Path $env:USERPROFILE "OOA Command Center" }) "docflow"
+        if ($DocFlowPackage) {
+            Log "Installing Document Automation (DocFlow $ref) into $dir from the offline package; its documents go to $data"
+            Install-DocFlowOffline $dir $ref
+        } else {
         Log "Installing Document Automation (DocFlow $ref) into $dir from GitHub; its documents go to $data"
         $script = Join-Path $env:TEMP "get-docflow-$ref.ps1"
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -215,6 +291,7 @@ function Install-DocFlow($dataArgs) {
         $ErrorActionPreference = "Stop"
         Log $out
         if ($code -ne 0 -or -not (Test-Path (Join-Path $dir ".venv\Scripts\python.exe"))) { throw "DocFlow's installer stopped (exit $code); its output is above" }
+        }
 
         # managed mode, the token both sides share, where the Command Center is, and where the documents go
         $envFile = Join-Path $dir "config\local.env"

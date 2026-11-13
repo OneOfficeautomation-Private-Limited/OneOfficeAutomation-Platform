@@ -127,7 +127,21 @@ installer from its GitHub release.
 - downloads Python packages and Tesseract's language files;
 - reads GitHub's API. Behind a busy shared address, set `DOCFLOW_GITHUB_TOKEN` (a read-only token).
 
-Offline sites use the containers instead (`docker/compose.docflow.yaml`).
+**Without internet** (added 14 Nov 2026): make an offline package once per release on a computer with internet and
+Python 3.12, then install from it:
+
+```
+powershell -ExecutionPolicy Bypass -File Make-DocFlowOffline.ps1 -Out D:eleases          (in the setup package's folder)
+Install.cmd -Silent -Role CommandCenter -AllUsers -Service -DataDir D:\OOA\cc -DocFlow -DocFlowPackage D:eleases\ooa-docflow-offline-v3.1.1.zip
+```
+
+`Make-DocFlowOffline.ps1` collects DocFlow's code at the release this product is tested with (from GitHub with
+`DOCFLOW_GITHUB_TOKEN`, or from a local checkout with `-Source`), the Python 3.12 and Tesseract installers, the language
+data, and every Python package as Windows x64 wheels (PaddleOCR too unless `-NoPaddle`), with a `manifest.json` holding
+each file's SHA-256: about 0.5 to 1 GB. `-DocFlowPackage` checks the manifest (the release must match, every file
+unchanged), installs Python into `INSTALLDIR\DocFlowPython` and Tesseract into `INSTALLDIR\Tesseract-OCR` for this
+program only, installs the packages with `pip --no-index`, sets `TESSERACT_CMD` and `TESSDATA_PREFIX` in DocFlow's
+`config\local.env`, then carries on as below. The containers (`docker/compose.docflow.yaml`) remain another way.
 
 What it does, after One CommandCenter is installed:
 
