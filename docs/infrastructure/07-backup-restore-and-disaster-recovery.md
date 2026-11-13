@@ -123,6 +123,20 @@ of restoring (a new install has a new install id).
 For a cloud target, build the new install as in [02](02-installation-windows.md), section 13 (Windows virtual
 machine) or [03](03-installation-linux-and-containers.md) (Linux package or container).
 
+### 7.1 Moving into a SaaS tenant
+
+A tenant of a SaaS region has its own vault key, so the key does not move. Use the move file instead, which carries
+every secret and encrypts it again with the tenant's key on the way in:
+
+1. Stop One CommandCenter. Put a long passphrase in an environment variable and run
+   `ooa tenant export --out acme.ooamove --password-env OOA_MOVE_PASS` (add `--with-history` to take the run history).
+2. Send the file and the passphrase to the region's operator by different ways.
+3. The operator runs `ooa region tenant import acme --file acme.ooamove --password-env ...` and sends you the check
+   report.
+4. On each runner run `ooa agent move --url https://acme.REGION-DOMAIN`, then restart it.
+
+What moves, what stays behind and what to check afterwards: [09](09-saas-and-multi-region-operations.md), section 12.1.
+
 ## 8. Disaster recovery site
 
 A second site takes over when the main one is lost. Keep three things in step:

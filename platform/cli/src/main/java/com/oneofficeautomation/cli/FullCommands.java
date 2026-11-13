@@ -128,6 +128,22 @@ final class FullCommands {
             else if (verb.equals("seats")) t.param("NAME", "The tenant's address name.", "1").opt("--seats", "KIND=N,...", "Seats, such as developer=2,unattended_runner=5; leave out for no limit.");
             else if (!verb.equals("list")) t.param("NAME", "The tenant's address name.", "1");
         }
+        c.command("region tenant import", "Move an on-premises One CommandCenter into a tenant, from the file ooa tenant export wrote.",
+                a -> TenantCommand.importInto(a.o(), a.pos()))
+            .param("NAME", "The tenant's address name (made when there is none; one that exists must still be empty).", "1")
+            .required("--file", "FILE", "The move file.")
+            .required("--password-env", "VAR", "The environment variable with the move file's passphrase.")
+            .required("--url", "URL", "The region's own address, such as https://in.example.com.")
+            .required("--token-env", "VAR", "The environment variable with the operator token.")
+            .opt("--name", "COMPANY", "The customer's name, for a new tenant.")
+            .opt("--admin-email", "ADDRESS", "The customer administrator's e-mail address, for a new tenant.")
+            .opt("--seats", "KIND=N,...", "Seats for a new tenant, such as developer=2,unattended_runner=5.");
+        c.group("tenant", "Move this One CommandCenter into a SaaS tenant (docs/infrastructure/09-saas-and-multi-region-operations.md section 12).");
+        database(c.command("tenant export", "Write one encrypted file with this One CommandCenter's data, files and secrets, for ooa region tenant import. Stop the server first.",
+                a -> TenantCommand.export(a.o()))
+            .required("--out", "FILE", "The move file to write, such as acme.ooamove.")
+            .required("--password-env", "VAR", "The environment variable with the passphrase that encrypts the file (12 characters or more).")
+            .flag("--with-history", "Also move the run history (runs, their events, AI calls, test runs, alerts)."));
         c.group("region template", "The region's shared agent templates: approve them before tenants see them.");
         for (String verb : new String[] {"list", "approve", "reject"}) {
             OoaCli.Cmd t = c.command("region template " + verb, switch (verb) {

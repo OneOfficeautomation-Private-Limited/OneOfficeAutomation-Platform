@@ -478,6 +478,13 @@ public final class VaultAdmin {
                 db.update("UPDATE users SET mfa_secret = ? WHERE id = ?", next.encrypt(cr.vault.decrypt((String) u.get("mfa_secret"), bound), bound), u.get("id"));
                 k++;
             }
+            // event subscriptions' signing secrets (missed until round 4: their webhooks stopped being signed after a rotation)
+            for (Map<String, Object> s : db.query("SELECT id, secret FROM event_subscriptions WHERE secret IS NOT NULL")) {
+                if (!(s.get("secret") instanceof String v) || v.isEmpty()) continue;
+                String bound = "event-subscription:" + s.get("id");
+                db.update("UPDATE event_subscriptions SET secret = ? WHERE id = ?", next.encrypt(cr.vault.decrypt(v, bound), bound), s.get("id"));
+                k++;
+            }
             return k;
         });
         // passwords in the configuration files (database, HTTPS certificate): each file is kept as .before-rotate first

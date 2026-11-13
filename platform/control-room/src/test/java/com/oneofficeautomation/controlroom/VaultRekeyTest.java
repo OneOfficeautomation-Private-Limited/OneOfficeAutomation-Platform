@@ -27,6 +27,8 @@ class VaultRekeyTest {
             ControlRoom.User admin = RepositoryLifecycleTest.boot(cr);
             cr.createLocker(admin, "ops", "Operations", null, null);
             cr.setCredential(admin, "ops", "erp", "password", "s3cret-erp", null);
+            // an event subscription's signing secret (rotation missed it before round 4)
+            String whsec = (String) cr.events.save(admin, null, Map.of("name", "hook", "url", "https://93.184.216.34/hook", "events", java.util.List.of("*")), null).get("secret");
             assertEquals("CR.VAULT_KEY", assertThrows(com.oneofficeautomation.sdk.OoaException.class, () -> cr.vaultAdmin.rotate(admin, null)).code(),
                     "the console cannot change a key kept outside");
 
@@ -38,6 +40,8 @@ class VaultRekeyTest {
             String stored = (String) db.one("SELECT ciphertext FROM credentials WHERE locker = 'ops' AND name = 'erp' AND attribute = 'password'").get("ciphertext");
             assertEquals("s3cret-erp", Vault.ofKey(newKey, "new").decrypt(stored, "ops/erp/password"), "the new key reads it");
             assertThrows(com.oneofficeautomation.sdk.OoaException.class, () -> Vault.ofKey(oldKey, "old").decrypt(stored, "ops/erp/password"), "the old key no longer does");
+            Map<String, Object> ev = db.one("SELECT id, secret FROM event_subscriptions");
+            assertEquals(whsec, Vault.ofKey(newKey, "new").decrypt((String) ev.get("secret"), "event-subscription:" + ev.get("id")), "the event subscription's secret moved to the new key");
             assertEquals(1L, cr.count("SELECT COUNT(*) AS n FROM audit WHERE action = 'vault.rekey'"));
         } finally { db.close(); }
     }

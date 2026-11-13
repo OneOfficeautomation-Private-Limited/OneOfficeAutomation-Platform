@@ -26,6 +26,9 @@ import java.util.concurrent.*;
  *   POST   /api/operator/tenants                    {slug, name, admin_email, seats}: a new tenant and its admin's one-time password
  *   POST   /api/operator/tenants/NAME/seats           {seats}: change its seats
  *   POST   /api/operator/tenants/NAME/suspend|resume
+ *   POST   /api/operator/tenants/NAME/import          the body is a move file (ooa tenant export), its passphrase in the
+ *                                                   X-OOA-Move-Passphrase header (Base64 of UTF-8); ?name=&amp;admin_email=&amp;seats={json}
+ *                                                   make the tenant when there is none. Answers the check report.
  *   DELETE /api/operator/tenants/NAME               a suspended tenant, for good
  *   GET    /api/operator/templates[?status=pending] the region's shared templates (K7)
  *   POST   /api/operator/templates/ID/approve|reject
@@ -119,6 +122,14 @@ public final class TenantHost {
             } else if (rest.matches("tenants/[a-z0-9-]+/seats") && m.equals("POST")) {
                 @SuppressWarnings("unchecked") Map<String, Object> seats = ControlRoomServer.map(ControlRoomServer.body(ex)).get("seats") instanceof Map<?, ?> s ? (Map<String, Object>) s : Map.of();
                 send(ex, 200, tenants.setSeats(rest.split("/")[1], seats, who).toMap());
+            } else if (rest.matches("tenants/[a-z0-9-]+/import") && m.equals("POST")) {
+                String pass = ex.getRequestHeaders().getFirst("X-OOA-Move-Passphrase");
+                if (pass == null || pass.isBlank()) throw new com.oneofficeautomation.sdk.OoaException("MOVE.PASSPHRASE", "The move file's passphrase is missing", "Send it in the X-OOA-Move-Passphrase header (ooa region tenant import does).");
+                char[] pw = new String(Base64.getDecoder().decode(pass.trim()), StandardCharsets.UTF_8).toCharArray();
+                Map<String, String> q = ControlRoomServer.query(ex);
+                @SuppressWarnings("unchecked") Map<String, Object> seats = q.get("seats") == null || q.get("seats").isBlank() ? Map.of() : (Map<String, Object>) ControlRoomServer.map(JsonLite.parse(q.get("seats")));
+                try { send(ex, 200, tenants.importTenant(rest.split("/")[1], q.get("name"), q.get("admin_email"), seats, ex.getRequestBody(), pw, who)); }
+                finally { Arrays.fill(pw, '\0'); }
             } else if (rest.matches("tenants/[a-z0-9-]+/(suspend|resume)") && m.equals("POST")) {
                 String[] part = rest.split("/");
                 if (part[2].equals("suspend")) tenants.suspend(part[1], who); else tenants.resume(part[1], who);
@@ -135,7 +146,7 @@ public final class TenantHost {
                 send(ex, 200, Map.of("deleted", rest.substring(8)));
             } else send(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Not found")));
         } catch (com.oneofficeautomation.sdk.OoaException e) {
-            send(ex, switch (e.code()) { case "SAAS.NO_TENANT" -> 404; case "SAAS.SLUG_TAKEN", "SAAS.NOT_SUSPENDED" -> 409; default -> 400; }, Map.of("error", e.toMap()));
+            send(ex, switch (e.code()) { case "SAAS.NO_TENANT" -> 404; case "SAAS.SLUG_TAKEN", "SAAS.NOT_SUSPENDED", "SAAS.TENANT_NOT_EMPTY", "SAAS.MOVE_BUSY", "MOVE.VERSION" -> 409; case "MOVE.PASSPHRASE" -> 403; default -> 400; }, Map.of("error", e.toMap()));
         }
     }
 

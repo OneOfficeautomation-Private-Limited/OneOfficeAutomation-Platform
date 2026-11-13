@@ -20,7 +20,7 @@ customers do not need this page.
 9. Several regions: the directory
 10. Egress rules
 11. Several nodes and sizing
-12. Backups and tenant exports
+12. Backups, tenant exports and moving in from on premises
 13. Tenant licensing
 14. Upgrades region by region
 15. Monitoring a region
@@ -116,6 +116,7 @@ only when `operator.token_sha256` is set:
 | `POST /api/operator/tenants` `{slug, name, admin_email, seats}` | Create a tenant |
 | `POST /api/operator/tenants/NAME/seats` `{seats}` | Change seats |
 | `POST /api/operator/tenants/NAME/suspend` and `/resume` | Suspend or resume |
+| `POST /api/operator/tenants/NAME/import` (the move file as the body) | Move an on-premises install into the tenant (section 12.1) |
 | `DELETE /api/operator/tenants/NAME` | Delete a suspended tenant |
 | `GET /api/operator/templates[?status=...]`, `POST /api/operator/templates/ID/approve\|reject` | Shared templates |
 
@@ -144,6 +145,7 @@ ooa region tenant delete  acme --url https://in.example.com --token-env OOA_OPER
 | `suspend` | The tenant's people and runners are refused (its address answers 404 like an unknown one); schedules and triggers stop on every node within 30 seconds; data stays |
 | `resume` | Starts it again |
 | `delete` | Only for a suspended tenant: removes its schema, folder and catalog entry with its key, for good. Export first if the customer wants their data. |
+| `import` | Moves an on-premises install into the tenant from the file `ooa tenant export` wrote (section 12.1) |
 
 Address names: 3 to 40 lower-case letters, digits and hyphens, starting with a letter; `www`, `api`, `admin` and
 similar are reserved.
@@ -218,7 +220,7 @@ groups or the cloud firewall. Set `serverless=true` only with these rules in pla
   tenants per region, put PgBouncer in session mode in front.
 - Health: `https://in.example.com/healthz` (and `/api/health`) answers `{"status":"ok"}`.
 
-## 12. Backups and tenant exports
+## 12. Backups, tenant exports and moving in from on premises
 
 - **Region**: back up PostgreSQL (every schema, with point-in-time recovery) and the data folder with your tools;
   keep the master key apart.
@@ -226,6 +228,85 @@ groups or the cloud firewall. Set `serverless=true` only with these rules in pla
   download them as an export. Restoring one tenant from its own backup is not in this version; restore the region's
   database (or that tenant's schema with PostgreSQL tools).
 - **Moving a tenant to another region**: export it, create it in the other region, restore the export there.
+
+### 12.1 Moving an on-premises install into a tenant
+
+A customer's own One CommandCenter (SQL Server, PostgreSQL or the evaluation database) moves into a tenant with two
+commands. Both sides must run the same release (the same schema); upgrade the older side first.
+
+**1. On the on-premises server**, with One CommandCenter stopped:
+
+```
+set OOA_MOVE_PASS=a long passphrase, given to the operator another way
+ooa tenant export --out D:\move\acme.ooamove --password-env OOA_MOVE_PASS [--with-history] [--data DIR]
+```
+
+It reads the database and the data folder (`--db-url`, `--db-user`, `--db-password-env` or `--db-config` work as for
+`ooa backup`) and writes one file. The file is encrypted with a key made from the passphrase (PBKDF2, then AES-256-GCM
+in 1 MB chunks), so a changed or shortened file is refused. Inside:
+
+| Part | What |
+| --- | --- |
+| Manifest | Release, schema and module versions, rows per table |
+| Tables | Everything of the customer: users with their passwords and roles, teams, agents and their versions, folders and permissions, vault folders and values, runners and pools, schedules, triggers, queues and work items, settings, dashboards, apps, Document Automation processes, and so on |
+| Files | Repository file contents (from `DATA\repo-files` or the shared `repo_files_folder`), templates and buckets |
+| Secrets | Every stored secret, decrypted with the on-premises vault key: in the file only the passphrase protects them |
+| Audit Trail | The whole trail as it is, kept as an archive |
+
+Left out, with the reason printed: sign-in sessions, cluster leases and nodes, registration keys, licences and
+licence use, runner installers, open chat conversations, run locks, custom toolkits (they do not load into a shared
+server), the install's own settings (install id, evaluation start, audit chain key, address, shared folders) and the
+passwords in `DATA\config`. Run history (runs and their events, AI calls, test runs, alerts, KPI values) moves only
+with `--with-history`.
+
+**2. Send the file and the passphrase by different ways.** Anyone with both can read every secret.
+
+**3. In the region**, an operator runs:
+
+```
+set OOA_MOVE_PASS=the passphrase
+ooa region tenant import acme --file acme.ooamove --password-env OOA_MOVE_PASS --url https://in.example.com --token-env OOA_OPERATOR_TOKEN --name "Acme Ltd" --seats developer=2,unattended_runner=5
+```
+
+| Case | What happens |
+| --- | --- |
+| No tenant `acme` | It is made (`--name` needed, `--admin-email` and `--seats` optional), then filled |
+| `acme` exists with only its first administrator | Its data is replaced by the file's |
+| `acme` has anything else (users, agents, runners, vault values) | Refused: import into a new name, or suspend and delete it first |
+| Wrong passphrase, another schema or module version, changed or shortened file | Refused; a tenant made for the import is removed again |
+
+The file goes to the operator API (`POST /api/operator/tenants/NAME/import`, with the passphrase in the
+`X-OOA-Move-Passphrase` header as Base64). The tables go in as one transaction that reads the file to its end, so a
+broken file changes nothing. Every secret is encrypted with the tenant's own key, bound to its place as before:
+
+| Secret | Bound to |
+| --- | --- |
+| Vault values (`credentials`) | locker/name/attribute |
+| People's own values, also device sign-in (`credential_user_values`) | locker/name/attribute and the person |
+| External vault sign-in secrets (`lockers`) | the vault folder |
+| Work items of encrypted queues (`queue_items`) | the work item |
+| Phone notification topics (setting `push_topic:NAME`) | the person |
+| Two-step sign-in secrets (`users`) | the user |
+| Event subscription signing secrets (`event_subscriptions`) | the subscription |
+
+Model connections and package connections hold only references to vault values. API keys, SCIM tokens and trigger
+secrets are kept as hashes. These move as they are and keep working.
+
+The command prints a check report: rows per table (exported and imported), secrets moved, files, the Audit Trail
+archive, what was left out and why, the runners, and what to check:
+
+- vault folders linked to an external vault (CyberArk, Delinea and others): the region must reach it;
+- single sign-on or LDAP settings in use: the region must reach the company's directory;
+- seats assigned above the tenant's seats: raise them with `ooa region tenant seats`, or free some.
+
+**4. After the import**
+
+- People sign in at `https://acme.in.example.com/` with their old passwords and two-step sign-in.
+- Runners keep their registration. On each runner computer run `ooa agent move --url https://acme.in.example.com`,
+  then restart the runner.
+- The old Audit Trail is in the tenant's folder as `imported/audit-<time>.jsonl` (read-only, with its checkpoints).
+  The tenant's own trail starts with a `tenant.import` event that names the archive and its SHA-256.
+- Delete the move file and retire the on-premises install.
 
 ## 13. Tenant licensing
 

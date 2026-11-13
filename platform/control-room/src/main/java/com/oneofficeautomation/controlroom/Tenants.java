@@ -176,6 +176,89 @@ public final class Tenants implements AutoCloseable {
         return out;
     }
 
+    /**
+     * Moves an on-premises One CommandCenter into a tenant (round 4 item A4) from the file ooa tenant export wrote. The
+     * tenant is made when there is none (then name is needed); a tenant that exists must hold nothing of a customer yet
+     * (only its first administrator). While the data goes in the tenant is closed ("importing"); a failure leaves no
+     * new tenant behind, or the existing one as it was. Returns the check report.
+     */
+    public Map<String, Object> importTenant(String slug, String name, String adminEmail, Map<String, Object> seats, java.io.InputStream file, char[] passphrase, String by) throws IOException {
+        TenantMove.Reader move = TenantMove.open(file, passphrase);   // the passphrase and the versions first: nothing is made for a file that cannot go in
+        slug = slug == null ? "" : slug.trim().toLowerCase(Locale.ROOT);
+        Info i = get(slug);
+        boolean made = i == null;
+        if (made) {
+            create(slug, name, adminEmail, seats, by);
+            i = get(slug);
+        } else {
+            if (!i.status().equals("active") && !i.status().equals("suspended"))
+                throw new OoaException("SAAS.MOVE_BUSY", "Tenant " + slug + " is " + i.status(), "Wait until it is active or suspended, then import again.");
+            Db check = base.inSchema(schemaOf(i.id()), 1);
+            try {
+                if (TenantMove.hasData(check)) throw new OoaException("SAAS.TENANT_NOT_EMPTY", "Tenant " + slug + " already has data",
+                    "Import into a new tenant name, or delete this tenant (suspend, then delete) and import again.");
+            } finally { check.close(); }
+        }
+        String before = i.status();
+        catalog.update("UPDATE tenants SET status = 'importing', updated = ?, updated_by = ? WHERE id = ?", Instant.now(), by, i.id());
+        Tenant running = open.remove(i.id());
+        if (running != null) stop(running);
+        Map<String, Object> report;
+        Db db = base.inSchema(schemaOf(i.id()), 1);
+        try {
+            report = move.loadInto(db, vaultOf(i.id()), folderOf(i.id()));
+        } catch (IOException | RuntimeException e) {
+            if (made) {
+                try { base.dropSchema(schemaOf(i.id())); } catch (RuntimeException ignored) { }
+                Path dir = folderOf(i.id());
+                if (Files.exists(dir)) try (var walk = Files.walk(dir)) { for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(p); } catch (IOException ignored) { }
+                catalog.update("DELETE FROM tenants WHERE id = ?", i.id());
+                RegionDirectory.Client names = directory;
+                if (names != null) try { names.release(slug); } catch (RuntimeException ignored) { }
+            } else {
+                catalog.update("UPDATE tenants SET status = ?, updated = ? WHERE id = ?", before, Instant.now(), i.id());
+                if (before.equals("active")) start(get(slug));
+            }
+            throw e;
+        } finally { db.close(); }
+        catalog.update("UPDATE tenants SET status = 'active', updated = ? WHERE id = ?", Instant.now(), i.id());
+        Tenant t = start(get(slug));
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("rows", report.get("rows")); details.put("secrets", report.get("secrets")); details.put("files", report.get("files"));
+        details.put("from", report.get("from")); details.put("audit_archive", report.get("audit_archive"));
+        t.cr.audit.record(by, "tenant.import", "tenant", slug, details, "ok", null);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("tenant", get(slug).toMap());
+        String url = "https://" + slug + "." + domain;
+        out.put("url", url + "/");
+        out.putAll(report);
+        List<Map<String, Object>> runners = new ArrayList<>();
+        for (Map<String, Object> d : t.cr.db.query("SELECT id, name, hostname FROM devices ORDER BY name"))
+            runners.add(Map.of("id", d.get("id"), "name", String.valueOf(d.get("name")), "move", "ooa agent move --url " + url));
+        out.put("runners", runners);
+        out.put("warnings", warnings(t.cr, get(slug).seats()));
+        return out;
+    }
+
+    /** What the operator should look at after a move: links to on-premises systems, and seats in use above the tenant's. */
+    static List<String> warnings(ControlRoom cr, Map<String, Object> seats) {
+        List<String> out = new ArrayList<>();
+        for (Map<String, Object> l : cr.db.query("SELECT name, external FROM lockers WHERE external IS NOT NULL"))
+            out.add("Vault folder " + l.get("name") + " links to an external vault (" + l.get("external") + "): check that the region can reach it.");
+        for (Map<String, Object> s : cr.db.query("SELECT name, json_value FROM settings ORDER BY name")) {
+            String n = String.valueOf(s.get("name")).toLowerCase(Locale.ROOT), v = String.valueOf(s.get("json_value"));
+            if ((n.contains("ldap") || n.contains("saml") || n.contains("oidc") || n.startsWith("sso")) && !v.equals("\"\"") && !v.equals("null") && !v.equals("false") && !v.equals("0"))
+                out.add("Setting " + s.get("name") + " is in use: sign-in through the company's directory needs the region to reach it.");
+        }
+        if (seats != null && !seats.isEmpty()) for (Map<String, Object> r : cr.db.query("SELECT license_type, COUNT(*) AS n FROM license_assignments GROUP BY license_type")) {
+            Object have = seats.get(String.valueOf(r.get("license_type")));
+            long used = ((Number) r.get("n")).longValue();
+            if (have instanceof Number h && used > h.longValue())
+                out.add(used + " " + r.get("license_type") + " seats are assigned and the tenant has " + h + ": raise them with ooa region tenant seats, or take some back.");
+        }
+        return out;
+    }
+
     public List<Info> list() {
         List<Info> out = new ArrayList<>();
         for (Map<String, Object> r : catalog.query("SELECT * FROM tenants ORDER BY slug")) out.add(info(r));
@@ -279,12 +362,10 @@ public final class Tenants implements AutoCloseable {
     private synchronized Tenant start(Info i) {
         Tenant running = open.get(i.id());
         if (running != null) return running;
-        Map<String, Object> row = catalog.one("SELECT key_ciphertext FROM tenants WHERE id = ?", i.id());
-        byte[] key = Base64.getDecoder().decode(regionVault.decrypt((String) row.get("key_ciphertext"), "tenant:" + i.id()));
         Path dir = folderOf(i.id());
         try { Files.createDirectories(dir); } catch (IOException e) { throw new OoaException("SAAS.FOLDER", "Cannot create " + dir + ": " + e.getMessage(), "Check that the service account may create folders in the data folder."); }
         Db db = base.inSchema(schemaOf(i.id()), 3);
-        ControlRoom cr = new ControlRoom(db, dir, registries.get(), schema, Vault.ofKey(key, "tenant key in the region catalog"), i.id());
+        ControlRoom cr = new ControlRoom(db, dir, registries.get(), schema, vaultOf(i.id()), i.id());
         cr.serverlessAllowed = serverless;
         cr.templates.shared = sharedTemplates();
         cr.tenantSeats = seatCounts(i.seats());
@@ -297,6 +378,12 @@ public final class Tenants implements AutoCloseable {
         Tenant t = new Tenant(i, cr, server);
         open.put(i.id(), t);
         return t;
+    }
+
+    /** The tenant's own vault key, kept in the catalog encrypted with the region's master key. */
+    private Vault vaultOf(String id) {
+        Map<String, Object> row = catalog.one("SELECT key_ciphertext FROM tenants WHERE id = ?", id);
+        return Vault.ofKey(Base64.getDecoder().decode(regionVault.decrypt((String) row.get("key_ciphertext"), "tenant:" + id)), "tenant key in the region catalog");
     }
 
     private static void stop(Tenant t) {
