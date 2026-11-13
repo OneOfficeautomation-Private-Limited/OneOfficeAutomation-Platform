@@ -131,8 +131,8 @@ installer from its GitHub release.
 Python 3.12, then install from it:
 
 ```
-powershell -ExecutionPolicy Bypass -File Make-DocFlowOffline.ps1 -Out D:eleases          (in the setup package's folder)
-Install.cmd -Silent -Role CommandCenter -AllUsers -Service -DataDir D:\OOA\cc -DocFlow -DocFlowPackage D:eleases\ooa-docflow-offline-v3.1.1.zip
+powershell -ExecutionPolicy Bypass -File Make-DocFlowOffline.ps1 -Out D:\releases          (in the setup package's folder)
+Install.cmd -Silent -Role CommandCenter -AllUsers -Service -DataDir D:\OOA\cc -DocFlow -DocFlowPackage D:\releases\ooa-docflow-offline-v3.1.1.zip
 ```
 
 `Make-DocFlowOffline.ps1` collects DocFlow's code at the release this product is tested with (from GitHub with
