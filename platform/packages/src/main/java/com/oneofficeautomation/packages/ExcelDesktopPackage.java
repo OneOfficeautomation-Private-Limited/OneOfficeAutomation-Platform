@@ -73,7 +73,7 @@ public final class ExcelDesktopPackage {
                 throw new ActionException("EXCEL_DESKTOP.FAILED", "Excel reported an error: " + ApplicationPackage.tail(err), "Check the workbook, macro name and that macros are allowed.");
             }
             return r;
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally { if (script != null) try { Files.deleteIfExists(script); } catch (IOException ignored) { } }
     }
 
@@ -86,7 +86,7 @@ public final class ExcelDesktopPackage {
     private static Path target(ActionContext ctx, String target, boolean overwrite) {
         Path t = ctx.resolvePath(target).toAbsolutePath();
         if (!overwrite && Files.exists(t)) throw new ActionException("EXCEL_DESKTOP.EXISTS", "A file already exists at " + t, "Set overwrite to true or choose another path.");
-        try { if (t.getParent() != null) Files.createDirectories(t.getParent()); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+        try { if (t.getParent() != null) Files.createDirectories(t.getParent()); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
         return t;
     }
 
@@ -96,9 +96,9 @@ public final class ExcelDesktopPackage {
     // ------------------------------------------------------------------------------------------------
 
     static Script runMacroScript(String file, String macro, List<Object> args, boolean save, Object password, boolean visible) {
-        if (!macro.matches("^[A-Za-z0-9_.!' \\[\\]-]{1,200}$")) throw new ActionException("EXCEL_DESKTOP.BAD_MACRO", "Invalid macro name '" + macro + "'");
+        if (!macro.matches("^[A-Za-z0-9_.!' \\[\\]-]{1,200}$")) throw new ActionException("EXCEL_DESKTOP.BAD_MACRO", "Invalid macro name '" + macro + "'", "Write the macro's name as Excel shows it (Module1.MyMacro), with letters, digits, . and _ only.");
         List<String> a = new ArrayList<>(List.of(file, macro, save ? "1" : "0"));
-        if (args != null) { if (args.size() > 10) throw new ActionException("EXCEL_DESKTOP.TOO_MANY_ARGS", "At most 10 macro arguments"); for (Object o : args) a.add(Values.text(o)); }
+        if (args != null) { if (args.size() > 10) throw new ActionException("EXCEL_DESKTOP.TOO_MANY_ARGS", "At most 10 macro arguments", "Pass at most 10 arguments; put more in cells the macro reads."); for (Object o : args) a.add(Values.text(o)); }
         String body = open(false, secret(password) != null) + "  $rest = @($args | Select-Object -Skip 3)\n"
                 + "  $r = $xl.GetType().InvokeMember('Run', [Reflection.BindingFlags]::InvokeMethod, $null, $xl, (@($args[1]) + $rest))\n"
                 + "  if ($args[2] -eq '1') { $wb.Save() }\n  if ($r -ne $null) { Write-Output $r }\n";

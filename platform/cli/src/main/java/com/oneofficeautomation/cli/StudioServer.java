@@ -129,7 +129,7 @@ public final class StudioServer {
             };
             sendJson(ex, status, Map.of("error", e.toMap()));
         } catch (RuntimeException e) {
-            sendJson(ex, 500, Map.of("error", new OoaException("STUDIO.INTERNAL", String.valueOf(e)).toMap()));
+            sendJson(ex, 500, Map.of("error", new OoaException("STUDIO.INTERNAL", String.valueOf(e), "Try again; if it keeps happening, report it with Studio's log.").toMap()));
         } finally {
             ex.close();
         }
@@ -222,10 +222,10 @@ public final class StudioServer {
             if (!rel.endsWith(Workspace.BOT_SUFFIX)) throw new OoaException("STUDIO.NOT_A_BOT", "Not an agent file: " + rel, "Agents end with .flow.json.");
             Path p = ws.resolve(rel);
             if (method.equals("GET")) {
-                if (!Files.isRegularFile(p)) throw new OoaException("STUDIO.NOT_FOUND", "Agent not found: " + rel);
+                if (!Files.isRegularFile(p)) throw new OoaException("STUDIO.NOT_FOUND", "Agent not found: " + rel, "Reload the workspace (F5); it may have been renamed, moved or deleted.");
                 sendJson(ex, 200, Map.of("path", rel, "flow", json.parse(Files.readString(p))));
             } else if (method.equals("PUT")) {
-                if (!Files.isDirectory(p.getParent())) throw new OoaException("STUDIO.NOT_FOUND", "Folder not found for " + rel);
+                if (!Files.isDirectory(p.getParent())) throw new OoaException("STUDIO.NOT_FOUND", "Folder not found for " + rel, "Choose a folder that exists; reload the workspace if it was renamed or moved.");
                 if (cr.isClone(rel)) throw new OoaException("STUDIO.CLONE_READ_ONLY", rel + " is a clone, which is read-only",
                         "Check it out on the Public tab to change it, or use Copy to Private for a copy of your own.");
                 Map<String, Object> flow = (Map<String, Object>) body(ex);
@@ -240,7 +240,7 @@ public final class StudioServer {
             // Raw bytes, so uploads are not limited by the JSON body size: POST files/upload?parent=<folder>&name=<file name>
             Map<String, String> q = query(ex);
             byte[] data = ex.getRequestBody().readNBytes(MAX_UPLOAD + 1);
-            if (data.length > MAX_UPLOAD) throw new OoaException("STUDIO.TOO_LARGE", "Uploads are limited to " + (MAX_UPLOAD / 1024 / 1024) + " MB per file");
+            if (data.length > MAX_UPLOAD) throw new OoaException("STUDIO.TOO_LARGE", "Uploads are limited to " + (MAX_UPLOAD / 1024 / 1024) + " MB per file", "Upload a smaller file, or put large files in a share the runner reads.");
             sendJson(ex, 200, Map.of("path", ws.upload(q.getOrDefault("parent", ""), q.getOrDefault("name", ""), data)));
         } else if (method.equals("GET") && route.equals("files/download")) {
             download(ex, query(ex).getOrDefault("path", ""));
@@ -258,7 +258,7 @@ public final class StudioServer {
                 case "rename" -> ws.rename(path, String.valueOf(b.get("name")));
                 case "move" -> ws.move(path, String.valueOf(b.getOrDefault("to", "")));
                 case "delete" -> ws.delete(path);
-                default -> throw new OoaException("STUDIO.UNKNOWN", "Unknown file operation " + route);
+                default -> throw new OoaException("STUDIO.UNKNOWN", "Unknown file operation " + route, "Update the Studio page (reload it); it is older than the server.");
             };
             sendJson(ex, 200, Map.of("path", result));
         } else if (method.equals("GET") && route.equals("objects/catalogue")) {
@@ -362,7 +362,7 @@ public final class StudioServer {
             // "Convert selectors to captured objects": the run notes every element its web steps find by selector
             if (Boolean.TRUE.equals(req.get("record_objects"))) {
                 try { lr.objectsFile = Files.createTempFile("ooa-objects-", ".jsonl"); }
-                catch (IOException e) { throw new OoaException("STUDIO.IO", "Cannot create the file for recorded objects: " + e.getMessage()); }
+                catch (IOException e) { throw new OoaException("STUDIO.IO", "Cannot create the file for recorded objects: " + e.getMessage(), "Check that the workspace folder may be written."); }
                 recordObjects(lr.objectsFile.toString());
             }
             live.put(id, lr);
@@ -391,13 +391,13 @@ public final class StudioServer {
             sendJson(ex, 202, started);
         } else if (method.equals("GET") && route.matches("runs/run_[a-f0-9]{16}/objects")) {
             LiveRun lr = live.get(route.substring(5, route.indexOf("/objects")));
-            if (lr == null || lr.objectsFile == null) throw new OoaException("STUDIO.NOT_FOUND", "This run did not record objects");
+            if (lr == null || lr.objectsFile == null) throw new OoaException("STUDIO.NOT_FOUND", "This run did not record objects", "Run the agent again with Record objects turned on.");
             List<Object> lines = new ArrayList<>();
             for (String line : Files.readAllLines(lr.objectsFile, StandardCharsets.UTF_8)) if (!line.isBlank()) lines.add(json.parse(line));
             sendJson(ex, 200, Map.of("objects", lines, "finished", lr.result != null));
         } else if (method.equals("GET") && route.matches("runs/run_[a-f0-9]{16}")) {
             LiveRun lr = live.get(route.substring(5));
-            if (lr == null) throw new OoaException("STUDIO.NOT_FOUND", "Unknown or expired run");
+            if (lr == null) throw new OoaException("STUDIO.NOT_FOUND", "Unknown or expired run", "The run has ended; start it again to look at it.");
             int after = Integer.parseInt(query(ex).getOrDefault("after", "0"));
             List<Map<String, Object>> evs = new ArrayList<>();
             for (RunEvent e : lr.sink.events()) if (e.seq() > after) evs.add(e.toMap());
@@ -413,7 +413,7 @@ public final class StudioServer {
         } else if (method.equals("POST") && route.matches("runs/run_[a-f0-9]{16}/(pause|resume|stop)")) {
             String[] parts = route.split("/");
             LiveRun lr = live.get(parts[1]);
-            if (lr == null) throw new OoaException("STUDIO.NOT_FOUND", "Unknown or expired run");
+            if (lr == null) throw new OoaException("STUDIO.NOT_FOUND", "Unknown or expired run", "The run has ended; start it again to look at it.");
             switch (parts[2]) {
                 case "pause" -> lr.pause.set(true);
                 case "resume" -> lr.pause.set(false);
@@ -423,7 +423,7 @@ public final class StudioServer {
         } else if (method.equals("POST") && route.matches("runs/run_[a-f0-9]{16}/(debug|breakpoints|variable)")) {
             String[] parts = route.split("/");
             LiveRun lr = live.get(parts[1]);
-            if (lr == null || lr.debugger == null) throw new OoaException("STUDIO.NOT_FOUND", "Unknown run, or the run is not being debugged");
+            if (lr == null || lr.debugger == null) throw new OoaException("STUDIO.NOT_FOUND", "Unknown run, or the run is not being debugged", "Start the run with Debug to use the debugger.");
             Map<String, Object> b = (Map<String, Object>) body(ex);
             switch (parts[2]) {
                 case "debug" -> lr.debugger.command(String.valueOf(b.get("command")));
@@ -480,7 +480,7 @@ public final class StudioServer {
             Path clip = ws.root.resolve(".ooa").resolve("shared-clipboard.json");
             if (method.equals("PUT")) {
                 Object b = body(ex);
-                if (!(b instanceof Map<?, ?> m) || !(m.get("steps") instanceof List)) throw new OoaException("STUDIO.BAD_CLIPBOARD", "Send {steps: [...]}");
+                if (!(b instanceof Map<?, ?> m) || !(m.get("steps") instanceof List)) throw new OoaException("STUDIO.BAD_CLIPBOARD", "Send {steps: [...]}", "Copy steps from the editor and paste them again.");
                 Files.createDirectories(clip.getParent());
                 Files.writeString(clip, json.write(Map.of("steps", m.get("steps"), "variables", m.get("variables") instanceof List ? m.get("variables") : List.of(),
                         "copied_by", System.getProperty("user.name", ""), "copied_at", java.time.Instant.now().toString()), false), StandardCharsets.UTF_8);
@@ -542,7 +542,7 @@ public final class StudioServer {
             sendJson(ex, 200, Map.of("triggers", triggers.list(), "log", triggers.recentLog()));
         } else if (method.equals("PUT") && route.equals("triggers")) {
             Object b = body(ex);
-            if (!(b instanceof List)) throw new OoaException("TRIGGER.INVALID", "Send a list of triggers");
+            if (!(b instanceof List)) throw new OoaException("TRIGGER.INVALID", "Send a list of triggers", "Reload the page and save the triggers again.");
             triggers.save((List<Object>) b);
             sendJson(ex, 200, Map.of("triggers", triggers.list()));
         } else if (method.equals("POST") && route.matches("triggers/[A-Za-z0-9_-]{1,40}/run")) {
@@ -716,7 +716,7 @@ public final class StudioServer {
     /** GET files/download?path=: a file as it is, or a folder as a .zip (hidden entries left out). */
     private void download(HttpExchange ex, String rel) throws IOException {
         Path p = ws.resolve(rel);
-        if (!Files.exists(p) || Files.isSymbolicLink(p)) throw new OoaException("STUDIO.NOT_FOUND", "Not found: " + rel);
+        if (!Files.exists(p) || Files.isSymbolicLink(p)) throw new OoaException("STUDIO.NOT_FOUND", "Not found: " + rel, "Reload the workspace (F5); it may have been renamed, moved or deleted.");
         byte[] bytes;
         String name = p.equals(ws.root) ? "workspace" : p.getFileName().toString();
         if (Files.isDirectory(p)) {
@@ -748,7 +748,7 @@ public final class StudioServer {
     /** Opens File Explorer at a workspace item (Windows). Started with an argument list, never through a shell. */
     private String reveal(String rel) throws IOException {
         Path p = ws.resolve(rel);
-        if (!Files.exists(p)) throw new OoaException("STUDIO.NOT_FOUND", "Not found: " + rel);
+        if (!Files.exists(p)) throw new OoaException("STUDIO.NOT_FOUND", "Not found: " + rel, "Reload the workspace (F5); it may have been renamed, moved or deleted.");
         if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win"))
             throw new OoaException("STUDIO.UNSUPPORTED", "Open in File Explorer works on Windows only", "Open the workspace folder yourself: " + ws.root);
         List<String> cmd = Files.isDirectory(p) ? List.of("explorer.exe", p.toString()) : List.of("explorer.exe", "/select," + p);
@@ -768,7 +768,7 @@ public final class StudioServer {
         } else if (name.equals("import") && method.equals("POST")) {
             Object b = body(ex);
             if (!(b instanceof Map<?, ?> m) || !(m.get("text") instanceof String text))
-                throw new OoaException("CONNECTOR.EMPTY_SPEC", "Send {text: <file content>, name?, server?}");
+                throw new OoaException("CONNECTOR.EMPTY_SPEC", "Send {text: <file content>, name?, server?}", "Choose the API description file again.");
             Map<String, Object> def = com.oneofficeautomation.packages.ConnectorImporter.importSpec(text,
                     m.get("name") instanceof String n ? n : null, m.get("server") instanceof String sv ? sv : null);
             String path = com.oneofficeautomation.packages.ConnectorStore.save(workspace, def, !Boolean.FALSE.equals(m.get("overwrite")));
@@ -777,7 +777,7 @@ public final class StudioServer {
             sendJson(ex, 200, Map.of("connector", com.oneofficeautomation.packages.ConnectorStore.load(workspace, name)));
         } else if (!name.isEmpty() && method.equals("DELETE")) {
             if (!com.oneofficeautomation.packages.ConnectorStore.delete(workspace, name))
-                throw new OoaException("CONNECTOR.NOT_FOUND", "There is no connector named '" + name + "'");
+                throw new OoaException("CONNECTOR.NOT_FOUND", "There is no connector named '" + name + "'", "Check the connector's name in Manage connectors.");
             sendJson(ex, 200, Map.of("deleted", name));
         } else send(ex, 405, "text/plain", "Method not allowed");
     }
@@ -788,14 +788,14 @@ public final class StudioServer {
     @SuppressWarnings("unchecked")
     Map<String, Object> saveConnections(Object body) throws IOException {
         if (!(body instanceof Map<?, ?> m) || !(m.get("connections") instanceof List<?> list))
-            throw new OoaException("AI.BAD_CONNECTIONS", "Send {default, connections: [...]}");
+            throw new OoaException("AI.BAD_CONNECTIONS", "Send {default, connections: [...]}", "Reload the page and save the model connections again.");
         Set<String> names = new HashSet<>();
         List<Object> clean = new ArrayList<>();
         for (Object o : list) {
-            if (!(o instanceof Map<?, ?> c)) throw new OoaException("AI.BAD_CONNECTIONS", "Each connection is an object");
+            if (!(o instanceof Map<?, ?> c)) throw new OoaException("AI.BAD_CONNECTIONS", "Each connection is an object", "Reload the page and save the model connections again.");
             String name = String.valueOf(c.get("name") == null ? "" : c.get("name")).trim();
             if (!name.matches("^[A-Za-z0-9_.-]{1,60}$") || !names.add(name))
-                throw new OoaException("AI.BAD_CONNECTIONS", "Connection names are unique and use letters, digits, . _ - (got '" + name + "')");
+                throw new OoaException("AI.BAD_CONNECTIONS", "Connection names are unique and use letters, digits, . _ - (got '" + name + "')", "Give each connection its own name of letters, digits, . _ and -.");
             if (!PROVIDERS.contains(String.valueOf(c.get("provider")))) throw new OoaException("AI.BAD_PROVIDER", "Unknown provider for '" + name + "'", "Use " + PROVIDERS + ".");
             if (c.get("api_key") instanceof String) throw new OoaException("AI.KEY_IN_FILE", "API keys are never stored in connections",
                     "Use api_key_env (an environment variable name) or a vault credential reference.");
@@ -803,7 +803,7 @@ public final class StudioServer {
             for (String k : List.of("name", "provider", "model", "base_url", "api_key_env", "api_key", "description"))
                 if (c.get(k) != null && !"".equals(c.get(k))) keep.put(k, k.equals("name") ? name : c.get(k));
             if (keep.get("api_key") != null && !(keep.get("api_key") instanceof Map<?, ?> km && km.get("$credential") instanceof String))
-                throw new OoaException("AI.BAD_CONNECTIONS", "api_key must be {\"$credential\": \"vault folder/credential/attribute\"}");
+                throw new OoaException("AI.BAD_CONNECTIONS", "api_key must be {\"$credential\": \"vault folder/credential/attribute\"}", "Choose the API key's credential in the connection.");
             clean.add(keep);
         }
         String def = m.get("default") instanceof String d && names.contains(d) ? d : names.isEmpty() ? "" : names.iterator().next();
@@ -825,7 +825,7 @@ public final class StudioServer {
     @SuppressWarnings("unchecked")
     Map<String, Object> assistantBuild(Map<String, Object> req) {
         String prompt = String.valueOf(req.getOrDefault("prompt", "")).trim();
-        if (prompt.isEmpty()) throw new OoaException("ASSISTANT.EMPTY", "Describe what the agent should do");
+        if (prompt.isEmpty()) throw new OoaException("ASSISTANT.EMPTY", "Describe what the agent should do", "Describe what the agent should do in a sentence or two.");
         String connection = String.valueOf(req.getOrDefault("connection", "default"));
         StringBuilder catalog = new StringBuilder();
         for (Map<String, Object> m : registry.allManifests())
@@ -898,7 +898,7 @@ public final class StudioServer {
     @SuppressWarnings("unchecked")
     Map<String, Object> dependencies(String rel) throws IOException {
         Path self = ws.resolve(rel);
-        if (!Files.isRegularFile(self) || !rel.endsWith(Workspace.BOT_SUFFIX)) throw new OoaException("STUDIO.NOT_A_BOT", "Not an agent file: " + rel);
+        if (!Files.isRegularFile(self) || !rel.endsWith(Workspace.BOT_SUFFIX)) throw new OoaException("STUDIO.NOT_A_BOT", "Not an agent file: " + rel, "Open a .flow.json agent file.");
         Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(self));
         Map<String, String> botsById = new LinkedHashMap<>();
         Map<String, List<Map<String, Object>>> stepsByBot = new LinkedHashMap<>();
@@ -1008,9 +1008,9 @@ public final class StudioServer {
         String app = String.valueOf(b.getOrDefault("application", "")).strip(), screen = String.valueOf(b.getOrDefault("screen", "")).strip(),
                 name = String.valueOf(b.getOrDefault("name", "")).strip();
         for (String n : List.of(app, screen, name))
-            if (n.isEmpty() || n.contains("/") || n.length() > 120) throw new OoaException("STUDIO.BAD_NAME", "Application, screen and element names are 1 to 120 characters, without /");
+            if (n.isEmpty() || n.contains("/") || n.length() > 120) throw new OoaException("STUDIO.BAD_NAME", "Application, screen and element names are 1 to 120 characters, without /", "Use 1 to 120 characters without / in the name.");
         if (!(b.get("object") instanceof Map<?, ?> obj) || ObjectRepositories.isReference(obj))
-            throw new OoaException("STUDIO.BAD_INPUT", "Give the captured object to keep in the repository");
+            throw new OoaException("STUDIO.BAD_INPUT", "Give the captured object to keep in the repository", "Capture the object first, then keep it.");
         // a copy: the cached repository is not changed in place
         Map<String, Object> repo = (Map<String, Object>) json.parse(json.write(ObjectRepositories.read(ws.root, repoPath), false));
         List<Object> apps = (List<Object>) repo.computeIfAbsent("applications", k -> new ArrayList<>());
@@ -1147,7 +1147,7 @@ public final class StudioServer {
             Map<String, Object> in = new LinkedHashMap<>();
             inputs.forEach((k, v) -> { if (declared.contains(k)) in.put(k, v); });
             return runner(new EventSink.ListSink()).run(flow, in, new Runner.RunOptions().maxRunSeconds(3600));
-        } catch (IOException e) { throw new OoaException("STUDIO.NOT_FOUND", "Cannot read agent " + botPath + ": " + e.getMessage()); }
+        } catch (IOException e) { throw new OoaException("STUDIO.NOT_FOUND", "Cannot read agent " + botPath + ": " + e.getMessage(), "Check that the agent file exists and is valid JSON."); }
     }
 
     /** Child bots (core/run_bot) resolve to any bot in the workspace with that automation id. */
@@ -1160,7 +1160,7 @@ public final class StudioServer {
                     Map<String, Object> f = (Map<String, Object>) json.parse(Files.readString(p));
                     if (automationId.equals(f.get("id"))) return f;
                 }
-            } catch (IOException e) { throw new OoaException("REPO.IO", e.getMessage()); }
+            } catch (IOException e) { throw new OoaException("REPO.IO", e.getMessage(), "Check that the workspace folder may be written."); }
             throw new OoaException("REPO.NOT_FOUND", "Automation '" + automationId + "' not found in the workspace",
                     "Save the child agent anywhere in the workspace; its agent id must match.");
         }
@@ -1174,7 +1174,7 @@ public final class StudioServer {
 
     private Object body(HttpExchange ex) throws IOException {
         byte[] b = ex.getRequestBody().readNBytes(MAX_BODY + 1);
-        if (b.length > MAX_BODY) throw new OoaException("STUDIO.TOO_LARGE", "Request body exceeds 5 MB");
+        if (b.length > MAX_BODY) throw new OoaException("STUDIO.TOO_LARGE", "Request body exceeds 5 MB", "Send less at a time (at most 5 MB).");
         String text = new String(b, StandardCharsets.UTF_8);
         return text.isBlank() ? null : json.parse(text);
     }
@@ -1225,7 +1225,7 @@ public final class StudioServer {
         if (name == null || !name.matches("^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$"))
             throw new OoaException("STUDIO.BAD_INPUT", "Connection names use letters, digits, spaces, _ . and - (up to 80)", "Example: ServiceNow production.");
         if (method.equals("DELETE")) {
-            if (all.remove(name) == null) throw new OoaException("STUDIO.NOT_FOUND", "No saved connection '" + name + "'");
+            if (all.remove(name) == null) throw new OoaException("STUDIO.NOT_FOUND", "No saved connection '" + name + "'", "Check the connection's name in the workspace's saved connections.");
         } else if (method.equals("PUT")) {
             Map<String, Object> b = (Map<String, Object>) body(ex);
             String pkg = b.get("package") instanceof String s ? s.strip() : "";

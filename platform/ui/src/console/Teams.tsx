@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrPerson, CrTeam, CrUser } from "../api/cr";
-import { Button, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
+import { Button, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 
 /**
@@ -55,7 +55,7 @@ export function Teams({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
 
   const load = useCallback(async () => {
     try { setTeams(await api.teams()); setError(null); } catch (e) { setError(message(e)); }
-    if (user.permissions.includes("users.manage")) api.users().then(setPeople, () => {});
+    if (user.permissions.includes("users.manage")) api.users().then(setPeople, (e) => reportMinor("the list of users", e));
   }, [api, user.permissions]);
   useEffect(() => { load(); }, [load]);
 
@@ -82,7 +82,7 @@ export function Teams({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
 
   if (page) return (
     <section className="st-page cc-home cc-explorer" aria-label="Team">
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {askBar}
       <TeamPage key={page.team?.id ?? "new"} api={api} team={page.team} admin={admin} me={user.username} people={people}
         onClose={() => { setPage(null); setAsking(null); }} onDelete={setAsking} onSaved={(t) => { onNotice(t); setPage(null); load(); }} />
@@ -98,7 +98,7 @@ export function Teams({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
         <span className="ov-fill" />
         {admin && <Button kind="primary" onClick={() => setPage({ team: null })}>Create team</Button>}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search teams" placeholder="Search teams or members" value={q} onChange={(e) => setQ(e.target.value)} /></span>

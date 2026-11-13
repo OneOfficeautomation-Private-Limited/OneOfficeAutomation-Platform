@@ -76,20 +76,20 @@ public final class CommsPackage {
         List<List<Object>> rows = new ArrayList<>();
         if (file != null && !file.isBlank()) {
             Path p = ctx.resolvePath(file);
-            if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Messages file not found: " + p);
+            if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Messages file not found: " + p, "Check the path; the file may have been moved or renamed.");
             List<List<String>> c;
-            try { c = csv(Files.readString(p, StandardCharsets.UTF_8)); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
-            if (c.isEmpty()) throw new ActionException("COMMS.EMPTY", "The messages file is empty");
+            try { c = csv(Files.readString(p, StandardCharsets.UTF_8)); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
+            if (c.isEmpty()) throw new ActionException("COMMS.EMPTY", "The messages file is empty", "Check that the messages file has rows below its header line.");
             head = c.get(0);
             for (List<String> r : c.subList(1, c.size())) rows.add(new ArrayList<>(r));
         } else if (table instanceof Map<?, ?> t && t.get("columns") instanceof List<?> cols && t.get("rows") instanceof List<?> rs) {
             head = cols.stream().map(Values::text).toList();
             for (Object r : rs) if (r instanceof List<?> l) rows.add(new ArrayList<>(l));
-        } else throw new ActionException("COMMS.NO_MESSAGES", "Give the messages as a CSV file or a table");
-        if (rows.size() > 500_000) throw new ActionException("COMMS.TOO_LARGE", "At most 500,000 messages at a time");
+        } else throw new ActionException("COMMS.NO_MESSAGES", "Give the messages as a CSV file or a table", "Fill in either Messages file (CSV) or Messages table.");
+        if (rows.size() > 500_000) throw new ActionException("COMMS.TOO_LARGE", "At most 500,000 messages at a time", "Send the messages in parts of at most 500,000.");
         List<Integer> tc = new ArrayList<>();
         for (String n : textCols.split(",")) if (!n.isBlank()) tc.add(col(head, n));
-        if (tc.isEmpty()) throw new ActionException("COMMS.NO_COLUMN", "Name at least one text column");
+        if (tc.isEmpty()) throw new ActionException("COMMS.NO_COLUMN", "Name at least one text column", "Name the column that holds the message text.");
         int ic = idCol == null || idCol.isBlank() ? -1 : col(head, idCol);
         List<Message> out = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
@@ -136,7 +136,7 @@ public final class CommsPackage {
             @Input(name = "topics", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 50, description = "How many topics (0: chosen from the number of messages).") int k,
             @Input(name = "min_word_count", type = OoaType.NUMBER, required = false, defaultValue = "2", min = 1, description = "Leave out words used in fewer messages than this.") int minDf) {
         List<Message> msgs = messages(ctx, file, table, idCol, textCols);
-        if (msgs.isEmpty()) throw new ActionException("COMMS.EMPTY", "There are no messages");
+        if (msgs.isEmpty()) throw new ActionException("COMMS.EMPTY", "There are no messages", "Check that the step gets messages to sort.");
         List<List<String>> docs = msgs.stream().map(m -> words(m.text())).toList();
         Map<String, Integer> df = new HashMap<>();
         for (List<String> d : docs) for (String w : new HashSet<>(d)) df.merge(w, 1, Integer::sum);
@@ -248,13 +248,13 @@ public final class CommsPackage {
             @Input(name = "subject_column", type = OoaType.STRING, required = false, defaultValue = "\"subject\"", description = "Matches in this column count double (empty: none).") String subjectCol,
             @Input(name = "default_queue", type = OoaType.STRING, required = false, defaultValue = "\"Unsorted\"", description = "Where messages that match no queue go.") String fallback,
             @Input(name = "min_score", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "Matches a queue needs to win.") int minScore) {
-        if (rules == null || rules.isEmpty()) throw new ActionException("COMMS.NO_RULES", "Give at least one queue with keywords");
+        if (rules == null || rules.isEmpty()) throw new ActionException("COMMS.NO_RULES", "Give at least one queue with keywords", "Add at least one queue with the keywords that send a message to it.");
         Map<String, LinkedHashMap<String, Pattern>> pats = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : rules.entrySet()) {
             LinkedHashMap<String, Pattern> ps = new LinkedHashMap<>();
             Collection<?> kws = e.getValue() instanceof Collection<?> c ? c : List.of(String.valueOf(e.getValue()).split(","));
             for (Object kw : kws) { String s = Values.text(kw).strip().toLowerCase(Locale.ROOT); if (!s.isEmpty()) ps.put(s, Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(s).replace(" ", "\\E\\s+\\Q") + "\\p{L}{0,3}(?![\\p{L}\\p{N}])")); }
-            if (ps.isEmpty()) throw new ActionException("COMMS.NO_RULES", "Queue '" + e.getKey() + "' has no keywords");
+            if (ps.isEmpty()) throw new ActionException("COMMS.NO_RULES", "Queue '" + e.getKey() + "' has no keywords", "Add keywords to the queue the message names.");
             pats.put(e.getKey(), ps);
         }
         List<Message> msgs = messages(ctx, file, table, idCol, textCols);

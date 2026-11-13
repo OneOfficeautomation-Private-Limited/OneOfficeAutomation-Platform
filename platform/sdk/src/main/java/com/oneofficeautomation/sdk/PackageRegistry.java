@@ -49,14 +49,14 @@ public final class PackageRegistry {
             throw new OoaException("PKG.PUBLISHER_NOT_ALLOWED", "Publisher '" + sig.publisher() + "' is not on this tenant's allow-list",
                     "Ask a tenant admin to approve the publisher.");
         PublicKey key = trusted.get(sig.publisher());
-        if (key == null) throw new OoaException("PKG.UNTRUSTED", "No trusted key for publisher '" + sig.publisher() + "'");
+        if (key == null) throw new OoaException("PKG.UNTRUSTED", "No trusted key for publisher '" + sig.publisher() + "'", "Trust the publisher's key in Administration > Settings > Toolkits, or use a toolkit signed by a trusted publisher.");
         if (!PackageSigning.digest(cls).equals(sig.digest()))
-            throw new OoaException("PKG.TAMPERED", "Package " + pid + "@" + ver + " was modified after signing");
+            throw new OoaException("PKG.TAMPERED", "Package " + pid + "@" + ver + " was modified after signing", "Install the toolkit again from its publisher.");
         if (!PackageSigning.verify(sig.digest(), sig.signature(), key))
-            throw new OoaException("PKG.BAD_SIGNATURE", "Signature check failed for " + pid + "@" + ver);
+            throw new OoaException("PKG.BAD_SIGNATURE", "Signature check failed for " + pid + "@" + ver, "Install the toolkit again from its publisher.");
         Object instance;
         try { instance = cls.getDeclaredConstructor().newInstance(); }
-        catch (ReflectiveOperationException e) { throw new OoaException("PKG.ERROR", "Cannot instantiate " + cls.getName() + ": " + e); }
+        catch (ReflectiveOperationException e) { throw new OoaException("PKG.ERROR", "Cannot instantiate " + cls.getName() + ": " + e, "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again."); }
         LoadedPackage lp = new LoadedPackage(cls, instance, info, PackageIntrospector.manifest(cls), sig);
         packages.computeIfAbsent(pid, k -> new ConcurrentHashMap<>()).put(ver, lp);
         defaults.merge(pid, ver, (old, nw) -> compare(nw, old) > 0 ? nw : old);
@@ -78,7 +78,7 @@ public final class PackageRegistry {
 
     public void setDefault(String pid, String version) {
         if (!packages.getOrDefault(pid, Map.of()).containsKey(version))
-            throw new OoaException("PKG.NOT_FOUND", pid + "@" + version + " is not installed");
+            throw new OoaException("PKG.NOT_FOUND", pid + "@" + version + " is not installed", "Install that toolkit version on the runner (Manage > Toolkits), or update the agent to the installed one.");
         defaults.put(pid, version);
     }
 
@@ -108,7 +108,7 @@ public final class PackageRegistry {
 
     static int[] parse(String v) {
         Matcher m = V.matcher(v.trim());
-        if (!m.matches()) throw new OoaException("PKG.ERROR", "Invalid version '" + v + "'");
+        if (!m.matches()) throw new OoaException("PKG.ERROR", "Invalid version '" + v + "'", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
         return new int[]{Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3))};
     }
 

@@ -61,7 +61,7 @@ public final class CryptoPackage {
             byte[] buf = new byte[65536];
             for (int n; (n = in.read(buf)) > 0; ) md.update(buf, 0, n);
         } catch (NoSuchFileException e) { throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of("hash", format(md.digest(), fmt));
     }
 
@@ -150,7 +150,7 @@ public final class CryptoPackage {
             @Input(name = "text", type = OoaType.STRING, description = "Encrypted Base64 text.") String text,
             @Input(name = "passphrase", type = OoaType.CREDENTIAL, description = "Passphrase from the vault.") SecureString key) throws GeneralSecurityException {
         byte[] data;
-        try { data = Base64.getDecoder().decode(text.trim()); } catch (IllegalArgumentException e) { throw new ActionException("CRYPTO.NOT_ENCRYPTED", "Not valid Base64 text"); }
+        try { data = Base64.getDecoder().decode(text.trim()); } catch (IllegalArgumentException e) { throw new ActionException("CRYPTO.NOT_ENCRYPTED", "Not valid Base64 text", "Give the text the Encrypt step made (Base64), unchanged."); }
         return Map.of("result", new SecureString(new String(aes(false, data, key.reveal().toCharArray()), StandardCharsets.UTF_8), "decrypted"));
     }
 
@@ -182,7 +182,7 @@ public final class CryptoPackage {
             if (out.getParent() != null) Files.createDirectories(out.getParent());
             Files.write(out, r);
         } catch (NoSuchFileException e) { throw new ActionException("FILE.NOT_FOUND", "File not found: " + in, "Check the path.");
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of();
     }
 
@@ -240,7 +240,7 @@ public final class CryptoPackage {
             }
             Files.writeString(pub, "-----BEGIN PUBLIC KEY-----\n" + enc.encodeToString(kp.getPublic().getEncoded()) + "\n-----END PUBLIC KEY-----\n");
             Files.writeString(priv, "-----BEGIN PRIVATE KEY-----\n" + enc.encodeToString(kp.getPrivate().getEncoded()) + "\n-----END PRIVATE KEY-----\n");
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
         return Map.of("public_key", pub.toString(), "private_key", priv.toString(), "backup_private_key", backup);
     }
 
@@ -266,7 +266,7 @@ public final class CryptoPackage {
         try {
             Cipher c = oaep(); c.init(Cipher.DECRYPT_MODE, privateKey(ctx.resolvePath(key)));
             return Map.of("result", new SecureString(new String(c.doFinal(Base64.getDecoder().decode(text.trim())), StandardCharsets.UTF_8), "rsa"));
-        } catch (javax.crypto.BadPaddingException e) { throw new ActionException("CRYPTO.WRONG_KEY", "Decryption failed: wrong key or damaged data", null);
+        } catch (javax.crypto.BadPaddingException e) { throw new ActionException("CRYPTO.WRONG_KEY", "Decryption failed: wrong key or damaged data", "Use the same key (or password) the data was encrypted with, and check that the data was not changed.");
         } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read key: " + e.getMessage(), "Check the key path."); }
     }
 

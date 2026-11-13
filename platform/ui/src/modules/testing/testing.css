@@ -3,6 +3,6 @@
 .cc-checks { list-style: none; margin: 0; padding: 0; }
 .cc-checks li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; padding: 7px 0; border-bottom: 1px solid var(--ui-divider); }
 .cc-check-mark { font-weight: 700; text-align: center; }
-.cc-check-got { display: block; font-family: var(--ui-mono, Consolas, monospace); font-size: 13px; word-break: break-word; }
+.cc-check-got { display: block; font-family: var(--ui-mono, Consolas, monospace); font-size: 12.5px; word-break: break-word; }
 .cc-checks li.is-ok .cc-check-mark { color: var(--ui-ok-text); }
 .cc-checks li.is-bad .cc-check-mark, .cc-check-got { color: var(--ui-error-text); }

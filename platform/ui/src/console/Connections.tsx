@@ -1,7 +1,7 @@
 import { SignInFields, type SignInBags } from "../studio/SignInFields";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConnectionKind, CrApi, CrUser, SavedConnection } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 
 /**
@@ -64,7 +64,7 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
         <span className="ov-fill" />
         {manage && <Button kind="primary" disabled={!kinds.length} onClick={() => setDialog({ c: null })}>Create connection</Button>}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-list-search"><TextInput type="search" aria-label="Search connections" placeholder="Search connections" value={q} onChange={(e) => setQ(e.target.value)} /></span>

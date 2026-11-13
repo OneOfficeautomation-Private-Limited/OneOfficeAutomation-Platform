@@ -47,12 +47,12 @@ public final class ChatModel {
         Set<String> keyRefs = new HashSet<>();
         if (chosen.get("api_key") instanceof Map<?, ?> k && k.get("$credential") instanceof String ref) keyRefs.add(ref);
         CredentialVault vault = (ref, principal) -> {
-            if (!keyRefs.contains(ref)) throw new OoaException("AI.KEY_REFUSED", "Only the model connection's own key can be read here");
+            if (!keyRefs.contains(ref)) throw new OoaException("AI.KEY_REFUSED", "Only the model connection's own key can be read here", "Nothing to do; only the model connection reads its own key.");
             return new SecureString(ctx.systemCredential(ref), ref, false);
         };
         Path work;
         try { work = Files.createDirectories(dataDir.resolve("chat-ai")).resolve(id("call")); Files.createDirectories(work); }
-        catch (IOException e) { throw new OoaException("AI.WORKDIR", "Cannot prepare the AI call: " + e.getMessage()); }
+        catch (IOException e) { throw new OoaException("AI.WORKDIR", "Cannot prepare the AI call: " + e.getMessage(), "Check that the server's data folder has space and that the service account may read and write there."); }
         Map<String, Object> services = new HashMap<>();
         services.put("model_connections", (Supplier<Object>) () -> Map.of("default", name, "connections", List.of(chosen)));
         services.put("vault", vault);

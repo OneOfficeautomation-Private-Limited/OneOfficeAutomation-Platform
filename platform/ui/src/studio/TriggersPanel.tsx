@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ApiFailure, type StudioApi, type Trigger } from "../api/client";
+import { type StudioApi, type Trigger, errorText } from "../api/client";
 import { Button, Field, Icon, Menu, Select, TextInput } from "../components";
 
 const KINDS = [
@@ -90,4 +90,4 @@ export function TriggersPanel({ api, path, kind: asked }: { api: StudioApi; path
   );
 }
 
-const msg = (e: unknown) => e instanceof ApiFailure ? e.error.message + (e.error.hint ? " " + e.error.hint : "") : String(e);
+const msg = errorText;

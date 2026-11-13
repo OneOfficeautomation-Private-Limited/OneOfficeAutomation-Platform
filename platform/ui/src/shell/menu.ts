@@ -43,7 +43,10 @@ export const MENU_SECTIONS: MenuSection[] = withModules(KERNEL_SECTIONS, UI_MODU
 export type MenuGroup = { id: string; label: string; icon: IconName; section: string; pages: string[] };
 export const MENU_GROUPS: MenuGroup[] = [
   { id: "g-automation", label: "Automation", icon: "folder", section: "build", pages: ["automation", "templates", "apitasks", "tests", "toolkits"] },
-  { id: "g-ideas", label: "Ideas and apps", icon: "idea", section: "build", pages: ["ideas", "apps"] },
+  // improvement list 12 Nov 2026 (items 4, 7, 9): Ideas and Apps, Operations and Business, and every Administration page
+  // are entries of their own; Manage and AI keep their groups
+  { id: "g-ideas", label: "Ideas", icon: "idea", section: "build", pages: ["ideas"] },
+  { id: "g-apps", label: "Apps", icon: "grid", section: "build", pages: ["apps"] },
   { id: "g-activity", label: "Activity", icon: "pulse", section: "manage", pages: ["activity", "inbox"] },
   { id: "g-runners", label: "Runners", icon: "machine", section: "manage", pages: ["devices", "locks", "runner-status"] },
   { id: "g-scheduling", label: "Scheduling", icon: "clock", section: "manage", pages: ["schedules", "triggers", "upcoming"] },
@@ -52,9 +55,16 @@ export const MENU_GROUPS: MenuGroup[] = [
   { id: "g-credentials", label: "Credentials", icon: "lock", section: "manage", pages: ["credentials"] },
   { id: "g-overview", label: "Overview", icon: "chart", section: "insights", pages: ["insights"] },
   { id: "g-alerts", label: "Alerts", icon: "bell", section: "insights", pages: ["alerts", "alert-rules"] },
-  { id: "g-operations", label: "Operations and business", icon: "sliders", section: "insights", pages: ["operations", "business"] },
-  { id: "g-people", label: "People and roles", icon: "people", section: "administration", pages: ["users", "roles", "teams"] },
-  { id: "g-settings", label: "Settings and audit", icon: "gear", section: "administration", pages: ["settings", "policies", "audit", "events", "licenses"] },
+  { id: "g-operations", label: "Operations", icon: "sliders", section: "insights", pages: ["operations"] },
+  { id: "g-business", label: "Business", icon: "target", section: "insights", pages: ["business"] },
+  { id: "g-users", label: "Users", icon: "person", section: "administration", pages: ["users"] },
+  { id: "g-roles", label: "Roles", icon: "people", section: "administration", pages: ["roles"] },
+  { id: "g-teams", label: "Teams", icon: "people", section: "administration", pages: ["teams"] },
+  { id: "g-settings", label: "Settings", icon: "gear", section: "administration", pages: ["settings"] },
+  { id: "g-policies", label: "Policies", icon: "lock", section: "administration", pages: ["policies"] },
+  { id: "g-audit", label: "Audit trail", icon: "search", section: "administration", pages: ["audit"] },
+  { id: "g-events", label: "Event subscriptions", icon: "bell", section: "administration", pages: ["events"] },
+  { id: "g-licenses", label: "Licenses", icon: "star", section: "administration", pages: ["licenses"] },
   { id: "g-chat", label: "One Chat", icon: "chat", section: "ai", pages: ["chat"] },
   { id: "g-ai", label: "AI setup", icon: "spark", section: "ai", pages: ["connections", "skills", "knowledge", "governance"] },
   { id: "g-docs", label: "Document Automation", icon: "doc", section: "ai", pages: ["docautomation"] },

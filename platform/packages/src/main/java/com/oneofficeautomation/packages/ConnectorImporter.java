@@ -46,7 +46,7 @@ public final class ConnectorImporter {
      * @param server preferred server URL, or null to use the first one in the spec
      */
     public static Map<String, Object> importSpec(String text, String name, String server) {
-        if (text == null || text.isBlank()) throw new ActionException("CONNECTOR.EMPTY_SPEC", "The API description is empty");
+        if (text == null || text.isBlank()) throw new ActionException("CONNECTOR.EMPTY_SPEC", "The API description is empty", "Give an OpenAPI or Swagger description (JSON or YAML) that is not empty.");
         Object doc = parse(text);
         if (!(doc instanceof Map<?, ?> m)) throw new ActionException("CONNECTOR.UNKNOWN_FORMAT", "The file is not an OpenAPI, Swagger or Postman document",
                 "Use an OpenAPI 3.x or Swagger 2.0 document, or a Postman v2.1 collection export.");
@@ -79,7 +79,7 @@ public final class ConnectorImporter {
         if (t.startsWith("﻿")) t = t.substring(1);
         if (t.startsWith("{") || t.startsWith("[")) {
             try { return JsonLite.parse(t); }
-            catch (IllegalArgumentException e) { throw new ActionException("CONNECTOR.BAD_JSON", "The file is not valid JSON: " + e.getMessage()); }
+            catch (IllegalArgumentException e) { throw new ActionException("CONNECTOR.BAD_JSON", "The file is not valid JSON: " + e.getMessage(), "Correct the JSON (the message names where it breaks), or download the description again."); }
         }
         return parseYaml(t);
     }
@@ -106,7 +106,7 @@ public final class ConnectorImporter {
             Object yaml = yamlCls.getConstructor(baseCtor).newInstance(ctor);
             loaded = yamlCls.getMethod("load", String.class).invoke(yaml, text);
         } catch (java.lang.reflect.InvocationTargetException e) {
-            throw new ActionException("CONNECTOR.BAD_YAML", "The file is not valid YAML: " + firstLine(e.getCause()));
+            throw new ActionException("CONNECTOR.BAD_YAML", "The file is not valid YAML: " + firstLine(e.getCause()), "Correct the YAML (the message names where it breaks), or download the description again.");
         } catch (ReflectiveOperationException | LinkageError e) {
             throw new ActionException("CONNECTOR.YAML_UNSUPPORTED", "The installed YAML parser is not compatible: " + e,
                     "Convert the spec to JSON and import it again.");

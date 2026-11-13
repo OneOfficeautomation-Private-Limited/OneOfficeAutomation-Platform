@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ApiFailure, type CrStatus, type RepoAgent, type RepoVersion, type StudioApi } from "../api/client";
+import { ApiFailure, type CrStatus, type RepoAgent, type RepoVersion, type StudioApi, errorText } from "../api/client";
 import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type TreeNode } from "../components";
 import { Analysis, ColumnsDialog, labelText, listTime, PUBLIC_COLUMNS, PUBLIC_HIDDEN, PUBLIC_HIDDEN_KEY, sizeText, typeOf } from "./columns";
 
 /** The server's message, with what to do when it says ("Check the address and that One CommandCenter is running."). */
-const message = (e: unknown) => e instanceof ApiFailure ? e.error.message + (e.error.suggestedFix ? ". " + e.error.suggestedFix : "") : String(e);
+const message = errorText;
 const shortName = (path: string) => path.replace(/\.flow\.json$/, "");
 /** An agent's name and its folder, as Automation shows them. */
 const nameOf = (path: string) => shortName(path).split("/").pop()!;

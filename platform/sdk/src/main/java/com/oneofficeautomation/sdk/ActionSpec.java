@@ -120,7 +120,7 @@ public record ActionSpec(String kind, String id, String name, String description
                 if (t.isEmpty()) continue;
                 boolean not = t.contains("!=");
                 String[] kv = t.split(not ? "!=" : "=", 2);
-                if (kv.length != 2) throw new OoaException("PKG.ERROR", "Input '" + name + "': visibleWhen part '" + t + "' is not field=value");
+                if (kv.length != 2) throw new OoaException("PKG.ERROR", "Input '" + name + "': visibleWhen part '" + t + "' is not field=value", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
                 List<String> vals = new ArrayList<>();
                 if (not) vals.add("!");
                 for (String v : kv[1].split("\\|")) vals.add(v.strip());

@@ -41,7 +41,7 @@ record Network(Path ca, String proxy, String proxyUser, String proxyPassword) {
     Network {
         proxy = proxy == null || proxy.isBlank() ? "system" : proxy.strip();
         if (!proxy.equals("system") && !proxy.equals("none") && !proxy.matches("https?://[A-Za-z0-9.\\-\\[\\]:]+:\\d{1,5}/?"))
-            throw new OoaException("AGENT.BAD_PROXY", "The proxy is system, none or http://host:port, not " + proxy);
+            throw new OoaException("AGENT.BAD_PROXY", "The proxy is system, none or http://host:port, not " + proxy, "Set the proxy to system, none or http://host:port.");
     }
 
     /** From the runner's config file. */
@@ -82,12 +82,12 @@ record Network(Path ca, String proxy, String proxyUser, String proxyPassword) {
             try { return Files.readString(Path.of(stored.substring(5)), StandardCharsets.UTF_8).strip().toCharArray(); }
             catch (IOException e) { throw new OoaException("AGENT.PROXY_PASSWORD", "The proxy password file cannot be read: " + e.getMessage(), "Set it again: ooa agent network --proxy-user USER --proxy-password-env VAR"); }
         }
-        if (stored.startsWith("env:")) { String v = System.getenv(stored.substring(4)); if (v == null) throw new OoaException("AGENT.PROXY_PASSWORD", "The environment variable " + stored.substring(4) + " is not set"); return v.toCharArray(); }
+        if (stored.startsWith("env:")) { String v = System.getenv(stored.substring(4)); if (v == null) throw new OoaException("AGENT.PROXY_PASSWORD", "The environment variable " + stored.substring(4) + " is not set", "Set the environment variable, then start the runner again."); return v.toCharArray(); }
         if (stored.startsWith("dpapi:")) {
             try { return new String(com.sun.jna.platform.win32.Crypt32Util.cryptUnprotectData(Base64.getDecoder().decode(stored.substring(6))), StandardCharsets.UTF_8).toCharArray(); }
             catch (Throwable e) { throw new OoaException("AGENT.PROXY_PASSWORD", "The proxy password cannot be read on this computer", "Set it again: ooa agent network --proxy-user USER --proxy-password-env VAR"); }
         }
-        throw new OoaException("AGENT.PROXY_PASSWORD", "The proxy password is stored in an unknown form");
+        throw new OoaException("AGENT.PROXY_PASSWORD", "The proxy password is stored in an unknown form", "Store the proxy password again with ooa agent proxy.");
     }
 
     /**
@@ -105,7 +105,7 @@ record Network(Path ca, String proxy, String proxyUser, String proxyPassword) {
                 Files.writeString(f, plain, StandardCharsets.UTF_8);
             } catch (UnsupportedOperationException e) {
                 throw new OoaException("AGENT.PROXY_PASSWORD", "This file system cannot keep a file private", "Use an environment variable for the runner instead (proxy_password env:NAME in the config).");
-            } catch (IOException e) { throw new OoaException("AGENT.PROXY_PASSWORD", "Cannot write " + f + ": " + e.getMessage()); }
+            } catch (IOException e) { throw new OoaException("AGENT.PROXY_PASSWORD", "Cannot write " + f + ": " + e.getMessage(), "Check that the runner's account may write its settings folder."); }
             return "file:" + f.toAbsolutePath();
         }
         final int CRYPTPROTECT_LOCAL_MACHINE = 0x4, CRYPTPROTECT_UI_FORBIDDEN = 0x1;

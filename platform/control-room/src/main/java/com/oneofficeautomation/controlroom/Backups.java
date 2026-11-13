@@ -140,7 +140,7 @@ public final class Backups {
                     n[0]++;
                 }
                 w.flush();
-            } catch (SQLException | IOException e) { throw new OoaException("CR.BACKUP", "Reading " + table + " failed: " + e.getMessage()); }
+            } catch (SQLException | IOException e) { throw new OoaException("CR.BACKUP", "Reading " + table + " failed: " + e.getMessage(), "Check that the database is running; then run the backup again."); }
             return null;
         });
         zip.closeEntry();
@@ -193,9 +193,9 @@ public final class Backups {
         Map<String, Object> manifest;
         try (ZipFile z = new ZipFile(zipFile.toFile())) {
             ZipEntry me = z.getEntry("manifest.json");
-            if (me == null) throw new OoaException("CR.BACKUP", zipFile + " is not a ONEOFFICEAUTOMATION backup");
+            if (me == null) throw new OoaException("CR.BACKUP", zipFile + " is not a ONEOFFICEAUTOMATION backup", "Choose a backup file made by ONEOFFICEAUTOMATION (Administration > Settings > Data > Backups).");
             manifest = (Map<String, Object>) JsonLite.parse(new String(z.getInputStream(me).readAllBytes(), StandardCharsets.UTF_8));
-            if (!FORMAT.equals(manifest.get("format"))) throw new OoaException("CR.BACKUP", "Unknown backup format " + manifest.get("format"));
+            if (!FORMAT.equals(manifest.get("format"))) throw new OoaException("CR.BACKUP", "Unknown backup format " + manifest.get("format"), "Restore it on the version of One CommandCenter that made it, or a newer one.");
             if (((Number) manifest.get("schema")).intValue() > Db.LATEST) throw new OoaException("CR.BACKUP", "The backup comes from a newer release (schema " + manifest.get("schema") + ")", "Restore it with that release.");
             if (manifest.get("vault_key_fingerprint") != null && !manifest.get("vault_key_fingerprint").equals(vault.fingerprint()))
                 throw new OoaException("CR.BACKUP", "This backup was made with another vault key", "Put the master.key of the backed-up One CommandCenter in " + data + " (or set OOA_MASTER_KEY), then restore again.");
@@ -222,7 +222,7 @@ public final class Backups {
                             target.update("INSERT INTO " + t + " (" + cols + ") VALUES (" + marks + ")", vals.toArray());
                             n++;
                         }
-                    } catch (IOException x) { throw new OoaException("CR.BACKUP", "Reading " + t + " from the backup failed: " + x.getMessage()); }
+                    } catch (IOException x) { throw new OoaException("CR.BACKUP", "Reading " + t + " from the backup failed: " + x.getMessage(), "The backup may be damaged; restore an earlier backup."); }
                     restored.put(t, n);
                 }
                 return null;

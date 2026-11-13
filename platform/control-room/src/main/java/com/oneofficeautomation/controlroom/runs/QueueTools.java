@@ -322,10 +322,10 @@ public final class QueueTools {
     @SuppressWarnings("unchecked")
     public Map<String, Object> fromBot(Map<String, Object> device, Map<String, Object> body) {
         Map<String, Object> run = cr.runOnDevice(device, (String) body.get("run_id"));
-        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can use work queues");
+        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can use work queues", "Use work queue steps inside a running agent.");
         String who = (String) (run.get("run_as") != null ? run.get("run_as") : run.get("requested_by"));
         Map<String, Object> u = db.one("SELECT id, username, role, display_name FROM users WHERE username = ? AND enabled = TRUE", who);
-        if (u == null) throw new OoaException("CR.FORBIDDEN", "The run's user " + who + " is not active");
+        if (u == null) throw new OoaException("CR.FORBIDDEN", "The run's user " + who + " is not active", "Ask an administrator to enable the run's user, or run the agent as another user.");
         User by = new User((String) u.get("id"), who, (String) u.get("role"), (String) u.get("display_name"), false);
         String actor = "agent:" + device.get("name") + " for " + who;
         Map<String, Object> r = body.get("request") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();

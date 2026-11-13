@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ItemModel, RunnerPool, WorkItem, WorkQueue } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 
 /**
@@ -132,7 +132,7 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
         {can("queues.manage") && <Button kind="secondary" onClick={() => setDialog({ kind: "import" })}>Import queue</Button>}
         {can("queues.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "edit", queue: null })}>Create work queue</Button>}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search work queues" placeholder="Search work queues" value={q} onChange={(e) => setQ(e.target.value)} /></span>
@@ -179,7 +179,7 @@ function QueueForm({ api, queue: x, pools, onClose, onSaved }: { api: CrApi; que
     sla: x?.sla_minutes ? String(x.sla_minutes) : "", attempts: String(x?.max_attempts ?? 2) });
   const [encrypt, setEncrypt] = useState(!!x?.encrypt_data);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api.liveAgents().then((b) => setAgents(b.map((a) => a.path)), () => {}); api.itemModels().then(setModels, () => {}); }, [api]);
+  useEffect(() => { api.liveAgents().then((b) => setAgents(b.map((a) => a.path)), (e) => reportMinor("the list of agents", e)); api.itemModels().then(setModels, (e) => reportMinor("the item models", e)); }, [api]);
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
   const submit = () => api.saveQueue(x?.id ?? null, { name: v.name.trim(), description: v.description, bot_path: v.bot || null, pool_id: v.pool || null,
     sla_minutes: v.sla ? Number(v.sla) : null, max_attempts: Number(v.attempts), model_id: v.model || null, encrypt_data: encrypt }).then(() => onSaved((x ? "Saved " : "Created ") + v.name.trim() + "."), (e) => setError(message(e)));
@@ -392,7 +392,7 @@ function TagsDialog({ count, onClose, onSave }: { count: number; onClose: () => 
 function TransferDialog({ api, from, move, count, onClose, onDone }: { api: CrApi; from: WorkQueue; move: boolean; count: number; onClose: () => void; onDone: (to: string, name: string) => void }) {
   const [queues, setQueues] = useState<WorkQueue[]>([]);
   const [to, setTo] = useState("");
-  useEffect(() => { api.queues().then((l) => setQueues(l.filter((q) => q.id !== from.id)), () => {}); }, [api, from.id]);
+  useEffect(() => { api.queues().then((l) => setQueues(l.filter((q) => q.id !== from.id)), (e) => reportMinor("the other queues", e)); }, [api, from.id]);
   const name = queues.find((q) => q.id === to)?.name ?? "";
   return (
     <Dialog open title={(move ? "Move" : "Copy") + " items"} width={460} onClose={onClose} footer={<>

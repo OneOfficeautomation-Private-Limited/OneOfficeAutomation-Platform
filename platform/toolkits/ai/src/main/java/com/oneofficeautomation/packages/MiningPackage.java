@@ -68,18 +68,18 @@ public final class MiningPackage {
         List<List<Object>> rows = new ArrayList<>();
         if (file != null && !file.isBlank()) {
             Path p = ctx.resolvePath(file);
-            if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Event log not found: " + p);
+            if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Event log not found: " + p, "Check the path of the event log; it may have been moved or renamed.");
             List<List<String>> c;
-            try { c = csv(Files.readString(p, StandardCharsets.UTF_8)); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
-            if (c.isEmpty()) throw new ActionException("MINING.EMPTY", "The event log is empty");
+            try { c = csv(Files.readString(p, StandardCharsets.UTF_8)); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
+            if (c.isEmpty()) throw new ActionException("MINING.EMPTY", "The event log is empty", "Check that the event log has rows below its header line.");
             head = c.get(0);
             for (List<String> r : c.subList(1, c.size())) rows.add(new ArrayList<>(r));
         } else if (table instanceof Map<?, ?> t && t.get("columns") instanceof List<?> cols && t.get("rows") instanceof List<?> rs) {
             head = cols.stream().map(Values::text).toList();
             for (Object r : rs) if (r instanceof List<?> l) rows.add(new ArrayList<>(l));
-        } else throw new ActionException("MINING.NO_LOG", "Give the event log as a CSV file or a table");
+        } else throw new ActionException("MINING.NO_LOG", "Give the event log as a CSV file or a table", "Fill in either Event log file (CSV) or Event log table.");
         int ci = col(head, caseCol), ai = col(head, actCol), ti = col(head, timeCol);
-        if (rows.size() > 2_000_000) throw new ActionException("MINING.TOO_LARGE", "At most 2,000,000 events at a time");
+        if (rows.size() > 2_000_000) throw new ActionException("MINING.TOO_LARGE", "At most 2,000,000 events at a time", "Filter the log to fewer events (for example one month or one process) and mine each part.");
         LinkedHashMap<String, List<Event>> cases = new LinkedHashMap<>();
         for (int i = 0; i < rows.size(); i++) {
             List<Object> r = rows.get(i);
@@ -199,7 +199,7 @@ public final class MiningPackage {
             @Input(name = "case_column", type = OoaType.STRING, required = false, defaultValue = "\"case\"", description = "The case id column.") String caseCol,
             @Input(name = "activity_column", type = OoaType.STRING, required = false, defaultValue = "\"activity\"", description = "The activity column.") String actCol,
             @Input(name = "time_column", type = OoaType.STRING, required = false, defaultValue = "\"time\"", description = "The time column.") String timeCol) {
-        if (allowed == null || allowed.isEmpty()) throw new ActionException("MINING.NO_MODEL", "Give the allowed flows");
+        if (allowed == null || allowed.isEmpty()) throw new ActionException("MINING.NO_MODEL", "Give the allowed flows", "Give the allowed flows as a list of pairs, for example [[\"Receive\", \"Approve\"], [\"Approve\", \"Pay\"]].");
         Set<String> st = new HashSet<>(), en = new HashSet<>();
         if (startAllowed != null) for (Object o : startAllowed) st.add(Values.text(o));
         if (endAllowed != null) for (Object o : endAllowed) en.add(Values.text(o));

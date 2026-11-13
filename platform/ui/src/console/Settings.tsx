@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, ScimToken } from "../api/cr";
-import { Button, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../components";
+import { Button, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { SETTING_HELP } from "./settingsHelp";
 import { ROLE_NAMES } from "./roleNames";
 
@@ -297,7 +297,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
         <span className="ov-fill" />
         <span className="cc-list-search"><TextInput type="search" aria-label="Search settings" placeholder="Find a setting" value={q} onChange={(e) => setQ(e.target.value)} /></span>
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!saved && !error && <p className="cc-none" role="status">Loading…</p>}
       {saved && (text ? <div className="cc-set cc-set-full">
         <div className="cc-set-form" role="region" aria-label="Settings found">
@@ -358,9 +358,9 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
     setInfo(null);
     if (section === "agents") api.gitStatus().then((g) => setInfo(<p className="st-muted">{!g.configured ? "Git: not set up." : g.state === "never" ? "Git: not synced yet."
       : g.state === "ok" ? "Git: last sync " + new Date(g.at!).toLocaleString() + ", " + g.agents + " agent(s)" + (g.changed ? ", commit " + String(g.commit).slice(0, 8) : ", nothing changed") + "."
-        : "Git: last sync failed " + new Date(g.at!).toLocaleString() + ": " + g.error}</p>), () => {});
+        : "Git: last sync failed " + new Date(g.at!).toLocaleString() + ": " + g.error}</p>), (e) => reportMinor("the Git status", e));
     if (section === "data") api.backups().then((b) => setInfo(<p className="st-muted">{b.backups.length ? b.backups.length + " backup(s) in " + b.folder + ", newest " + new Date(b.backups[0].created).toLocaleString() + " (" + b.backups[0].size_mb + " MB)."
-      : "No backups in " + b.folder + " yet."}{b.state === "failed" ? " Last attempt failed: " + b.error : ""} {b.key_note}</p>), () => {});
+      : "No backups in " + b.folder + " yet."}{b.state === "failed" ? " Last attempt failed: " + b.error : ""} {b.key_note}</p>), (e) => reportMinor("the backups", e));
     if (section === "about") Promise.all([api.database().catch(() => null), api.cluster().catch(() => null),
       Promise.resolve().then(() => api.modules()).catch(() => null)]).then(([d, c, mods]) => setInfo(<>
       {d && <dl className="cc-facts">

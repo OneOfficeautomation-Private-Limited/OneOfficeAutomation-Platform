@@ -175,7 +175,7 @@ final class ModelConnections {
         }
         if (c.get(field) instanceof Map<?, ?> m && m.get("$credential") instanceof String ref) {
             CredentialVault vault = ctx.service("vault", CredentialVault.class);
-            if (vault == null) throw new ActionException("AI.NO_VAULT", "No vault is available for the connection's API key");
+            if (vault == null) throw new ActionException("AI.NO_VAULT", "No vault is available for the connection's API key", "Run the agent where a vault is available (in One CommandCenter, or with the Private workspace's vault set up).");
             return vault.getSecret(ref, null);
         }
         return null;

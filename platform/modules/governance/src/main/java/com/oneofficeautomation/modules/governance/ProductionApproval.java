@@ -33,7 +33,7 @@ public final class ProductionApproval {
         Map<String, Object> b = db.one("SELECT production_version FROM bots WHERE path = ? AND deleted_at IS NULL", path);
         if (b == null) throw notFound("Agent " + path);
         if (Objects.equals(b.get("production_version") instanceof Number n ? n.intValue() : null, version))
-            throw new OoaException("CR.CONFLICT", "Version " + version + " is already live in production");
+            throw new OoaException("CR.CONFLICT", "Version " + version + " is already live in production", "Nothing to do: that version is already in production.");
         String id = id("prq");
         db.tx(() -> {
             for (Map<String, Object> old : db.query("SELECT id FROM production_requests WHERE path = ? AND status = 'pending'", path)) {
@@ -52,7 +52,7 @@ public final class ProductionApproval {
         ctx.require(by, "repo.approve", "approve production versions");
         Map<String, Object> r = db.one("SELECT * FROM production_requests WHERE id = ?", id);
         if (r == null) throw notFound("Request " + id);
-        if (!"pending".equals(r.get("status"))) throw new OoaException("CR.CONFLICT", "This request is already " + r.get("status"));
+        if (!"pending".equals(r.get("status"))) throw new OoaException("CR.CONFLICT", "This request is already " + r.get("status"), "Reload the page to see the current state.");
         if (by.username().equals(r.get("requested_by"))) throw new OoaException("CR.FORBIDDEN", "You cannot approve or reject your own request", "Another person with the approval right decides.");
         String path = (String) r.get("path");
         int version = ((Number) r.get("version")).intValue();
@@ -75,7 +75,7 @@ public final class ProductionApproval {
         Map<String, Object> r = db.one("SELECT * FROM production_requests WHERE id = ?", id);
         if (r == null) throw notFound("Request " + id);
         if (!by.username().equals(r.get("requested_by")) && !ctx.can(by, "repo.approve")) throw denied("withdraw this request");
-        if (!"pending".equals(r.get("status"))) throw new OoaException("CR.CONFLICT", "This request is already " + r.get("status"));
+        if (!"pending".equals(r.get("status"))) throw new OoaException("CR.CONFLICT", "This request is already " + r.get("status"), "Reload the page to see the current state.");
         db.update("UPDATE production_requests SET status = 'withdrawn', decided = ?, decided_by = ? WHERE id = ?", now(), by.username(), id);
         ctx.audit(by.username(), "repo.production_withdraw", "bot", (String) r.get("path"), Map.of("request", id), "ok", ip);
         return get(id);

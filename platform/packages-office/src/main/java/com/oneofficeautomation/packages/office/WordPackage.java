@@ -232,7 +232,7 @@ public final class WordPackage {
                 yield true;
             }
             case "breaks" -> false;
-            default -> throw new ActionException("WORD.BAD_OPTION", "page_breaks must be auto, layout or breaks, not '" + mode + "'", null);
+            default -> throw new ActionException("WORD.BAD_OPTION", "page_breaks must be auto, layout or breaks, not '" + mode + "'", "Set page_breaks to auto, layout or breaks.");
         };
     }
 
@@ -426,7 +426,7 @@ public final class WordPackage {
             @Input(name = "to_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_TO) Integer to,
             @Input(name = "page", type = OoaType.NUMBER, required = false, min = 1,
                     description = "Only replace text on this 1-based page of the body (from Word's saved page layout, else the stored page breaks).") Integer page) {
-        if (find.isEmpty()) throw new ActionException("WORD.EMPTY_FIND", "Text to find is empty");
+        if (find.isEmpty()) throw new ActionException("WORD.EMPTY_FIND", "Text to find is empty", "Fill in the text to find.");
         String rep = with == null ? "" : with;
         if (!matchCase || wholeWord || !"all".equalsIgnoreCase(occurrence == null ? "all" : occurrence) || from != null || to != null || page != null) {
             XWPFDocument doc = s(ctx, session).doc;
@@ -560,7 +560,7 @@ public final class WordPackage {
                     description = "Alternative-text description of the table (Word: Table Properties > Alt Text > Description).") String altDescription) {
         List<?> cols = (List<?>) table.get("columns");
         List<?> rows = (List<?>) table.get("rows");
-        if (cols.isEmpty()) throw new ActionException("WORD.EMPTY_TABLE", "The table has no columns");
+        if (cols.isEmpty()) throw new ActionException("WORD.EMPTY_TABLE", "The table has no columns", "Give the table at least one column.");
         XWPFDocument d = s(ctx, session).doc;
         int nRows = rows.size() + (includeHeader ? 1 : 0);
         if (nRows == 0) throw new ActionException("WORD.EMPTY_TABLE", "The table has no rows and include_header is false", "Pass rows or include the header.");

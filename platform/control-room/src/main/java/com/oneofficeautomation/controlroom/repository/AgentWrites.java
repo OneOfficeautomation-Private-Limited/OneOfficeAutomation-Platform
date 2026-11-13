@@ -50,7 +50,7 @@ public final class AgentWrites {
         details.put("run_as", who);
         if (!"running".equals(r.get("status"))) {
             cr.audit.record(actor, action, objectType, objectId, details, "denied", null);
-            throw new OoaException("VAULT.DENIED", "Only a running agent may change values in One CommandCenter");
+            throw new OoaException("VAULT.DENIED", "Only a running agent may change values in One CommandCenter", "Change values from a step of a running agent.");
         }
         Map<String, Object> u = cr.db.one("SELECT * FROM users WHERE username = ?", who);
         if (u == null || Boolean.FALSE.equals(u.get("enabled"))) {
@@ -82,7 +82,7 @@ public final class AgentWrites {
             throw new OoaException("GLOBALS.WRONG_TYPE", e.getMessage(), "Give a value of the shared value's type (" + type + ").");
         }
         String json = JsonLite.write(typed);
-        if (json.length() > 100_000) throw new OoaException("GLOBALS.TOO_LARGE", "A shared value is at most 100000 characters");
+        if (json.length() > 100_000) throw new OoaException("GLOBALS.TOO_LARGE", "A shared value is at most 100000 characters", "Keep shared values under 100,000 characters; put larger data in a file in the repository instead.");
         cr.db.update("UPDATE global_values SET json_value = ?, updated = ?, updated_by = ? WHERE name = ?", json, now(), ru.user().username(), name);
         cr.audit.record(ru.actor(), "global.set", "global", name, ru.details(), "ok", null);
         Map<String, Object> out = new LinkedHashMap<>();
@@ -97,7 +97,7 @@ public final class AgentWrites {
         String s = String.valueOf(v).strip();
         if (s.length() > 10) s = s.substring(0, 10);   // a date and time: its date
         try { return LocalDate.parse(s).toString(); }
-        catch (DateTimeParseException e) { throw new OoaException(code, "The expiry date must be a date (yyyy-MM-dd), not '" + v + "'"); }
+        catch (DateTimeParseException e) { throw new OoaException(code, "The expiry date must be a date (yyyy-MM-dd), not '" + v + "'", "Write the expiry date as year-month-day, for example 2026-12-31."); }
     }
 
     /** Expiry facts: the date, days left (negative once past) and whether it has expired or expires soon. */
@@ -146,7 +146,7 @@ public final class AgentWrites {
         Map<String, Object> l = cr.db.one("SELECT * FROM lockers WHERE name = ?", p[0]);
         if (l == null) {
             cr.audit.record(ru.actor(), "credential.set", "credential", ref, details, "not_found", null);
-            throw new OoaException("VAULT.NOT_FOUND", "Vault folder '" + p[0] + "' not found");
+            throw new OoaException("VAULT.NOT_FOUND", "Vault folder '" + p[0] + "' not found", "Check the credential's name and folder in Manage > Credentials, and that the agent's user may use it.");
         }
         if (l.get("external") != null) {
             cr.audit.record(ru.actor(), "credential.set", "credential", ref, details, "denied", null);
@@ -199,7 +199,7 @@ public final class AgentWrites {
         }
         boolean exists = cr.db.one("SELECT name FROM credential_meta WHERE locker = ? AND name = ?", p[0], p[1]) != null
             || cr.db.one("SELECT name FROM credentials WHERE locker = ? AND name = ? LIMIT 1", p[0], p[1]) != null;
-        if (!exists && l.get("external") == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + credRef + "' not found");
+        if (!exists && l.get("external") == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + credRef + "' not found", "Check the credential's name and folder in Manage > Credentials, and that the agent's user may use it.");
         return expiryFacts(expiresOf(p[0], p[1]));
     }
 }

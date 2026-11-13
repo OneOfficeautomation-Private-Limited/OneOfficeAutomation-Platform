@@ -126,7 +126,7 @@ public final class Templates {
             m.put("payload", Base64.getEncoder().encodeToString(payload));
             m.put("signature", Base64.getEncoder().encodeToString(s.sign()));
             return JsonLite.write(m);
-        } catch (GeneralSecurityException e) { throw new OoaException("TEMPLATES.SIGN_FAILED", "Signing failed: " + e.getMessage()); }
+        } catch (GeneralSecurityException e) { throw new OoaException("TEMPLATES.SIGN_FAILED", "Signing failed: " + e.getMessage(), "Check the vendor's template signing key."); }
     }
 
     /** The templates of a signed feed; a feed that is not signed with the key is refused whole. */
@@ -141,9 +141,9 @@ public final class Templates {
             Signature v = Signature.getInstance("Ed25519");
             v.initVerify(key);
             v.update(payload);
-            if (!v.verify(Base64.getDecoder().decode(s))) throw new OoaException("TEMPLATES.BAD_SIGNATURE", "The template catalogue's signature is not valid: it was changed or not made by ONEOFFICEAUTOMATION");
+            if (!v.verify(Base64.getDecoder().decode(s))) throw new OoaException("TEMPLATES.BAD_SIGNATURE", "The template catalogue's signature is not valid: it was changed or not made by ONEOFFICEAUTOMATION", "Use a catalogue made by ONEOFFICEAUTOMATION, or ask its publisher for a correct one.");
         } catch (OoaException e) { throw e; }
-        catch (Exception e) { throw new OoaException("TEMPLATES.BAD_SIGNATURE", "The template catalogue's signature is not valid: it was changed or not made by ONEOFFICEAUTOMATION"); }
+        catch (Exception e) { throw new OoaException("TEMPLATES.BAD_SIGNATURE", "The template catalogue's signature is not valid: it was changed or not made by ONEOFFICEAUTOMATION", "Use a catalogue made by ONEOFFICEAUTOMATION, or ask its publisher for a correct one."); }
         Map<String, Object> body = (Map<String, Object>) JsonLite.parse(new String(payload, StandardCharsets.UTF_8));
         List<Map<String, Object>> out = new ArrayList<>();
         for (Object o : (List<Object>) body.getOrDefault("templates", List.of())) {
@@ -154,13 +154,13 @@ public final class Templates {
         return out;
     }
 
-    private static OoaException notAFeed() { return new OoaException("TEMPLATES.BAD_FEED", "This is not a ONEOFFICEAUTOMATION template catalogue"); }
+    private static OoaException notAFeed() { return new OoaException("TEMPLATES.BAD_FEED", "This is not a ONEOFFICEAUTOMATION template catalogue", "Use a catalogue made by ONEOFFICEAUTOMATION, or ask its publisher for a correct one."); }
 
     /** A template has an id, a name, a category and an agent bundle. */
     static void check(Map<String, Object> t) {
-        if (!(t.get("id") instanceof String id) || !id.matches("^[a-z0-9][a-z0-9_-]{0,79}$")) throw new OoaException("TEMPLATES.BAD_TEMPLATE", "A template needs an id of lower-case letters, digits, - and _");
-        if (!(t.get("name") instanceof String n) || n.isBlank()) throw new OoaException("TEMPLATES.BAD_TEMPLATE", "Template " + id + " has no name");
-        if (!(t.get("bundle") instanceof Map<?, ?> b) || !Lifecycle.FORMAT.equals(b.get("format"))) throw new OoaException("TEMPLATES.BAD_TEMPLATE", "Template " + id + " holds no agent bundle");
+        if (!(t.get("id") instanceof String id) || !id.matches("^[a-z0-9][a-z0-9_-]{0,79}$")) throw new OoaException("TEMPLATES.BAD_TEMPLATE", "A template needs an id of lower-case letters, digits, - and _", "Give the template an id of lower-case letters, digits, - and _.");
+        if (!(t.get("name") instanceof String n) || n.isBlank()) throw new OoaException("TEMPLATES.BAD_TEMPLATE", "Template " + id + " has no name", "Give the template a name.");
+        if (!(t.get("bundle") instanceof Map<?, ?> b) || !Lifecycle.FORMAT.equals(b.get("format"))) throw new OoaException("TEMPLATES.BAD_TEMPLATE", "Template " + id + " holds no agent bundle", "Add the agent bundle to the template.");
     }
 
     /** ONEOFFICEAUTOMATION's templates: an uploaded feed file, else the catalogue address (fetched at most hourly). */
@@ -181,7 +181,7 @@ public final class Templates {
     }
 
     private String fetch(String url) throws IOException {
-        if (!url.startsWith("https://") && !url.startsWith("http://")) throw new OoaException("TEMPLATES.BAD_URL", "The template catalogue address starts with https://");
+        if (!url.startsWith("https://") && !url.startsWith("http://")) throw new OoaException("TEMPLATES.BAD_URL", "The template catalogue address starts with https://", "Give the catalogue's address starting with https://.");
         NetGuard.check(cr, url, "The template catalogue");
         try {
             HttpResponse<byte[]> r = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).followRedirects(HttpClient.Redirect.NORMAL).build()
@@ -255,7 +255,7 @@ public final class Templates {
         if ("vendor".equals(source)) {
             for (Map<String, Object> t : vendor()) if (t.get("id").equals(id)) bundle = (Map<String, Object>) t.get("bundle");
         } else if ("region".equals(source) && shared != null) bundle = shared.bundle(id);
-        if (bundle == null) throw new OoaException("CR.NOT_FOUND", "No template '" + id + "'");
+        if (bundle == null) throw new OoaException("CR.NOT_FOUND", "No template '" + id + "'", "Reload the page and choose it again; it may have been renamed, moved or deleted.");
         String target = folder == null || folder.isBlank() ? "Templates" : folder;
         Map<String, Object> r = new LinkedHashMap<>(cr.lifecycle.importBundle(by, bundle, "skip", false, target, ip));
         // what feature modules add to templates (Document Automation's processes), each creating its part of the bundle
@@ -339,7 +339,7 @@ public final class Templates {
         });
         Path f = cr.dataDir.resolve("templates").resolve("folders.json");
         try { Files.createDirectories(f.getParent()); Files.writeString(f, JsonLite.write(Map.of("folders", List.copyOf(seen), "placed", place))); }
-        catch (IOException e) { throw new OoaException("CR.IO", "Cannot save the template folders: " + e.getMessage()); }
+        catch (IOException e) { throw new OoaException("CR.IO", "Cannot save the template folders: " + e.getMessage(), "Check that the server's data folder has space and that the service account may write there."); }
         cr.audit.record(by.username(), "template.folders", "template", null, Map.of("folders", seen.size(), "placed", place.size()), "ok", ip);
         return Map.of("folders", List.copyOf(seen), "placed", place);
     }
@@ -351,7 +351,7 @@ public final class Templates {
         List<Map<String, Object>> got = readFeed(text, key.get());
         Path f = cr.dataDir.resolve("templates").resolve("catalogue.json");
         try { Files.createDirectories(f.getParent()); Files.writeString(f, text); }
-        catch (IOException e) { throw new OoaException("TEMPLATES.SAVE", "Cannot save the catalogue: " + e.getMessage()); }
+        catch (IOException e) { throw new OoaException("TEMPLATES.SAVE", "Cannot save the catalogue: " + e.getMessage(), "Check that the server's data folder has space and that the service account may write there."); }
         cachedFrom = "";
         cr.audit.record(by.username(), "template.catalogue_upload", "templates", null, Map.of("templates", got.size()), "ok", ip);
         return Map.of("templates", got.size());

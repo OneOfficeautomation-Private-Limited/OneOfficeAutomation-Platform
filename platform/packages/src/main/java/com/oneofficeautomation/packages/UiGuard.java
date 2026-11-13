@@ -84,9 +84,9 @@ public final class UiGuard {
             }
 
             public void closeWindow(InterruptRules.Rule r, String window) {
-                if (window == null) throw new ActionException("INTERRUPT.BAD_RULE", "close_window answers window rules only");
+                if (window == null) throw new ActionException("INTERRUPT.BAD_RULE", "close_window answers window rules only", "Use close_window only on window rules.");
                 DesktopEvents d = DesktopEvents.installed().orElseThrow(() -> new ActionException("SYSTEM.WINDOWS_ONLY",
-                        "Closing windows needs a Windows runner with the Window toolkit installed"));
+                        "Closing windows needs a Windows runner with the Window toolkit installed", "Run this agent on a Windows runner with the Window toolkit installed."));
                 d.closeWindow(r.whenWindow());
             }
 

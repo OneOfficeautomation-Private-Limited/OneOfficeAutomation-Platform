@@ -33,9 +33,11 @@ describe("Simple mode (G47)", () => {
     render(<Host />);
     expect(screen.getByRole("button", { name: /^Scripts/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Triggers/ })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Simple" }));
+    // Editor A (13 Nov 2026): Simple is now Common, one side of a Common / All switch
+    expect(screen.getByRole("radio", { name: "All" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("radio", { name: /Common/ }));
     expect(last).toBe(true);
-    expect(screen.getByRole("button", { name: "Simple" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("radio", { name: /Common/ }).getAttribute("aria-checked")).toBe("true");
     expect(screen.queryByRole("button", { name: /^Scripts/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Triggers/ })).toBeNull();
     expect(screen.getByRole("button", { name: /^Excel files/ })).toBeTruthy();

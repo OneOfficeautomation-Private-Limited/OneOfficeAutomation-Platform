@@ -121,16 +121,16 @@ public final class ExtensionBridge {
             if (Boolean.TRUE.equals(m.get("ok"))) return m.get("result");
             String code = String.valueOf(m.getOrDefault("code", "EXT.FAILED"));
             throw new ActionException(code.startsWith("BROWSER.") ? code : "BROWSER." + code.replace("EXT.", "CONNECTOR_"), String.valueOf(m.get("error")),
-                    null, code.equals("BROWSER.OBJECT_NOT_FOUND"));
+                    "Check that the browser is still open and its OOA extension is turned on, then run the step again.", code.equals("BROWSER.OBJECT_NOT_FOUND"));
         } catch (TimeoutException e) {
             throw new ActionException("BROWSER.TIMEOUT", "The browser did not answer '" + op + "' within " + timeoutMs + " ms", "Raise the time-out, or check the browser is not showing a dialog.", true);
         } catch (IOException e) {
-            throw new ActionException("BROWSER.CONNECTOR_NOT_CONNECTED", "Lost the connection to the browser: " + e.getMessage());
+            throw new ActionException("BROWSER.CONNECTOR_NOT_CONNECTED", "Lost the connection to the browser: " + e.getMessage(), "Check that the browser is still open and its OOA extension is turned on, then run the step again.");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ActionException("RUN.CANCELLED", "Interrupted");
+            throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on.");
         } catch (ExecutionException e) {
-            throw new ActionException("BROWSER.ERROR", String.valueOf(e.getCause()));
+            throw new ActionException("BROWSER.ERROR", String.valueOf(e.getCause()), "Check that the browser is still open and its OOA extension is turned on, then run the step again.");
         } finally { c.waiting.remove(id); }
     }
 

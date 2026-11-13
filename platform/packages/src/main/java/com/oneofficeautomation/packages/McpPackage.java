@@ -45,11 +45,11 @@ public final class McpPackage {
             @Input(name = "token", type = OoaType.CREDENTIAL, required = false, description = "A bearer token, when the server needs one.") Object token,
             @Input(name = "fail_on_tool_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the tool reports an error.") boolean fail,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "120", min = 1, max = 600, description = "How long to wait for the answer.") int timeout) {
-        if (tool == null || tool.isBlank()) throw new ActionException("MCP.NO_TOOL", "Give the tool's name");
+        if (tool == null || tool.isBlank()) throw new ActionException("MCP.NO_TOOL", "Give the tool's name", "Fill in the tool's name; List tools shows the names the server offers.");
         McpClient c = new McpClient(url, secret(token), Duration.ofSeconds(timeout));
         c.initialize();
         Map<String, Object> r = c.call(tool.strip(), args);
-        if (fail && Boolean.TRUE.equals(r.get("is_error"))) throw new ActionException("MCP.TOOL_ERROR", "The tool " + tool + " reported an error: " + r.get("text"));
+        if (fail && Boolean.TRUE.equals(r.get("is_error"))) throw new ActionException("MCP.TOOL_ERROR", "The tool " + tool + " reported an error: " + r.get("text"), "Check the tool's inputs against what the MCP server expects; the message has the server's answer.");
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("text", r.get("text")); out.put("result", r.get("structured")); out.put("content", r.get("content")); out.put("is_error", r.get("is_error"));
         return out;

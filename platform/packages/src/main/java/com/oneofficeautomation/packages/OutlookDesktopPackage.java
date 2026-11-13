@@ -102,7 +102,7 @@ public final class OutlookDesktopPackage {
             if (out.isEmpty()) return Map.of();
             Object v = JsonLite.parse(out.substring(out.indexOf('{')));
             return v instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally {
             for (Path p : new Path[]{script, input}) if (p != null) try { Files.deleteIfExists(p); } catch (IOException ignored) { }
         }
@@ -119,7 +119,7 @@ public final class OutlookDesktopPackage {
                 case "NOT_FOUND" -> new ActionException("OUTLOOK.NOT_FOUND", "No email with that id", "The email may have been moved or deleted; ids change when an email is moved.");
                 case "BAD_ACCOUNT" -> new ActionException("OUTLOOK.BAD_ACCOUNT", "No account " + detail + " in this Outlook profile", "Leave From account empty to send from the default account.");
                 case "NO_FILE" -> new ActionException("FILE.NOT_FOUND", "Attachment not found: " + detail, "Check the path.");
-                default -> new ActionException("OUTLOOK.FAILED", "Outlook reported an error: " + ApplicationPackage.tail(err), null);
+                default -> new ActionException("OUTLOOK.FAILED", "Outlook reported an error: " + ApplicationPackage.tail(err), "Check that Outlook is installed, set up for the runner's account and not showing a dialog.");
             };
         }
         if (err.contains("80040154") || err.contains("Retrieving the COM class factory") || err.contains("Cannot load COM type"))
@@ -288,7 +288,7 @@ public final class OutlookDesktopPackage {
             @Input(name = "attachments", type = OoaType.LIST, required = false, description = "Files to attach.") List<Object> attachments,
             @Input(name = "from_account", type = OoaType.STRING, required = false, description = "Send from this account of the Outlook profile (its address); empty for the default.") String account,
             @Input(name = "save_as_draft", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Keep it in Drafts instead of sending.") boolean draft) {
-        if (to == null || to.isBlank()) throw new ActionException("OUTLOOK.NO_RECIPIENT", "Give at least one recipient");
+        if (to == null || to.isBlank()) throw new ActionException("OUTLOOK.NO_RECIPIENT", "Give at least one recipient", "Add at least one recipient.");
         Map<String, Object> r = outlook(ctx, sendScript(to, cc, bcc, subject, body, html, files(ctx, attachments), account, draft), 120);
         return Map.of("draft_id", Values.text(r.getOrDefault("id", "")));
     }
@@ -321,7 +321,7 @@ public final class OutlookDesktopPackage {
             @Input(name = "to", type = OoaType.STRING, description = "Recipients, separated by semicolons.") String to,
             @Input(name = "body", type = OoaType.STRING, required = false, description = "A note above the forwarded email.") String body,
             @Input(name = "save_as_draft", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Keep it in Drafts instead of sending.") boolean draft) {
-        if (to == null || to.isBlank()) throw new ActionException("OUTLOOK.NO_RECIPIENT", "Give at least one recipient");
+        if (to == null || to.isBlank()) throw new ActionException("OUTLOOK.NO_RECIPIENT", "Give at least one recipient", "Add at least one recipient.");
         return Map.of("draft_id", Values.text(outlook(ctx, replyScript(id, body, false, to, draft), 120).getOrDefault("id", "")));
     }
 

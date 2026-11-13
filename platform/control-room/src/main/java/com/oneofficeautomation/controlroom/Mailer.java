@@ -41,8 +41,8 @@ final class Mailer {
         if (!configured()) throw new OoaException("MAIL.NOT_SET_UP", "E-mail is not set up", "Fill in the outgoing mail server and sender in Administration > Settings > E-mail");
         List<String> rcpt = new ArrayList<>();
         for (String a : to) if (a != null && !a.isBlank()) rcpt.add(address(a.trim()));
-        if (rcpt.isEmpty()) throw new OoaException("MAIL.NO_RECIPIENT", "No one to send the e-mail to");
-        if (rcpt.size() > 50) throw new OoaException("MAIL.TOO_MANY", "At most 50 recipients");
+        if (rcpt.isEmpty()) throw new OoaException("MAIL.NO_RECIPIENT", "No one to send the e-mail to", "Add at least one recipient.");
+        if (rcpt.size() > 50) throw new OoaException("MAIL.TOO_MANY", "At most 50 recipients", "Send to at most 50 people at a time, or use a distribution list.");
         String host = str("mail_smtp_host"), security = str("mail_smtp_security").isEmpty() ? "starttls" : str("mail_smtp_security");
         int port = cr.platform.intSetting("mail_smtp_port");
         String user = str("mail_smtp_user"), ref = str("mail_smtp_password_ref"), from = address(str("mail_from"));
@@ -107,7 +107,7 @@ final class Mailer {
     /** A bare address, refusing anything that could add headers or SMTP commands. */
     static String address(String a) {
         String s = a.contains("<") && a.endsWith(">") ? a.substring(a.indexOf('<') + 1, a.length() - 1) : a;
-        if (!s.matches("[^\\s<>@\",;:]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")) throw new OoaException("MAIL.BAD_ADDRESS", "Not an e-mail address: " + a);
+        if (!s.matches("[^\\s<>@\",;:]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")) throw new OoaException("MAIL.BAD_ADDRESS", "Not an e-mail address: " + a, "Correct the address, for example name@example.com.");
         return s;
     }
 

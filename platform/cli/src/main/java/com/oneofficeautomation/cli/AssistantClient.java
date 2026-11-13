@@ -40,12 +40,12 @@ final class AssistantClient {
         HttpResponse<String> r;
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)); }
         catch (IOException e) { throw new OoaException("ASSISTANT.UNREACHABLE", "Cannot reach One CommandCenter at " + base + ": " + e.getMessage(), "Check the address and the network.", true, null); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("ASSISTANT.INTERRUPTED", "Interrupted"); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("ASSISTANT.INTERRUPTED", "Interrupted", "Try again; if it keeps happening, look in the runner's or Studio's log for this code."); }
         Object parsed = r.body() == null || r.body().isBlank() ? Map.of() : JsonLite.parse(r.body());
         Map<String, Object> m = parsed instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of("value", parsed);
         if (r.statusCode() >= 400) {
             Map<String, Object> e = m.get("error") instanceof Map<?, ?> em ? (Map<String, Object>) em : Map.of();
-            throw new OoaException(String.valueOf(e.getOrDefault("code", "ASSISTANT.HTTP_" + r.statusCode())), String.valueOf(e.getOrDefault("message", "One CommandCenter answered " + r.statusCode())));
+            throw new OoaException(String.valueOf(e.getOrDefault("code", "ASSISTANT.HTTP_" + r.statusCode())), String.valueOf(e.getOrDefault("message", "One CommandCenter answered " + r.statusCode())), "Check the AI connection in One CommandCenter (Administration > Settings > AI); the message has its answer.");
         }
         return m;
     }

@@ -58,7 +58,7 @@ final class ControlRoomLink {
         HttpResponse<String> r;
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
         catch (IOException e) { throw new OoaException("STUDIO.CR_UNREACHABLE", "Cannot reach One CommandCenter at " + url + (e.getMessage() == null ? "" : ": " + e.getMessage()), "Check the address and that One CommandCenter is running."); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("STUDIO.INTERRUPTED", "Interrupted"); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("STUDIO.INTERRUPTED", "Interrupted", "Try again; if it keeps happening, look in the runner's or Studio's log for this code."); }
         Object parsed;
         try { parsed = r.body().isBlank() ? Map.of() : JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("STUDIO.CR_BAD_RESPONSE", "Unexpected answer from " + url + " (HTTP " + r.statusCode() + ")", "Check One CommandCenter address."); }
         Map<String, Object> m = parsed instanceof Map ? (Map<String, Object>) parsed : Map.of();
@@ -80,7 +80,7 @@ final class ControlRoomLink {
     /** As above; {@code accepted}: the person accepted One CommandCenter's sign-in notice (Settings), when it must be accepted. */
     @SuppressWarnings("unchecked")
     Map<String, Object> connect(String crUrl, String username, String password, String code, boolean accepted) throws IOException {
-        if (crUrl == null || !crUrl.matches("^https?://[A-Za-z0-9.\\-:\\[\\]]+(/.*)?$")) throw new OoaException("STUDIO.BAD_URL", "Enter One CommandCenter address, e.g. http://localhost:8720");
+        if (crUrl == null || !crUrl.matches("^https?://[A-Za-z0-9.\\-:\\[\\]]+(/.*)?$")) throw new OoaException("STUDIO.BAD_URL", "Enter One CommandCenter address, e.g. http://localhost:8720", "Enter One CommandCenter's address, for example http://localhost:8720 or https://ooa.example.com.");
         url = crUrl.replaceAll("/+$", "");
         Map<String, Object> login = new java.util.HashMap<>(Map.of("username", username == null ? "" : username, "password", password == null ? "" : password));
         if (code != null && !code.isBlank()) login.put("code", code.trim());
@@ -107,7 +107,7 @@ final class ControlRoomLink {
         token = sessionToken;
         try {
             Map<String, Object> u = call("GET", "auth/me", null, true);
-            if (Boolean.TRUE.equals(u.get("must_change"))) throw new OoaException("STUDIO.CR_PASSWORD_CHANGE", "Your One CommandCenter password must be changed first");
+            if (Boolean.TRUE.equals(u.get("must_change"))) throw new OoaException("STUDIO.CR_PASSWORD_CHANGE", "Your One CommandCenter password must be changed first", "Sign in to One CommandCenter in the browser and change your password, then connect again.");
             user = u;
             adopted = true;
             return status();
@@ -245,8 +245,8 @@ final class ControlRoomLink {
      */
     @SuppressWarnings("unchecked")
     Map<String, Object> copyToPrivate(String repoPath, String to, JsonCodec json) throws IOException {
-        if (repoPath == null || repoPath.isBlank()) throw new OoaException("STUDIO.NOT_FOUND", "Choose the agent to copy");
-        if (to == null || to.isBlank()) throw new OoaException("STUDIO.BAD_NAME", "Give the copy a name");
+        if (repoPath == null || repoPath.isBlank()) throw new OoaException("STUDIO.NOT_FOUND", "Choose the agent to copy", "Choose the agent to copy.");
+        if (to == null || to.isBlank()) throw new OoaException("STUDIO.BAD_NAME", "Give the copy a name", "Give the copy a name.");
         String target = to.strip();
         String kind = repoPath.substring(repoPath.indexOf('.', repoPath.lastIndexOf('/') + 1));
         if (!target.endsWith(kind)) target = target + kind;
@@ -358,7 +358,7 @@ final class ControlRoomLink {
     @SuppressWarnings("unchecked")
     Map<String, Object> checkin(String local, String repoPathOverride, String comment, boolean production, JsonCodec json) throws IOException {
         Path p = ws.resolve(local);
-        if (!Files.isRegularFile(p)) throw new OoaException("STUDIO.NOT_FOUND", "Agent not found: " + local);
+        if (!Files.isRegularFile(p)) throw new OoaException("STUDIO.NOT_FOUND", "Agent not found: " + local, "Reload the workspace (F5); it may have been renamed, moved or deleted.");
         Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(p));
         Map<String, Object> m = mapping();
         String repoPath = repoPathOverride != null && !repoPathOverride.isBlank() ? repoPathOverride
@@ -418,8 +418,8 @@ final class ControlRoomLink {
                 try { if (JsonLite.parse(res.body()) instanceof Map<?, ?> m && m.get("error") instanceof Map<?, ?> e) msg = String.valueOf(e.get("message")); } catch (IllegalArgumentException ignored) { }
                 throw new OoaException("STUDIO.CR_FILE", "Cannot send " + path + " to One CommandCenter: " + msg, "Check you may add files to that folder.");
             }
-        } catch (IOException e) { throw new OoaException("STUDIO.CR_UNREACHABLE", "Cannot reach One CommandCenter at " + url, null); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("STUDIO.INTERRUPTED", "Interrupted"); }
+        } catch (IOException e) { throw new OoaException("STUDIO.CR_UNREACHABLE", "Cannot reach One CommandCenter at " + url, "Check One CommandCenter's address and that this computer can reach it (network, VPN, proxy)."); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("STUDIO.INTERRUPTED", "Interrupted", "Try again; if it keeps happening, look in the runner's or Studio's log for this code."); }
     }
 
     // ---------- what each private copy looked like when it was last checked in or out ----------

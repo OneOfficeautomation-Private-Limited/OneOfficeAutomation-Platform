@@ -178,7 +178,7 @@ public final class PoolScaling {
                     HttpRequest.Builder b = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(20)).POST(HttpRequest.BodyPublishers.ofString(body));
                     h.forEach((k, v) -> { if (!k.equals("host")) b.header(k, v); });
                     send(b.build(), "AWS Auto Scaling");
-                } catch (OoaException e) { throw e; } catch (Exception e) { throw new OoaException("CR.SCALE_FAILED", "Signing for AWS failed: " + e.getMessage()); }
+                } catch (OoaException e) { throw e; } catch (Exception e) { throw new OoaException("CR.SCALE_FAILED", "Signing for AWS failed: " + e.getMessage(), "Check the pool's cloud settings and credentials in Manage > Runners > Pools; the message has the cloud's answer."); }
             }
             default -> {
                 String token = azureToken(c);
@@ -201,7 +201,7 @@ public final class PoolScaling {
         String r = send(HttpRequest.newBuilder(URI.create(azureLogin + seg(c.get("tenant")) + "/oauth2/v2.0/token")).timeout(Duration.ofSeconds(20))
                 .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString(body)).build(), "Azure sign-in");
         Object t = ((Map<String, Object>) JsonLite.parse(r)).get("access_token");
-        if (!(t instanceof String s)) throw new OoaException("CR.SCALE_FAILED", "Azure gave no access token");
+        if (!(t instanceof String s)) throw new OoaException("CR.SCALE_FAILED", "Azure gave no access token", "Check the pool's cloud settings and credentials in Manage > Runners > Pools; the message has the cloud's answer.");
         return s;
     }
 
@@ -209,10 +209,10 @@ public final class PoolScaling {
         if (ctx.tenant() != null) ctx.checkHost(req.uri().toString(), what);
         try {
             HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
-            if (r.statusCode() / 100 != 2) throw new OoaException("CR.SCALE_FAILED", what + " answered HTTP " + r.statusCode() + ": " + r.body().substring(0, Math.min(300, r.body().length())));
+            if (r.statusCode() / 100 != 2) throw new OoaException("CR.SCALE_FAILED", what + " answered HTTP " + r.statusCode() + ": " + r.body().substring(0, Math.min(300, r.body().length())), "Check the pool's cloud settings and credentials in Manage > Runners > Pools; the message has the cloud's answer.");
             return r.body();
-        } catch (java.io.IOException e) { throw new OoaException("CR.SCALE_FAILED", "Cannot reach " + what + ": " + e.getMessage()); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("CR.SCALE_FAILED", "Interrupted"); }
+        } catch (java.io.IOException e) { throw new OoaException("CR.SCALE_FAILED", "Cannot reach " + what + ": " + e.getMessage(), "Check the pool's cloud settings and credentials in Manage > Runners > Pools; the message has the cloud's answer."); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("CR.SCALE_FAILED", "Interrupted", "Try again; if it keeps happening, an administrator can look in the server log."); }
     }
 
     public static String hmacHex(String secret, String body) {

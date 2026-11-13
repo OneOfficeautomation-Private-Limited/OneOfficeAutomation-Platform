@@ -68,9 +68,9 @@ public final class AiScreenPackage {
 
     @SuppressWarnings("unchecked")
     static Map<String, Object> locate(ActionContext ctx, String description, LlmClient.Config cfg, double minConfidence) {
-        if (description == null || description.isBlank()) throw new ActionException("VISION.NO_DESCRIPTION", "Describe the control to find");
+        if (description == null || description.isBlank()) throw new ActionException("VISION.NO_DESCRIPTION", "Describe the control to find", "Say in a few words which control to find, for example: the Save button at the bottom right.");
         Object[] pic;
-        try { pic = picture(screen.capture()); } catch (IOException e) { throw new ActionException("VISION.SCREEN", "Cannot take the screenshot: " + e.getMessage()); }
+        try { pic = picture(screen.capture()); } catch (IOException e) { throw new ActionException("VISION.SCREEN", "Cannot take the screenshot: " + e.getMessage(), "Make sure the runner has an unlocked desktop session (not a locked screen or a closed remote session)."); }
         int w = (int) pic[1], h = (int) pic[2];
         List<Object> content = List.of(Map.of("type", "text", "text", "Find: " + description.strip()), Map.of("type", "image", "media_type", "image/png", "data", pic[0]));
         LlmClient.Reply r = LlmClient.chat(ctx, cfg, List.of(Map.of("role", "system", "content", SYSTEM), Map.of("role", "user", "content", content)), null, true, "ai_screen");

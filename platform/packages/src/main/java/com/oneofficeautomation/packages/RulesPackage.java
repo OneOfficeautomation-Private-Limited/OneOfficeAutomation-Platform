@@ -48,8 +48,8 @@ public final class RulesPackage {
             if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Decision table not found: " + p, "Check the path.");
             List<List<String>> csv;
             try { csv = csv(Files.readString(p, StandardCharsets.UTF_8)); }
-            catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
-            if (csv.isEmpty()) throw new ActionException("RULES.EMPTY", "The decision table is empty");
+            catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
+            if (csv.isEmpty()) throw new ActionException("RULES.EMPTY", "The decision table is empty", "Add rows to the decision table.");
             head = csv.get(0);
             rows = new ArrayList<>();
             for (List<String> r : csv.subList(1, csv.size())) if (r.stream().anyMatch(c -> !c.isBlank())) rows.add(new ArrayList<>(r));
@@ -72,7 +72,7 @@ public final class RulesPackage {
             else if (low.equals("rule")) ruleCol = i;
         }
         if (ins.isEmpty() || outs.isEmpty()) throw new ActionException("RULES.BAD_TABLE", "A decision table needs in: and out: columns", "Header example: rule, in:amount, in:region, out:approver");
-        for (String n : inNames) if (!inputs.containsKey(n)) throw new ActionException("RULES.MISSING_INPUT", "The decision table tests " + n + ", but the inputs have no " + n);
+        for (String n : inNames) if (!inputs.containsKey(n)) throw new ActionException("RULES.MISSING_INPUT", "The decision table tests " + n + ", but the inputs have no " + n, "Add the input the message names, or remove its column from the table.");
         List<Map<String, Object>> hits = new ArrayList<>();
         List<String> names = new ArrayList<>();
         for (int r = 0; r < rows.size(); r++) {
@@ -93,7 +93,7 @@ public final class RulesPackage {
         if (policy.equals("unique") && hits.size() > 1) throw new ActionException("RULES.NOT_UNIQUE", "Several rules match: " + String.join(", ", names), "Make the rules exclusive, or use hit policy first.");
         Map<String, Object> out = new LinkedHashMap<>();
         if (hits.isEmpty()) {
-            if (failNone) throw new ActionException("RULES.NO_MATCH", "No rule of the decision table matches " + inputs);
+            if (failNone) throw new ActionException("RULES.NO_MATCH", "No rule of the decision table matches " + inputs, "Add a rule that matches these inputs, or a last row that matches anything.");
             out.put("outputs", defaults == null ? Map.of() : defaults); out.put("matched", false); out.put("rule", ""); out.put("all", List.of());
             return out;
         }
@@ -158,7 +158,7 @@ public final class RulesPackage {
 
     private static BigDecimal number(Object v, int row, String column) {
         BigDecimal n = v instanceof Number x ? new BigDecimal(x.toString()) : v == null ? null : num(Values.text(v));
-        if (n == null) throw new ActionException("RULES.NOT_A_NUMBER", "Row " + row + ", " + column + " compares numbers, but the input is " + (v == null ? "empty" : "'" + Values.text(v) + "'"));
+        if (n == null) throw new ActionException("RULES.NOT_A_NUMBER", "Row " + row + ", " + column + " compares numbers, but the input is " + (v == null ? "empty" : "'" + Values.text(v) + "'"), "Give a number for the input the message names.");
         return n;
     }
 

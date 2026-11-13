@@ -83,7 +83,7 @@ public final class KeySources {
     @SuppressWarnings("unchecked")
     static String azure(String secretUrl) throws Exception {
         URI u = URI.create(secretUrl);
-        if (!"https".equals(u.getScheme()) && !secretUrl.startsWith("http://127.0.0.1")) throw new OoaException("CR.VAULT_KEY", "The Key Vault secret address starts with https://");
+        if (!"https".equals(u.getScheme()) && !secretUrl.startsWith("http://127.0.0.1")) throw new OoaException("CR.VAULT_KEY", "The Key Vault secret address starts with https://", "Give the Key Vault secret's address starting with https://.");
         String token;
         String tenant = env.apply("AZURE_TENANT_ID"), client = env.apply("AZURE_CLIENT_ID"), secret = env.apply("AZURE_CLIENT_SECRET");
         if (tenant != null && client != null && secret != null) {
@@ -108,7 +108,7 @@ public final class KeySources {
 
     @SuppressWarnings("unchecked")
     static String gcp(String name) throws Exception {
-        if (!name.matches("projects/[^/]+/secrets/[^/]+/versions/[^/]+")) throw new OoaException("CR.VAULT_KEY", "The secret is projects/PROJECT/secrets/NAME/versions/latest");
+        if (!name.matches("projects/[^/]+/secrets/[^/]+/versions/[^/]+")) throw new OoaException("CR.VAULT_KEY", "The secret is projects/PROJECT/secrets/NAME/versions/latest", "Give the secret as projects/PROJECT/secrets/NAME/versions/latest.");
         String token = (String) json(HTTP.send(HttpRequest.newBuilder(URI.create(gcpMetadata + "/computeMetadata/v1/instance/service-accounts/default/token"))
             .timeout(Duration.ofSeconds(20)).header("Metadata-Flavor", "Google").GET().build(), HttpResponse.BodyHandlers.ofString())).get("access_token");
         Map<String, Object> r = json(HTTP.send(HttpRequest.newBuilder(URI.create(gcpSecrets + "/v1/" + name + ":access")).timeout(Duration.ofSeconds(20))
@@ -121,9 +121,9 @@ public final class KeySources {
     @SuppressWarnings("unchecked")
     static String aws(String spec) throws Exception {
         int slash = spec.indexOf('/');
-        if (slash <= 0) throw new OoaException("CR.VAULT_KEY", "The AWS secret is REGION/SECRET-ID, for example eu-west-1/ooa/master-key");
+        if (slash <= 0) throw new OoaException("CR.VAULT_KEY", "The AWS secret is REGION/SECRET-ID, for example eu-west-1/ooa/master-key", "Give the secret as REGION/SECRET-ID, for example eu-west-1/ooa/master-key.");
         String region = spec.substring(0, slash), id = spec.substring(slash + 1);
-        if (!region.matches("[a-z]{2}(-[a-z]+)+-\\d")) throw new OoaException("CR.VAULT_KEY", "Not an AWS region: " + region);
+        if (!region.matches("[a-z]{2}(-[a-z]+)+-\\d")) throw new OoaException("CR.VAULT_KEY", "Not an AWS region: " + region, "Use an AWS region name such as eu-west-1.");
         String[] creds = awsCredentials();
         String host = "secretsmanager." + region + ".amazonaws.com";
         String body = JsonLite.write(Map.of("SecretId", id));
@@ -162,7 +162,7 @@ public final class KeySources {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> json(HttpResponse<String> r) {
-        if (r.statusCode() / 100 != 2) throw new OoaException("CR.VAULT_KEY", "HTTP " + r.statusCode() + " from " + r.uri().getHost());
+        if (r.statusCode() / 100 != 2) throw new OoaException("CR.VAULT_KEY", "HTTP " + r.statusCode() + " from " + r.uri().getHost(), "Check that the server may read the secret (its identity's access policy) and that the address is right.");
         return (Map<String, Object>) JsonLite.parse(r.body());
     }
 }

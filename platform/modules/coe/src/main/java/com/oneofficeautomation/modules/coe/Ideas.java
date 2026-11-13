@@ -120,7 +120,7 @@ public final class Ideas {
         Map<String, Object> old = id == null ? null : db.one("SELECT " + COLS + " FROM ideas WHERE id = ?", id);
         if (id != null && old == null) throw notFound("Idea " + id);
         if (old != null && !manage && !(by.username().equals(old.get("submitted_by")) && "submitted".equals(old.get("status"))))
-            throw new OoaException("CR.FORBIDDEN", "You may change your own ideas while they are submitted; after that the automation team changes them");
+            throw new OoaException("CR.FORBIDDEN", "You may change your own ideas while they are submitted; after that the automation team changes them", "Ask the automation team to change it.");
         String title = text(b, "title", 200, true), description = text(b, "description", 4000, false), department = text(b, "department", 120, false),
             owner = text(b, "process_owner", 120, false);
         Integer vol = whole(b, "volume_month", 0, 10_000_000), min = whole(b, "minutes_each", 0, 100_000);
@@ -173,7 +173,7 @@ public final class Ideas {
         Map<String, Object> r = db.one("SELECT title, status, submitted_by FROM ideas WHERE id = ?", id);
         if (r == null) throw notFound("Idea " + id);
         if (!ctx.can(by, "ideas.manage") && !(by.username().equals(r.get("submitted_by")) && "submitted".equals(r.get("status"))))
-            throw new OoaException("CR.FORBIDDEN", "You may delete your own ideas while they are submitted");
+            throw new OoaException("CR.FORBIDDEN", "You may delete your own ideas while they are submitted", "Ask the automation team to remove it.");
         db.update("DELETE FROM ideas WHERE id = ?", id);
         ctx.audit(by.username(), "idea.delete", "idea", id, Map.of("title", r.get("title")), "ok", ip);
     }

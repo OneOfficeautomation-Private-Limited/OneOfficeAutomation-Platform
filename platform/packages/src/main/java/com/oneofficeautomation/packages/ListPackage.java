@@ -66,7 +66,7 @@ public final class ListPackage {
             Object r = out.remove(index(out, pos, false));
             return Out.of("list", out, "removed", r, "count", BigDecimal.ONE);
         }
-        if (value == null) throw new ActionException("LIST.NOTHING_TO_REMOVE", "Give a position or a value to remove");
+        if (value == null) throw new ActionException("LIST.NOTHING_TO_REMOVE", "Give a position or a value to remove", "Fill in either Position or Value.");
         List<Object> removed = new ArrayList<>();
         for (Iterator<Object> it = out.iterator(); it.hasNext(); ) {
             Object x = it.next();

@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { BucketFile, DataBucket, DataEntity, DataField, DataRecord } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TabPanel, Tabs, TextInput, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TabPanel, Tabs, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 
 /**
@@ -59,7 +59,7 @@ function Entities({ api, can, onNotice }: { api: CrApi; can: Can; onNotice: (t: 
     (x) => { setDeleting(null); setError(message(x)); });
   return (
     <>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters">{list && <span className="cc-list-count">{list.length} entities</span>}</div>
         <div className="cc-list-right" role="toolbar" aria-label="Entity tools">

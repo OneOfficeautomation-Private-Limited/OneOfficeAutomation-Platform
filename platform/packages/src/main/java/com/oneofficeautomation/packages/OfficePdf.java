@@ -67,7 +67,7 @@ public final class OfficePdf {
      */
     public static Method convert(ActionContext ctx, Path source, Path pdf, String app, String prefix, double timeoutSeconds) {
         List<String> tried = new ArrayList<>();
-        try { Files.deleteIfExists(pdf); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot replace " + pdf + ": " + e.getMessage()); }
+        try { Files.deleteIfExists(pdf); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot replace " + pdf + ": " + e.getMessage(), "Close the PDF if it is open in another program, and check that the runner's account may write there."); }
         if (ProcessRunner.WINDOWS) {
             String name = app.equals("word") ? "Microsoft Word" : "Microsoft PowerPoint";
             Path script = null;
@@ -163,7 +163,7 @@ public final class OfficePdf {
                 last = size;
                 Thread.sleep(500);
             } catch (IOException e) { stable = 0; }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted while waiting for " + file); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted while waiting for " + file, "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
         throw new ActionException("FILE.NOT_CREATED", "The PDF " + file + " was not written within " + (int) maxSeconds + " s",
                 "Check the printer queue and that the target folder is writable.");

@@ -113,16 +113,16 @@ public final class LicenseStudio {
 
     Map<String, Object> issue(Map<String, Object> b) throws IOException {
         String customer = str(b.get("customer"));
-        if (customer.isEmpty() || customer.length() > 200) throw new OoaException("STUDIO.BAD_INPUT", "Give the customer's name (up to 200 characters)");
+        if (customer.isEmpty() || customer.length() > 200) throw new OoaException("STUDIO.BAD_INPUT", "Give the customer's name (up to 200 characters)", "Correct the value the message names and make the license again.");
         LocalDate expires;
-        try { expires = LocalDate.parse(str(b.get("expires"))); } catch (RuntimeException e) { throw new OoaException("STUDIO.BAD_INPUT", "Choose the expiry date"); }
-        if (!expires.isAfter(LocalDate.now())) throw new OoaException("STUDIO.BAD_INPUT", "The expiry date must be in the future");
+        try { expires = LocalDate.parse(str(b.get("expires"))); } catch (RuntimeException e) { throw new OoaException("STUDIO.BAD_INPUT", "Choose the expiry date", "Correct the value the message names and make the license again."); }
+        if (!expires.isAfter(LocalDate.now())) throw new OoaException("STUDIO.BAD_INPUT", "The expiry date must be in the future", "Correct the value the message names and make the license again.");
         int grace = num(b.get("grace_days"), 14, 0, 90, "Grace days");
         Map<String, Integer> seats = new LinkedHashMap<>();
         Map<String, Object> in = b.get("seats") instanceof Map<?, ?> s ? castMap(s) : Map.of();
         int sum = 0;
         for (String t : License.TYPES) { int n = num(in.get(t), 0, 0, 100000, t + " seats"); seats.put(t, n); sum += n; }
-        if (sum == 0) throw new OoaException("STUDIO.BAD_INPUT", "Give at least one seat");
+        if (sum == 0) throw new OoaException("STUDIO.BAD_INPUT", "Give at least one seat", "Correct the value the message names and make the license again.");
         if (!keyMatches()) throw new OoaException("STUDIO.KEY", "The private key in " + keyFile + " does not match the key built into the product", "Use the key made with ooa license keygen for this product");
         String installId = installId(str(b.get("install_id")), Boolean.TRUE.equals(b.get("any_install")));
         String edition = str(b.getOrDefault("edition", "Enterprise"));
@@ -153,7 +153,7 @@ public final class LicenseStudio {
         if (any) return "";
         String v = id == null ? "" : id.trim().toUpperCase(Locale.ROOT);
         if (!v.matches("OOA(-[A-Z0-9]{4}){4}"))
-            throw new OoaException("STUDIO.BAD_INPUT", "Give the customer's install id (OOA-XXXX-XXXX-XXXX-XXXX, shown in Administration > Licenses), or choose any installation");
+            throw new OoaException("STUDIO.BAD_INPUT", "Give the customer's install id (OOA-XXXX-XXXX-XXXX-XXXX, shown in Administration > Licenses), or choose any installation", "Correct the value the message names and make the license again.");
         return v;
     }
 
@@ -202,9 +202,9 @@ public final class LicenseStudio {
 
     private static Map<String, Object> body(HttpExchange ex) throws IOException {
         byte[] b = ex.getRequestBody().readNBytes(256 * 1024 + 1);
-        if (b.length > 256 * 1024) throw new OoaException("STUDIO.TOO_LARGE", "The request is too large");
+        if (b.length > 256 * 1024) throw new OoaException("STUDIO.TOO_LARGE", "The request is too large", "Send less at a time.");
         Object o = JsonLite.parse(new String(b, StandardCharsets.UTF_8));
-        if (!(o instanceof Map<?, ?> m)) throw new OoaException("STUDIO.BAD_INPUT", "Expected a JSON object");
+        if (!(o instanceof Map<?, ?> m)) throw new OoaException("STUDIO.BAD_INPUT", "Expected a JSON object", "Correct the value the message names and make the license again.");
         return castMap(m);
     }
 
@@ -233,8 +233,8 @@ public final class LicenseStudio {
         if (o == null || String.valueOf(o).isBlank()) return dflt;
         int n;
         try { n = o instanceof Number x ? x.intValue() : Integer.parseInt(String.valueOf(o).trim()); }
-        catch (NumberFormatException e) { throw new OoaException("STUDIO.BAD_INPUT", what + " must be a whole number"); }
-        if (n < min || n > max) throw new OoaException("STUDIO.BAD_INPUT", what + " must be from " + min + " to " + max);
+        catch (NumberFormatException e) { throw new OoaException("STUDIO.BAD_INPUT", what + " must be a whole number", "Correct the value the message names and make the license again."); }
+        if (n < min || n > max) throw new OoaException("STUDIO.BAD_INPUT", what + " must be from " + min + " to " + max, "Correct the value the message names and make the license again.");
         return n;
     }
 

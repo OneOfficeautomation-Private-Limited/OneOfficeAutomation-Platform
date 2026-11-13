@@ -29,7 +29,7 @@ public final class NetGuard {
             throw blocked(what, host);
         InetAddress[] all;
         try { all = InetAddress.getAllByName(host); }
-        catch (UnknownHostException e) { throw new OoaException("SAAS.UNKNOWN_HOST", what + ": the name " + host + " is not known"); }
+        catch (UnknownHostException e) { throw new OoaException("SAAS.UNKNOWN_HOST", what + ": the name " + host + " is not known", "Check the host name for typing errors, and that the server's DNS can find it."); }
         for (InetAddress a : all) if (!isPublic(a)) throw blocked(what, host);
     }
 

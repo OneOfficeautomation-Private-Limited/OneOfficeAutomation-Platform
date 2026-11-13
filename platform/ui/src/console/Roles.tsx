@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrRole } from "../api/cr";
-import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic } from "../components";
+import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { roleName } from "./roleNames";
 
@@ -215,7 +215,7 @@ export function Roles({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
         <span className="ov-fill" />
         <Button kind="primary" onClick={() => setPage({ role: null })}>Create role</Button>
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search roles" placeholder="Search roles" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>

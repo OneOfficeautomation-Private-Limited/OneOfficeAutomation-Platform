@@ -57,7 +57,7 @@ public final class RunWaits {
     public Map<String, Object> createCallback(Map<String, Object> run, String actor) {
         String runId = (String) run.get("id");
         if (cr.count("SELECT COUNT(*) AS n FROM run_waits WHERE run_id = ? AND kind = 'callback'", runId) >= MAX_CALLBACKS_PER_RUN)
-            throw new OoaException("LONGRUN.TOO_MANY", "A run makes at most " + MAX_CALLBACKS_PER_RUN + " callback URLs");
+            throw new OoaException("LONGRUN.TOO_MANY", "A run makes at most " + MAX_CALLBACKS_PER_RUN + " callback URLs", "Make fewer callback addresses in one run.");
         String base = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
         if (base.isEmpty() || base.equals("null"))
             throw new OoaException("LONGRUN.NO_PUBLIC_URL", "One CommandCenter does not know its own address, so it cannot make a callback URL",
@@ -112,7 +112,7 @@ public final class RunWaits {
         String id = text(a.get("task_id"), 100);
         Map<String, Object> t = id == null ? null : db.one("SELECT status, outcome, result, data FROM human_tasks WHERE id = ?", id);
         if (t == null || !(t.get("data") instanceof String d) || !(JsonLite.parse(d) instanceof Map<?, ?> m) || !rootRun((String) run.get("id")).equals(m.get("_run")))
-            throw new OoaException("CR.NOT_FOUND", "There is no task " + id + " made by this run");
+            throw new OoaException("CR.NOT_FOUND", "There is no task " + id + " made by this run", "Check the task id; only tasks this run made can be read here.");
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("status", t.get("status"));
         out.put("outcome", t.get("outcome"));
@@ -127,13 +127,13 @@ public final class RunWaits {
     @SuppressWarnings("unchecked")
     public Map<String, Object> suspend(Map<String, Object> run, User as, Map<String, Object> a, String actor) {
         String runId = (String) run.get("id");
-        if (ServerlessRuns.DEVICE.equals(run.get("device_id"))) throw new OoaException("LONGRUN.NOT_AVAILABLE", "Serverless Agent APIs cannot be suspended");
+        if (ServerlessRuns.DEVICE.equals(run.get("device_id"))) throw new OoaException("LONGRUN.NOT_AVAILABLE", "Serverless Agent APIs cannot be suspended", "Run the agent on a runner (not as a serverless Agent API) when it needs to wait.");
         String kind = String.valueOf(a.get("kind"));
         if (!KINDS.contains(kind)) throw new OoaException("CR.BAD_INPUT", "Wait for one of: " + String.join(", ", new TreeSet<>(KINDS)));
         String step = text(a.get("step_id"), 200);
         if (step == null) throw new OoaException("CR.BAD_INPUT", "The step to resume at is missing");
         if (db.one("SELECT id FROM run_waits WHERE run_id = ? AND status = 'waiting' AND step_id IS NOT NULL", runId) != null)
-            throw new OoaException("CR.CONFLICT", "This run is already suspended");
+            throw new OoaException("CR.CONFLICT", "This run is already suspended", "Reload Agent Activity: the run has moved on, so this action no longer applies.");
         String values = JsonLite.write(a.get("values") instanceof Map<?, ?> v ? v : Map.of());
         if (values.length() > MAX_VALUES) throw new OoaException("LONGRUN.TOO_LARGE", "The agent's values take " + values.length() + " characters; at most " + MAX_VALUES + " can be kept while it waits",
             "Keep big tables and texts in a file or a work item, and only their name in a variable.");
@@ -142,7 +142,7 @@ public final class RunWaits {
         String poolId = null;
         if (a.get("pool") instanceof String p && !p.isBlank()) {
             Map<String, Object> pool = db.one("SELECT id FROM device_pools WHERE id = ? OR name = ?", p.strip(), p.strip());
-            if (pool == null) throw new OoaException("CR.NOT_FOUND", "There is no runner pool '" + p + "'");
+            if (pool == null) throw new OoaException("CR.NOT_FOUND", "There is no runner pool '" + p + "'", "Check the pool's name in Manage > Runners > Pools.");
             poolId = (String) pool.get("id");
             cr.platform.requirePoolUse(as.username(), as.role(), poolId);
         }
@@ -152,24 +152,24 @@ public final class RunWaits {
             case "time" -> { resumeAt = when(ref); ref = resumeAt.toString(); }
             case "task" -> {
                 Map<String, Object> t = ref == null ? null : db.one("SELECT * FROM human_tasks WHERE id = ?", ref);
-                if (t == null || !mayWaitForTask(t, as, runId)) throw new OoaException("CR.NOT_FOUND", "There is no task '" + ref + "' that " + as.username() + " may wait for");
+                if (t == null || !mayWaitForTask(t, as, runId)) throw new OoaException("CR.NOT_FOUND", "There is no task '" + ref + "' that " + as.username() + " may wait for", "Check the task id; you may wait only for tasks you may see.");
             }
             case "queue_item" -> {
                 Map<String, Object> i = ref == null ? null : db.one("SELECT queue_id FROM queue_items WHERE id = ?", ref);
-                if (i == null) throw new OoaException("CR.NOT_FOUND", "There is no work item '" + ref + "'");
+                if (i == null) throw new OoaException("CR.NOT_FOUND", "There is no work item '" + ref + "'", "Check the work item's id or reference in Manage > Work queues.");
                 cr.require(as, "queues.view", "see work queues");
                 cr.platform.requireQueue(as, (String) i.get("queue_id"), "view", "see this work queue");
             }
             case "job" -> {
                 cr.require(as, "runs.view", "see other runs");
                 Map<String, Object> r = ref == null ? null : db.one("SELECT bot_path FROM runs WHERE id = ?", ref);
-                if (r == null || !cr.folders.mayView(as, (String) r.get("bot_path"))) throw new OoaException("CR.NOT_FOUND", "There is no run '" + ref + "' that " + as.username() + " may see");
+                if (r == null || !cr.folders.mayView(as, (String) r.get("bot_path"))) throw new OoaException("CR.NOT_FOUND", "There is no run '" + ref + "' that " + as.username() + " may see", "Check the run id in Agent Activity; you see only runs you started or may manage.");
                 if (rootRun(ref).equals(rootRun(runId))) throw new OoaException("CR.BAD_INPUT", "A run cannot wait for itself");
             }
             case "callback" -> {
                 Map<String, Object> w = ref == null ? null : db.one("SELECT * FROM run_waits WHERE id = ? AND kind = 'callback'", ref);
                 if (w == null || !runId.equals(w.get("run_id"))) throw new OoaException("CR.NOT_FOUND", "There is no callback '" + ref + "' of this run", "Make one with Create callback URL in this run.");
-                if (!"waiting".equals(w.get("status"))) throw new OoaException("CR.CONFLICT", "That callback is " + w.get("status"));
+                if (!"waiting".equals(w.get("status"))) throw new OoaException("CR.CONFLICT", "That callback is " + w.get("status"), "Reload Agent Activity: the run has moved on, so this action no longer applies.");
                 db.update("UPDATE run_waits SET step_id = ?, saved_values = ?, timeout_at = ?, pool_id = ?, device_id = ? WHERE id = ? AND status = 'waiting'",
                     step, values, timeoutAt, poolId, run.get("device_id"), ref);
                 cr.audit.record(actor, "run.suspend", "run", runId, Map.of("wait", ref, "kind", kind), "ok", null);
@@ -267,15 +267,15 @@ public final class RunWaits {
         // the lookup is by hash; the hashes are compared again in constant time
         if (w == null || !MessageDigest.isEqual(hash.getBytes(StandardCharsets.US_ASCII), String.valueOf(w.get("token_hash")).getBytes(StandardCharsets.US_ASCII)))
             throw notFound("Callback");
-        if (!"waiting".equals(w.get("status")) || w.get("resume_at") != null) throw new OoaException("CR.CONFLICT", "This callback was already used, or its run no longer waits");
-        if (body.length > MAX_CALLBACK_BODY) throw new OoaException("CR.TOO_LARGE", "A callback body is at most 64 KB");
+        if (!"waiting".equals(w.get("status")) || w.get("resume_at") != null) throw new OoaException("CR.CONFLICT", "This callback was already used, or its run no longer waits", "Reload Agent Activity: the run has moved on, so this action no longer applies.");
+        if (body.length > MAX_CALLBACK_BODY) throw new OoaException("CR.TOO_LARGE", "A callback body is at most 64 KB", "Send a callback body of at most 64 KB.");
         String text = new String(body, StandardCharsets.UTF_8);
         Object parsed;
         try { parsed = text.isBlank() ? new LinkedHashMap<>() : JsonLite.parse(text); }
-        catch (IllegalArgumentException e) { throw new OoaException("CR.BAD_JSON", "The callback body is not valid JSON"); }
+        catch (IllegalArgumentException e) { throw new OoaException("CR.BAD_JSON", "The callback body is not valid JSON", "Send the callback body as JSON."); }
         Map<String, Object> result = parsed instanceof Map<?, ?> m ? new LinkedHashMap<>(cast(m)) : new LinkedHashMap<>(Map.of("value", parsed == null ? "" : parsed));
         if (db.update("UPDATE run_waits SET payload = ?, resume_at = ? WHERE id = ? AND status = 'waiting' AND resume_at IS NULL", JsonLite.write(result), now(), w.get("id")) != 1)
-            throw new OoaException("CR.CONFLICT", "This callback was already used");
+            throw new OoaException("CR.CONFLICT", "This callback was already used", "Reload Agent Activity: the run has moved on, so this action no longer applies.");
         cr.audit.record("callback", "run.callback", "run", (String) w.get("run_id"), Map.of("callback", w.get("id"), "bytes", body.length), "ok", ip);
         if (cr.cluster.isLeader()) Thread.ofVirtual().start(() -> { try { tick(); } catch (RuntimeException ignored) { /* the clock tries again */ } });
         return Map.of("accepted", true);
@@ -392,7 +392,7 @@ public final class RunWaits {
         String path = (String) run.get("bot_path"), requestedBy = (String) run.get("requested_by");
         String principal = (String) (run.get("run_as") != null ? run.get("run_as") : requestedBy);
         if (db.one("SELECT id FROM users WHERE username = ? AND enabled = TRUE", principal) == null)
-            throw new OoaException("LONGRUN.NO_USER", "The run's user " + principal + " is no longer an active user");
+            throw new OoaException("LONGRUN.NO_USER", "The run's user " + principal + " is no longer an active user", "Ask an administrator to enable the run's user, or start the run again as another user.");
         Map<String, Object> starter = db.one("SELECT role FROM users WHERE username = ?", requestedBy);
         if (starter != null) {   // a person started it: they must still be allowed to run the agent
             String role = (String) starter.get("role");
@@ -403,7 +403,7 @@ public final class RunWaits {
         if (w.get("pool_id") != null) { String picked = cr.platform.pickDevice((String) w.get("pool_id")); if (picked != null) deviceId = picked; }
         Map<String, Object> dev = deviceId == null ? null : db.one("SELECT enabled FROM devices WHERE id = ?", deviceId);
         if (dev == null) throw new OoaException("CR.NOT_FOUND", "The runner of the run is gone", "Wait with a runner pool (the Pool field) so any runner of the pool can carry on.");
-        if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "The runner of the run is disabled");
+        if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "The runner of the run is disabled", "Enable the runner in Manage > Runners, or let the run go on on another runner.");
         cr.licensing.requireRunnable(deviceId, principal, String.valueOf(run.get("source")));
         Map<String, Object> flow = (Map<String, Object>) cr.content(path, run.get("version")).get("flow");
         Map<String, Object> inputs = run.get("inputs") == null ? new LinkedHashMap<>() : new LinkedHashMap<>((Map<String, Object>) JsonLite.parse((String) run.get("inputs")));
@@ -468,7 +468,7 @@ public final class RunWaits {
         r.putIfAbsent("resumed_by_user", by.username());
         if (JsonLite.write(r).length() > MAX_PAYLOAD) throw new OoaException("CR.BAD_INPUT", "The result is larger than 100,000 characters");
         String next = resume(w, answer(w, false, r), by.username(), ip);
-        if (next == null) throw new OoaException("CR.CONFLICT", "The run no longer waits");
+        if (next == null) throw new OoaException("CR.CONFLICT", "The run no longer waits", "Reload Agent Activity: the run has moved on, so this action no longer applies.");
         return Map.of("run_id", next);
     }
 
@@ -493,7 +493,7 @@ public final class RunWaits {
     private Map<String, Object> waitFor(User by, String waitId) {
         Map<String, Object> w = db.one("SELECT * FROM run_waits WHERE id = ? AND step_id IS NOT NULL", waitId);
         if (w == null || !cr.folders.mayView(by, (String) w.get("bot_path"))) throw notFound("Wait");
-        if (!"waiting".equals(w.get("status"))) throw new OoaException("CR.CONFLICT", "The run no longer waits (" + w.get("status") + ")");
+        if (!"waiting".equals(w.get("status"))) throw new OoaException("CR.CONFLICT", "The run no longer waits (" + w.get("status") + ")", "Reload Agent Activity: the run has moved on, so this action no longer applies.");
         return w;
     }
 

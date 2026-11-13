@@ -166,7 +166,7 @@ public class UiaBridge implements AutoCloseable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             close();
-            throw new ActionException("RUN.CANCELLED", "Interrupted");
+            throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on.");
         } catch (IllegalArgumentException e) {
             return null;   // not a protocol line
         }

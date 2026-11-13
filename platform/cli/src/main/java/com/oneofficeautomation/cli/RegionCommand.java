@@ -73,7 +73,7 @@ final class RegionCommand {
     static int tenant(String verb, Map<String, String> o, List<String> pos) throws Exception {
         String base = o.get("url").replaceAll("/+$", "");
         String token = System.getenv(o.get("token-env"));
-        if (token == null || token.isBlank()) throw new OoaException("SAAS.TOKEN", "Set " + o.get("token-env") + " to the operator token");
+        if (token == null || token.isBlank()) throw new OoaException("SAAS.TOKEN", "Set " + o.get("token-env") + " to the operator token", "Set the environment variable to the region's operator token (ooa region token makes one).");
         Object r = switch (verb) {
             case "list" -> call(base, "GET", "/api/operator/tenants", null, token);
             case "create" -> {
@@ -114,7 +114,7 @@ final class RegionCommand {
     static int template(String verb, Map<String, String> o, List<String> pos) throws Exception {
         String base = o.get("url").replaceAll("/+$", "");
         String token = System.getenv(o.get("token-env"));
-        if (token == null || token.isBlank()) throw new OoaException("SAAS.TOKEN", "Set " + o.get("token-env") + " to the operator token");
+        if (token == null || token.isBlank()) throw new OoaException("SAAS.TOKEN", "Set " + o.get("token-env") + " to the operator token", "Set the environment variable to the region's operator token (ooa region token makes one).");
         if (verb.equals("list")) {
             String status = o.getOrDefault("status", "pending");
             Map<String, Object> r = (Map<String, Object>) call(base, "GET", "/api/operator/templates" + (status.equals("all") ? "" : "?status=" + status), null, token);
@@ -138,7 +138,7 @@ final class RegionCommand {
         for (String part : s.split(",")) {
             if (part.isBlank()) continue;
             String[] kv = part.split("=", 2);
-            if (kv.length != 2 || !kv[1].trim().matches("\\d{1,6}")) throw new OoaException("CLI.BAD_INPUT", "--seats is KIND=COUNT,KIND=COUNT, such as developer=2,unattended_runner=5");
+            if (kv.length != 2 || !kv[1].trim().matches("\\d{1,6}")) throw new OoaException("CLI.BAD_INPUT", "--seats is KIND=COUNT,KIND=COUNT, such as developer=2,unattended_runner=5", "Write seats as KIND=COUNT pairs separated by commas, for example developer=2,unattended_runner=5.");
             m.put(kv[0].trim(), Integer.parseInt(kv[1].trim()));
         }
         return m;
@@ -150,11 +150,11 @@ final class RegionCommand {
             .method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body));
         HttpResponse<String> r = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build().send(b.build(), HttpResponse.BodyHandlers.ofString());
         Object json;
-        try { json = JsonLite.parse(r.body()); } catch (RuntimeException e) { throw new OoaException("SAAS.API", "The region answered " + r.statusCode() + " without JSON"); }
+        try { json = JsonLite.parse(r.body()); } catch (RuntimeException e) { throw new OoaException("SAAS.API", "The region answered " + r.statusCode() + " without JSON", "Check the region's address; it may be behind a proxy that answers with a web page."); }
         if (r.statusCode() / 100 != 2) {
             Object err = json instanceof Map<?, ?> m ? m.get("error") : null;
             Object msg = err instanceof Map<?, ?> e ? e.get("message") : r.body();
-            throw new OoaException("SAAS.API", "The region refused: " + msg + " (HTTP " + r.statusCode() + ")");
+            throw new OoaException("SAAS.API", "The region refused: " + msg + " (HTTP " + r.statusCode() + ")", "Correct what the message names and run the command again.");
         }
         return json;
     }
@@ -171,10 +171,10 @@ final class RegionCommand {
             if (k.matches("region\\.[a-z0-9-]+\\.domain")) {
                 String name = k.split("\\.")[1];
                 String sha = p.getProperty("region." + name + ".token_sha256", "").trim().toLowerCase(Locale.ROOT);
-                if (!sha.matches("[0-9a-f]{64}")) throw new OoaException("SAAS.CONFIG", "region." + name + ".token_sha256 is 64 hex digits (ooa region token)");
+                if (!sha.matches("[0-9a-f]{64}")) throw new OoaException("SAAS.CONFIG", "region." + name + ".token_sha256 is 64 hex digits (ooa region token)", "Make the token's hash with ooa region token and paste all 64 hex digits.");
                 regions.add(new RegionDirectory.Region(name, p.getProperty(k).trim().toLowerCase(Locale.ROOT), sha));
             }
-        if (regions.isEmpty()) throw new OoaException("SAAS.CONFIG", "No regions in " + file);
+        if (regions.isEmpty()) throw new OoaException("SAAS.CONFIG", "No regions in " + file, "Add the regions to the file (ooa region add).");
         String url = p.getProperty("db.url", "").trim();
         String pw = p.getProperty("db.password_env", "").isBlank() ? "" : System.getenv(p.getProperty("db.password_env").trim());
         Db db = url.isEmpty() ? Db.h2File(data) : new Db(url, p.getProperty("db.user", "").trim(), pw == null ? "" : pw, 4);

@@ -63,7 +63,7 @@ public final class KnowledgePackage {
                 if (e.getName().equals("word/document.xml"))
                     return untag(new String(z.readAllBytes(), StandardCharsets.UTF_8).replaceAll("</w:p>", "\n").replaceAll("<w:tab/>", "\t"));
         }
-        throw new ActionException(P + ".UNSUPPORTED", "The file is not a Word document");
+        throw new ActionException(P + ".UNSUPPORTED", "The file is not a Word document", "Give a .docx file, or convert the document to Word or PDF first.");
     }
 
     /** Old Word, RTF and PowerPoint files through the Office toolkits when the runner has them. */
@@ -73,8 +73,8 @@ public final class KnowledgePackage {
         } catch (ClassNotFoundException e) {
             throw new ActionException(P + ".UNSUPPORTED", "This runner cannot read " + f.getFileName(), "Pass the text with texts instead.");
         } catch (java.lang.reflect.InvocationTargetException e) {
-            throw e.getCause() instanceof RuntimeException r ? r : new ActionException(P + ".UNREADABLE", "Cannot read " + f.getFileName());
-        } catch (ReflectiveOperationException e) { throw new ActionException(P + ".UNREADABLE", "Cannot read " + f.getFileName() + ": " + e); }
+            throw e.getCause() instanceof RuntimeException r ? r : new ActionException(P + ".UNREADABLE", "Cannot read " + f.getFileName(), "Check that the file exists and that the runner's account may read it.");
+        } catch (ReflectiveOperationException e) { throw new ActionException(P + ".UNREADABLE", "Cannot read " + f.getFileName() + ": " + e, "Check that the file is not damaged or open in another program, and that the runner's account may read it."); }
     }
 
     /** PDF text through the PDF toolkit's library when the runner has it. */
@@ -169,7 +169,7 @@ public final class KnowledgePackage {
         if (!Files.isRegularFile(file)) throw new ActionException(P + ".NO_INDEX", "No knowledge index at " + file, "Make it with Build index first.");
         try (InputStream in = file.toString().endsWith(".gz") ? new GZIPInputStream(Files.newInputStream(file)) : Files.newInputStream(file)) {
             Map<String, Object> d = (Map<String, Object>) JsonLite.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
-            if (!"ooa-knowledge".equals(d.get("format"))) throw new ActionException(P + ".BAD_INDEX", file + " is not a knowledge index");
+            if (!"ooa-knowledge".equals(d.get("format"))) throw new ActionException(P + ".BAD_INDEX", file + " is not a knowledge index", "Give an index file made by Build a knowledge index, or a knowledge base name.");
             List<Chunk> cs = new ArrayList<>();
             for (Object o : (List<Object>) d.getOrDefault("chunks", List.of())) {
                 Map<String, Object> c = (Map<String, Object>) o;
@@ -251,7 +251,7 @@ public final class KnowledgePackage {
 
     static String safeName(String kb) {
         String n = kb.strip();
-        if (!n.matches("[A-Za-z0-9 _.-]{1,80}") || n.contains("..")) throw new ActionException(P + ".BAD_NAME", "The knowledge base name '" + kb + "' is not allowed");
+        if (!n.matches("[A-Za-z0-9 _.-]{1,80}") || n.contains("..")) throw new ActionException(P + ".BAD_NAME", "The knowledge base name '" + kb + "' is not allowed", "Use letters, digits, spaces, - and _ only in a knowledge base name.");
         return n;
     }
 
@@ -268,7 +268,7 @@ public final class KnowledgePackage {
 
     static Path indexPath(ActionContext ctx, String indexFile, String kb) {
         if (!blank(indexFile)) return ctx.resolvePath(indexFile);
-        if (blank(kb)) throw new ActionException(P + ".NO_INDEX", "Give an index file or a knowledge base");
+        if (blank(kb)) throw new ActionException(P + ".NO_INDEX", "Give an index file or a knowledge base", "Fill in either Index file or Knowledge base.");
         var svc = kbService(ctx);
         if (svc == null) return ctx.workDir().resolve("knowledge-bases").resolve(safeName(kb) + ".json.gz");
         Path cache = ctx.workDir().resolve(".ooa-knowledge").resolve(safeName(kb) + ".json.gz"), shaFile = cache.resolveSibling(cache.getFileName() + ".sha256");
@@ -280,17 +280,17 @@ public final class KnowledgePackage {
                 Files.write(cache, Base64.getDecoder().decode(String.valueOf(r.get("content"))));
                 Files.writeString(shaFile, String.valueOf(r.get("sha256")));
             }
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot keep the knowledge base: " + e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot keep the knowledge base: " + e.getMessage(), "Check that the knowledge base folder has space and that the runner's account may write there.", true); }
         return cache;
     }
 
     /** A web page's text (G71): HTML without its tags, plain text as it is, a PDF read as a file. */
     static String fetch(ActionContext ctx, String url) throws IOException, InterruptedException {
-        if (!url.matches("(?i)https?://\\S+")) throw new ActionException(P + ".BAD_URL", "Not a web address: " + url);
+        if (!url.matches("(?i)https?://\\S+")) throw new ActionException(P + ".BAD_URL", "Not a web address: " + url, "Give the full address, starting with https://.");
         var client = java.net.http.HttpClient.newBuilder().followRedirects(java.net.http.HttpClient.Redirect.NORMAL).connectTimeout(java.time.Duration.ofSeconds(20)).build();
         var res = client.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create(url)).timeout(java.time.Duration.ofSeconds(60)).header("User-Agent", "OneOfficeAutomation-Knowledge").GET().build(),
             java.net.http.HttpResponse.BodyHandlers.ofByteArray());
-        if (res.statusCode() >= 400) throw new ActionException(P + ".FETCH", "HTTP " + res.statusCode());
+        if (res.statusCode() >= 400) throw new ActionException(P + ".FETCH", "HTTP " + res.statusCode(), "Check the address, and that the site lets the runner read it (it may need a sign-in or block automated readers).");
         String type = res.headers().firstValue("Content-Type").orElse("").toLowerCase(Locale.ROOT);
         if (type.contains("pdf")) {
             Path tmp = Files.createTempFile("ooa-kb-", ".pdf");
@@ -324,21 +324,21 @@ public final class KnowledgePackage {
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mask emails, phone and card numbers before they are sent for embedding (search by those then works by words only).") boolean mask,
             @Input(name = "knowledge_base", type = OoaType.STRING, required = false, visibleWhen = "index_file=", description = D_KB) String kb,
             @Input(name = "urls", type = OoaType.LIST, required = false, description = "Web pages to read (https:// addresses of intranet or public pages; HTML, text or PDF).") List<Object> urls) {
-        if (blank(indexFile) && blank(kb)) throw new ActionException(P + ".NO_INDEX", "Say where the index goes: an index file or a knowledge base");
+        if (blank(indexFile) && blank(kb)) throw new ActionException(P + ".NO_INDEX", "Say where the index goes: an index file or a knowledge base", "Fill in either Index file or Knowledge base, to say where the index is saved.");
         List<Doc> docs = new ArrayList<>();
         List<Object> skipped = new ArrayList<>();
         for (Object o : urls == null ? List.of() : urls) {
             String u = Values.text(o).strip();
             try { docs.add(new Doc(u, fetch(ctx, u))); }
             catch (ActionException | IOException e) { skipped.add(Map.of("file", u, "reason", String.valueOf(e.getMessage()))); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Stopped"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Stopped", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
         for (Object o : files == null ? List.of() : files) {
             Path p = ctx.resolvePath(Values.text(o));
             List<Path> list = new ArrayList<>();
             if (Files.isDirectory(p)) {
                 try (Stream<Path> s = Files.walk(p)) { s.filter(Files::isRegularFile).sorted().forEach(list::add); }
-                catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+                catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the files exist, are not open in another program, and that the runner's account may read them."); }
             } else if (Files.isRegularFile(p)) list.add(p);
             else throw new ActionException("FILE.NOT_FOUND", "Not found: " + p, "Check the path.");
             for (Path f : list) {
@@ -348,10 +348,10 @@ public final class KnowledgePackage {
             }
         }
         for (Object o : texts == null ? List.of() : texts) {
-            if (!(o instanceof Map<?, ?> m) || m.get("text") == null) throw new ActionException(P + ".BAD_INPUT", "Each item of texts is a dictionary with source and text");
+            if (!(o instanceof Map<?, ?> m) || m.get("text") == null) throw new ActionException(P + ".BAD_INPUT", "Each item of texts is a dictionary with source and text", "Give texts as a list of dictionaries, each with source and text, for example [{\"source\": \"faq\", \"text\": \"...\"}].");
             docs.add(new Doc(m.get("source") == null ? "text " + (docs.size() + 1) : Values.text(m.get("source")), Values.text(m.get("text"))));
         }
-        if (overlap >= size) throw new ActionException(P + ".BAD_INPUT", "overlap must be smaller than chunk_size");
+        if (overlap >= size) throw new ActionException(P + ".BAD_INPUT", "overlap must be smaller than chunk_size", "Make overlap smaller than chunk_size (for example chunk_size 1000 and overlap 100).");
         List<Chunk> chunks = new ArrayList<>();
         for (Doc d : docs) {
             int seq = 0;
@@ -387,7 +387,7 @@ public final class KnowledgePackage {
                 } finally { Files.deleteIfExists(tmp); }
             }
         }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the index: " + e.getMessage()); }
+        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the index: " + e.getMessage(), "Check that the folder exists, has space, and that the runner's account may write there."); }
         return Map.of("passages", BigDecimal.valueOf(chunks.size()), "documents", BigDecimal.valueOf(docs.size()), "skipped", skipped);
     }
 

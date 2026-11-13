@@ -194,7 +194,7 @@ public final class WebObjects {
     static Locator locate(ActionContext ctx, BrowserPackage.BrowserSession bs, Map<String, Object> object, double timeoutMs, boolean useCapturedPage) {
         int index = object.get("index") instanceof Number n ? n.intValue() : 0;
         // -1 is the last match (-2 the one before it), for lists whose length changes
-        if (index < -1000) throw new ActionException("BROWSER.BAD_OBJECT", "The index must be 0 or more, or -1 for the last match");
+        if (index < -1000) throw new ActionException("BROWSER.BAD_OBJECT", "The index must be 0 or more, or -1 for the last match", "Set the index to 0 or more, or -1 for the last match.");
         long end = System.currentTimeMillis() + (long) timeoutMs;
         String primary = String.valueOf(object.getOrDefault("search_by", "properties"));
         List<String> order = new ArrayList<>(List.of(primary));

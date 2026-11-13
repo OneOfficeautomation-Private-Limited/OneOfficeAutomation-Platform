@@ -84,7 +84,7 @@ public final class Saml {
 
     /** Checks a SAMLResponse posted back by the identity provider and signs the person in. */
     public Map<String, Object> acs(String samlResponse, String origin, String ip) {
-        if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up");
+        if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up", "An administrator sets up SAML in Administration > Settings > Sign-in.");
         Map<String, Object> claims = new LinkedHashMap<>(validate(samlResponse, origin));
         String back = ControlRoom.safeReturn((String) claims.remove("_return"));
         Map<String, Object> out = new LinkedHashMap<>(cr.ssoLogin(claims, s("sso_default_role"), ip));
@@ -106,7 +106,7 @@ public final class Saml {
         // status
         Element status = child(resp, P, "Status"), code = status == null ? null : child(status, P, "StatusCode");
         if (code == null || !"urn:oasis:names:tc:SAML:2.0:status:Success".equals(code.getAttribute("Value")))
-            throw new OoaException("SSO.DENIED", "The identity provider did not sign you in" + (code == null ? "" : " (" + code.getAttribute("Value").replaceAll(".*:", "") + ")"));
+            throw new OoaException("SSO.DENIED", "The identity provider did not sign you in" + (code == null ? "" : " (" + code.getAttribute("Value").replaceAll(".*:", "") + ")"), "Ask your identity provider's administrator whether you may use One CommandCenter.");
         if (doc.getElementsByTagNameNS(A, "EncryptedAssertion").getLength() > 0) throw bad("Encrypted assertions are not supported", "Turn off assertion encryption for this application at the identity provider; the connection is protected by HTTPS.");
         // exactly one assertion, directly in the response (no wrapping)
         NodeList all = doc.getElementsByTagNameNS(A, "Assertion");

@@ -76,7 +76,7 @@ public final class SystemPackage {
             env.put("OOA_ENV_VALUE", v);
             ProcessRunner.Result r = ProcessRunner.run(ctx, ScriptPackage.powershellCommand(v.isEmpty()
                     ? "[Environment]::SetEnvironmentVariable($env:OOA_ENV_NAME, $null, 'User')" : SET_USER_ENV_SCRIPT), null, null, 60, env, java.nio.charset.StandardCharsets.UTF_8);
-            if (r.exitCode() != 0) throw new ActionException("SYSTEM.SET_VARIABLE_FAILED", "Cannot set " + name + ": " + ApplicationPackage.tail(r.stderr() + r.stdout()), null);
+            if (r.exitCode() != 0) throw new ActionException("SYSTEM.SET_VARIABLE_FAILED", "Cannot set " + name + ": " + ApplicationPackage.tail(r.stderr() + r.stdout()), "Check that the runner's account may change this environment variable (machine variables need an administrator).");
         } else if (!"process".equals(scope)) {
             throw new ActionException("SYSTEM.BAD_SCOPE", "Unknown scope '" + scope + "'", "Use process or user.");
         }
@@ -122,7 +122,7 @@ public final class SystemPackage {
         if (!confirm) throw new ActionException("SYSTEM.CONFIRM_REQUIRED", what + " was not performed because confirm is false",
                 "Set confirm to true to allow this agent to " + what.toLowerCase(Locale.ROOT) + " the runner.");
         List<String> cmd = ProcessRunner.WINDOWS ? windowsCmd : unixCmd;
-        if (cmd == null) throw new ActionException("SYSTEM.WINDOWS_ONLY", what + " is supported on Windows only");
+        if (cmd == null) throw new ActionException("SYSTEM.WINDOWS_ONLY", what + " is supported on Windows only", "Run this agent on a Windows runner.");
         ctx.warn(what + " requested by the agent");
         ProcessRunner.Result r = ProcessRunner.run(ctx, cmd, null, null, 60);
         if (r.exitCode() != 0) throw new ActionException("SYSTEM.POWER_FAILED", what + " failed: " + ApplicationPackage.tail(r.stderr() + r.stdout()),
@@ -172,7 +172,7 @@ public final class SystemPackage {
         String encoded = Base64.getEncoder().encodeToString((ScriptPackage.UTF8_PREAMBLE + "; " + script).getBytes(java.nio.charset.StandardCharsets.UTF_16LE));
         List<String> cmd = List.of("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded);
         ProcessRunner.Result r = ProcessRunner.run(ctx, cmd, null, null, timeoutSeconds, env, java.nio.charset.StandardCharsets.UTF_8);
-        if (r.exitCode() != 0) throw new ActionException("SYSTEM.FAILED", what + " failed: " + ApplicationPackage.tail(r.stderr() + r.stdout()), null, true);
+        if (r.exitCode() != 0) throw new ActionException("SYSTEM.FAILED", what + " failed: " + ApplicationPackage.tail(r.stderr() + r.stdout()), "Check that the runner's account may do this on Windows; the message has Windows' answer.", true);
         return r.stdout().strip();
     }
 

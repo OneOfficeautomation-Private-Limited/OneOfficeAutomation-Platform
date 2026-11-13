@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { Operations as OpsData } from "./consoleApi";
 import type { AgentStats, RunStats, VariableProfile } from "./consoleApi";
-import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic } from "../../components";
+import { Button, Dialog, HelpButton, Select, usePersistent, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { howStarted } from "../../console/Activity";
 
@@ -79,8 +79,8 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
     .then((r) => { setO(r); setError(null); }, (e) => setError(message(e))), [api, params]);
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
   useEffect(() => {
-    if (can("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path).filter((p) => p.endsWith(".flow.json"))), () => {});
-    if (can("devices.view")) api.runners().then(setRunners, () => {});
+    if (can("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path).filter((p) => p.endsWith(".flow.json"))), (e) => reportMinor("the list of agents", e));
+    if (can("devices.view")) api.runners().then(setRunners, (e) => reportMinor("the list of runners", e));
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const csv = (report: string) => api.operationsCsv(report, params()).then((t) => save("operations-" + report + ".csv", t), (e) => setError(message(e)));
@@ -117,7 +117,7 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
       </div>
       <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {o?.period.capped && <p className="st-alert">Only the first {o.period.runs_counted.toLocaleString()} runs of the period are counted: choose a shorter period or one agent.</p>}
       {!o && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {o && t && <>
@@ -266,7 +266,7 @@ function AgentStatistics({ api, path, days, label, onClose }: { api: CrApi; path
   const t = a?.totals;
   return (
     <Dialog open title={"Statistics of " + name(path)} width={760} onClose={onClose} footer={<a className="ui-btn ui-btn-plain" href={"#/activity?" + new URLSearchParams({ tab: "completed", bot: path }).toString()}>Its runs in Agent Activity</a>}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!a && !error && <p className="st-muted" role="status">Loading…</p>}
       {a && t && <>
         <p className="st-muted">{path} · {label}</p>

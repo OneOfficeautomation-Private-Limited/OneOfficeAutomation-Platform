@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, RunnerFile, RunnerPool } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, usePersistent, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { modulePart } from "../modules/pages";
 
@@ -176,7 +176,7 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
         {(["runners", "pools"] as const).map((t) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => { setTab(t); setSelected([]); }}>
           {t === "runners" ? "Runners" : "Runner pools"}{runners && <span className="ov-cnt">{t === "runners" ? runners.length : pools.length}</span>}</button>)}
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {tab === "runners" ? <>
         <div className="cc-list-tools">
           <div className="cc-list-filters" role="group" aria-label="Filters">

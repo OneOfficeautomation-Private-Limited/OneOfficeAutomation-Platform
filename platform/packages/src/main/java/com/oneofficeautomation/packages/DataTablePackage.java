@@ -193,7 +193,7 @@ public final class DataTablePackage {
             @Input(name = "column_index", type = OoaType.NUMBER, required = false, min = 0, description = COL_INDEX) Integer columnIndex) {
         int c = col(table, column, columnIndex);
         Map<String, Object> out = copy(table, rows(table));
-        if (row < 0 || row >= rows(out).size()) throw new ActionException("TABLE.NO_ROW", "Row " + row + " does not exist");
+        if (row < 0 || row >= rows(out).size()) throw new ActionException("TABLE.NO_ROW", "Row " + row + " does not exist", "Give a row number that the table has (the first row is 1).");
         List<Object> r = rows(out).get(row);
         while (r.size() <= c) r.add(null);
         r.set(c, value);
@@ -623,12 +623,12 @@ public final class DataTablePackage {
                 if (type.equals("DateTime") && dateFormat != null && !dateFormat.isBlank() && v instanceof String s) {
                     java.time.format.DateTimeFormatter f = DateTimePackage.strictPattern(dateFormat, Locale.ENGLISH);
                     try { conv = dateFormat.contains("H") || dateFormat.contains("h") ? java.time.LocalDateTime.parse(s.trim(), f) : java.time.LocalDate.parse(s.trim(), f).atStartOfDay(); }
-                    catch (RuntimeException e) { throw new OoaException("VAR.TYPE_MISMATCH", "not a date"); }
+                    catch (RuntimeException e) { throw new OoaException("VAR.TYPE_MISMATCH", "not a date", "Give the value as a date, for example 2026-11-13."); }
                     r.set(c, conv);
                     continue;
                 }
                 conv = Values.coerce(v, type, column);
-                if (type.equals("Boolean") && !(conv instanceof Boolean)) throw new OoaException("VAR.TYPE_MISMATCH", "not a Boolean");
+                if (type.equals("Boolean") && !(conv instanceof Boolean)) throw new OoaException("VAR.TYPE_MISMATCH", "not a Boolean", "Give the value as true or false.");
             } catch (OoaException e) {
                 throw new ActionException("TABLE.CONVERT_FAILED", "Row " + i + ", column '" + column + "': cannot convert " + Values.safeRepr(v) + " to " + type,
                         type.equals("Number") ? "Clean the value so it is numeric, e.g. 1234.50." : type.equals("DateTime") ? "Use ISO dates such as 2026-10-18 or 2026-10-18T14:30:00."
@@ -845,7 +845,7 @@ public final class DataTablePackage {
             byte[] bytes = (enc.bom() && !appending ? "\uFEFF" + text : text).getBytes(enc.charset());
             if (appending) java.nio.file.Files.write(p, bytes, java.nio.file.StandardOpenOption.APPEND);
             else java.nio.file.Files.write(p, bytes);
-        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + p + ": " + e.getMessage(), null, true); }
+        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + p + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Out.of("path", p.toString());
     }
 

@@ -112,7 +112,7 @@ public final class DocumentAutomationPackage {
             for (long t = 0; t < nap; t += 250) {
                 ctx.checkCancelled();
                 try { Thread.sleep(Math.min(250, nap - t)); }
-                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "The wait was stopped"); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "The wait was stopped", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             }
         }
     }

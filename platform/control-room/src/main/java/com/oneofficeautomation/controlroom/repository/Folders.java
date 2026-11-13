@@ -121,7 +121,7 @@ public final class Folders {
         cr.require(by, "repo.checkin", "create folders");
         String p = normalize(path);
         require(by, p, "edit", "create folders");   // edit access to the parent folder (p's folder is its parent)
-        if (db.one("SELECT path FROM repo_folders WHERE path = ?", p) != null) throw new OoaException("CR.CONFLICT", "The folder '" + p + "' already exists");
+        if (db.one("SELECT path FROM repo_folders WHERE path = ?", p) != null) throw new OoaException("CR.CONFLICT", "The folder '" + p + "' already exists", "Choose another name, or use the folder that is there.");
         db.update("INSERT INTO repo_folders (path, description, created, created_by) VALUES (?,?,?,?)", p, description, now(), by.username());
         cr.audit.record(by.username(), "repo.folder_create", "folder", p, null, "ok", ip);
         return Map.of("path", p);

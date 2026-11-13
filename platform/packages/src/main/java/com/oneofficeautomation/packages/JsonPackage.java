@@ -133,7 +133,7 @@ public final class JsonPackage {
         if (!type.equals("String") && v instanceof String s && s.isBlank()) return null;
         try {
             Object c = com.oneofficeautomation.runner.Values.coerce(v, type, name);
-            if (type.equals("Boolean") && !(c instanceof Boolean)) throw new OoaException("VAR.TYPE_MISMATCH", "not a Boolean");
+            if (type.equals("Boolean") && !(c instanceof Boolean)) throw new OoaException("VAR.TYPE_MISMATCH", "not a Boolean", "Give the value as true or false.");
             if (type.equals("String") && (v instanceof Map || v instanceof List)) return JsonLite.write(com.oneofficeautomation.runner.Values.toJsonable(v));
             return c;
         } catch (OoaException e) {
@@ -156,7 +156,7 @@ public final class JsonPackage {
             if (text.startsWith("\uFEFF")) text = text.substring(1);
             return Collections.singletonMap("value", JsonLite.parse(text));
         }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), null, true); }
+        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         catch (IllegalArgumentException e) { throw new ActionException("JSON.INVALID", p + ": " + e.getMessage(), "Check the JSON syntax."); }
     }
 
@@ -175,7 +175,7 @@ public final class JsonPackage {
             String text = pretty ? pretty(com.oneofficeautomation.runner.Values.toJsonable(value), 2) : JsonLite.write(value);
             Files.write(tmp, ((enc.bom() ? "\uFEFF" : "") + text).getBytes(enc.charset()));
             Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + p + ": " + e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + p + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Map.of();
     }
 
@@ -357,7 +357,7 @@ public final class JsonPackage {
                 if (scheme.equals("file")) {
                     Path p = Path.of(uri);
                     if (!Files.isRegularFile(p)) throw new ActionException("JSON.REF_NOT_FOUND", "Referenced schema file not found: " + p, "Check the $ref file name; it is read relative to the schema file's folder.");
-                    if (Files.size(p) > MAX_SCHEMA_BYTES) throw new ActionException("JSON.BAD_SCHEMA", "Referenced schema " + p + " is larger than 5 MB", null);
+                    if (Files.size(p) > MAX_SCHEMA_BYTES) throw new ActionException("JSON.BAD_SCHEMA", "Referenced schema " + p + " is larger than 5 MB", "Keep referenced schemas under 5 MB, or copy the part you need into the main schema.");
                     data = Files.readAllBytes(p);
                 } else if (scheme.equals("http") || scheme.equals("https")) {
                     ctx.checkCancelled();
@@ -369,13 +369,13 @@ public final class JsonPackage {
                         if (r.statusCode() / 100 != 2) throw new ActionException("JSON.REF_UNREACHABLE", "Cannot load referenced schema " + uri + ": HTTP " + r.statusCode(), "Check the $ref URL.", r.statusCode() >= 500);
                         data = in.readNBytes((int) MAX_SCHEMA_BYTES + 1);
                     }
-                    if (data.length > MAX_SCHEMA_BYTES) throw new ActionException("JSON.BAD_SCHEMA", "Referenced schema " + uri + " is larger than 5 MB", null);
+                    if (data.length > MAX_SCHEMA_BYTES) throw new ActionException("JSON.BAD_SCHEMA", "Referenced schema " + uri + " is larger than 5 MB", "Keep referenced schemas under 5 MB, or copy the part you need into the main schema.");
                 } else throw new ActionException("JSON.BAD_SCHEMA", "Cannot load a schema from '" + uri + "'", "Use a file next to the schema or an http(s) URL.");
             } catch (java.io.IOException e) {
                 throw new ActionException("JSON.REF_UNREACHABLE", "Cannot load referenced schema " + uri + ": " + NetErrors.reason(e, String.valueOf(uri.getHost())), "Check the network and the $ref URL.", true);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new ActionException("RUN.CANCELLED", "Stopped while loading " + uri);
+                throw new ActionException("RUN.CANCELLED", "Stopped while loading " + uri, "The run was stopped before this step finished. Run the agent again when it should go on.");
             }
             String text = new String(data, java.nio.charset.StandardCharsets.UTF_8);
             if (text.startsWith("\uFEFF")) text = text.substring(1);

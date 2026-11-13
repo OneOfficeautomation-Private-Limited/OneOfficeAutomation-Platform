@@ -182,8 +182,38 @@ export type TemplateProcessResult = { name: string; folder?: string; status: "cr
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
 
+/**
+ * What went wrong when a request got no usable answer (improvement list 12 Nov 2026, item 11): the server not answering,
+ * an answer that is not the API's (a proxy's error page), or an error status without the API's own error. Each says
+ * what happened and what to do, instead of the browser's "Failed to fetch" or a bare status text.
+ */
+export function noAnswer(who: string, status: number, statusText = ""): { code: string; message: string; suggestedFix: string } {
+  if (status === 0) return { code: "NET.UNREACHABLE", message: who + " is not answering", suggestedFix: "Check that it is running and that this computer can reach it (network, VPN, proxy), then try again." };
+  const fix: Record<number, string> = {
+    401: "Your sign-in has ended. Sign in again.",
+    403: "You do not have permission for this. An administrator can give it to your role.",
+    404: "It may have been moved or deleted. Reload the page.",
+    408: "The request took too long. Try again.",
+    413: "What was sent is too large. Send a smaller file or fewer items.",
+    429: "Too many requests at once. Wait a moment and try again.",
+    502: "A proxy or gateway between you and " + who + " could not reach it. Check that it is running, then try again.",
+    503: who + " is starting or busy. Try again in a minute.",
+    504: "A proxy or gateway gave up waiting for " + who + ". Try again; if it keeps happening, check the server's load.",
+  };
+  return { code: "HTTP." + status, message: who + " answered " + status + (statusText ? " (" + statusText + ")" : ""),
+    suggestedFix: fix[status] ?? (status >= 500 ? "Something failed on the server. Try again; if it keeps happening, an administrator can look in the server log." : "Reload the page and try again.") };
+}
+
+/** The message with what to do about it, as one sentence pair. */
+export function withFix(e: { message: string; suggestedFix?: string | null; hint?: string }): string {
+  const fix = e.suggestedFix || e.hint;
+  if (!fix || e.message.includes(fix)) return e.message;
+  return e.message + (/[.!?]$/.test(e.message) ? " " : ". ") + fix;
+}
+
 export class CrFailure extends Error {
-  constructor(readonly status: number, readonly error: CrError) { super(error.message); }
+  // the message carries what to do about it, so every page that shows e.message shows the fix too (item 11)
+  constructor(readonly status: number, readonly error: CrError) { super(withFix(error)); }
   get code() { return this.error.code; }
 }
 
@@ -198,10 +228,14 @@ export class CrApi {
     const headers: Record<string, string> = {};
     if (method !== "GET") headers["X-OOA-Request"] = "1";
     if (body !== undefined) headers["Content-Type"] = "application/json";
-    const res = await this.fetcher(this.base + route, { method, credentials: "same-origin", headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    let res: Response;
+    try { res = await this.fetcher(this.base + route, { method, credentials: "same-origin", headers, body: body === undefined ? undefined : JSON.stringify(body) }); }
+    catch { throw new CrFailure(0, noAnswer("One CommandCenter", 0)); }
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new CrFailure(res.status, data.error ?? { code: "HTTP." + res.status, message: res.statusText || "Request failed" });
+    let data: { error?: CrError } = {};
+    try { data = text ? JSON.parse(text) : {}; }
+    catch { throw new CrFailure(res.status, res.ok ? { code: "HTTP.NOT_JSON", message: "One CommandCenter answered with a page instead of data", suggestedFix: "A proxy or sign-in page may be in the way. Reload the page; if it keeps happening, check the address you use." } : noAnswer("One CommandCenter", res.status, res.statusText)); }
+    if (!res.ok) throw new CrFailure(res.status, data.error ?? noAnswer("One CommandCenter", res.status, res.statusText));
     return data as T;
   }
 

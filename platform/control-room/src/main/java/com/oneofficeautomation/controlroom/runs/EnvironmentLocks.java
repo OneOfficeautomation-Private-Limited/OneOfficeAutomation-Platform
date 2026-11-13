@@ -41,7 +41,7 @@ public final class EnvironmentLocks {
     static String name(Object raw) {
         String n = raw == null ? "" : String.valueOf(raw).trim();
         if (n.isEmpty()) throw new OoaException("LOCK.BAD_NAME", "Give the lock a name", "Use the name of the system it guards, e.g. SAP production login.");
-        if (n.length() > MAX_NAME) throw new OoaException("LOCK.BAD_NAME", "A lock's name has at most " + MAX_NAME + " characters");
+        if (n.length() > MAX_NAME) throw new OoaException("LOCK.BAD_NAME", "A lock's name has at most " + MAX_NAME + " characters", "Shorten the lock's name.");
         return n;
     }
 
@@ -52,8 +52,8 @@ public final class EnvironmentLocks {
         if (raw == null || String.valueOf(raw).isBlank()) return DEFAULT_LEASE;
         long s;
         try { s = raw instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(raw).trim()); }
-        catch (NumberFormatException e) { throw new OoaException("LOCK.BAD_LEASE", "The lease is a number of seconds, not " + raw); }
-        if (s < MIN_LEASE || s > MAX_LEASE) throw new OoaException("LOCK.BAD_LEASE", "The lease is between " + MIN_LEASE + " seconds and 7 days (" + MAX_LEASE + " seconds)");
+        catch (NumberFormatException e) { throw new OoaException("LOCK.BAD_LEASE", "The lease is a number of seconds, not " + raw, "Give the lease as a number of seconds."); }
+        if (s < MIN_LEASE || s > MAX_LEASE) throw new OoaException("LOCK.BAD_LEASE", "The lease is between " + MIN_LEASE + " seconds and 7 days (" + MAX_LEASE + " seconds)", "Give a lease within the limits the message names.");
         return (int) s;
     }
 
@@ -65,7 +65,7 @@ public final class EnvironmentLocks {
      */
     public Map<String, Object> forRun(Map<String, Object> d, String runId, Map<String, Object> body) {
         Map<String, Object> run = cr.runOnDevice(d, runId);
-        if (!"running".equals(run.get("status"))) throw new OoaException("LOCK.RUN_NOT_RUNNING", "Locks are only for running agents; run " + runId + " is " + run.get("status"));
+        if (!"running".equals(run.get("status"))) throw new OoaException("LOCK.RUN_NOT_RUNNING", "Locks are only for running agents; run " + runId + " is " + run.get("status"), "Take locks only from a step of a running agent.");
         String op = String.valueOf(body.get("op"));
         String name = name(body.get("name"));
         return switch (op) {

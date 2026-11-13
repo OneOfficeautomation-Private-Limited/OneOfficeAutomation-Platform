@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, TaskFormField } from "../../api/cr";
 import type { WorkflowRun } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "../../console/ListParts";
 import { FormField } from "../../console/Inbox";
 
@@ -86,7 +86,7 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
         {(["progress", "finished"] as const).map((t) => <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => setTab(t)}>
           {t === "progress" ? "In progress" : "Finished"}{runs && <span className="ov-cnt">{count(t)}</span>}</button>)}
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-list-search"><TextInput type="search" aria-label="Search workflow runs" placeholder="Search reference, run id, stage, who started it" value={q} onChange={(e) => setQ(e.target.value)} /></span>
@@ -137,7 +137,7 @@ function StartWorkflow({ api, onClose, onStarted }: { api: CrApi; onClose: () =>
   useEffect(() => { api.liveWorkflows().then((b) => { setFlows(b.map((x) => x.path)); setPath(b[0]?.path ?? ""); }, (e) => setError(message(e))); }, [api]);
   useEffect(() => {
     setFields([]); setAnswers({});
-    if (path) api.workflowForm(path).then((f) => setFields((f.form?.fields ?? []).filter((x) => x.id && x.type !== "heading" && x.type !== "paragraph")), () => {});
+    if (path) api.workflowForm(path).then((f) => setFields((f.form?.fields ?? []).filter((x) => x.id && x.type !== "heading" && x.type !== "paragraph")), (e) => reportMinor("the workflow's form", e));
   }, [api, path]);
   const start = () => {
     let data: Record<string, unknown> = answers;

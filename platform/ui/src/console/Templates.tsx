@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AgentTemplate, CrApi, CrUser, TemplateProcessResult } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../components";
+import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
 import { FolderIcon } from "./Repository";
 
@@ -66,7 +66,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
   const can = (p: string) => user.permissions.includes(p);
   const load = useCallback(async () => {
     try { setData(await api.templates()); setError(null); } catch (e) { setError(message(e)); }
-    if (can("repo.view")) api.repo().then((a) => setRepo(a.map((x) => x.path)), () => {});
+    if (can("repo.view")) api.repo().then((a) => setRepo(a.map((x) => x.path)), (e) => reportMinor("the agents in the repository", e));
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [load]);
   /** Where a template's agents are in the repository already (by the agents' file names): its folders, or none. */
@@ -173,7 +173,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
         {manage.length > 0 && <Menu label="Manage" align="end" items={manage} trigger={<button type="button" className="ui-btn ui-btn-secondary" aria-label="Manage">Manage ▾</button>} />}
         {create.length > 0 && <Menu label="Create" align="end" items={create} trigger={<button type="button" className="ui-btn ui-btn-primary" aria-label="Create">Create ▾</button>} />}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {data?.problem && <p className="st-alert">{data.problem}</p>}
       <div className="cc-explorer-body">
         <nav className="cc-tree-pane" aria-label="Folders">
@@ -279,7 +279,7 @@ function Share({ api, categories, onClose, onDone }: { api: CrApi; categories: s
   const [error, setError] = useState<string | null>(null);
   const [flows, setFlows] = useState<{ id: string; name: string }[]>([]);
   const [chosen, setChosen] = useState<string[]>([]);
-  useEffect(() => { api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); setV((o) => ({ ...o, path: o.path || b[0]?.path || "" })); }, () => {}); }, [api]);
+  useEffect(() => { api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); setV((o) => ({ ...o, path: o.path || b[0]?.path || "" })); }, (e) => reportMinor("the list of agents", e)); }, [api]);
   useEffect(() => { api.documentProcesses().then((f) => setFlows(f.filter((x) => !x.isInbox))); }, [api]);
   return (
     <Dialog open title="Share an agent as a template" width={600} onClose={onClose} footer={<>

@@ -181,7 +181,7 @@ final class IntegratedAuthHttp {
             String b64 = j.get("body") == null ? "" : String.valueOf(j.get("body"));
             return new Response(((Number) j.get("status")).intValue(), h, b64.isEmpty() ? new byte[0] : Base64.getDecoder().decode(b64), String.valueOf(j.get("url")));
         } catch (IOException e) {
-            throw new ActionException("FILE.IO_ERROR", "Cannot write the sign-in script: " + e.getMessage(), null, true);
+            throw new ActionException("FILE.IO_ERROR", "Cannot write the sign-in script: " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally {
             if (script != null) try { Files.deleteIfExists(script); } catch (IOException ignored) { }
         }

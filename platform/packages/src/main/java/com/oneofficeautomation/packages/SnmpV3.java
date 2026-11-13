@@ -39,11 +39,11 @@ final class SnmpV3 {
             priv = priv == null || priv.isBlank() ? "none" : priv.strip().toLowerCase(Locale.ROOT);
             if (!Set.of("none", "md5", "sha", "sha256", "sha512").contains(auth)) throw new ActionException("SNMP.BAD_SECURITY", "Unknown sign-in protocol '" + auth + "'", "Use none, md5, sha, sha256 or sha512.");
             if (!Set.of("none", "des", "aes128").contains(priv)) throw new ActionException("SNMP.BAD_SECURITY", "Unknown privacy protocol '" + priv + "'", "Use none, des or aes128.");
-            if (user == null || user.isBlank()) throw new ActionException("SNMP.BAD_SECURITY", "SNMP v3 needs the security user name");
-            if (!auth.equals("none") && (authPassword == null || authPassword.length < 8)) throw new ActionException("SNMP.BAD_SECURITY", "The sign-in password needs at least 8 characters");
+            if (user == null || user.isBlank()) throw new ActionException("SNMP.BAD_SECURITY", "SNMP v3 needs the security user name", "Fill in the SNMP v3 user name.");
+            if (!auth.equals("none") && (authPassword == null || authPassword.length < 8)) throw new ActionException("SNMP.BAD_SECURITY", "The sign-in password needs at least 8 characters", "Use a sign-in password of at least 8 characters, as the device expects.");
             if (!priv.equals("none")) {
                 if (auth.equals("none")) throw new ActionException("SNMP.BAD_SECURITY", "Privacy needs a sign-in protocol too", "Choose md5, sha, sha256 or sha512 as well.");
-                if (privPassword == null || privPassword.length < 8) throw new ActionException("SNMP.BAD_SECURITY", "The privacy password needs at least 8 characters");
+                if (privPassword == null || privPassword.length < 8) throw new ActionException("SNMP.BAD_SECURITY", "The privacy password needs at least 8 characters", "Use a privacy password of at least 8 characters, as the device expects.");
             }
             if (context == null) context = "";
         }
@@ -94,7 +94,7 @@ final class SnmpV3 {
                 for (int i = 0; i < 8; i++) iv[i] = (byte) (key[8 + i] ^ salt[i]);
                 Cipher c = Cipher.getInstance("DES/CBC/NoPadding");
                 c.init(encrypt ? Cipher.ENCRYPT_MODE : Cipher.DECRYPT_MODE, new SecretKeySpec(Arrays.copyOf(key, 8), "DES"), new IvParameterSpec(iv));
-                if (!encrypt && data.length % 8 != 0) throw new ActionException("SNMP.DECRYPTION", "The encrypted answer has a bad length");
+                if (!encrypt && data.length % 8 != 0) throw new ActionException("SNMP.DECRYPTION", "The encrypted answer has a bad length", "Check the privacy protocol and password against the device's settings.");
                 return c.doFinal(encrypt ? Arrays.copyOf(data, (data.length + 7) / 8 * 8) : data);
             }
             byte[] iv = ByteBuffer.allocate(16).putInt(boots).putInt(time).put(salt).array();

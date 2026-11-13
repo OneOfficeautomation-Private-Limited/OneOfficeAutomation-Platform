@@ -34,7 +34,7 @@ public final class AiSkillsPackage {
         if (!name.matches("^[A-Za-z0-9_-]{1,80}$")) throw new ActionException("AI.BAD_SKILL", "Invalid skill name '" + name + "'", "Use letters, digits, - and _.");
         Map<String, Object> central = central(ctx);
         if (central.get(name) instanceof Map<?, ?> m) {
-            if (!(m.get("prompt") instanceof String)) throw new ActionException("AI.BAD_SKILL", "Skill '" + name + "' needs at least a \"prompt\" text", null);
+            if (!(m.get("prompt") instanceof String)) throw new ActionException("AI.BAD_SKILL", "Skill '" + name + "' needs at least a \"prompt\" text", "Add a prompt text to the skill: the instruction the model follows.");
             return (Map<String, Object>) m;
         }
         Path p = LlmClient.skillsDir(ctx).resolve(name + ".json");
@@ -42,10 +42,10 @@ public final class AiSkillsPackage {
         try {
             Object v = JsonLite.parse(Files.readString(p));
             if (!(v instanceof Map) || !(((Map<?, ?>) v).get("prompt") instanceof String))
-                throw new ActionException("AI.BAD_SKILL", "Skill '" + name + "' needs at least a \"prompt\" text", null);
+                throw new ActionException("AI.BAD_SKILL", "Skill '" + name + "' needs at least a \"prompt\" text", "Add a prompt text to the skill: the instruction the model follows.");
             return (Map<String, Object>) v;
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
-        } catch (IllegalArgumentException e) { throw new ActionException("AI.BAD_SKILL", "Skill '" + name + "' is not valid JSON: " + e.getMessage(), null); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
+        } catch (IllegalArgumentException e) { throw new ActionException("AI.BAD_SKILL", "Skill '" + name + "' is not valid JSON: " + e.getMessage(), "Correct the skill's JSON (a missing comma or quote is the usual cause), or recreate it in Settings > AI skills."); }
     }
 
     @Action(id = "run", name = "Run Prompt Skill", category = "Prompt Skills", timeoutSeconds = 300, capabilities = {"network", "ai"},
@@ -87,7 +87,7 @@ public final class AiSkillsPackage {
             if (mdl == null && conn == null) throw new ActionException("AI.NO_MODEL", "Skill '" + name + "' names no model", "Add \"model\" or \"connection\" to the skill, or set the model input.");
             double temp = temperature != null ? temperature : s.get("temperature") instanceof java.math.BigDecimal d ? d.doubleValue() : 0;
             int max = maxTokens != null ? maxTokens : s.get("max_tokens") instanceof java.math.BigDecimal d ? d.intValue() : 2000;
-            if (max < 1 || max > 200_000) throw new ActionException("AI.BAD_OPTION", "max_tokens must be between 1 and 200000");
+            if (max < 1 || max > 200_000) throw new ActionException("AI.BAD_OPTION", "max_tokens must be between 1 and 200000", "Set max_tokens between 1 and 200000, or leave it empty for the model's default.");
             Double topP = s.get("top_p") instanceof java.math.BigDecimal d ? d.doubleValue() : null;
             boolean json = "json".equals(s.get("output"));
             LlmClient.Config c = ModelConnections.config(ctx, conn, String.valueOf(s.getOrDefault("provider", "openai")), mdl, key,
@@ -129,7 +129,7 @@ public final class AiSkillsPackage {
         Map<String, Object> k = skill.get("knowledge") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         String index = indexInput != null && !indexInput.isBlank() ? indexInput : k.get("index") instanceof String x && !x.isBlank() ? x : null;
         int topK = topKInput != null ? topKInput : k.get("top_k") instanceof java.math.BigDecimal d ? d.intValue() : 4;
-        if (topK < 1 || topK > 20) throw new ActionException("AI.BAD_OPTION", "top_k must be between 1 and 20");
+        if (topK < 1 || topK > 20) throw new ActionException("AI.BAD_OPTION", "top_k must be between 1 and 20", "Set top_k between 1 and 20.");
         StringBuilder before = new StringBuilder();
         List<Object> sources = new ArrayList<>();
         if (index != null) {
@@ -151,7 +151,7 @@ public final class AiSkillsPackage {
                 if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Document not found: " + p, "Check the files paths.");
                 String text;
                 try { text = KnowledgePackage.read(p).strip(); }
-                catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p.getFileName() + ": " + e.getMessage(), null, true); }
+                catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p.getFileName() + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
                 if (text.length() > budget) {
                     ctx.warn(p.getFileName() + " is long; only its first " + budget + " characters go to the model");
                     text = text.substring(0, Math.max(0, budget));
@@ -181,7 +181,7 @@ public final class AiSkillsPackage {
                 try { Map<String, Object> s = load(ctx, n); rows.add(new ArrayList<>(Arrays.asList(n, s.get("description"), s.get("model"), s.getOrDefault("output", "text")))); }
                 catch (ActionException e) { rows.add(new ArrayList<>(Arrays.asList(n, "INVALID: " + e.getMessage(), null, null))); }
             }
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file exists, is not open in another program, and that the runner's account may read it."); }
         return Map.of("skills", com.oneofficeautomation.runner.Values.table(List.of("name", "description", "model", "output"), rows));
     }
 }

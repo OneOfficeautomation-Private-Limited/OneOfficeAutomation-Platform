@@ -1,3 +1,4 @@
+import { runErrorText } from "../api/client";
 import type { DebugCommand, DebugState, RunEvent, RunResult } from "../api/client";
 import { Button, withKey } from "../components";
 import { logFields, showValue } from "./flowEdit";
@@ -32,7 +33,7 @@ function line(e: RunEvent, stepName: (id: string) => string): { text: string; to
   switch (e.type) {
     case "run.started": return { text: "Run started" + (d.totalSteps ? ` (${d.totalSteps} steps)` : "") };
     case "step.finished": return { text: at + "done" + (typeof d.durationMs === "number" ? ` in ${d.durationMs} ms` : "") };
-    case "step.failed": return { text: at + "failed: " + String(d.message ?? d.code ?? ""), tone: "bad" };
+    case "step.failed": return { text: at + "failed: " + (d.message ? runErrorText({ message: String(d.message), suggestedFix: d.suggestedFix ? String(d.suggestedFix) : undefined }) : String(d.code ?? "")), tone: "bad" };
     case "step.retry": return { text: at + "trying again" };
     case "log": return { text: at + String(d.message ?? "") + logFields(d.fields), tone: d.level === "error" ? "bad" : undefined };
     case "variable.set": return { text: at + "$" + String(d.name) + " = " + showValue(d.value) };

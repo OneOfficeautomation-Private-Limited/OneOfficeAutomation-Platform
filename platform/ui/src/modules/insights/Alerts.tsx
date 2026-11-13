@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState } from "react";
 import type { Alert, AlertKind, CrApi, CrUser } from "../../api/cr";
 import type { AlertRule } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 
 /**
@@ -131,7 +131,7 @@ export function Alerts({ api, user, onNotice, view = "alerts" }: { api: CrApi; u
       <p className="cc-list-count cc-al-count">{tab === "alerts"
         ? <>{open != null && <>{open} open · </>}<a href="#/alert-rules">{rules ? rules.length + " rule" + (rules.length === 1 ? "" : "s") : "Alert rules"} ›</a></>
         : <>{rules && <>{rules.length} rule{rules.length === 1 ? "" : "s"} · </>}<a href="#/alerts">{open != null ? open + " open alert" + (open === 1 ? "" : "s") : "Alerts"} ›</a></>}</p>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {tab === "alerts" ? <>
         <div className="cc-list-tools">
           <div className="cc-list-filters" role="group" aria-label="Filters">

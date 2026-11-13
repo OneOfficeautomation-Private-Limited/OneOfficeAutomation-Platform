@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CredentialExpiry, CrApi, CrUser, VaultCredential, VaultFolder, VaultRequest, VaultStatus } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic } from "../components";
+import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 
 /**
@@ -186,7 +186,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
         {([["credentials", "Credentials", rows.length], ["folders", "Vault folders", folders?.length ?? 0], ["requests", "My requests", requests.length]] as const).map(([t, l, n]) =>
           <button key={t} type="button" role="tab" className="ov-tab" aria-selected={tab === t} onClick={() => { setTab(t); setSelected([]); }}>{l}{folders && <span className="ov-cnt">{n}</span>}</button>)}
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
 
       {tab === "credentials" && <>
         <div className="cc-list-tools">
@@ -564,7 +564,7 @@ function CreateFolder({ api, onClose, onCreated }: { api: CrApi; onClose: () => 
     <Dialog open title="Create vault folder" width={520} onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!name.trim()} onClick={() => api.createVaultFolder(name.trim(), description, consumers).then(() => onCreated("Created the vault folder " + name.trim() + "; you are its owner."), (e) => setError(message(e)))}>Create vault folder</Button></>}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <Field label="Name">{(id) => <TextInput id={id} value={name} placeholder="finance" onChange={(e) => setName(e.target.value)} />}</Field>
       <Field label="Description">{(id) => <TextInput id={id} value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
       <Field label="Consumers: their agents may use it (role:NAME, team:NAME, user:NAME)">{(id) => <TextInput id={id} value={consumers} placeholder="role:bot_runner, team:finance" onChange={(e) => setConsumers(e.target.value)} />}</Field>
@@ -584,7 +584,7 @@ function VaultKey({ api, onClose, onNotice }: { api: CrApi; onClose: () => void;
     <Dialog open title="Vault key" width={560} onClose={onClose} footer={st?.can_rotate ? (confirm
       ? <><span>Rotate now? Agents keep working; every value is encrypted again.</span><Button kind="plain" onClick={() => setConfirm(false)}>Cancel</Button><Button kind="danger" onClick={rotate}>Rotate key</Button></>
       : <Button kind="danger" onClick={() => setConfirm(true)}>Rotate key</Button>) : null}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!st ? !error && <p className="st-muted" role="status">Loading…</p> : <>
         <dl className="cc-facts">
           <dt>Key from</dt><dd>{st.key_source === "file" ? "Key file in the data folder" : st.key_source === "environment" ? "OOA_MASTER_KEY environment variable" : st.key_source_detail}</dd>

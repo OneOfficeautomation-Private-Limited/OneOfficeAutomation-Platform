@@ -129,7 +129,7 @@ public final class Tenants implements AutoCloseable {
     /** An operator approves (every tenant of the region may install it) or rejects a shared template. */
     public void reviewTemplate(String id, boolean approve, String by) {
         if (catalog.update("UPDATE shared_templates SET status = ?, reviewed = ?, reviewed_by = ? WHERE id = ?", approve ? "approved" : "rejected", Instant.now(), by, id) == 0)
-            throw new OoaException("CR.NOT_FOUND", "No shared template '" + id + "'");
+            throw new OoaException("CR.NOT_FOUND", "No shared template '" + id + "'", "Check the template's id in the shared template list.");
     }
 
     static String schemaOf(String id) { return "t_" + id; }
@@ -144,8 +144,8 @@ public final class Tenants implements AutoCloseable {
         slug = slug == null ? "" : slug.trim().toLowerCase(Locale.ROOT);
         if (!SLUG.matcher(slug).matches() || RESERVED.contains(slug))
             throw new OoaException("SAAS.BAD_SLUG", "'" + slug + "' cannot be a tenant's address name", "Use 3 to 40 lower-case letters, digits and hyphens, starting with a letter (not www, api, admin, ...).");
-        if (name == null || name.isBlank()) throw new OoaException("SAAS.BAD_NAME", "Give the tenant a name");
-        if (catalog.one("SELECT id FROM tenants WHERE slug = ?", slug) != null) throw new OoaException("SAAS.SLUG_TAKEN", "The address name '" + slug + "' is taken");
+        if (name == null || name.isBlank()) throw new OoaException("SAAS.BAD_NAME", "Give the tenant a name", "Give the tenant a name.");
+        if (catalog.one("SELECT id FROM tenants WHERE slug = ?", slug) != null) throw new OoaException("SAAS.SLUG_TAKEN", "The address name '" + slug + "' is taken", "Choose another address name.");
         RegionDirectory.Client dir = directory;
         if (dir != null) dir.reserve(slug);
         String id = Security.token(8).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "x");
@@ -204,12 +204,12 @@ public final class Tenants implements AutoCloseable {
     /** Removes a suspended tenant for good: its schema, its folder and its catalog entry (its key with it). */
     public void delete(String slug, String by) {
         Info i = need(slug);
-        if (!i.status().equals("suspended")) throw new OoaException("SAAS.NOT_SUSPENDED", "Suspend " + slug + " first; a tenant is deleted only when suspended");
+        if (!i.status().equals("suspended")) throw new OoaException("SAAS.NOT_SUSPENDED", "Suspend " + slug + " first; a tenant is deleted only when suspended", "Suspend the tenant first, then delete it.");
         base.dropSchema(schemaOf(i.id()));
         Path dir = folderOf(i.id());
         if (Files.exists(dir)) try (var walk = Files.walk(dir)) {
             for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) Files.delete(p);
-        } catch (IOException e) { throw new OoaException("SAAS.DELETE_FAILED", "Cannot remove " + dir + ": " + e.getMessage()); }
+        } catch (IOException e) { throw new OoaException("SAAS.DELETE_FAILED", "Cannot remove " + dir + ": " + e.getMessage(), "Check that the service account may delete the tenant's folder, and that no file in it is open."); }
         catalog.update("DELETE FROM tenants WHERE id = ?", i.id());
         RegionDirectory.Client names = directory;
         if (names != null) names.release(slug);
@@ -248,7 +248,7 @@ public final class Tenants implements AutoCloseable {
             if (!com.oneofficeautomation.controlroom.License.TYPES.contains(e.getKey()))
                 throw new OoaException("SAAS.BAD_SEATS", "No seat type '" + e.getKey() + "'", "Use " + String.join(", ", com.oneofficeautomation.controlroom.License.TYPES));
             if (!(e.getValue() instanceof Number n) || n.intValue() < 0 || n.doubleValue() != n.intValue())
-                throw new OoaException("SAAS.BAD_SEATS", "Seats of '" + e.getKey() + "' are a whole number from 0");
+                throw new OoaException("SAAS.BAD_SEATS", "Seats of '" + e.getKey() + "' are a whole number from 0", "Give seats as a whole number from 0.");
             out.put(e.getKey(), n.intValue());
         }
         return out;
@@ -282,7 +282,7 @@ public final class Tenants implements AutoCloseable {
         Map<String, Object> row = catalog.one("SELECT key_ciphertext FROM tenants WHERE id = ?", i.id());
         byte[] key = Base64.getDecoder().decode(regionVault.decrypt((String) row.get("key_ciphertext"), "tenant:" + i.id()));
         Path dir = folderOf(i.id());
-        try { Files.createDirectories(dir); } catch (IOException e) { throw new OoaException("SAAS.FOLDER", "Cannot create " + dir + ": " + e.getMessage()); }
+        try { Files.createDirectories(dir); } catch (IOException e) { throw new OoaException("SAAS.FOLDER", "Cannot create " + dir + ": " + e.getMessage(), "Check that the service account may create folders in the data folder."); }
         Db db = base.inSchema(schemaOf(i.id()), 3);
         ControlRoom cr = new ControlRoom(db, dir, registries.get(), schema, Vault.ofKey(key, "tenant key in the region catalog"), i.id());
         cr.serverlessAllowed = serverless;
@@ -306,7 +306,7 @@ public final class Tenants implements AutoCloseable {
 
     private Info need(String slug) {
         Info i = get(slug);
-        if (i == null) throw new OoaException("SAAS.NO_TENANT", "No tenant '" + slug + "' in region " + region);
+        if (i == null) throw new OoaException("SAAS.NO_TENANT", "No tenant '" + slug + "' in region " + region, "Check the tenant's address name and region.");
         return i;
     }
 

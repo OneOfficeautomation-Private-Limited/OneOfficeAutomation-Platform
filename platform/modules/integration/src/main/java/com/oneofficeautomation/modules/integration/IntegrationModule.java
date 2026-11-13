@@ -74,7 +74,7 @@ public final class IntegrationModule implements CommandCenterModule {
                 else throw ModuleContext.notFound("The route /api/git/" + route);
             } catch (OoaException e) { throw e; }
             catch (java.io.IOException e) { throw e; }
-            catch (Exception e) { throw new OoaException("CR.GIT", (route.equals("pull") ? "Reading from Git failed: " : "Git sync failed: ") + e.getMessage()); }
+            catch (Exception e) { throw new OoaException("CR.GIT", (route.equals("pull") ? "Reading from Git failed: " : "Git sync failed: ") + e.getMessage(), "Check the Git remote, branch and token in Administration > Settings > Git; the message has Git's answer."); }
         });
     }
 }

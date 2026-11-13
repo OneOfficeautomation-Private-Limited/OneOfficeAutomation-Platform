@@ -67,7 +67,7 @@ public final class JavaAppsPackage {
             try { vm.loadAgent(agentJar().toString(), portFile.toString()); } finally { vm.detach(); }
             List<String> lines = Files.readAllLines(portFile, StandardCharsets.UTF_8);
             Files.deleteIfExists(portFile);
-            if (lines.size() < 2) throw new ActionException(P + ".ATTACH_FAILED", "The Java application did not answer the agent");
+            if (lines.size() < 2) throw new ActionException(P + ".ATTACH_FAILED", "The Java application did not answer the agent", "Turn on the Java Access Bridge on the runner (jabswitch -enable) and start the application again.");
             c = new Conn(d.id(), d.displayName(), Integer.parseInt(lines.get(0).strip()), lines.get(1).strip());
             CONNECTED.put(d.id(), c);
             return c;
@@ -91,7 +91,7 @@ public final class JavaAppsPackage {
             w.flush();
             String answer = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8)).readLine();
             Map<String, Object> m = (Map<String, Object>) JsonLite.parse(answer == null ? "{}" : answer);
-            if (!Boolean.TRUE.equals(m.get("ok"))) throw new ActionException(P + ".FAILED", "The Java application refused: " + m.get("error"), null);
+            if (!Boolean.TRUE.equals(m.get("ok"))) throw new ActionException(P + ".FAILED", "The Java application refused: " + m.get("error"), "Check that the Java application is open and its Access Bridge is on; the message has its answer.");
             return m.get("result");
         } catch (IOException e) {
             CONNECTED.remove(c.pid());   // the application closed or restarted: connect again next time
@@ -211,7 +211,7 @@ public final class JavaAppsPackage {
             conn = cs.get(0);
             target = (Map<String, Object>) request(conn, "act", title == null ? "" : title, path.strip(), "properties", "");
         } else {
-            if ((name == null || name.isBlank()) && (role == null || role.isBlank())) throw new ActionException(P + ".BAD_INPUT", "Give the control's name, role or path");
+            if ((name == null || name.isBlank()) && (role == null || role.isBlank())) throw new ActionException(P + ".BAD_INPUT", "Give the control's name, role or path", "Give a control's name, role or path; Capture in the step fills them in.");
             List<Object> found = find(ctx, title, process, name, role, index + 1, timeout);
             if (found.size() <= index) throw notFound(title, name, role);
             target = (Map<String, Object>) found.get(index);

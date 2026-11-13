@@ -254,7 +254,7 @@ public final class Runner {
         synchronized Object set(String name, Object value) {
             if (builtins.containsKey(name)) throw new OoaException("VAR.READ_ONLY", "'" + name + "' is a built-in variable and cannot be changed",
                     "Assign to one of your own variables instead.");
-            if (!types.containsKey(name)) throw new OoaException("VAR.UNDECLARED", "Variable '" + name + "' is not declared");
+            if (!types.containsKey(name)) throw new OoaException("VAR.UNDECLARED", "Variable '" + name + "' is not declared", "Add the variable in the Variables panel, or correct its name.");
             Object v = Values.coerce(value, types.get(name), name, baseDir);
             values.put(name, v);
             return v;
@@ -414,7 +414,7 @@ public final class Runner {
                 for (var e : spec.currentArgs((Map<String, Object>) creds).entrySet()) {
                     if (spec.input(e.getKey()).isEmpty() || !empty.test(e.getKey())) continue;
                     CredentialVault vault = (CredentialVault) services.get("vault");
-                    if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault configured for the credentials of connection '" + name + "'");
+                    if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault configured for the credentials of connection '" + name + "'", "Run the agent from One CommandCenter (which holds the vault), or set up the Private workspace's vault in Settings.");
                     SecureString s = vault.getSecret(String.valueOf(e.getValue()), principal);
                     secrets.add(s.reveal()); secureValues.add(s);
                     out.put(e.getKey(), s);
@@ -429,7 +429,7 @@ public final class Runner {
                 CredentialVault vault = (CredentialVault) services.get("vault");
                 Map<String, Object> creds = conn.get("credentials") instanceof Map<?, ?> c ? (Map<String, Object>) c : Map.of();
                 SecureString t = OAuthSignIn.token(name, vals, creds, ref -> {
-                    if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault configured for the sign-in of connection '" + name + "'");
+                    if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault configured for the sign-in of connection '" + name + "'", "Run the agent from One CommandCenter (which holds the vault), or set up the Private workspace's vault in Settings.");
                     SecureString s = vault.getSecret(ref, principal);
                     secrets.add(s.reveal()); secureValues.add(s);
                     return s;
@@ -507,7 +507,7 @@ public final class Runner {
                 error = e.toMap();
             } catch (BreakSignal | ContinueSignal e) {
                 status = "failed";
-                error = new OoaException("FLOW.BAD_BREAK", "break/continue used outside a loop" + (labelOf(e) == null ? "" : " with label '" + labelOf(e) + "'")).toMap();
+                error = new OoaException("FLOW.BAD_BREAK", "break/continue used outside a loop" + (labelOf(e) == null ? "" : " with label '" + labelOf(e) + "'"), "Put Break and Continue inside a loop (and use the label of a loop around them).").toMap();
             } catch (GotoSignal e) {
                 status = "failed";
                 error = new OoaException("FLOW.BAD_GOTO", "Go to label '" + e.label + "': there is no such label in the step list or in a list around it",
@@ -518,11 +518,11 @@ public final class Runner {
             } catch (StopSignal e) {
                 if (e.failed) {
                     status = "failed";
-                    error = new OoaException("AGENT.STOPPED", e.reason == null || e.reason.isEmpty() ? "The agent was stopped by a Stop agent step" : e.reason).toMap();
+                    error = new OoaException("AGENT.STOPPED", e.reason == null || e.reason.isEmpty() ? "The agent was stopped by a Stop agent step" : e.reason, "Nothing to fix: a Stop agent step ended the run on purpose.").toMap();
                 }
             } catch (RuntimeException e) {
                 status = "failed";
-                error = new OoaException("RUN.INTERNAL", "Internal runner error: " + e).toMap();
+                error = new OoaException("RUN.INTERNAL", "Internal runner error: " + e, "Run the agent again; if it keeps happening, report it with the run log.").toMap();
             } finally {
                 if (!borrowedSessions) closeSessions();
                 workers.forEach(ExecutorService::shutdownNow);
@@ -563,12 +563,12 @@ public final class Runner {
                     Object val = inputs.get(name);
                     if (val instanceof Map<?, ?> m && m.size() == 1 && m.containsKey("$credential")) {
                         CredentialVault vault = (CredentialVault) services.get("vault");
-                        if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault configured for credential inputs");
+                        if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault configured for credential inputs", "Run the agent from One CommandCenter (which holds the vault), or set up the Private workspace's vault in Settings.");
                         val = vault.getSecret(String.valueOf(m.get("$credential")), principal);
                     }
                     if (val instanceof SecureString s) { secrets.add(s.reveal()); secureValues.add(s); }
                     if (v.get("enum") instanceof List<?> en && en.stream().noneMatch(x -> Values.looseEquals(x, inputs.get(name))))
-                        throw new OoaException("RUN.INPUT_INVALID", "Input '" + name + "' must be one of " + en);
+                        throw new OoaException("RUN.INPUT_INVALID", "Input '" + name + "' must be one of " + en, "Give one of the values the message lists.");
                     scope.set(name, val);
                 } else if (v.containsKey("default")) {
                     scope.set(name, Values.deepCopy(v.get("default")));
@@ -631,13 +631,13 @@ public final class Runner {
         Object lookup(String name) { return scope.get(name); }
 
         void check() {
-            if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter");
+            if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter", "Nothing to fix: someone stopped the run in One CommandCenter.");
             if (pause.get()) {
                 emit("run.paused", null, data());
                 while (pause.get() && !cancel.get()) {
-                    try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted"); }
+                    try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
                 }
-                if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped while paused");
+                if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped while paused", "The run was stopped before this step finished. Run the agent again when it should go on.");
                 emit("run.resumed", null, data());
             }
             if (System.nanoTime() > deadlineNanos)
@@ -823,7 +823,7 @@ public final class Runner {
                 }
                 public void setVariable(String name, Object value) {
                     if (run.scope.types.containsKey(name) && "Credential".equals(run.scope.types.get(name)))
-                        throw new OoaException("DEBUG.READ_ONLY", "Credentials cannot be changed while debugging");
+                        throw new OoaException("DEBUG.READ_ONLY", "Credentials cannot be changed while debugging", "Stop debugging to change credentials.");
                     Object stored = run.scope.set(name, value);
                     emit("variable.set", stepId(), data("name", name, "value", Values.safeRepr(stored), "edited", true));
                 }
@@ -909,7 +909,7 @@ public final class Runner {
                     boolean met = true;
                     while (!condition(a.get("condition"), sid)) {
                         if (System.nanoTime() >= end) {
-                            if (failOnTimeout) throw new OoaException("WAIT.TIMEOUT", "Condition not met within " + timeout + " s", null, true, null);
+                            if (failOnTimeout) throw new OoaException("WAIT.TIMEOUT", "Condition not met within " + timeout + " s", "Raise the wait's timeout, or check why the condition is not met (the screen or data it waits for).", true, null);
                             log("info", "Condition not met within " + timeout + " s; carrying on", sid);
                             met = false;
                             break;
@@ -957,7 +957,7 @@ public final class Runner {
                                 "Go to may be jumping round endlessly: check the condition that ends it, or use a Loop.");
                     throw new GotoSignal(label);
                 }
-                default -> throw new OoaException("FLOW.UNKNOWN_ACTION", "Unknown core action '" + aid + "'");
+                default -> throw new OoaException("FLOW.UNKNOWN_ACTION", "Unknown core action '" + aid + "'", "Update the runner; the agent uses a command this runner does not know.");
             }
         }
 
@@ -1108,10 +1108,10 @@ public final class Runner {
             emit("run.paused", sid, data("message", msg, "byAgent", true));
             pause.set(true);
             while (pause.get() && !cancel.get() && System.nanoTime() < end) {
-                try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted"); }
+                try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             }
             pause.set(false);
-            if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped while paused");
+            if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped while paused", "The run was stopped before this step finished. Run the agent again when it should go on.");
             emit("run.resumed", sid, data());
         }
 
@@ -1122,7 +1122,7 @@ public final class Runner {
                 long left = end - System.nanoTime();
                 if (left <= 0) return;
                 try { Thread.sleep(Math.min(left / 1_000_000 + 1, 50)); }
-                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted"); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             }
         }
 
@@ -1160,7 +1160,7 @@ public final class Runner {
                     String pid = addr.substring(0, addr.indexOf('/')), cid = addr.substring(addr.indexOf('/') + 1);
                     PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
                     ActionSpec spec = pkg.spec("condition", cid);
-                    if (spec == null) throw new OoaException("FLOW.UNKNOWN_CONDITION", "Unknown condition '" + addr + "'");
+                    if (spec == null) throw new OoaException("FLOW.UNKNOWN_CONDITION", "Unknown condition '" + addr + "'", "Update the runner; the agent uses a condition this runner does not know.");
                     Object r = invoke(pkg, spec, prepareArgs(spec, (Map<String, Object>) resolve(m.getOrDefault("args", Map.of()))), ctx(stepId));
                     return Boolean.TRUE.equals(r);
                 }
@@ -1248,7 +1248,7 @@ public final class Runner {
                     String pid = it.substring(0, it.indexOf('/')), iid = it.substring(it.indexOf('/') + 1);
                     PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
                     ActionSpec spec = pkg.spec("iterator", iid);
-                    if (spec == null) throw new OoaException("FLOW.UNKNOWN_ITERATOR", "Unknown iterator '" + it + "'");
+                    if (spec == null) throw new OoaException("FLOW.UNKNOWN_ITERATOR", "Unknown iterator '" + it + "'", "Update the runner; the agent uses a loop kind this runner does not know.");
                     Object res = invoke(pkg, spec, prepareArgs(spec, (Map<String, Object>) resolve(a.getOrDefault("iterator_args", Map.of()))), ctx(sid));
                     Iterator<Object> src = ((Iterable<Object>) res).iterator();
                     if (src instanceof AutoCloseable c) release = c;
@@ -1481,7 +1481,7 @@ public final class Runner {
             if (depth + 1 > MAX_CHILD_DEPTH) throw new OoaException("CHILD.DEPTH", "Child agent nesting is too deep",
                     "Keep child agent chains under " + MAX_CHILD_DEPTH + " levels; check for recursion.");
             AutomationRepository repo = (AutomationRepository) services.get("repository");
-            if (repo == null) throw new OoaException("SERVICE.UNAVAILABLE", "No agent repository available for child agents");
+            if (repo == null) throw new OoaException("SERVICE.UNAVAILABLE", "No agent repository available for child agents", "Run the agent from One CommandCenter or Studio, which give child agents a repository.");
             Map<String, Object> args = (Map<String, Object>) resolve(a);
             String automation = Values.text(args.get("automation"));
             Object version = args.get("version") == null || "".equals(args.get("version")) ? "production" : args.get("version");
@@ -1509,7 +1509,7 @@ public final class Runner {
                 RunResult res = child.executeAsChild(childInputs, deadlineNanos, secrets);
                 runs++;
                 stepsExecuted.addAndGet(res.stepsExecuted());
-                if ("stopped".equals(res.status())) throw new OoaException("RUN.CANCELLED", "Child run was stopped");
+                if ("stopped".equals(res.status())) throw new OoaException("RUN.CANCELLED", "Child run was stopped", "The run was stopped before this step finished. Run the agent again when it should go on.");
                 outputs = res.outputs();
                 if (!res.ok()) {
                     Map<String, Object> err = res.error() == null ? Map.of() : res.error();
@@ -1556,7 +1556,7 @@ public final class Runner {
             child.parentStep = "interrupt";
             RunResult res = child.executeAsChild(inputs == null ? Map.of() : inputs, deadlineNanos, secrets);
             stepsExecuted.addAndGet(res.stepsExecuted());
-            if ("stopped".equals(res.status())) throw new OoaException("RUN.CANCELLED", "Child run was stopped");
+            if ("stopped".equals(res.status())) throw new OoaException("RUN.CANCELLED", "Child run was stopped", "The run was stopped before this step finished. Run the agent again when it should go on.");
             if (!res.ok()) {
                 Map<String, Object> err = res.error() == null ? Map.of() : res.error();
                 throw new OoaException(String.valueOf(err.getOrDefault("code", "CHILD.FAILED")), "Child agent '" + automation + "' failed: " + err.get("message"),
@@ -1599,11 +1599,11 @@ public final class Runner {
         Object invokeForCode(Map<String, Object> req) {
             String action = String.valueOf(req.get("action"));
             int slash = action.lastIndexOf('/');
-            if (slash <= 0) throw new OoaException("CODE.BAD_CALL", "Name the command as toolkit/command, such as ooa.excel/read_range");
+            if (slash <= 0) throw new OoaException("CODE.BAD_CALL", "Name the command as toolkit/command, such as ooa.excel/read_range", "Write the command as toolkit/command, for example ooa.excel/read_range.");
             String pid = action.substring(0, slash), aid = action.substring(slash + 1);
             PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
             ActionSpec spec = pkg.spec("action", aid);
-            if (spec == null) throw new OoaException("FLOW.UNKNOWN_ACTION", pid + "@" + pkg.version() + " has no action '" + aid + "'");
+            if (spec == null) throw new OoaException("FLOW.UNKNOWN_ACTION", pid + "@" + pkg.version() + " has no action '" + aid + "'", "Install the toolkit version the agent was built with, or update the step to the installed version.");
             registry.recordUsage(pid, pkg.version(), String.valueOf(flow.getOrDefault("id", "?")));
             String sid = String.valueOf(req.getOrDefault("step", "code"));
             Map<String, Object> args = prepareArgs(spec, req.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of());
@@ -1755,10 +1755,13 @@ public final class Runner {
             } catch (InvocationTargetException e) {
                 Throwable t = e.getCause();
                 if (t instanceof OoaException oe) throw oe;
+                // error batch E8: a plain IllegalArgumentException with a message is a wrong input (an Excel sheet name, a hotkey)
+                if (t instanceof IllegalArgumentException && t.getMessage() != null && !t.getMessage().isBlank())
+                    throw new ActionException("ACTION.INPUT_INVALID", t.getMessage(), "Correct the step's input the message names, then run the step again.");
                 throw new ActionException("ACTION.UNEXPECTED", pkg.id() + "/" + spec.id() + " raised " + t.getClass().getSimpleName() + ": " + t.getMessage(),
-                        "Report this to the toolkit publisher with the run id.");
+                        "Run the step again; if it keeps happening, report it to the toolkit's publisher with the run id.");
             } catch (IllegalAccessException e) {
-                throw new ActionException("ACTION.UNEXPECTED", "Cannot call " + pkg.id() + "/" + spec.id() + ": " + e.getMessage());
+                throw new ActionException("ACTION.UNEXPECTED", "Cannot call " + pkg.id() + "/" + spec.id() + ": " + e.getMessage(), "Update the toolkit; if it keeps happening, report it with the run log.");
             } catch (Error e) {
                 if (e instanceof VirtualMachineError) throw e;
                 // the native executable knows every toolkit's commands but runs only the built-in toolkits
@@ -1789,7 +1792,7 @@ public final class Runner {
                     catch (TimeoutException slice) {
                         if (cancel.get()) {
                             f.cancel(true); ex.shutdownNow(); worker.remove();
-                            throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter while a step was running");
+                            throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter while a step was running", "Nothing to fix: someone stopped the run in One CommandCenter.");
                         }
                     }
                 }
@@ -1808,7 +1811,7 @@ public final class Runner {
                 throw new IllegalStateException(e.getCause());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new OoaException("RUN.CANCELLED", "Run thread interrupted");
+                throw new OoaException("RUN.CANCELLED", "Run thread interrupted", "The run was stopped before this step finished. Run the agent again when it should go on.");
             }
         }
 
@@ -1817,7 +1820,7 @@ public final class Runner {
         Object mocked(String sid, Map<String, Object> mock) {
             log("info", "Mocked by the test: the action did not run", sid);
             if (mock.get("error") instanceof Map<?, ?> e)
-                throw new ActionException(String.valueOf(((Map<String, Object>) e).getOrDefault("code", "TEST.MOCKED_ERROR")), String.valueOf(((Map<String, Object>) e).getOrDefault("message", "Mocked error")));
+                throw new ActionException(String.valueOf(((Map<String, Object>) e).getOrDefault("code", "TEST.MOCKED_ERROR")), String.valueOf(((Map<String, Object>) e).getOrDefault("message", "Mocked error")), "Nothing to fix: the test's mock returns this error on purpose.");
             return mock.get("outputs") instanceof Map<?, ?> o ? new LinkedHashMap<>((Map<String, Object>) o) : new LinkedHashMap<String, Object>();
         }
 
@@ -1826,7 +1829,7 @@ public final class Runner {
             String sid = String.valueOf(step.get("id"));
             PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
             ActionSpec spec = pkg.spec("action", aid);
-            if (spec == null) throw new OoaException("FLOW.UNKNOWN_ACTION", pid + "@" + pkg.version() + " has no action '" + aid + "'");
+            if (spec == null) throw new OoaException("FLOW.UNKNOWN_ACTION", pid + "@" + pkg.version() + " has no action '" + aid + "'", "Install the toolkit version the agent was built with, or update the step to the installed version.");
             registry.recordUsage(pid, pkg.version(), String.valueOf(flow.getOrDefault("id", "?")));
             Map<String, Object> eh = (Map<String, Object>) flow.getOrDefault("errorHandling", Map.of());
             Map<String, Object> policy = step.get("retry") instanceof Map<?, ?> m ? (Map<String, Object>) m
@@ -1869,7 +1872,7 @@ public final class Runner {
             Map<String, Object> out = step.get("out") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
             for (var e : out.entrySet()) {
                 if (!result.containsKey(e.getKey()))
-                    throw new ActionException("ACTION.OUTPUT_MISSING", "Action did not return output '" + e.getKey() + "'");
+                    throw new ActionException("ACTION.OUTPUT_MISSING", "Action did not return output '" + e.getKey() + "'", "Update the toolkit; it did not return an output it declares.");
                 Object v = result.get(e.getKey());
                 if (v instanceof SecureString s) { secrets.add(s.reveal()); secureValues.add(s); }
                 Object stored = scope.set(String.valueOf(e.getValue()), Values.toJsonable(v) == v ? v : normalise(v));
@@ -1885,7 +1888,7 @@ public final class Runner {
                 java.nio.file.Files.write(p, img.bytes());
                 return p.toString();
             } catch (java.io.IOException e) {
-                throw new OoaException("ACTION.INPUT_INVALID", "Cannot hand the Image to the command as a file: " + e.getMessage());
+                throw new OoaException("ACTION.INPUT_INVALID", "Cannot hand the Image to the command as a file: " + e.getMessage(), "Check that the runner's temporary folder may be written.");
             }
         }
 

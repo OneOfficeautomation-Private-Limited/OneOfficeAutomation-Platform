@@ -53,17 +53,17 @@ final class LlmClient {
 
         /** Builds options from action inputs, checking ranges; empty values mean "provider default". */
         static Options of(Double topP, Integer topK, List<Object> stop, Double presence, Double frequency, Integer seed, String user, Integer n, Integer timeout) {
-            if (topP != null && (topP <= 0 || topP > 1)) throw new ActionException(P + ".BAD_OPTION", "top_p must be above 0 and at most 1");
-            if (topK != null && (topK < 1 || topK > 500)) throw new ActionException(P + ".BAD_OPTION", "top_k must be between 1 and 500");
-            if (presence != null && (presence < -2 || presence > 2)) throw new ActionException(P + ".BAD_OPTION", "presence_penalty must be between -2 and 2");
-            if (frequency != null && (frequency < -2 || frequency > 2)) throw new ActionException(P + ".BAD_OPTION", "frequency_penalty must be between -2 and 2");
-            if (n != null && (n < 1 || n > 10)) throw new ActionException(P + ".BAD_OPTION", "number_of_responses must be between 1 and 10");
-            if (timeout != null && (timeout < 0 || timeout > 1800)) throw new ActionException(P + ".BAD_OPTION", "timeout_seconds must be between 1 and 1800");
+            if (topP != null && (topP <= 0 || topP > 1)) throw new ActionException(P + ".BAD_OPTION", "top_p must be above 0 and at most 1", "Set top_p above 0 and at most 1.");
+            if (topK != null && (topK < 1 || topK > 500)) throw new ActionException(P + ".BAD_OPTION", "top_k must be between 1 and 500", "Set top_k between 1 and 500.");
+            if (presence != null && (presence < -2 || presence > 2)) throw new ActionException(P + ".BAD_OPTION", "presence_penalty must be between -2 and 2", "Set presence_penalty between -2 and 2.");
+            if (frequency != null && (frequency < -2 || frequency > 2)) throw new ActionException(P + ".BAD_OPTION", "frequency_penalty must be between -2 and 2", "Set frequency_penalty between -2 and 2.");
+            if (n != null && (n < 1 || n > 10)) throw new ActionException(P + ".BAD_OPTION", "number_of_responses must be between 1 and 10", "Set number_of_responses between 1 and 10.");
+            if (timeout != null && (timeout < 0 || timeout > 1800)) throw new ActionException(P + ".BAD_OPTION", "timeout_seconds must be between 1 and 1800", "Set timeout_seconds between 1 and 1800.");
             List<String> s = null;
             if (stop != null && !stop.isEmpty()) {
                 s = new ArrayList<>();
                 for (Object o : stop) { String t = Values.text(o); if (!t.isEmpty()) s.add(t); }
-                if (s.size() > 4) throw new ActionException(P + ".BAD_OPTION", "Give at most 4 stop sequences");
+                if (s.size() > 4) throw new ActionException(P + ".BAD_OPTION", "Give at most 4 stop sequences", "Give at most 4 stop sequences.");
                 if (s.isEmpty()) s = null;
             }
             return new Options(topP, topK, s, presence, frequency, seed, user == null || user.isBlank() ? null : user.strip(), n == null || n == 1 ? null : n, timeout == null || timeout == 0 ? null : timeout);
@@ -354,7 +354,7 @@ final class LlmClient {
         if (provider.equals("azure_openai")) {
             if (cfg.baseUrl() == null || cfg.baseUrl().isBlank()) throw new ActionException(P + ".NO_ENDPOINT", "Azure OpenAI needs base_url (your resource endpoint)", "Example: https://myresource.openai.azure.com");
             url = cfg.baseUrl().replaceAll("/+$", "") + "/openai/deployments/" + HttpJson.enc(cfg.model()) + "/chat/completions?api-version=2024-06-01";
-            if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+            if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required", "Choose the API key's credential in the step's connection (Manage > Credentials holds it).");
             req = HttpJson.req(P, "POST", url).header("api-key", k.reveal());
         } else {
             String dflt = provider.equals("huggingface") ? HUGGINGFACE_URL : "https://api.openai.com/v1";
@@ -559,12 +559,12 @@ final class LlmClient {
     static Map<String, Object> imagePart(Path file) {
         String n = file.getFileName().toString().toLowerCase(Locale.ROOT);
         String type = n.endsWith(".png") ? "image/png" : n.endsWith(".jpg") || n.endsWith(".jpeg") ? "image/jpeg" : n.endsWith(".gif") ? "image/gif" : n.endsWith(".webp") ? "image/webp" : null;
-        if (type == null) throw new ActionException(P + ".BAD_IMAGE", "Pictures must be .png, .jpg, .gif or .webp: " + file.getFileName());
+        if (type == null) throw new ActionException(P + ".BAD_IMAGE", "Pictures must be .png, .jpg, .gif or .webp: " + file.getFileName(), "Use a .png, .jpg, .gif or .webp picture.");
         try {
-            if (!Files.isRegularFile(file)) throw new ActionException(P + ".IMAGE_NOT_FOUND", "Picture not found: " + file);
-            if (Files.size(file) > 20L * 1024 * 1024) throw new ActionException(P + ".IMAGE_TOO_LARGE", "Pictures are at most 20 MB: " + file.getFileName());
+            if (!Files.isRegularFile(file)) throw new ActionException(P + ".IMAGE_NOT_FOUND", "Picture not found: " + file, "Check the path; the file may have been moved or renamed.");
+            if (Files.size(file) > 20L * 1024 * 1024) throw new ActionException(P + ".IMAGE_TOO_LARGE", "Pictures are at most 20 MB: " + file.getFileName(), "Make the picture smaller than 20 MB.");
             return Map.of("type", "image", "media_type", type, "data", Base64.getEncoder().encodeToString(Files.readAllBytes(file)));
-        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     // ---------- Amazon Bedrock (Converse API) ----------
@@ -756,7 +756,7 @@ final class LlmClient {
         if (!key.startsWith("{")) return key;
         Map<?, ?> sa;
         try { sa = (Map<?, ?>) JsonLite.parse(key); }
-        catch (RuntimeException e) { throw new ActionException(P + ".BAD_KEY", "The service-account key is not valid JSON"); }
+        catch (RuntimeException e) { throw new ActionException(P + ".BAD_KEY", "The service-account key is not valid JSON", "Use the service account's JSON key file as Google Cloud downloads it."); }
         String email = String.valueOf(sa.get("client_email")), pem = String.valueOf(sa.get("private_key"));
         String tokenUri = sa.get("token_uri") instanceof String t ? t : "https://oauth2.googleapis.com/token";
         String cacheKey;
@@ -768,7 +768,7 @@ final class LlmClient {
         String jwt = signedJwt(email, pem, tokenUri, now);
         String form = "grant_type=" + HttpJson.enc("urn:ietf:params:oauth:grant-type:jwt-bearer") + "&assertion=" + HttpJson.enc(jwt);
         Map<String, Object> r = HttpJson.req(P, "POST", tokenUri).bytes(form.getBytes(StandardCharsets.UTF_8), "application/x-www-form-urlencoded").timeout(30).send(ctx).map();
-        if (!(r.get("access_token") instanceof String token)) throw new ActionException(P + ".AUTH_FAILED", "Google did not return an access token");
+        if (!(r.get("access_token") instanceof String token)) throw new ActionException(P + ".AUTH_FAILED", "Google did not return an access token", "Check that the service account is enabled and may use Vertex AI.");
         long expires = now + (r.get("expires_in") instanceof BigDecimal e ? e.longValue() : 3600);
         GOOGLE_TOKENS.put(cacheKey, new Object[]{token, Math.min(expires, now + 3000)});
         return token;
@@ -820,8 +820,8 @@ final class LlmClient {
                 body.put("size", width + "x" + height);
                 HttpJson.Req req;
                 if (provider.equals("azure_openai")) {
-                    if (cfg.baseUrl() == null || cfg.baseUrl().isBlank()) throw new ActionException(P + ".NO_ENDPOINT", "Azure OpenAI needs base_url (your resource endpoint)");
-                    if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+                    if (cfg.baseUrl() == null || cfg.baseUrl().isBlank()) throw new ActionException(P + ".NO_ENDPOINT", "Azure OpenAI needs base_url (your resource endpoint)", "Fill in base_url with your Azure OpenAI resource's endpoint, for example https://NAME.openai.azure.com.");
+                    if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required", "Choose the API key's credential in the step's connection (Manage > Credentials holds it).");
                     req = HttpJson.req(P, "POST", cfg.baseUrl().replaceAll("/+$", "") + "/openai/deployments/" + HttpJson.enc(cfg.model()) + "/images/generations?api-version=2024-10-21").header("api-key", k.reveal());
                 } else {
                     body.put("model", cfg.model());
@@ -829,7 +829,7 @@ final class LlmClient {
                     String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.openai.com/v1" : cfg.baseUrl().replaceAll("/+$", "");
                     req = HttpJson.req(P, "POST", base + "/images/generations");
                     if (cfg.apiKey() instanceof SecureString) req.bearer(cfg.apiKey());
-                    else if (provider.equals("openai")) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+                    else if (provider.equals("openai")) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required", "Choose the API key's credential in the step's connection (Manage > Credentials holds it).");
                 }
                 Map<String, Object> r = req.json(body).timeout(timeout).send(ctx).map();
                 for (Object o : (List<?>) r.getOrDefault("data", List.of())) {
@@ -889,15 +889,15 @@ final class LlmClient {
                 HttpJson.Req req;
                 Map<String, Object> body = new LinkedHashMap<>(Map.of("input", in));
                 if (provider.equals("azure_openai")) {
-                    if (cfg.baseUrl() == null || cfg.baseUrl().isBlank()) throw new ActionException(P + ".NO_ENDPOINT", "Azure OpenAI needs base_url (your resource endpoint)");
-                    if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+                    if (cfg.baseUrl() == null || cfg.baseUrl().isBlank()) throw new ActionException(P + ".NO_ENDPOINT", "Azure OpenAI needs base_url (your resource endpoint)", "Fill in base_url with your Azure OpenAI resource's endpoint, for example https://NAME.openai.azure.com.");
+                    if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required", "Choose the API key's credential in the step's connection (Manage > Credentials holds it).");
                     req = HttpJson.req(P, "POST", cfg.baseUrl().replaceAll("/+$", "") + "/openai/deployments/" + HttpJson.enc(cfg.model()) + "/embeddings?api-version=2024-10-21").header("api-key", k.reveal());
                 } else {
                     body.put("model", cfg.model() == null || cfg.model().isBlank() ? "text-embedding-3-small" : cfg.model());
                     String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.openai.com/v1" : cfg.baseUrl().replaceAll("/+$", "");
                     req = HttpJson.req(P, "POST", base + "/embeddings");
                     if (cfg.apiKey() instanceof SecureString) req.bearer(cfg.apiKey());
-                    else if (provider.equals("openai")) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+                    else if (provider.equals("openai")) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required", "Choose the API key's credential in the step's connection (Manage > Credentials holds it).");
                 }
                 Map<String, Object> r = req.json(body).timeout(timeout).send(ctx).map();
                 List<Object> data = new ArrayList<>((List<Object>) r.getOrDefault("data", List.of()));
@@ -927,13 +927,13 @@ final class LlmClient {
             default -> throw new ActionException(P + ".NOT_SUPPORTED", "Embeddings are not available for " + provider,
                     "Use openai, azure_openai, openai_compatible (Ollama and similar), google_vertex or aws_bedrock.");
         }
-        if (out.size() != texts.size()) throw new ActionException(P + ".BAD_RESPONSE", "The model returned " + out.size() + " vectors for " + texts.size() + " texts", null, true);
+        if (out.size() != texts.size()) throw new ActionException(P + ".BAD_RESPONSE", "The model returned " + out.size() + " vectors for " + texts.size() + " texts", "Try again; if it keeps happening, check the model's name and that it supports this request.", true);
         govern(ctx, cfg, provider, "embed", new Reply(null, List.of(), tokens, 0, counts), System.currentTimeMillis() - t0, List.of(Map.of("role", "user", "content", String.join("\n", in))));
         return out;
     }
 
     private static float[] vector(Object v) {
-        if (!(v instanceof List<?> l) || l.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "The model returned no vector", null, true);
+        if (!(v instanceof List<?> l) || l.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "The model returned no vector", "Try again; if it keeps happening, check the model's name and that it supports this request.", true);
         float[] f = new float[l.size()];
         for (int i = 0; i < f.length; i++) f[i] = ((Number) l.get(i)).floatValue();
         return f;

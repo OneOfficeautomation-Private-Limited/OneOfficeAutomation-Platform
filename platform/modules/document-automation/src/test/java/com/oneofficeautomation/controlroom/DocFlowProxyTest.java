@@ -275,7 +275,24 @@ class DocFlowProxyTest {
             HttpResponse<String> r = call("GET", "/api/docflow/df/overview", null);
             assertEquals(502, r.statusCode());
             assertTrue(r.body().contains("DOCS.UNAVAILABLE"), r.body());
+            assertTrue(r.body().contains("http://127.0.0.1:1 is not answering"), "says which address does not answer: " + r.body());
         } finally { cr.platform.updateSettings(admin, Map.of("docflow_url", before), null); }
+    }
+
+    /** Improvement list item 10 (12 Nov 2026): never set up is said as such, with where to set it up. */
+    @Test void serviceNeverSetUpSaysSo() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        Object url = cr.platform.setting("docflow_url"), ref = cr.platform.setting("docflow_token_ref");
+        DocFlowProxy.env = k -> null;   // no OOA_DOCFLOW_URL on this machine either
+        cr.platform.updateSettings(admin, Map.of("docflow_url", "", "docflow_token_ref", ""), null);
+        try {
+            HttpResponse<String> r = call("GET", "/api/docflow/df/overview", null);
+            assertTrue(r.body().contains("DOCS.NOT_SET_UP"), r.body());
+            assertTrue(r.body().contains("Administration > Settings > Document Automation"), r.body());
+        } finally {
+            DocFlowProxy.env = System::getenv;
+            cr.platform.updateSettings(admin, Map.of("docflow_url", url, "docflow_token_ref", ref), null);
+        }
     }
 
     @Test void documentsWaitingForReviewBecomeTasksForReviewersAndCloseWhenReviewed() throws Exception {

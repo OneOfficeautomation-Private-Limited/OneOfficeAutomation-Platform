@@ -66,7 +66,7 @@ public final class JiraPackage {
                                String due, String email, Object apiToken, Object pat) {
         if (priority != null && !priority.isBlank()) fields.put("priority", Map.of("name", priority.strip()));
         if (assignee != null && !assignee.isBlank()) fields.put("assignee", user(ctx, site, assignee.strip(), email, apiToken, pat));
-        if (labels != null) { List<Object> l = new ArrayList<>(); for (Object o : labels) { String s = Values.text(o).strip(); if (s.contains(" ")) throw new ActionException(P + ".BAD_LABEL", "Labels cannot contain spaces: '" + s + "'"); if (!s.isEmpty()) l.add(s); } fields.put("labels", l); }
+        if (labels != null) { List<Object> l = new ArrayList<>(); for (Object o : labels) { String s = Values.text(o).strip(); if (s.contains(" ")) throw new ActionException(P + ".BAD_LABEL", "Labels cannot contain spaces: '" + s + "'", "Write each label as one word; use - or _ instead of spaces."); if (!s.isEmpty()) l.add(s); } fields.put("labels", l); }
         if (components != null) { List<Object> l = new ArrayList<>(); for (Object o : components) l.add(Map.of("name", Values.text(o).strip())); fields.put("components", l); }
         if (due != null && !due.isBlank()) {
             try { java.time.LocalDate.parse(due.strip()); } catch (java.time.format.DateTimeParseException e) { throw new ActionException(P + ".BAD_DATE", "Invalid due date '" + due + "'", "Use yyyy-MM-dd."); }
@@ -142,7 +142,7 @@ public final class JiraPackage {
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = "Personal access token (Data Center). Or leave it empty and choose a connection that signs in, which gets and renews the token.") Object pat,
             @Input(name = "extra_fields", type = OoaType.LIST, required = false, description = "More fields to add as columns, e.g. [\"labels\", \"duedate\", \"reporter\"].") List<Object> extraFields) {
         List<String> more = new ArrayList<>();
-        if (extraFields != null) for (Object f : extraFields) { String n = Values.text(f).strip(); if (!n.matches("^[A-Za-z0-9_.]{1,80}$")) throw new ActionException(P + ".BAD_FIELD", "Invalid field name '" + n + "'"); more.add(n); }
+        if (extraFields != null) for (Object f : extraFields) { String n = Values.text(f).strip(); if (!n.matches("^[A-Za-z0-9_.]{1,80}$")) throw new ActionException(P + ".BAD_FIELD", "Invalid field name '" + n + "'", "Use the field's id as Jira shows it (for example summary or customfield_10010)."); more.add(n); }
         List<Object> want = new ArrayList<>(List.of("summary", "status", "assignee", "priority", "updated"));
         for (String m : more) if (!want.contains(m.split("\\.")[0])) want.add(m.split("\\.")[0]);
         List<Object> rows = new ArrayList<>();
@@ -211,7 +211,7 @@ public final class JiraPackage {
             @Input(name = "visible_to_group", type = OoaType.STRING, required = false, example = "jira-servicedesk-users", description = "Only members of this group can see the comment (instead of a role).") String group) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("body", text);
-        if (role != null && !role.isBlank() && group != null && !group.isBlank()) throw new ActionException(P + ".BAD_VISIBILITY", "Give a role or a group, not both");
+        if (role != null && !role.isBlank() && group != null && !group.isBlank()) throw new ActionException(P + ".BAD_VISIBILITY", "Give a role or a group, not both", "Fill in either Visible to role or Visible to group, not both.");
         if (role != null && !role.isBlank()) body.put("visibility", Map.of("type", "role", "value", role.strip()));
         if (group != null && !group.isBlank()) body.put("visibility", Map.of("type", "group", "value", group.strip()));
         Map<String, Object> r = auth(HttpJson.req(P, "POST", api(site) + "/issue/" + key(k) + "/comment"), email, apiToken, pat).json(body).send(ctx).map();
@@ -464,7 +464,7 @@ public final class JiraPackage {
         }
         if (assigneeType != null && !assigneeType.isBlank()) all.put("assigneeType", assigneeType);
         if (categoryId != null && !categoryId.isBlank()) {
-            if (!categoryId.matches("^\\d{1,19}$")) throw new ActionException(P + ".BAD_ID", "Invalid category id '" + categoryId + "'");
+            if (!categoryId.matches("^\\d{1,19}$")) throw new ActionException(P + ".BAD_ID", "Invalid category id '" + categoryId + "'", "Give the category's number id, as Jira shows it in the category's address.");
             all.put("categoryId", new BigDecimal(categoryId));
         }
         if (fields != null) all.putAll(fields);

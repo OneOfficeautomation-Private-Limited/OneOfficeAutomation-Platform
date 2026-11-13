@@ -168,3 +168,15 @@ body.ui-resizing * { cursor: inherit !important; }
 .ui-notice-x { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: none; border: 1px solid transparent; border-radius: var(--ui-radius); background: transparent; color: inherit; cursor: pointer; }
 .ui-notice-x:hover { background: rgba(0, 0, 0, .08); }
 .ui-notice-x:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+
+/* Minor notices (error batch E2): something on the side could not be loaded; amber, closes by itself. 6.8:1 light, 7.9:1 dark (tools/check-contrast.mjs). */
+.ui-minor-stack { display: flex; flex-direction: column; }
+.ui-minor { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 2px 8px 2px 16px; background: var(--ui-running-bg); color: var(--ui-warning-text);
+  border-bottom: 1px solid #e8c27a; font-size: 12.5px; font-weight: 600; }
+.ui-minor > span { flex: 1; }
+.ui-minor > svg { flex: none; }
+
+/* A page that could not load (error batch E2b): the red bar with Retry beside it. */
+.ui-page-error { display: flex; align-items: stretch; gap: 0; }
+.ui-page-error > .st-alert { flex: 1; margin: 0; }
+.ui-page-error > .ui-page-retry { flex: none; height: auto; border-radius: 0; border-left: 0; }

@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { CustomDashboard, DashMail, DashWidget, WidgetData } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu } from "../../console/ListParts";
 
 /**
@@ -80,7 +80,7 @@ export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; 
     setCurrent((c) => { const want = pick ?? c; return l.some((d) => d.id === want) ? want! : l[0]?.id ?? null; });
   }, (e) => setError(message(e))), [api]);
   // the dashboard named in the address (#/business?tab=dashboards&dashboard=ID) opens first, so a link to it works
-  useEffect(() => { load(new URLSearchParams(location.hash.split("?")[1] ?? "").get("dashboard") ?? undefined); api.dashboardKpis().then(setKpis, () => {}); if (user.permissions.includes("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path)), () => {}); }, [load]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(new URLSearchParams(location.hash.split("?")[1] ?? "").get("dashboard") ?? undefined); api.dashboardKpis().then(setKpis, (e) => reportMinor("the KPIs", e)); if (user.permissions.includes("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path)), (e) => reportMinor("the list of agents", e)); }, [load]);   // eslint-disable-line react-hooks/exhaustive-deps
   const refresh = useCallback(() => {
     if (!current) { setData(null); return; }
     api.dashboardData(current, Intl.DateTimeFormat().resolvedOptions().timeZone).then((r) => setData(r.widgets), (e) => setError(message(e)));
@@ -221,7 +221,7 @@ function DashboardEditor({ api, d, copy, kpis, agents, onClose, onSaved }: { api
   return (
     <Dialog open title={d ? (copy ? "Copy " + d.name : "Edit " + d.name) : "New dashboard"} width={760} onClose={onClose}
       footer={<><Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!v.name.trim() || (json == null && !widgets.length)} onClick={save}>Save</Button></>}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!d && <Field label="Start from" hint="A ready-made dashboard fills in its widgets; change them as you like.">{(id) => <Select id={id} defaultValue=""
         onChange={(e) => { const t = ready.find((r) => r.id === e.target.value); if (t) { setV({ ...v, name: v.name || t.name, description: v.description || t.description }); setWidgets(t.widgets); setJson(null); } }}
         options={[{ value: "", label: "Nothing: add widgets myself" }, ...ready.map((r) => ({ value: r.id, label: r.name }))]} />}</Field>}
@@ -268,7 +268,7 @@ function MailDialog({ api, user, d, onClose, onNotice }: { api: CrApi; user: CrU
   const mine = (m: DashMail) => m.created_by === user.username || user.permissions.includes("settings.manage");
   return (
     <Dialog open title={"E-mail " + d.name + " on a schedule"} width={760} onClose={onClose} footer={<><span className="st-bar-fill" /><Button kind="plain" onClick={onClose}>Close</Button></>}>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!list && !error && <p className="st-muted" role="status">Loading…</p>}
       {list && <table className="st-table" aria-label="E-mail schedules">
         <thead><tr><th scope="col">To</th><th scope="col">When</th><th scope="col">Next</th><th scope="col">Last sent</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>

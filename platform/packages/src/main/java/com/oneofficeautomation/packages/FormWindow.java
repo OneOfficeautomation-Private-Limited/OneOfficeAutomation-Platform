@@ -97,7 +97,7 @@ final class FormWindow {
                 server.setExecutor(Executors.newCachedThreadPool(r -> { Thread t = new Thread(r, "ooa-forms"); t.setDaemon(true); return t; }));
                 server.createContext("/form/", FormWindow::handle);
                 server.start();
-            } catch (IOException e) { throw new ActionException("FORMS.SERVER_FAILED", "Cannot show forms on this computer: " + e.getMessage(), null); }
+            } catch (IOException e) { throw new ActionException("FORMS.SERVER_FAILED", "Cannot show forms on this computer: " + e.getMessage(), "Make sure the runner has an unlocked desktop session where the form can open."); }
         }
         Session s = new Session(name, form, title);
         BY_TOKEN.put(s.token, s);

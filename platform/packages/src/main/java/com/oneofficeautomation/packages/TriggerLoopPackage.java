@@ -78,7 +78,7 @@ public final class TriggerLoopPackage {
             long left = deadlineNanos - System.nanoTime();
             if (left <= 0) return;
             try { Thread.sleep(Math.max(1, Math.min(SLICE_MS, left / 1_000_000))); }
-            catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted while waiting for an event"); }
+            catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted while waiting for an event", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 
@@ -98,7 +98,7 @@ public final class TriggerLoopPackage {
             @Input(name = "max_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_MAX_SECONDS) double maxSeconds) {
         Path dir = ctx.resolvePath(folder);
         if (!Files.isDirectory(dir)) throw new ActionException(P + ".NO_FOLDER", "Folder not found: " + dir, "Create the folder or check the path.");
-        if (settle < 0) throw new ActionException(P + ".BAD_LIMIT", "settle_seconds cannot be negative");
+        if (settle < 0) throw new ActionException(P + ".BAD_LIMIT", "settle_seconds cannot be negative", "Set settle_seconds to 0 or more.");
         PathMatcher m;
         try { m = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern)); }
         catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_PATTERN", "Invalid file pattern '" + pattern + "'", "Use a glob such as *.csv."); }
@@ -145,7 +145,7 @@ public final class TriggerLoopPackage {
         } catch (NoSuchFileException e) {
             throw new ActionException(P + ".NO_FOLDER", "The watched folder was removed: " + dir, "Recreate the folder and start the agent again.");
         } catch (IOException e) {
-            throw new ActionException(P + ".IO_ERROR", "Cannot read folder " + dir + ": " + e.getMessage(), null, true);
+            throw new ActionException(P + ".IO_ERROR", "Cannot read folder " + dir + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         }
         return out;
     }
@@ -222,7 +222,7 @@ public final class TriggerLoopPackage {
     @Condition(id = "process_running", name = "Program is running", description = "True when at least one process with this executable name is running.")
     public boolean processRunning(ActionContext ctx,
             @Input(name = "process_name", type = OoaType.STRING, description = "Executable name, with or without .exe.") String name) {
-        if (name == null || name.isBlank()) throw new ActionException(P + ".NO_PROCESS", "Give the program's executable name");
+        if (name == null || name.isBlank()) throw new ActionException(P + ".NO_PROCESS", "Give the program's executable name", "Fill in the program's executable name, for example excel.exe.");
         return ProcessHandle.allProcesses().anyMatch(p -> nameMatches(processName(p), name));
     }
 

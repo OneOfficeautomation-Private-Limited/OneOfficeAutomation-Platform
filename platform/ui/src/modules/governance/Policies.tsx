@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CodePolicy, CrApi, CrUser, ModelConnection, RepoFolder } from "../../api/cr";
 import type { Policy } from "./consoleApi";
-import { Button, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { Button, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, CloseView } from "../../console/ListParts";
 import { CodeRules, codeReportCsv, ruleText, rulesToSave } from "../../console/RepoTools";
 
@@ -96,7 +96,7 @@ export function Policies({ api, user, onNotice }: { api: CrApi; user: CrUser; on
           items={[{ key: "code", label: "Code analysis policy", description: "Rules agents are checked against at check-in", onSelect: () => setOpen("code") },
             { key: "ai", label: "AI guardrails policy", description: "Masking, models allowed and content check for AI steps", onSelect: () => setOpen("ai") }]} />}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search policies" placeholder="Search policies" value={q} onChange={(e) => setQ(e.target.value)} /></span>
@@ -253,7 +253,7 @@ function Stopped({ api, policy }: { api: CrApi; policy: Policy }) {
       <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)}
         options={[["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]].map(([value, label]) => ({ value, label }))} /></span>
     </div>
-    {error && <p className="st-alert" role="alert">{error}</p>}
+    {error && <PageError text={error} />}
     {!s && !error && <p className="cc-none" role="status">Loading…</p>}
     {s && <>
       <div className="cc-sums cc-sums-flush" role="group" aria-label="What it stopped">

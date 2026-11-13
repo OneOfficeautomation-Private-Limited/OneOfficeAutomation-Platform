@@ -44,9 +44,9 @@ final class Workspace {
         String r = rel == null ? "" : rel.replace('\\', '/');
         while (r.startsWith("/")) r = r.substring(1);
         Path p = root.resolve(r).normalize();
-        if (!p.startsWith(root)) throw new OoaException("WORKSPACE.OUTSIDE", "Path is outside the workspace: " + rel);
+        if (!p.startsWith(root)) throw new OoaException("WORKSPACE.OUTSIDE", "Path is outside the workspace: " + rel, "Choose a file or folder inside the workspace instead.");
         for (Path part : root.relativize(p)) if (part.toString().startsWith("."))
-            throw new OoaException("WORKSPACE.HIDDEN", "Hidden paths cannot be used: " + rel);
+            throw new OoaException("WORKSPACE.HIDDEN", "Hidden paths cannot be used: " + rel, "Use a path without a leading dot.");
         return p;
     }
 
@@ -168,7 +168,7 @@ final class Workspace {
             }
             default -> throw new OoaException("WORKSPACE.BAD_TYPE", "Unknown item type '" + type + "'", "Use form, process, document, objects, skill or script-python/powershell/vbscript/javascript.");
         }
-        if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent);
+        if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent, "Choose a folder that exists; reload the workspace if it was renamed or moved.");
         Path p = dir.resolve(file);
         if (Files.exists(p)) throw new OoaException("WORKSPACE.EXISTS", "'" + file + "' already exists here", "Choose another name.");
         atomicWrite(p, content instanceof String text ? text : writer.write(content));
@@ -183,23 +183,23 @@ final class Workspace {
 
     String readItem(String path) throws IOException {
         Path p = resolve(path);
-        if (!Files.isRegularFile(p)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path);
+        if (!Files.isRegularFile(p)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path, "Reload the workspace (F5); it may have been renamed, moved or deleted.");
         if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "One AgentStudio cannot open this kind of file: " + path, "Open it with another program.");
-        if (Files.size(p) > MAX_ITEM) throw new OoaException("WORKSPACE.TOO_LARGE", "The file is larger than 2 MB: " + path);
+        if (Files.size(p) > MAX_ITEM) throw new OoaException("WORKSPACE.TOO_LARGE", "The file is larger than 2 MB: " + path, "Open files larger than 2 MB in another program.");
         return Files.readString(p, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     /** Saves a text item atomically; JSON items must stay valid JSON objects. */
     String writeItem(String path, String text, java.util.function.Function<String, Object> parseJson) throws IOException {
         Path p = resolve(path);
-        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "One AgentStudio cannot save this kind of file: " + path);
-        if (p.getParent() == null || !Files.isDirectory(p.getParent())) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found for " + path);
-        if (text == null) throw new OoaException("WORKSPACE.BAD_CONTENT", "Nothing to save");
-        if (text.length() > MAX_ITEM) throw new OoaException("WORKSPACE.TOO_LARGE", "The content is larger than 2 MB");
+        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "One AgentStudio cannot save this kind of file: " + path, "Edit this file in the program it belongs to.");
+        if (p.getParent() == null || !Files.isDirectory(p.getParent())) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found for " + path, "Choose a folder that exists; reload the workspace if it was renamed or moved.");
+        if (text == null) throw new OoaException("WORKSPACE.BAD_CONTENT", "Nothing to save", "Add content before saving.");
+        if (text.length() > MAX_ITEM) throw new OoaException("WORKSPACE.TOO_LARGE", "The content is larger than 2 MB", "Save less than 2 MB in one file.");
         if (p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json")) {
             Object v;
             try { v = parseJson.apply(text); } catch (RuntimeException e) { throw new OoaException("WORKSPACE.BAD_JSON", "Not valid JSON: " + e.getMessage(), "Fix the JSON, or use the designer tab."); }
-            if (!(v instanceof Map)) throw new OoaException("WORKSPACE.BAD_JSON", "The file must contain a JSON object");
+            if (!(v instanceof Map)) throw new OoaException("WORKSPACE.BAD_JSON", "The file must contain a JSON object", "Save the content as a JSON object ({ ... }).");
         }
         atomicWrite(p, text);
         return rel(p);
@@ -214,7 +214,7 @@ final class Workspace {
 
     String createFolder(String parent, String name) throws IOException {
         Path dir = resolve(parent);
-        if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent);
+        if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent, "Choose a folder that exists; reload the workspace if it was renamed or moved.");
         Path p = dir.resolve(checkName(name, false));
         if (Files.exists(p)) throw new OoaException("WORKSPACE.EXISTS", "'" + name + "' already exists here", "Choose another name.");
         Files.createDirectory(p);
@@ -224,7 +224,7 @@ final class Workspace {
     String createBot(String parent, String name, String kind, JsonWriter writer) throws IOException {
         String base = checkName(name.endsWith(BOT_SUFFIX) ? name.substring(0, name.length() - BOT_SUFFIX.length()) : name, false);
         Path dir = resolve(parent);
-        if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent);
+        if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent, "Choose a folder that exists; reload the workspace if it was renamed or moved.");
         Path p = dir.resolve(base + BOT_SUFFIX);
         if (Files.exists(p)) throw new OoaException("WORKSPACE.EXISTS", "An agent named '" + base + "' already exists here", "Choose another name.");
         String id = base.trim().replaceAll("[^A-Za-z0-9_.-]+", "_");
@@ -246,8 +246,8 @@ final class Workspace {
 
     String rename(String path, String newName) throws IOException {
         Path p = resolve(path);
-        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be renamed");
-        if (!Files.exists(p)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path);
+        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be renamed", "Choose a file or folder inside the workspace instead.");
+        if (!Files.exists(p)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path, "Reload the workspace (F5); it may have been renamed, moved or deleted.");
         String n = newName.trim();
         // Keep the item type: "Invoice" for a form stays "Invoice.form.json"; a file keeps its extension unless a new one is typed.
         if (!Files.isDirectory(p)) {
@@ -265,9 +265,9 @@ final class Workspace {
 
     String move(String path, String toFolder) throws IOException {
         Path p = resolve(path), dest = resolve(toFolder);
-        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be moved");
-        if (!Files.isDirectory(dest)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + toFolder);
-        if (dest.startsWith(p)) throw new OoaException("WORKSPACE.INTO_ITSELF", "A folder cannot be moved into itself");
+        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be moved", "Choose a file or folder inside the workspace instead.");
+        if (!Files.isDirectory(dest)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + toFolder, "Choose a folder that exists; reload the workspace if it was renamed or moved.");
+        if (dest.startsWith(p)) throw new OoaException("WORKSPACE.INTO_ITSELF", "A folder cannot be moved into itself", "Choose a folder outside the one being moved.");
         Path target = dest.resolve(p.getFileName());
         if (target.equals(p)) return rel(p);
         if (Files.exists(target)) throw new OoaException("WORKSPACE.EXISTS", "'" + p.getFileName() + "' already exists in the destination", "Rename one of them first.");
@@ -282,11 +282,11 @@ final class Workspace {
      */
     String copy(String path, String toFolder) throws IOException {
         Path p = resolve(path), dest = resolve(toFolder);
-        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be copied");
-        if (!Files.exists(p, LinkOption.NOFOLLOW_LINKS)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path);
-        if (Files.isSymbolicLink(p)) throw new OoaException("WORKSPACE.LINK", "Links cannot be copied: " + path);
-        if (!Files.isDirectory(dest)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + toFolder);
-        if (Files.isDirectory(p) && dest.startsWith(p)) throw new OoaException("WORKSPACE.INTO_ITSELF", "A folder cannot be copied into itself");
+        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be copied", "Choose a file or folder inside the workspace instead.");
+        if (!Files.exists(p, LinkOption.NOFOLLOW_LINKS)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path, "Reload the workspace (F5); it may have been renamed, moved or deleted.");
+        if (Files.isSymbolicLink(p)) throw new OoaException("WORKSPACE.LINK", "Links cannot be copied: " + path, "Copy the file the link points to instead.");
+        if (!Files.isDirectory(dest)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + toFolder, "Choose a folder that exists; reload the workspace if it was renamed or moved.");
+        if (Files.isDirectory(p) && dest.startsWith(p)) throw new OoaException("WORKSPACE.INTO_ITSELF", "A folder cannot be copied into itself", "Choose a folder outside the one being copied.");
         Path target = dest.resolve(p.getFileName().toString());
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) target = freeName(dest, p.getFileName().toString(), Files.isDirectory(p), " - Copy");
         if (!Files.isDirectory(p)) { Files.copy(p, target); return rel(target); }
@@ -306,7 +306,7 @@ final class Workspace {
     /** A copy next to the original ("name - Copy"). */
     String duplicate(String path) throws IOException {
         Path p = resolve(path);
-        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be duplicated");
+        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be duplicated", "Choose a file or folder inside the workspace instead.");
         return copy(path, rel(p.getParent()));
     }
 
@@ -332,7 +332,7 @@ final class Workspace {
     /** Saves an uploaded file into a folder. Unsafe characters in the name become _, and a taken name gets " (2)" and so on. */
     String upload(String parent, String name, byte[] content) throws IOException {
         Path dir = resolve(parent);
-        if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent);
+        if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent, "Choose a folder that exists; reload the workspace if it was renamed or moved.");
         String n = name == null ? "" : name.replace('\\', '/');
         n = n.substring(n.lastIndexOf('/') + 1).replaceAll("[^A-Za-z0-9 _.()&-]", "_").replaceAll("^[ .]+", "").trim();
         while (n.contains("..")) n = n.replace("..", ".");
@@ -350,8 +350,8 @@ final class Workspace {
     /** Moves the item to .trash/<timestamp>_<name>; restore by moving it back in File Explorer. */
     String delete(String path) throws IOException {
         Path p = resolve(path);
-        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be deleted");
-        if (!Files.exists(p)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path);
+        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be deleted", "Choose a file or folder inside the workspace instead.");
+        if (!Files.exists(p)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path, "Reload the workspace (F5); it may have been renamed, moved or deleted.");
         Path trash = root.resolve(".trash");
         Files.createDirectories(trash);
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));

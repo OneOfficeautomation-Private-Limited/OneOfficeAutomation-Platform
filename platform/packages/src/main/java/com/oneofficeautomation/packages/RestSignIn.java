@@ -99,7 +99,7 @@ final class RestSignIn {
         try { r = client.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
         catch (HttpTimeoutException x) { throw new ActionException("REST.OAUTH_FAILED", "No answer from the token endpoint " + masked(o.tokenUrl()) + " within " + timeout + " s", "Check the token URL.", true); }
         catch (IOException x) { throw new ActionException("REST.OAUTH_FAILED", "Cannot reach the token endpoint " + masked(o.tokenUrl()) + ": " + scrub(NetErrors.reason(x, null), secret, refresh), "Check the token URL, proxy settings and network access.", true); }
-        catch (InterruptedException x) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Request interrupted"); }
+        catch (InterruptedException x) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Request interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         Map<String, Object> m = parseTokenResponse(r.body());
         int status = r.statusCode();
         if (status >= 400) {

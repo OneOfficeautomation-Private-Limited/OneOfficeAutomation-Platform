@@ -15,7 +15,7 @@ public final class WorkdayPackage {
     private static final String D_HOST = "Workday REST host, e.g. https://wd2-impl-services1.workday.com.";
 
     private static String api(String host, String tenant) {
-        if (!TENANT.matcher(tenant).matches()) throw new ActionException(P + ".BAD_TENANT", "Invalid tenant name '" + tenant + "'");
+        if (!TENANT.matcher(tenant).matches()) throw new ActionException(P + ".BAD_TENANT", "Invalid tenant name '" + tenant + "'", "Use the tenant name as it appears in your Workday address (letters, digits, _ and -).");
         return host.replaceAll("/+$", "") + "/ccx/api/v1/" + tenant;
     }
 
@@ -119,7 +119,7 @@ public final class WorkdayPackage {
     static List<Map<String, Object>> xmlEntries(String xml) {
         org.w3c.dom.Document d;
         try { d = XmlSupport.parse(xml, true); }
-        catch (Exception e) { throw new ActionException(P + ".BAD_RESPONSE", "Workday sent a report that is not valid XML", null); }
+        catch (Exception e) { throw new ActionException(P + ".BAD_RESPONSE", "Workday sent a report that is not valid XML", "Check that the report is a web service report (RaaS) with XML output, and that the user may run it."); }
         List<Map<String, Object>> out = new ArrayList<>();
         org.w3c.dom.NodeList entries = d.getElementsByTagNameNS("*", "Report_Entry");
         for (int i = 0; i < entries.getLength(); i++) {
@@ -167,8 +167,8 @@ public final class WorkdayPackage {
             @Input(name = "client_id", type = OoaType.STRING, description = "Client id of the API client registered in Workday.") String clientId,
             @Input(name = "client_secret", type = OoaType.CREDENTIAL, description = "Client secret from the vault.") Object clientSecret,
             @Input(name = "refresh_token", type = OoaType.CREDENTIAL, description = "Refresh token issued to the API client, from the vault.") Object refreshToken) {
-        if (tenant == null || !TENANT.matcher(tenant).matches()) throw new ActionException(P + ".BAD_TENANT", "Invalid tenant name '" + tenant + "'");
-        if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id is required");
+        if (tenant == null || !TENANT.matcher(tenant).matches()) throw new ActionException(P + ".BAD_TENANT", "Invalid tenant name '" + tenant + "'", "Use the tenant name as it appears in your Workday address (letters, digits, _ and -).");
+        if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id is required", "Fill in the API client id in the connection (Register API Client in Workday).");
         EnterpriseAuth.secret(clientSecret, P, "client secret");
         EnterpriseAuth.secret(refreshToken, P, "refresh token");
         Map<String, Object> form = new LinkedHashMap<>();
@@ -210,7 +210,7 @@ public final class WorkdayPackage {
     }
 
     private static org.w3c.dom.Document soap(ActionContext ctx, String host, String tenant, String version, String body, String user, Object password, Object token) {
-        if (!TENANT.matcher(tenant).matches()) throw new ActionException(P + ".BAD_TENANT", "Invalid tenant name '" + tenant + "'");
+        if (!TENANT.matcher(tenant).matches()) throw new ActionException(P + ".BAD_TENANT", "Invalid tenant name '" + tenant + "'", "Use the tenant name as it appears in your Workday address (letters, digits, _ and -).");
         if (!WS_VERSION.matcher(version).matches()) throw new ActionException(P + ".BAD_VERSION", "Invalid web service version '" + version + "'", "Example: v42.0.");
         if (!(token instanceof SecureString) && !(password instanceof SecureString))
             throw new ActionException(P + ".NO_TOKEN", "Sign-in details are required", "Give access_token, or user and password.");
@@ -226,7 +226,7 @@ public final class WorkdayPackage {
         }
         try {
             return XmlSupport.parse(new String(r.bytes(), java.nio.charset.StandardCharsets.UTF_8), true);
-        } catch (Exception e) { throw new ActionException(P + ".BAD_RESPONSE", "Workday sent a reply that is not valid XML", null); }
+        } catch (Exception e) { throw new ActionException(P + ".BAD_RESPONSE", "Workday sent a reply that is not valid XML", "The service answered in an unexpected way; try again, and if it keeps happening check the service's status page."); }
     }
 
     private static String between(String s, String a, String b) {
@@ -268,14 +268,14 @@ public final class WorkdayPackage {
                     description = "Whether integration_system_id holds the Integration System ID or the integration's Workday ID (WID).") String idType,
             @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, example = "{\"Effective_Date\": \"2026-11-01\", \"Include_Terminated\": false}",
                     description = "Launch parameter name to value; text, numbers, true/false and dates are sent with their Workday type.") Map<String, Object> parameters) {
-        if (integrationId == null || !REF_ID.matcher(integrationId).matches()) throw new ActionException(P + ".BAD_ID", "Invalid integration system id '" + integrationId + "'");
+        if (integrationId == null || !REF_ID.matcher(integrationId).matches()) throw new ActionException(P + ".BAD_ID", "Invalid integration system id '" + integrationId + "'", "Use the integration system's id as Workday shows it (letters, digits, _ and -).");
         boolean wid = "wid".equals(idType);
         if (wid && !integrationId.matches("^[0-9a-fA-F]{32}$")) throw new ActionException(P + ".BAD_ID", "A WID is 32 hexadecimal characters", "Use id_type integration_system_id for a named id.");
         // the request of the Launch_Integration operation is Launch_Integration_Event_Request (Integrations web service)
         StringBuilder body = new StringBuilder("<bsvc:Launch_Integration_Event_Request bsvc:version=\"" + version + "\"><bsvc:Integration_System_Reference>"
                 + "<bsvc:ID bsvc:type=\"" + (wid ? "WID" : "Integration_System_ID") + "\">" + xml(integrationId) + "</bsvc:ID></bsvc:Integration_System_Reference>");
         if (parameters != null) parameters.forEach((name, value) -> {
-            if (name == null || !REF_ID.matcher(name).matches()) throw new ActionException(P + ".BAD_ID", "Invalid launch parameter name '" + name + "'");
+            if (name == null || !REF_ID.matcher(name).matches()) throw new ActionException(P + ".BAD_ID", "Invalid launch parameter name '" + name + "'", "Use the launch parameter's name as the integration defines it.");
             String typed = value instanceof Boolean b ? "<bsvc:Boolean>" + b + "</bsvc:Boolean>"
                     : value instanceof Number n ? "<bsvc:Numeric>" + new BigDecimal(n.toString()).toPlainString() + "</bsvc:Numeric>"
                     : value instanceof java.time.LocalDateTime t ? "<bsvc:DateTime>" + t + "</bsvc:DateTime>"
@@ -321,7 +321,7 @@ public final class WorkdayPackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token,
             @Input(name = "id_type", type = OoaType.STRING, required = false, defaultValue = "\"integration_system_id\"", enumValues = {"integration_system_id", "wid"},
                     description = "Whether integration_system_id holds the Integration System ID or the EIB's Workday ID (WID).") String idType) {
-        if (integrationId == null || !REF_ID.matcher(integrationId).matches()) throw new ActionException(P + ".BAD_ID", "Invalid integration system id '" + integrationId + "'");
+        if (integrationId == null || !REF_ID.matcher(integrationId).matches()) throw new ActionException(P + ".BAD_ID", "Invalid integration system id '" + integrationId + "'", "Use the integration system's id as Workday shows it (letters, digits, _ and -).");
         boolean wid = "wid".equals(idType);
         if (wid && !integrationId.matches("^[0-9a-fA-F]{32}$")) throw new ActionException(P + ".BAD_ID", "A WID is 32 hexadecimal characters", "Use id_type integration_system_id for a named id.");
         if (field == null || field.isBlank()) throw new ActionException(P + ".NO_FILE_FIELD", "Say which EIB field takes the file", "Use the data source field name shown on the EIB's Launch / Schedule page.");
@@ -330,7 +330,7 @@ public final class WorkdayPackage {
         if (!java.nio.file.Files.isRegularFile(f)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + f, "Check the path.");
         byte[] content;
         try { content = java.nio.file.Files.readAllBytes(f); }
-        catch (java.io.IOException e) { throw new ActionException("FILE.READ_FAILED", "Cannot read " + f + ": " + e.getMessage()); }
+        catch (java.io.IOException e) { throw new ActionException("FILE.READ_FAILED", "Cannot read " + f + ": " + e.getMessage(), "Check that the file exists, is not open in another program, and that the runner's account may read it."); }
         String name = f.getFileName().toString();
         String type = contentType != null && !contentType.isBlank() ? contentType.strip() : mimeType(name);
         // Launch_EIB_Request: the file is Attachment_Data of a field override on the EIB's data source (Integrations web service)

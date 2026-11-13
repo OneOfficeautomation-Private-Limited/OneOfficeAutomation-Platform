@@ -14,7 +14,8 @@ import { canSee, type MenuGroup, type MenuPage, type MenuSection, type MenuViewe
  * With `groups` (the console, option B, 8 Nov 2026): one entry per group of pages with its icon; an entry opens the
  * first of its pages the person may see and is current on any of them (the page shows the others as tabs); a page in
  * no group is an entry of its own. Every section starts open; each folds from its heading and the choice is
- * remembered, but the section of the page on screen always stays open (usage review item 16, 9 Nov 2026).
+ * remembered (usage review item 16, 9 Nov 2026). Since the improvement list of 12 Nov 2026 (item 2) the section of the
+ * page on screen folds too when its heading is clicked, like the others; going to a page opens its section again.
  */
 type Entry = { id: string; label: string; icon?: MenuGroup["icon"]; first: MenuPage; pages: string[] };
 const WIDTH = { min: 200, max: 360, normal: 232, step: 32 };
@@ -39,8 +40,11 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
   useEffect(() => { const s = sectionOf(current); if (s) setOpenOne(s); }, [current]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [foldedGroups, setFoldedGroups] = usePersistent<string[]>("menu.groups.folded", []);
   const currentSection = sectionOf(current);
-  const isOpen = (label: string) => groups ? label === currentSection || !foldedGroups.includes(label) : inConsole ? openOne === label : !closed.includes(label);
+  const isOpen = (label: string) => groups ? !foldedGroups.includes(label) : inConsole ? openOne === label : !closed.includes(label);
   const foldGroup = (label: string) => setFoldedGroups(foldedGroups.includes(label) ? foldedGroups.filter((x) => x !== label) : [...foldedGroups, label]);
+  // going to a page opens its section if it was folded (only when the page changes, so a click can still fold it)
+  useEffect(() => { if (groups && currentSection && foldedGroups.includes(currentSection)) setFoldedGroups(foldedGroups.filter((x) => x !== currentSection)); },
+    [current]);   // eslint-disable-line react-hooks/exhaustive-deps
   // the entries of a section: its groups with a page the person may see (a page goes where its group is), then its pages in no group
   const visible = new Map(shown.flatMap((s) => s.pages.map((p) => [p.id, p] as const)));
   const entriesOf = (sec: MenuSection): Entry[] => {
@@ -53,7 +57,7 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
     return [...grouped, ...loose];
   };
   const sectionsShown = groups ? sections.filter((s) => entriesOf(s).length) : shown;
-  const toggle = (label: string) => { if (groups) { if (label !== currentSection) foldGroup(label); } else if (inConsole) setOpenOne(openOne === label ? null : label); else toggleSection(label); };
+  const toggle = (label: string) => { if (groups) foldGroup(label); else if (inConsole) setOpenOne(openOne === label ? null : label); else toggleSection(label); };
   const [width, setWidth] = usePanelSize("console.menu");
   const w = width ?? WIDTH.normal;
   const resize = (by: number) => setWidth(Math.max(WIDTH.min, Math.min(WIDTH.max, w + by)));
@@ -119,7 +123,7 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
           if (groups) return (
             <div key={sec.label} className="st-menu-section is-grouped">
               <button type="button" className="st-menu-group-head" aria-expanded={open} onClick={() => toggle(sec.label)}
-                title={sec.label === currentSection ? "The section of the page on screen stays open" : open ? "Fold " + sec.label : "Unfold " + sec.label}>
+                title={open ? "Fold " + sec.label : "Unfold " + sec.label}>
                 <IconTile name={sec.icon} color={sec.color} size={20} /><span className="st-menu-label">{sec.label}</span>
                 <span className="st-menu-caret"><Icon name={open ? "chevronDown" : "chevronRight"} size={12} stroke={2.6} /></span>
               </button>

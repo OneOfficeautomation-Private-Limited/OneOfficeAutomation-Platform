@@ -1,3 +1,4 @@
+import { errorText, runErrorText } from "../api/client";
 import { useEffect, useRef, useState } from "react";
 import type { ActionManifest, FieldSpec, PackageManifest } from "../api/client";
 import { Button, Select, TextInput } from "../components";
@@ -27,9 +28,9 @@ function ConditionTest({ value }: { value: unknown }) {
         const text = valueOf(v.name, v.default);
         return text === "" ? { name: v.name, type: v.type } : { name: v.name, type: v.type, value: parseLoose(text) };
       }));
-      setAnswer(r.error !== undefined ? { ok: false, text: "Could not be checked: " + (typeof r.error === "string" ? r.error : r.error?.message ?? "unknown error") }
+      setAnswer(r.error !== undefined ? { ok: false, text: "Could not be checked: " + (typeof r.error === "string" ? r.error : runErrorText(r.error, "unknown error")) }
         : { ok: true, text: r.result ? "True: the step runs its first part." : "False." });
-    } catch (e) { setAnswer({ ok: false, text: "Could not be checked: " + (e instanceof Error ? e.message : String(e)) }); }
+    } catch (e) { setAnswer({ ok: false, text: "Could not be checked: " + errorText(e) }); }
     finally { setBusy(false); }
   };
   return (

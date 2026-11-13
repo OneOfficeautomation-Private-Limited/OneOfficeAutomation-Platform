@@ -220,7 +220,7 @@ public final class OAuthSignIn {
             r = HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new OoaException("RUN.CANCELLED", "Interrupted while signing in");
+            throw new OoaException("RUN.CANCELLED", "Interrupted while signing in", "The run was stopped before this step finished. Run the agent again when it should go on.");
         } catch (Exception e) {
             throw new OoaException("CONNECTION.SIGN_IN_FAILED", "Connection '" + connection + "' could not reach its sign-in server: " + e.getMessage(),
                     "Check the token address and that the runner can reach it.", true, Map.of());
@@ -245,7 +245,7 @@ public final class OAuthSignIn {
                     .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build(), HttpResponse.BodyHandlers.ofString());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new OoaException("RUN.CANCELLED", "Interrupted while signing in");
+            throw new OoaException("RUN.CANCELLED", "Interrupted while signing in", "The run was stopped before this step finished. Run the agent again when it should go on.");
         } catch (Exception e) {
             throw new OoaException("CONNECTION.SIGN_IN_FAILED", "Connection '" + connection + "' could not reach its sign-in server: " + e.getMessage(),
                     "Check the token address and that the runner can reach it.", true, Map.of());

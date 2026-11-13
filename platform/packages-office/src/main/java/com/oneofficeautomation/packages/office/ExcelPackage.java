@@ -1,5 +1,7 @@
 package com.oneofficeautomation.packages.office;
 
+import com.oneofficeautomation.sdk.ActionException;
+
 import com.oneofficeautomation.runner.Values;
 import com.oneofficeautomation.sdk.*;
 import org.apache.poi.ss.formula.FormulaParser;
@@ -137,7 +139,7 @@ public final class ExcelPackage {
     static String cloudPath(String path) {
         if (path == null || !path.regionMatches(true, 0, CLOUD, 0, CLOUD.length())) return null;
         String r = path.substring(CLOUD.length()).replace('\\', '/').replaceAll("^/+", "");
-        if (r.isBlank() || r.contains("..")) throw new ActionException("EXCEL.BAD_PATH", "Give the workbook's path in the drive after onedrive:, for example onedrive:Reports/2026/sales.xlsx");
+        if (r.isBlank() || r.contains("..")) throw new ActionException("EXCEL.BAD_PATH", "Give the workbook's path in the drive after onedrive:, for example onedrive:Reports/2026/sales.xlsx", "Write the path after onedrive:, for example onedrive:Reports/2026/sales.xlsx.");
         return r;
     }
 
@@ -849,7 +851,7 @@ public final class ExcelPackage {
             Sheet dst = s.wb.createSheet(uniqueSheetName(s.wb, newName == null || newName.isBlank() ? src.getSheetName() : newName));
             copySheetInto(src, dst);
             return out("name", dst.getSheetName());
-        } catch (IOException e) { throw new ActionException("EXCEL.OPEN_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("EXCEL.OPEN_FAILED", e.getMessage(), "Check that the workbook exists, is a valid .xlsx or .xls file, and is not open in Excel with a lock."); }
     }
 
     @Action(id = "copy_sheet", name = "Copy worksheet", category = "Sheets", description = "Duplicate a worksheet inside the same workbook under a new name.",
@@ -877,11 +879,11 @@ public final class ExcelPackage {
      * steps using the full name did not find the sheet.
      */
     static String sheetName(String name) {
-        if (name == null || name.isBlank()) throw new IllegalArgumentException("A sheet name cannot be empty");
-        if (name.length() > 31) throw new IllegalArgumentException("Sheet name '" + name + "' has " + name.length() + " characters; Excel allows at most 31");
-        if (name.matches(".*[:\\\\/?*\\[\\]].*")) throw new IllegalArgumentException("Sheet name '" + name + "' contains one of : \\ / ? * [ ]");
-        if (name.startsWith("'") || name.endsWith("'")) throw new IllegalArgumentException("Sheet name '" + name + "' cannot start or end with an apostrophe");
-        if (name.equalsIgnoreCase("History")) throw new IllegalArgumentException("'History' is reserved by Excel");
+        if (name == null || name.isBlank()) throw new ActionException("EXCEL.BAD_SHEET", "A sheet name cannot be empty", "Give the sheet a name.");
+        if (name.length() > 31) throw new ActionException("EXCEL.BAD_SHEET", "Sheet name '" + name + "' has " + name.length() + " characters; Excel allows at most 31", "Shorten the sheet name to 31 characters or fewer.");
+        if (name.matches(".*[:\\\\/?*\\[\\]].*")) throw new ActionException("EXCEL.BAD_SHEET", "Sheet name '" + name + "' contains one of : \\ / ? * [ ]", "Remove : \\ / ? * [ ] from the sheet name.");
+        if (name.startsWith("'") || name.endsWith("'")) throw new ActionException("EXCEL.BAD_SHEET", "Sheet name '" + name + "' cannot start or end with an apostrophe", "Remove the apostrophe at the start or end of the sheet name.");
+        if (name.equalsIgnoreCase("History")) throw new ActionException("EXCEL.BAD_SHEET", "'History' is reserved by Excel", "Choose another sheet name; Excel keeps History for itself.");
         return name;
     }
 

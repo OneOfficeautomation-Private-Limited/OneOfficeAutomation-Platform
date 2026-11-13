@@ -109,7 +109,7 @@ final class VtSshSession extends TerminalPackage.Session {
         if (ended || !shell.isConnected()) throw new ActionException("TERMINAL.ENDED", "The host closed the connection", "Connect again; the host may have signed the session out.");
         try {
             synchronized (toHost) { toHost.write(s.getBytes(StandardCharsets.UTF_8)); toHost.flush(); }
-        } catch (IOException e) { throw new ActionException("TERMINAL.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("TERMINAL.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         synchronized (signal) { lastSent = System.nanoTime(); sentMark = outputs; }
     }
 
@@ -218,7 +218,7 @@ final class VtSshSession extends TerminalPackage.Session {
     /** Waits on the signal for up to 50 ms; false once the deadline has passed. */
     private boolean pause(long end) {
         if (System.nanoTime() > end) return false;
-        try { signal.wait(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("TERMINAL.INTERRUPTED", "Stopped while waiting for the host"); }
+        try { signal.wait(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("TERMINAL.INTERRUPTED", "Stopped while waiting for the host", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         return true;
     }
 

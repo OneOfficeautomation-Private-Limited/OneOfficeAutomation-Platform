@@ -37,10 +37,10 @@ final class AgentClient {
         if (deviceId != null) b.header("X-OOA-Device", deviceId).header("X-OOA-Device-Secret", secret);
         try {
             HttpResponse<byte[]> r = http.send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
-            if (r.statusCode() >= 400) throw new OoaException("AGENT.HTTP_" + r.statusCode(), "One CommandCenter answered HTTP " + r.statusCode() + " for " + path);
+            if (r.statusCode() >= 400) throw new OoaException("AGENT.HTTP_" + r.statusCode(), "One CommandCenter answered HTTP " + r.statusCode() + " for " + path, "Check One CommandCenter's address in the runner's settings and that the runner can reach it (network, proxy, firewall).");
             return r.body();
-        } catch (IOException e) { throw new OoaException("AGENT.UNREACHABLE", "Cannot reach One CommandCenter at " + baseUrl + ": " + e.getMessage(), null, true, null); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("AGENT.INTERRUPTED", "Interrupted"); }
+        } catch (IOException e) { throw new OoaException("AGENT.UNREACHABLE", "Cannot reach One CommandCenter at " + baseUrl + ": " + e.getMessage(), "Check One CommandCenter's address in the runner's settings and that the runner can reach it (network, proxy, firewall).", true, null); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("AGENT.INTERRUPTED", "Interrupted", "Try again; if it keeps happening, an administrator can look in the server log."); }
     }
 
     /** A file to the runner API as multipart form data (field "files"), with a JSON answer; up to 15 minutes. */
@@ -59,10 +59,10 @@ final class AgentClient {
         if (deviceId != null) b.header("X-OOA-Device", deviceId).header("X-OOA-Device-Secret", secret);
         HttpResponse<String> r;
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
-        catch (IOException e) { throw new OoaException("AGENT.UNREACHABLE", "Cannot reach Command Center at " + baseUrl + ": " + e.getMessage(), null, true, null); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("AGENT.INTERRUPTED", "Interrupted"); }
+        catch (IOException e) { throw new OoaException("AGENT.UNREACHABLE", "Cannot reach Command Center at " + baseUrl + ": " + e.getMessage(), "Check One CommandCenter's address in the runner's settings and that the runner can reach it (network, proxy, firewall).", true, null); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("AGENT.INTERRUPTED", "Interrupted", "Try again; if it keeps happening, an administrator can look in the server log."); }
         Object parsed;
-        try { parsed = JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("AGENT.BAD_RESPONSE", "Command Center returned HTTP " + r.statusCode()); }
+        try { parsed = JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("AGENT.BAD_RESPONSE", "Command Center returned HTTP " + r.statusCode(), "Check One CommandCenter's address in the runner's settings and that the runner can reach it (network, proxy, firewall)."); }
         Map<String, Object> m = parsed instanceof Map ? (Map<String, Object>) parsed : Map.of();
         if (r.statusCode() >= 400) {
             Map<String, Object> e = m.get("error") instanceof Map ? (Map<String, Object>) m.get("error") : Map.of();
@@ -80,9 +80,9 @@ final class AgentClient {
         HttpResponse<String> r;
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
         catch (IOException e) { throw new OoaException("AGENT.UNREACHABLE", "Cannot reach One CommandCenter at " + baseUrl + ": " + e.getMessage(), "Check the URL and network; the agent keeps retrying.", true, null); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("AGENT.INTERRUPTED", "Interrupted"); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("AGENT.INTERRUPTED", "Interrupted", "Try again; if it keeps happening, an administrator can look in the server log."); }
         Object parsed;
-        try { parsed = JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("AGENT.BAD_RESPONSE", "One CommandCenter returned HTTP " + r.statusCode()); }
+        try { parsed = JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("AGENT.BAD_RESPONSE", "One CommandCenter returned HTTP " + r.statusCode(), "Check One CommandCenter's address in the runner's settings and that the runner can reach it (network, proxy, firewall)."); }
         Map<String, Object> m = parsed instanceof Map ? (Map<String, Object>) parsed : Map.of();
         if (r.statusCode() >= 400) {
             Map<String, Object> e = m.get("error") instanceof Map ? (Map<String, Object>) m.get("error") : Map.of();

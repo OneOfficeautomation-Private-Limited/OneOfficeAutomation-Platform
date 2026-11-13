@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, QueueInsight, RunnerPool } from "../api/cr";
-import { HelpButton, Select, usePersistent, type HelpTopic } from "../components";
+import { HelpButton, Select, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick } from "./ListParts";
 
 /**
@@ -66,7 +66,7 @@ export function QueueInsights({ api, user , title, tabs }: { api: CrApi; user: C
 
   const load = useCallback(() => {
     api.queueInsights({ days, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }).then((r) => { setList(r); setError(null); }, (e) => setError(message(e)));
-    if (user.permissions.includes("devices.view")) api.pools().then(setPools, () => {});
+    if (user.permissions.includes("devices.view")) api.pools().then(setPools, (e) => reportMinor("the runner pools", e));
   }, [api, days, user]);
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
 
@@ -91,7 +91,7 @@ export function QueueInsights({ api, user , title, tabs }: { api: CrApi; user: C
         </div>
         <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
       </div>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       {!list && !error && <p className="st-muted cc-pad" role="status">Loading…</p>}
       {list && !qs.length && <p className="st-muted cc-pad">No work queues you may see yet.</p>}
       {qs.length > 0 && <>

@@ -5,7 +5,7 @@ import { canSee, MENU_SECTIONS } from "../shell/menu";
 import { PhoneNotificationsDialog } from "./PhoneNotifications";
 
 /**
- * The console's top bar (design plan, step 1: the skeleton): the product name, where you are (section › page), one
+ * The console's top bar (design plan, step 1: the skeleton): the product mark and name (where you are moved above the page title in Console A), one
  * search for pages and agents (Ctrl K; a run id opens that run), the open alerts, help (with the classic console until it
  * is retired) and the account menu. As UiPath's header keeps the current location and help, and AA's breadcrumbs lead
  * back to the parent.
@@ -13,7 +13,18 @@ import { PhoneNotificationsDialog } from "./PhoneNotifications";
 const sectionName = (label: string) => label === "AI" ? "AI" : label.charAt(0) + label.slice(1).toLowerCase();
 const agentName = (p: string) => p.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, "");
 
-export function TopBar({ api, user, page, classicHref, onPage, onSignOut, onShortcuts }: { api: CrApi; user: CrUser; page: string; classicHref: string;
+/** Where you are (Console A, 13 Nov 2026): section › page as a small line above the page title; the section leads back. */
+export function Breadcrumb({ user, page, onPage }: { user: CrUser; page: string; onPage: (id: string) => void }) {
+  const sec = MENU_SECTIONS.find((s) => s.pages.some((p) => p.id === page));
+  const label = sec?.pages.find((p) => p.id === page)?.label;
+  if (!sec || !label) return null;
+  return <nav aria-label="You are here" className="cc-here">
+    <button type="button" onClick={() => onPage(sec.pages.find((p) => canSee(p, user))?.id ?? "home")}>{sectionName(sec.label)}</button>
+    <span aria-hidden="true">›</span><span aria-current="page">{label}</span>
+  </nav>;
+}
+
+export function TopBar({ api, user, classicHref, onPage, onSignOut, onShortcuts }: { api: CrApi; user: CrUser; page: string; classicHref: string;
   onPage: (id: string) => void; onSignOut: () => void; onShortcuts: () => void }) {
   const can = (p: string) => user.permissions.includes(p);
   const [alerts, setAlerts] = useState<number | null>(null);
@@ -23,18 +34,11 @@ export function TopBar({ api, user, page, classicHref, onPage, onSignOut, onShor
     const load = () => api.alerts({ status: "open", limit: "1" }).then((r) => setAlerts(r.open), () => {});
     load(); const t = setInterval(load, 60000); return () => clearInterval(t);
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const sec = MENU_SECTIONS.find((s) => s.pages.some((p) => p.id === page));
-  const label = sec?.pages.find((p) => p.id === page)?.label;
-
   return (
     <header className="st-top cc-top">
-      <div className="st-brand"><span className="st-logo"><BrandMark /></span>One CommandCenter</div>
+      <div className="st-brand"><span className="st-logo"><BrandMark /></span>
+        <span className="cc-brand-name"><b>One CommandCenter</b><small>ONEOFFICE AUTOMATION</small></span></div>
       {user.environment && <EnvironmentLabel env={user.environment} />}
-      <nav aria-label="You are here" className="cc-crumbs">
-        {sec && label ? <><button type="button" className="cc-crumb" onClick={() => onPage(sec.pages.find((p) => canSee(p, user))?.id ?? "home")}>{sectionName(sec.label)}</button>
-          <span aria-hidden="true">›</span><span className="cc-crumb-here" aria-current="page">{label}</span></>
-          : <span className="cc-crumb-here" aria-current="page">Home</span>}
-      </nav>
       <Search api={api} user={user} onPage={onPage} />
       <div className="st-top-actions">
         {alerts != null && <a className="st-top-icon cc-bell" href="#/alerts" aria-label={"Open alerts: " + alerts} title="Open alerts">

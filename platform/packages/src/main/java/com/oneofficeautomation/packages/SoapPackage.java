@@ -78,7 +78,7 @@ public final class SoapPackage {
         XmlSupport.parse(envelope, true);  // fail early on malformed XML
         HttpRequest.Builder b;
         try { b = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(timeout)).POST(HttpRequest.BodyPublishers.ofString(envelope)); }
-        catch (IllegalArgumentException e) { throw new ActionException("SOAP.BAD_URL", "Invalid URL: " + url); }
+        catch (IllegalArgumentException e) { throw new ActionException("SOAP.BAD_URL", "Invalid URL: " + url, "Give the address starting with https:// or http://."); }
         String ct = v12 ? "application/soap+xml; charset=utf-8" + (action != null ? "; action=\"" + action + "\"" : "") : "text/xml; charset=utf-8";
         b.header("Content-Type", ct);
         if (!v12 && action != null) b.header("SOAPAction", "\"" + action + "\"");
@@ -114,7 +114,7 @@ public final class SoapPackage {
         for (int attempt = 0; ; attempt++) {
             try { resp = opts.client(ctx, CLIENT).send(request, HttpResponse.BodyHandlers.ofString()); }
             catch (IOException e) { throw new ActionException("SOAP.UNREACHABLE", "Cannot reach " + url + ": " + NetErrors.reason(e, null), "Check the URL and network access.", true); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             long wait = resp.statusCode() == 429 && attempt < HttpJson.MAX_RATE_RETRIES ? HttpJson.retryAfterMillis(resp.headers().firstValue("Retry-After").orElse(null), attempt) : -1;
             if (wait < 0) break;
             ctx.warn(HttpJson.host(url) + " is rate limiting (HTTP 429); trying again in " + Math.max(1, Math.round(wait / 1000.0)) + " s");
@@ -126,7 +126,7 @@ public final class SoapPackage {
     /** The answer, the same whichever way it was sent: errors, faults, the body, the XPath values and the saved file. */
     private static Map<String, Object> answer(ActionContext ctx, String url, int status, String text, boolean failOnError, String xpath, String outputFile) {
         if (status >= 400 && failOnError && !text.stripLeading().startsWith("<"))
-            throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + status + (text.isBlank() ? "" : ": " + HttpJson.snippet(text)), null, status >= 500 || status == 429);
+            throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + status + (text.isBlank() ? "" : ": " + HttpJson.snippet(text)), "Check the service's address and the sign-in in the connection; the message has the service's answer.", status >= 500 || status == 429);
         Object bodyValue = null;
         List<Object> values = new ArrayList<>();
         if (outputFile != null && !outputFile.isBlank()) {
@@ -140,7 +140,7 @@ public final class SoapPackage {
             Document doc;
             try { doc = XmlSupport.parse(text, true); }
             catch (ActionException e) {
-                if (status >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + status + ": " + HttpJson.snippet(text), null, status >= 500 || status == 429);
+                if (status >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + status + ": " + HttpJson.snippet(text), "Check the service's address and the sign-in in the connection; the message has the service's answer.", status >= 500 || status == 429);
                 throw e;
             }
             // a SOAP answer is an Envelope; an HTML proxy or sign-in page used to "succeed" with an empty body
@@ -158,7 +158,7 @@ public final class SoapPackage {
             }
             if (first != null) bodyValue = XmlSupport.toValue(first);
         }
-        if (status >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + status, null, status >= 500);
+        if (status >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + status, "Check the service's address and the sign-in in the connection; the message has the service's answer.", status >= 500);
         return Out.of("status", BigDecimal.valueOf(status), "response", text, "body", bodyValue, "values", values);
     }
 
@@ -173,7 +173,7 @@ public final class SoapPackage {
             @Input(name = "basic_password", type = OoaType.CREDENTIAL, required = false, description = "Basic auth password from the vault.") Object password,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, description = "Time to wait for each download.") int timeout,
             @Input(name = "insecure_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Accept any server certificate; for test systems only.") boolean insecure) {
-        if (wsdl == null || wsdl.isBlank()) throw new ActionException("SOAP.BAD_WSDL", "Give the WSDL address or file");
+        if (wsdl == null || wsdl.isBlank()) throw new ActionException("SOAP.BAD_WSDL", "Give the WSDL address or file", "Fill in either WSDL address or WSDL file.");
         boolean web = wsdl.strip().matches("^https?://.*");
         String base = web ? wsdl.strip() : ctx.resolvePath(wsdl.strip()).toAbsolutePath().toString();
         HttpOptions opts = new HttpOptions(insecure, null, null, null, null, null, false, true);
@@ -188,7 +188,7 @@ public final class SoapPackage {
                     if (r.statusCode() >= 400) throw new ActionException("SOAP.HTTP_ERROR", at + " answered HTTP " + r.statusCode(), r.statusCode() == 401 ? "Give basic_user and basic_password." : null, r.statusCode() >= 500);
                     text = r.body();
                 } catch (IOException e) { throw new ActionException("SOAP.UNREACHABLE", "Cannot reach " + at + ": " + e.getMessage(), "Check the address and network access.", true);
-                } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+                } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             } else {
                 try { text = java.nio.file.Files.readString(java.nio.file.Path.of(at), StandardCharsets.UTF_8); }
                 catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + at + ": " + e.getMessage(), "Check the path."); }

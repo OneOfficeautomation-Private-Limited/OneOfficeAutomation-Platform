@@ -146,8 +146,8 @@ public final class GenAiPackage {
             @Input(name = "top_k", type = OoaType.NUMBER, required = false, description = D_TOP_K) Integer topK,
             @Input(name = "seed", type = OoaType.NUMBER, required = false, description = D_SEED) Integer seed,
             @Input(name = "response_format", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "json"}, description = D_FORMAT) String format) {
-        if (message == null || message.isBlank()) throw new ActionException("AI.EMPTY_MESSAGE", "The message is empty");
-        if (limit < 2 || limit > 500) throw new ActionException("AI.BAD_OPTION", "history_limit must be between 2 and 500");
+        if (message == null || message.isBlank()) throw new ActionException("AI.EMPTY_MESSAGE", "The message is empty", "Fill in the message to send.");
+        if (limit < 2 || limit > 500) throw new ActionException("AI.BAD_OPTION", "history_limit must be between 2 and 500", "Set history_limit between 2 and 500.");
         String k = chatKey(session);
         ChatSession cs = ctx.sessions().get(k) instanceof ChatSession existing ? existing : new ChatSession();
         if (system != null && !system.isBlank()) cs.system = system;
@@ -184,7 +184,7 @@ public final class GenAiPackage {
     /** The text alone, or the text followed by the pictures as parts. */
     static Object withImages(ActionContext ctx, String text, List<Object> images) {
         if (images == null || images.isEmpty()) return text;
-        if (images.size() > 10) throw new ActionException("AI.TOO_MANY_IMAGES", "Send at most 10 pictures at a time");
+        if (images.size() > 10) throw new ActionException("AI.TOO_MANY_IMAGES", "Send at most 10 pictures at a time", "Send at most 10 pictures in one step.");
         List<Object> parts = new ArrayList<>();
         parts.add(Map.of("type", "text", "text", text));
         for (Object i : images) parts.add(LlmClient.imagePart(ctx.resolvePath(Values.text(i))));
@@ -220,7 +220,7 @@ public final class GenAiPackage {
             @Input(name = "presence_penalty", type = OoaType.NUMBER, required = false, description = D_PRESENCE) Double presence,
             @Input(name = "frequency_penalty", type = OoaType.NUMBER, required = false, description = D_FREQUENCY) Double frequency,
             @Input(name = "seed", type = OoaType.NUMBER, required = false, description = D_SEED) Integer seed) {
-        if (images == null || images.isEmpty()) throw new ActionException("AI.NO_IMAGES", "Give at least one picture");
+        if (images == null || images.isEmpty()) throw new ActionException("AI.NO_IMAGES", "Give at least one picture", "Add at least one picture.");
         LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion)
                 .with(LlmClient.Options.of(topP, topK, stop, presence, frequency, seed, null, null, timeout));
         boolean json = "json".equals(format);
@@ -260,11 +260,11 @@ public final class GenAiPackage {
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
             @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout) {
-        if (prompt == null || prompt.isBlank()) throw new ActionException("AI.EMPTY_PROMPT", "Describe the picture");
-        if (n < 1 || n > 4) throw new ActionException("AI.BAD_OPTION", "number_of_images must be between 1 and 4");
+        if (prompt == null || prompt.isBlank()) throw new ActionException("AI.EMPTY_PROMPT", "Describe the picture", "Describe the picture to make.");
+        if (n < 1 || n > 4) throw new ActionException("AI.BAD_OPTION", "number_of_images must be between 1 and 4", "Set number_of_images between 1 and 4.");
         java.util.regex.Matcher sz = java.util.regex.Pattern.compile("^(\\d{2,5})x(\\d{2,5})$").matcher(size == null ? "" : size.strip());
-        if (!sz.matches()) throw new ActionException("AI.BAD_OPTION", "size is WIDTHxHEIGHT, for example 1024x1024");
-        if (fileName == null || !fileName.matches("^[A-Za-z0-9 _.-]{1,80}$")) throw new ActionException("AI.BAD_OPTION", "file_name uses letters, digits, spaces, . - and _");
+        if (!sz.matches()) throw new ActionException("AI.BAD_OPTION", "size is WIDTHxHEIGHT, for example 1024x1024", "Write the size as width x height, for example 1024x1024.");
+        if (fileName == null || !fileName.matches("^[A-Za-z0-9 _.-]{1,80}$")) throw new ActionException("AI.BAD_OPTION", "file_name uses letters, digits, spaces, . - and _", "Use letters, digits, spaces, . - and _ in the file name.");
         LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, 0, 0, mask, awsKeyId, awsRegion)
                 .with(LlmClient.Options.of(null, null, null, null, null, null, null, null, timeout));
         List<byte[]> pics = LlmClient.generateImages(ctx, c, prompt, n, Integer.parseInt(sz.group(1)), Integer.parseInt(sz.group(2)));
@@ -277,7 +277,7 @@ public final class GenAiPackage {
                 java.nio.file.Files.write(f, pics.get(i));
                 files.add(f.toString());
             }
-        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         return Out.of("file", files.get(0), "files", files);
     }
 
@@ -321,7 +321,7 @@ public final class GenAiPackage {
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
             @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
             @Input(name = "language", type = OoaType.STRING, required = false, example = "de", description = D_LANGUAGE) String language) {
-        if (maxPhrases < 1 || maxPhrases > 50) throw new ActionException("AI.BAD_OPTION", "max_phrases must be between 1 and 50");
+        if (maxPhrases < 1 || maxPhrases > 50) throw new ActionException("AI.BAD_OPTION", "max_phrases must be between 1 and 50", "Set max_phrases between 1 and 50.");
         Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 800, mask, awsKeyId, awsRegion),
                 "List at most " + maxPhrases + " key phrases of the user's text, most important first, each copied exactly as it appears." + languageNote(language) + " Reply with JSON {\"phrases\": [\"...\"]}.", text, true, "key_phrases"));
         List<Object> out = new ArrayList<>();
@@ -437,7 +437,7 @@ public final class GenAiPackage {
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
             @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
         List<String> ls = labels.stream().map(Values::text).toList();
-        if (ls.isEmpty()) throw new ActionException("AI.NO_LABELS", "Give at least one label");
+        if (ls.isEmpty()) throw new ActionException("AI.NO_LABELS", "Give at least one label", "Add at least one label to choose from.");
         Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 300, mask, awsKeyId, awsRegion),
                 "Classify the text into exactly one of these labels: " + JsonLite.write(ls) + ". Reply with JSON {\"label\": \"...\", \"reason\": \"...\"}.", text, true, "classify"));
         Map<?, ?> m = j instanceof Map<?, ?> mm ? mm : Map.of();
@@ -578,7 +578,7 @@ public final class GenAiPackage {
             @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
         String t = text == null ? "" : text;
         String mc = maskChar == null || maskChar.isEmpty() ? "*" : maskChar;
-        if (mc.codePointCount(0, mc.length()) != 1) throw new ActionException("AI.BAD_OPTION", "mask_char must be exactly one character, not '" + mc + "'");
+        if (mc.codePointCount(0, mc.length()) != 1) throw new ActionException("AI.BAD_OPTION", "mask_char must be exactly one character, not '" + mc + "'", "Give one character, for example *.");
         String style = maskStyle == null || maskStyle.isBlank() ? "partial" : maskStyle.strip().toLowerCase(Locale.ROOT);
         if (!style.equals("partial") && !style.equals("full")) throw new ActionException("AI.BAD_OPTION", "Unknown mask_style '" + maskStyle + "'", "Use partial or full.");
         List<String> wanted = new ArrayList<>();

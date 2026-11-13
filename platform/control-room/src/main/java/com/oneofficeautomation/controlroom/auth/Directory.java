@@ -70,13 +70,13 @@ public final class Directory {
     public Person authenticate(String login, String password) {
         String who = login == null ? "" : login.trim();
         // an empty password would be an anonymous bind, which many directories accept: never a sign-in
-        if (who.isEmpty() || password == null || password.isEmpty()) throw new OoaException("CR.LOGIN_FAILED", "Wrong user name or password");
+        if (who.isEmpty() || password == null || password.isEmpty()) throw new OoaException("CR.LOGIN_FAILED", "Wrong user name or password", "Check the user name and password; after several tries the account is locked for a while.");
         return withService(ctx -> {
             Person p = find(ctx, who);
-            if (p == null) throw new OoaException("CR.LOGIN_FAILED", "Wrong user name or password");
+            if (p == null) throw new OoaException("CR.LOGIN_FAILED", "Wrong user name or password", "Check the user name and password; after several tries the account is locked for a while.");
             LdapContext as = null;
             try { as = open(ctx.getEnvironment().get(Context.PROVIDER_URL).toString(), p.dn(), password); }
-            catch (AuthenticationException e) { throw new OoaException("CR.LOGIN_FAILED", "Wrong user name or password"); }
+            catch (AuthenticationException e) { throw new OoaException("CR.LOGIN_FAILED", "Wrong user name or password", "Check the user name and password; after several tries the account is locked for a while."); }
             finally { close(as); }
             return p;
         });
@@ -123,7 +123,7 @@ public final class Directory {
             } catch (CommunicationException | ServiceUnavailableException e) {
                 last = url + ": " + e.getMessage();   // the next directory, if any
             } catch (NamingException e) {
-                throw new OoaException("LDAP.FAILED", "The directory answered with an error: " + e.getMessage());
+                throw new OoaException("LDAP.FAILED", "The directory answered with an error: " + e.getMessage(), "Check the directory settings in Administration > Settings > Sign-in (address, bind user, search base) and that the server can reach the directory.");
             } finally { close(ctx); }
         }
         throw new OoaException("LDAP.UNREACHABLE", "The directory could not be reached" + (last == null ? "" : " (" + last + ")"), "Check the addresses, the network and the certificate.");

@@ -128,7 +128,7 @@ public final class Mfa {
     /** Turns two-step sign-in on once the person enters a code from the new secret; returns the recovery codes (shown once). */
     public Map<String, Object> enable(User u, String code, String ip) {
         Map<String, Object> r = db.one("SELECT * FROM users WHERE id = ?", u.id());
-        if (Boolean.TRUE.equals(r.get("mfa_enabled"))) throw new OoaException("CR.CONFLICT", "Two-step sign-in is already on");
+        if (Boolean.TRUE.equals(r.get("mfa_enabled"))) throw new OoaException("CR.CONFLICT", "Two-step sign-in is already on", "Nothing to do; to start again, turn two-step sign-in off first.");
         if (r.get("mfa_secret") == null) throw new OoaException("CR.BAD_INPUT", "Start the set-up first");
         if (code == null || !code.replaceAll("\\s", "").matches("\\d{6}") || !verify(r, code))
             throw new OoaException("CR.MFA_WRONG_CODE", "That code is not right", "Enter the 6-digit code the authenticator app shows for ONEOFFICEAUTOMATION.");
@@ -151,7 +151,7 @@ public final class Mfa {
         Map<String, Object> r = db.one("SELECT * FROM users WHERE id = ?", u.id());
         if (!Security.verifyPassword(password == null ? new char[0] : password.toCharArray(), (String) r.get("password_hash")) || !verify(r, code)) {
             cr.audit.record(u.username(), "user.mfa_disable", "user", u.username(), null, "failed", ip);
-            throw new OoaException("CR.LOGIN_FAILED", "The password or the code is wrong");
+            throw new OoaException("CR.LOGIN_FAILED", "The password or the code is wrong", "Type the password and the current code from your authenticator app again; check the phone's clock if codes keep failing.");
         }
         clear(u.id());
         cr.audit.record(u.username(), "user.mfa_disable", "user", u.username(), null, "ok", ip);

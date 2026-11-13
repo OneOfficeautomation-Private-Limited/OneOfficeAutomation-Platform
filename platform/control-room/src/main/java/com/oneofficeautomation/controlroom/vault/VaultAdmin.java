@@ -335,7 +335,7 @@ public final class VaultAdmin {
                 k++;
             }
             return k;
-        } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot re-encrypt " + file + ": " + e.getMessage()); }
+        } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot re-encrypt " + file + ": " + e.getMessage(), "Check that the service account may write the vault files; nothing was changed, so the old key still works."); }
     }
 
     /**
@@ -381,7 +381,7 @@ public final class VaultAdmin {
                 "Stop One CommandCenter, run: ooa vault rekey --new-key-env VAR (re-encrypts every value with the new key), put the new key where it is kept, and start again.");
         Vault next = Vault.fresh();
         Path nextFile = file.resolveSibling("master.key.next");
-        try { Files.writeString(nextFile, next.keyBase64()); } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot write the new key: " + e.getMessage()); }
+        try { Files.writeString(nextFile, next.keyBase64()); } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot write the new key: " + e.getMessage(), "Check that the service account may write the key file; the old key still works."); }
         int n;
         synchronized (cr.vault) {
             n = reencryptAll(next);

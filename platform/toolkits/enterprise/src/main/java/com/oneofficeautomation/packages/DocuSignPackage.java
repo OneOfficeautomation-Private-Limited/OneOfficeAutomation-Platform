@@ -187,7 +187,7 @@ public final class DocuSignPackage {
         if (roles == null || roles.isEmpty()) throw new ActionException(P + ".NO_SIGNERS", "Fill at least one template role", "Example: [{\"role\": \"Client\", \"name\": \"Ann Lee\", \"email\": \"ann@acme.com\"}].");
         List<Map<String, Object>> tr = new ArrayList<>();
         for (Object o : roles) {
-            if (!(o instanceof Map<?, ?> m)) throw new ActionException(P + ".BAD_RECIPIENT", "Each role must be a dictionary with role, name and email");
+            if (!(o instanceof Map<?, ?> m)) throw new ActionException(P + ".BAD_RECIPIENT", "Each role must be a dictionary with role, name and email", "Give each role as a dictionary with role, name and email, for example {\"role\": \"Signer\", \"name\": \"Ana\", \"email\": \"ana@example.com\"}.");
             Map<String, Object> x = new LinkedHashMap<>();
             for (var e : m.entrySet()) x.put(String.valueOf(e.getKey()).toLowerCase(Locale.ROOT).replace("_", ""), e.getValue());
             Object roleName = x.get("role") != null ? x.get("role") : x.get("rolename");

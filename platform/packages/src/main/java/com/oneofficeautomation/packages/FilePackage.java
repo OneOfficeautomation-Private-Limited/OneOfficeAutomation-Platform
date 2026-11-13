@@ -343,7 +343,7 @@ public final class FilePackage {
             }
             ctx.checkCancelled();
             try { Thread.sleep(Math.min(200, Math.max(20, stableMs / 4))); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 

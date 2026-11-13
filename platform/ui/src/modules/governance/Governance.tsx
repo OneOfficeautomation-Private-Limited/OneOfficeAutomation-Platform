@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi } from "../../api/cr";
 import type { AiGovernance } from "./consoleApi";
-import { Button, HelpButton, Select, TextInput, type HelpTopic } from "../../components";
+import { Button, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, rowClick } from "../../console/ListParts";
 
 /**
@@ -62,7 +62,7 @@ export function Governance({ api, onNotice }: { api: CrApi; onNotice: (t: string
         <h1 id="cc-gov-title">AI governance</h1>
         <HelpButton topic={HELP} />
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-chip"><Select aria-label="Period" value={String(days)} onChange={(e) => setDays(Number(e.target.value))} options={[["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]].map(([value, label]) => ({ value, label }))} /></span>

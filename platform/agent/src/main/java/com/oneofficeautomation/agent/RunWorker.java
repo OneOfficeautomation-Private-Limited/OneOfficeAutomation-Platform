@@ -84,8 +84,8 @@ public final class RunWorker {
             send(Map.of("type", "credential", "id", id, "ref", ref));
             Map<String, Object> r;
             try { r = f.get(60, TimeUnit.SECONDS); }
-            catch (Exception e) { throw new OoaException("VAULT.TIMEOUT", "No answer from One CommandCenter for credential " + ref, null, true, null); }
-            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
+            catch (Exception e) { throw new OoaException("VAULT.TIMEOUT", "No answer from One CommandCenter for credential " + ref, "Check that One CommandCenter is running and not overloaded; the step can be run again.", true, null); }
+            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")), "See the message; One CommandCenter refused the request (the run log has the details).");
             return new SecureString(String.valueOf(r.get("value")), ref, Boolean.TRUE.equals(r.get("password_only")));
         };
         Map<String, Object> globals = (Map<String, Object>) job.getOrDefault("global_values", Map.of());
@@ -102,8 +102,8 @@ public final class RunWorker {
             send(msg);
             Map<String, Object> r;
             try { r = f.get(16, TimeUnit.MINUTES); }
-            catch (Exception e) { throw new OoaException("DOCS.TIMEOUT", "No answer from the Command Center about the document", null, true, null); }
-            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
+            catch (Exception e) { throw new OoaException("DOCS.TIMEOUT", "No answer from the Command Center about the document", "Check that the Document Automation service is running and set up (Administration > Settings > Document Automation); the message has its answer.", true, null); }
+            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")), "See the message; One CommandCenter refused the request (the run log has the details).");
             return (Map<String, Object>) r.getOrDefault("result", Map.of());
         };
         // the Jobs and alerts toolkit: a request to One CommandCenter for this run ({"call", "args"} in, its answer out)
@@ -114,8 +114,8 @@ public final class RunWorker {
             send(Map.of("type", "cr", "id", id, "call", String.valueOf(req.get("call")), "args", req.getOrDefault("args", Map.of())));
             Map<String, Object> r;
             try { r = f.get(60, TimeUnit.SECONDS); }
-            catch (Exception e) { throw new OoaException("JOBS.TIMEOUT", "No answer from One CommandCenter", null, true, null); }
-            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
+            catch (Exception e) { throw new OoaException("JOBS.TIMEOUT", "No answer from One CommandCenter", "Check that One CommandCenter is running and not overloaded; the step can be run again.", true, null); }
+            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")), "See the message; One CommandCenter refused the request (the run log has the details).");
             return (Map<String, Object>) r.getOrDefault("result", Map.of());
         };
         // gap G30: an agent changes a shared value or saves a credential; One CommandCenter decides as the run's user
@@ -129,8 +129,8 @@ public final class RunWorker {
             send(Map.of("type", "queue", "id", id, "request", req));
             Map<String, Object> r;
             try { r = f.get(2, TimeUnit.MINUTES); }
-            catch (Exception e) { waiting.remove(id); throw new OoaException("QUEUE.TIMEOUT", "No answer from One CommandCenter about the work queue", null, true, null); }
-            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
+            catch (Exception e) { waiting.remove(id); throw new OoaException("QUEUE.TIMEOUT", "No answer from One CommandCenter about the work queue", "Check that One CommandCenter is running and not overloaded; the step can be run again.", true, null); }
+            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")), "See the message; One CommandCenter refused the request (the run log has the details).");
             return (Map<String, Object>) r.getOrDefault("result", Map.of());
         };
         // Environment locks: the runner asks One CommandCenter, which keeps every lock and knows which run asks
@@ -144,8 +144,8 @@ public final class RunWorker {
             send(msg);
             Map<String, Object> r;
             try { r = f.get(60, TimeUnit.SECONDS); }
-            catch (Exception e) { waiting.remove(id); throw new OoaException("LOCK.NO_ANSWER", "No answer from One CommandCenter about the lock", null, true, null); }
-            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
+            catch (Exception e) { waiting.remove(id); throw new OoaException("LOCK.NO_ANSWER", "No answer from One CommandCenter about the lock", "Check that One CommandCenter is running and not overloaded; the step can be run again.", true, null); }
+            if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")), "See the message; One CommandCenter refused the request (the run log has the details).");
             return (Map<String, Object>) r.getOrDefault("result", Map.of());
         };
         PackageRegistry registry = FirstPartyPackages.registry();
@@ -182,7 +182,7 @@ public final class RunWorker {
         long aiStart = 0;
         try { aiStart = java.nio.file.Files.exists(aiLog) ? java.nio.file.Files.size(aiLog) : 0; } catch (IOException ignored) { }
         try {
-            if (toolkitProblem != null) throw new OoaException("RUN.TOOLKIT_LOAD", toolkitProblem);
+            if (toolkitProblem != null) throw new OoaException("RUN.TOOLKIT_LOAD", toolkitProblem, "Install the toolkit on the runner (Manage > Toolkits) or update it; the message names it.");
             Runner.RunOptions opts = new Runner.RunOptions().runId(String.valueOf(job.get("run_id"))).cancel(cancel).pause(pause).maxRunSeconds(24 * 3600.0);
             // a resumed run (long-running agents, G36): it starts at the step that suspended, with the values saved then
             if (job.get("resume") instanceof Map<?, ?> res)
@@ -213,7 +213,7 @@ public final class RunWorker {
         send(msg);
         Map<String, Object> r;
         try { r = f.get(60, TimeUnit.SECONDS); }
-        catch (Exception e) { waiting.remove(id); throw new OoaException(timeoutCode, "No answer from One CommandCenter about " + what, null, true, null); }
+        catch (Exception e) { waiting.remove(id); throw new OoaException(timeoutCode, "No answer from One CommandCenter about " + what, "Check that One CommandCenter is running and not overloaded; the step can be run again.", true, null); }
         if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")), e.get("fix") == null ? null : String.valueOf(e.get("fix")));
         return (Map<String, Object>) r.getOrDefault("result", Map.of());
     }

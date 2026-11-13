@@ -88,7 +88,7 @@ final class WorkingDays {
 
     /** The date n working days after d (before it when n is negative); d itself is never counted, and 0 keeps d. */
     LocalDate plus(LocalDate d, long n) {
-        if (Math.abs(n) > MAX_DAYS) throw new ActionException("DATETIME.BAD_AMOUNT", "At most " + MAX_DAYS + " working days can be added at once", null);
+        if (Math.abs(n) > MAX_DAYS) throw new ActionException("DATETIME.BAD_AMOUNT", "At most " + MAX_DAYS + " working days can be added at once", "Add the working days in smaller steps.");
         LocalDate cur = d;
         long left = Math.abs(n);
         boolean back = n < 0;

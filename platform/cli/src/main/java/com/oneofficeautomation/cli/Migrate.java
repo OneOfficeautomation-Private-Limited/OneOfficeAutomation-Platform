@@ -516,7 +516,7 @@ final class Migrate {
     /** ooa migrate aa|uipath SOURCE OUT: each bot (a file, or every .json/.xaml in a folder) to OUT/name.flow.json, and OUT/migration-report.json. */
     @SuppressWarnings("unchecked")
     static int run(String from, String source, String out) throws Exception {
-        if (!List.of("aa", "uipath").contains(from)) throw new OoaException("CLI.USAGE", "Migrate from aa or uipath");
+        if (!List.of("aa", "uipath").contains(from)) throw new OoaException("CLI.USAGE", "Migrate from aa or uipath", "Run ooa migrate aa <folder> or ooa migrate uipath <folder>.");
         Path src = Path.of(source), dst = Path.of(out);
         Files.createDirectories(dst);
         List<Path> files = new ArrayList<>();

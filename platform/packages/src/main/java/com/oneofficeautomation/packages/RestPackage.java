@@ -113,7 +113,7 @@ public final class RestPackage {
                 if (contentType == null || contentType.isBlank()) b.header("Content-Type", "application/octet-stream");
             }
             if (contentType != null && !contentType.isBlank()) {
-                if (contentType.matches(".*[\\r\\n].*")) throw new ActionException("REST.BAD_HEADER", "content_type may not contain line breaks");
+                if (contentType.matches(".*[\\r\\n].*")) throw new ActionException("REST.BAD_HEADER", "content_type may not contain line breaks", "Write the content type on one line, for example application/json.");
                 b.header("Content-Type", contentType.strip());
             }
         }
@@ -306,7 +306,7 @@ public final class RestPackage {
         try { return client.send(req, handler); }
         catch (HttpTimeoutException e) { throw new ActionException("REST.TIMEOUT", "No response from " + url + " within " + timeout + " s", "Raise timeout_seconds or check the service.", true); }
         catch (IOException e) { throw new ActionException("REST.UNREACHABLE", "Cannot reach " + masked(url) + ": " + NetErrors.reason(e, null), "Check the URL, proxy settings and network access.", true); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Request interrupted"); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Request interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
     }
 
     private static ActionException httpError(String method, String url, int status, String body) {

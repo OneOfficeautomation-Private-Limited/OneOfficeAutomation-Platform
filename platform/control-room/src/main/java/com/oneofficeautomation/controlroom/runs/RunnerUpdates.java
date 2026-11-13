@@ -91,11 +91,11 @@ public final class RunnerUpdates {
     /** One program file for a runner, by its name in the manifest only. */
     public byte[] file(String name) throws java.io.IOException {
         Map<String, Object> m = manifest();
-        if (m == null) throw new OoaException("CR.NOT_FOUND", "This One CommandCenter offers no runner updates");
+        if (m == null) throw new OoaException("CR.NOT_FOUND", "This One CommandCenter offers no runner updates", "Put the runner installer in the server's runner-updates folder to offer updates.");
         for (Object o : (List<?>) m.get("files")) {
             if (((Map<?, ?>) o).get("name").equals(name)) return Files.readAllBytes(lib().resolve(name));
         }
-        throw new OoaException("CR.NOT_FOUND", "No program file called " + name);
+        throw new OoaException("CR.NOT_FOUND", "No program file called " + name, "Check the program file's name in the runner-updates folder.");
     }
 
     /** An administrator asks runners to update at their next heartbeat (when idle). */

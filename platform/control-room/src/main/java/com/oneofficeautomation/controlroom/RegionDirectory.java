@@ -55,11 +55,11 @@ public final class RegionDirectory {
     /** Reserves a name for the region whose token this is; taken names (by any region) are refused. */
     public void reserve(String slug, String token) {
         Region r = regionOf(token);
-        if (!Tenants.SLUG.matcher(slug).matches() || Tenants.RESERVED.contains(slug)) throw new OoaException("SAAS.BAD_SLUG", "'" + slug + "' cannot be a tenant's address name");
+        if (!Tenants.SLUG.matcher(slug).matches() || Tenants.RESERVED.contains(slug)) throw new OoaException("SAAS.BAD_SLUG", "'" + slug + "' cannot be a tenant's address name", "Use lower-case letters, digits and - (3 to 40 characters), not a reserved name.");
         Map<String, Object> have = db.one("SELECT region FROM directory WHERE slug = ?", slug);
         if (have != null) {
             if (have.get("region").equals(r.name())) return;   // asked again by the same region
-            throw new OoaException("SAAS.SLUG_TAKEN", "The address name '" + slug + "' is taken");
+            throw new OoaException("SAAS.SLUG_TAKEN", "The address name '" + slug + "' is taken", "Choose another address name.");
         }
         db.update("INSERT INTO directory (slug, region, created) VALUES (?,?,?)", slug, r.name(), Instant.now());
     }
@@ -73,7 +73,7 @@ public final class RegionDirectory {
     private Region regionOf(String token) {
         String sha = token == null ? "" : Security.sha256(token);
         for (Region r : regions.values()) if (java.security.MessageDigest.isEqual(sha.getBytes(StandardCharsets.UTF_8), r.tokenSha256().getBytes(StandardCharsets.UTF_8))) return r;
-        throw new OoaException("CR.UNAUTHENTICATED", "Not a region of this directory");
+        throw new OoaException("CR.UNAUTHENTICATED", "Not a region of this directory", "Check the region's directory token (directory.token_env) against the directory's list of regions.");
     }
 
     public void start(String host, int port) throws IOException {
@@ -171,10 +171,10 @@ public final class RegionDirectory {
                 try {
                     r = http.send(HttpRequest.newBuilder(URI.create(base + "/api/directory/" + slug)).timeout(Duration.ofSeconds(20))
                         .header("Authorization", "Bearer " + token).method(method, HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
-                } catch (IOException e) { throw new OoaException("SAAS.DIRECTORY", "The directory at " + base + " cannot be reached: " + e.getMessage()); }
-                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("SAAS.DIRECTORY", "Interrupted"); }
-                if (r.statusCode() == 409) throw new OoaException("SAAS.SLUG_TAKEN", "The address name '" + slug + "' is taken (in this or another region)");
-                if (r.statusCode() / 100 != 2) throw new OoaException("SAAS.DIRECTORY", "The directory answered " + r.statusCode() + ": " + r.body());
+                } catch (IOException e) { throw new OoaException("SAAS.DIRECTORY", "The directory at " + base + " cannot be reached: " + e.getMessage(), "Check that the region can reach the directory's address (network, firewall), then try again."); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("SAAS.DIRECTORY", "Interrupted", "Try again; if it keeps happening, an administrator can look in the server log."); }
+                if (r.statusCode() == 409) throw new OoaException("SAAS.SLUG_TAKEN", "The address name '" + slug + "' is taken (in this or another region)", "Choose another address name.");
+                if (r.statusCode() / 100 != 2) throw new OoaException("SAAS.DIRECTORY", "The directory answered " + r.statusCode() + ": " + r.body(), "Try again; if it keeps happening, an administrator can look in the server log.");
             }
         };
     }

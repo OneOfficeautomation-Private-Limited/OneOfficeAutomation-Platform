@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ApiFailure } from "../api/client";
+import { errorText } from "../api/client";
 import type { CrApi, PushStatus } from "../api/cr";
 import { Button, Dialog } from "../components";
 
@@ -12,7 +12,7 @@ export function PhoneNotificationsDialog({ api, onClose }: { api: CrApi; onClose
   const [st, setSt] = useState<PushStatus | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message + (e.error.hint ? " " + e.error.hint : "") : String(e));
+  const fail = (e: unknown) => setError(errorText(e));
   useEffect(() => { api.pushStatus().then(setSt, fail); }, [api]);
   const act = (p: Promise<PushStatus | void>, done: string) => { setError(null); setMsg(null); p.then((r) => { if (r) setSt(r); else api.pushStatus().then(setSt, fail); setMsg(done); }, fail); };
   return (

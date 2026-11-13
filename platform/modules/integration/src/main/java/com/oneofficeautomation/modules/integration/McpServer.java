@@ -110,14 +110,14 @@ public final class McpServer {
     private Map<String, Object> call(User u, String name, Map<String, Object> args, String ip) {
         for (ModuleContext.McpTools t : moduleTools()) if (t.names().contains(name)) return t.call(u, name, args, ip);
         Map<String, Object> tool = agentTools(u).stream().filter(t -> t.get("name").equals(name)).findFirst()
-                .orElseThrow(() -> new OoaException("MCP.UNKNOWN_TOOL", "No exposed agent is called " + name));
+                .orElseThrow(() -> new OoaException("MCP.UNKNOWN_TOOL", "No exposed agent is called " + name, "Check the tool's name; Build > Agent APIs lists the agents offered over MCP."));
         String path = String.valueOf(tool.get("title")) + ".flow.json";
         String target = String.valueOf(ctx.setting("mcp_runner")).trim();
         String device = null, pool = null;
         if (target.startsWith("pool_") || ctx.db().one("SELECT id FROM device_pools WHERE id = ?", target) != null) pool = target;
         else if (!target.isEmpty()) device = target;
         else device = ctx.onlineRunner();
-        if (device == null && pool == null) throw new OoaException("MCP.NO_RUNNER", "No runner is online to run " + name);
+        if (device == null && pool == null) throw new OoaException("MCP.NO_RUNNER", "No runner is online to run " + name, "Start a runner (Manage > Runners), then try again.");
         Map<String, Object> run = ctx.startRun(u.username(), u.role(), path, device, pool, args, "mcp", ip, 5, null, null, null);
         String runId = (String) run.get("run_id");
         long deadline = System.currentTimeMillis() + 1000L * Math.max(10, ctx.intSetting("mcp_timeout_seconds"));

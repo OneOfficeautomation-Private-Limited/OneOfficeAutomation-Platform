@@ -352,7 +352,7 @@ public final class Ooa {
     static String proxyPassword(Map<String, String> o) {
         if (!o.containsKey("proxy-password-env")) return null;
         String v = System.getenv(o.get("proxy-password-env"));
-        if (v == null) throw new OoaException("AGENT.PROXY_PASSWORD", "The environment variable " + o.get("proxy-password-env") + " is not set");
+        if (v == null) throw new OoaException("AGENT.PROXY_PASSWORD", "The environment variable " + o.get("proxy-password-env") + " is not set", "Set the environment variable that holds the proxy password, then start again.");
         return v;
     }
 
@@ -390,7 +390,7 @@ public final class Ooa {
         Map<String, Object> inputs = new LinkedHashMap<>();
         for (String kv : inputValues) {
             int eq = kv.indexOf('=');
-            if (eq < 0) throw new OoaException("CLI.BAD_INPUT", "--input expects key=value, got '" + kv + "'");
+            if (eq < 0) throw new OoaException("CLI.BAD_INPUT", "--input expects key=value, got '" + kv + "'", "Write each input as --input name=value.");
             String raw = kv.substring(eq + 1);
             Object val;
             try { val = json.parse(raw); } catch (RuntimeException e) { val = raw; }

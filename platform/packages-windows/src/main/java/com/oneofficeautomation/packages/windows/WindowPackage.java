@@ -150,7 +150,7 @@ public final class WindowPackage {
                 throw new ActionException("WINDOW.NOT_FOUND", "Process " + processId + " is not running", "Some programs hand over to another process at start; find the window by title instead.", true);
             }
             ctx.checkCancelled();
-            try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+            try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             UiGuard.before(ctx);
         }
     }
@@ -209,7 +209,7 @@ public final class WindowPackage {
             wasDown = down;
             if (System.nanoTime() >= end) throw new ActionException("WINDOW.PICK_TIMEOUT", "No Ctrl+Shift+C within " + (int) Math.max(1, timeout) + " s", "Try again, and press Ctrl+Shift+C over the place.", true);
             ctx.checkCancelled();
-            try { Thread.sleep(30); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+            try { Thread.sleep(30); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
         WinDef.POINT p = new WinDef.POINT();
         User32.INSTANCE.GetCursorPos(p);
@@ -432,7 +432,7 @@ public final class WindowPackage {
                 throw new ActionException("WINDOW.NOT_FOUND", "No hidden or visible window " + (title == null || title.isBlank() ? "of process " + processId : "title matches '" + title + "'"),
                         "Check the title; Hide window reports the full title of the window it hid.", true);
             ctx.checkCancelled();
-            try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+            try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 
@@ -694,7 +694,7 @@ public final class WindowPackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait,
             @Input(name = "process_id", type = OoaType.NUMBER, required = false, description = D_PID) Long processId) {
         String m = method == null || method.isBlank() ? "type" : method.trim().toLowerCase(Locale.ROOT);
-        if (!Set.of("type", "replace", "append").contains(m)) throw new ActionException("WINDOW.BAD_OPTION", "method must be type, replace or append", null);
+        if (!Set.of("type", "replace", "append").contains(m)) throw new ActionException("WINDOW.BAD_OPTION", "method must be type, replace or append", "Set method to type, replace or append.");
         boolean secret = text instanceof SecureString;
         String value = text instanceof SecureString s ? s.reveal() : text == null ? "" : com.oneofficeautomation.runner.Values.text(text);
         List<Object> plan = m.equals("type") ? keyPlan(value) : List.of();
@@ -704,7 +704,7 @@ public final class WindowPackage {
         User32.INSTANCE.GetClassName(h, cb, cb.length);
         String cls = Native.toString(cb);
         if (m.equals("replace") || m.equals("append")) {
-            if (User32Text.INSTANCE == null) throw new ActionException("WINDOW.NOT_SUPPORTED", "Cannot set text on this system", null);
+            if (User32Text.INSTANCE == null) throw new ActionException("WINDOW.NOT_SUPPORTED", "Cannot set text on this system", "Run this step on a Windows runner.");
             String now = m.equals("append") ? controlText(h) + value.replace("\r\n", "\n").replace("\n", "\r\n") : value.replace("\r\n", "\n").replace("\n", "\r\n");
             User32Text.INSTANCE.SendMessageW(h, WM_SETTEXT, new WinDef.WPARAM(0), new com.sun.jna.WString(now));
         } else {
@@ -750,7 +750,7 @@ public final class WindowPackage {
 
     private static void pause(int ms) {
         if (ms <= 0) return;
-        try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Stopped while typing"); }
+        try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Stopped while typing", "The run was stopped before this step finished. Run the agent again when it should go on."); }
     }
 
     @Action(id = "set_title", name = "Set window title", category = "Window", capabilities = "desktop",
@@ -818,7 +818,7 @@ public final class WindowPackage {
                     return Map.of("title", last, "met", false);
                 }
                 ctx.checkCancelled();
-                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             }
         }
         try {

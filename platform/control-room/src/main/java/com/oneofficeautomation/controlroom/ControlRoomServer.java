@@ -213,11 +213,17 @@ public final class ControlRoomServer {
                 if (base.isEmpty()) base = (tls != null ? "https://" : "http://") + ex.getRequestHeaders().getFirst("Host");
                 ex.getResponseHeaders().set("WWW-Authenticate", "Bearer resource_metadata=\"" + base + "/.well-known/oauth-protected-resource\"");
             }
-            sendJson(ex, status, Map.of("error", e.toMap()));
+            Map<String, Object> error = e.toMap();
+            if (e.suggestedFix() == null || e.suggestedFix().isBlank()) error.put("suggestedFix", ServerFixes.forCode(e.code()));   // every error says what to do (E4)
+            sendJson(ex, status, Map.of("error", error));
         } catch (RuntimeException | Error e) {
             // Any failure still gets an answer, so a client never sees a dropped connection.
+            // error batch E8: a reference the person can give an administrator, who finds it in the log next to the details
+            String ref = "ERR-" + Long.toString(System.currentTimeMillis(), 36).toUpperCase(java.util.Locale.ROOT) + "-" + Integer.toString((int) (Math.random() * 1296), 36).toUpperCase(java.util.Locale.ROOT);
+            System.err.println("[" + ref + "] " + ex.getRequestMethod() + " " + ex.getRequestURI().getPath() + " failed:");
             e.printStackTrace();
-            try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see One CommandCenter console log"))); }
+            try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "One CommandCenter could not finish this request (reference " + ref + ")",
+                    "suggestedFix", "Try again; if it keeps happening, give an administrator the reference " + ref + ": the server log has the details next to it."))); }
             catch (RuntimeException | IOException ignored) { /* the response had already started */ }
         } finally { ex.close(); }
     }
@@ -230,13 +236,13 @@ public final class ControlRoomServer {
         if (!Set.of("GET", "HEAD").contains(ex.getRequestMethod())) { ex.getResponseHeaders().set("Allow", "GET"); securityHeaders(ex); writeBody(ex, 405, new byte[0]); return; }
         String ip = clientIp(ex, IpAllowList.parse(String.valueOf(cr.platform.setting("trusted_proxies"))));
         IpAllowList allow = IpAllowList.parse(String.valueOf(cr.platform.setting("ip_allow_list")));
-        if (!isLoopback(ip) && !allow.isEmpty() && !allow.allows(ip)) throw new OoaException("CR.IP_BLOCKED", "This address may not use One CommandCenter");
+        if (!isLoopback(ip) && !allow.isEmpty() && !allow.allows(ip)) throw new OoaException("CR.IP_BLOCKED", "This address may not use One CommandCenter", "Ask an administrator to add your network address to the allowed list (Administration > Policies > IP allow list).");
         String auth = ex.getRequestHeaders().getFirst("Authorization");
         String bearer = auth != null && auth.startsWith("Bearer ") ? auth.substring(7).trim() : null;
         if (!cr.metrics.tokenMatches(bearer)) {
             if (bearer != null && bearer.startsWith("ooam_")) {
                 ex.getResponseHeaders().set("WWW-Authenticate", "Bearer realm=\"metrics\"");
-                throw new OoaException("CR.UNAUTHENTICATED", "The metrics token is wrong or was replaced");
+                throw new OoaException("CR.UNAUTHENTICATED", "The metrics token is wrong or was replaced", "Use the current metrics token (Administration > Settings > Monitoring); it changes when it is replaced.");
             }
             cr.require(user(ex, false), "metrics.view", "read the metrics");
         }
@@ -296,11 +302,11 @@ public final class ControlRoomServer {
         if (b.length > limit) throw new OoaException("CR.TOO_LARGE", "The request is larger than the Largest upload setting allows", "Raise Settings > Largest upload, or send a smaller file");
         String t = new String(b, StandardCharsets.UTF_8);
         if (t.isBlank()) return new LinkedHashMap<>();
-        try { return JsonLite.parse(t); } catch (IllegalArgumentException e) { throw new OoaException("CR.BAD_JSON", "Request body is not valid JSON"); }
+        try { return JsonLite.parse(t); } catch (IllegalArgumentException e) { throw new OoaException("CR.BAD_JSON", "Request body is not valid JSON", "Send the request body as JSON (Content-Type: application/json)."); }
     }
 
     @SuppressWarnings("unchecked")
-    static Map<String, Object> map(Object o) { if (o instanceof Map) return (Map<String, Object>) o; throw new OoaException("CR.BAD_JSON", "Expected a JSON object"); }
+    static Map<String, Object> map(Object o) { if (o instanceof Map) return (Map<String, Object>) o; throw new OoaException("CR.BAD_JSON", "Expected a JSON object", "Send a JSON object ({ ... }), not a list or a single value."); }
 
     static String ip(HttpExchange ex) { return ex.getRemoteAddress().getAddress().getHostAddress(); }
 
@@ -360,11 +366,11 @@ public final class ControlRoomServer {
         // MCP clients may send an OAuth access token (a JWT) from the identity provider instead of an API key
         boolean jwt = t != null && !t.startsWith("ooak_") && t.chars().filter(ch -> ch == '.').count() == 2 && ex.getRequestURI().getPath().equals("/api/mcp");
         ControlRoom.User u = jwt ? cr.oauthUser(sso, t, ex.getRemoteAddress().getAddress().getHostAddress()) : t != null && t.startsWith("ooak_") ? cr.platform.apiKeyUser(t) : cr.session(t);
-        if (u == null) throw new OoaException("CR.UNAUTHENTICATED", "Please sign in", null);
+        if (u == null) throw new OoaException("CR.UNAUTHENTICATED", "Please sign in", "Sign in again; your session may have ended.");
         boolean viaCookie = ex.getRequestHeaders().getFirst("Authorization") == null;
         if (viaCookie && !Set.of("GET", "HEAD").contains(ex.getRequestMethod()) && !"1".equals(ex.getRequestHeaders().getFirst("X-OOA-Request")))
-            throw new OoaException("CR.CSRF", "Missing request header X-OOA-Request");
-        if (u.mustChange() && !allowMustChange) throw new OoaException("CR.PASSWORD_CHANGE_REQUIRED", "Change your password before continuing");
+            throw new OoaException("CR.CSRF", "Missing request header X-OOA-Request", "Send the header X-OOA-Request: 1 with every change request; the console does this itself, so reload the page.");
+        if (u.mustChange() && !allowMustChange) throw new OoaException("CR.PASSWORD_CHANGE_REQUIRED", "Change your password before continuing", "Change your password first (the console asks for it after sign-in).");
         if (!allowMustChange && !t.startsWith("ooak_") && !jwt && cr.mfa.setupNeeded(u))
             throw new OoaException("CR.MFA_SETUP_REQUIRED", "Set up two-step sign-in before continuing", "Your administrator requires it for your account.");
         return u;
@@ -413,7 +419,7 @@ public final class ControlRoomServer {
             Map<String, Object> b = map(body(ex));
             // with the sign-in notice set to be accepted, a sign-in without the tick is refused
             if (cr.platform.intSetting("signin_notice_accept") == 1 && !String.valueOf(cr.platform.setting("signin_notice")).isBlank() && !Boolean.TRUE.equals(b.get("accepted")))
-                throw new OoaException("CR.NOTICE_NOT_ACCEPTED", "Accept the notice on the sign-in page to sign in");
+                throw new OoaException("CR.NOTICE_NOT_ACCEPTED", "Accept the notice on the sign-in page to sign in", "Tick the notice on the sign-in page, then sign in.");
             Map<String, Object> r = cr.login((String) b.get("username"), (String) b.get("password"), (String) b.get("code"), ip);
             if (r.get("token") == null) { sendJson(ex, 200, r); return; }   // two-step sign-in: the code comes next (auth/mfa)
             ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
@@ -483,7 +489,7 @@ public final class ControlRoomServer {
         }
         if (m.equals("GET") && route.equals("auth/sso/callback")) {
             try {
-                if (q.get("error") != null) throw new OoaException("SSO.DENIED", "The identity provider did not sign you in: " + q.get("error") + (q.get("error_description") != null ? " (" + q.get("error_description") + ")" : ""));
+                if (q.get("error") != null) throw new OoaException("SSO.DENIED", "The identity provider did not sign you in: " + q.get("error") + (q.get("error_description") != null ? " (" + q.get("error_description") + ")" : ""), "Check the sign-in settings in Administration > Settings > Sign-in, or ask your identity provider's administrator why you were refused.");
                 Map<String, Object> r = sso.callback(q.get("code"), q.get("state"), origin(ex) + "/api/auth/sso/callback", ip);
                 ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
                 // A same-site page moves on to the console, so the browser sends the new SameSite=Strict cookie.

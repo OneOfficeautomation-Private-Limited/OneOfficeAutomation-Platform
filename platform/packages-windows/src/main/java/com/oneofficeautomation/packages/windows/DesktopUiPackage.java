@@ -272,7 +272,7 @@ public final class DesktopUiPackage {
                 yield property(ctx, f.element(), property);
             }
             case "select_item" -> {
-                if ((item == null || item.isEmpty()) && itemIndex == null) throw new ActionException("DESKTOP_UI.NO_ITEM", "Give the item text or item_index to select");
+                if ((item == null || item.isEmpty()) && itemIndex == null) throw new ActionException("DESKTOP_UI.NO_ITEM", "Give the item text or item_index to select", "Fill in the item's text, or item_index.");
                 if (item != null && !item.isEmpty()) opt.put("item", item); else opt.put("item_index", BigDecimal.valueOf(itemIndex));
                 act(ctx, f.element(), "select_item", opt);
                 yield true;
@@ -326,7 +326,7 @@ public final class DesktopUiPackage {
     /** The first window that matches, or an error naming what was looked for. */
     static Object msaaWindow(ActionContext ctx, String title, String process) {
         if ((title == null || title.isBlank()) && (process == null || process.isBlank()))
-            throw new ActionException("DESKTOP_UI.BAD_INPUT", "Give the window title or its program");
+            throw new ActionException("DESKTOP_UI.BAD_INPUT", "Give the window title or its program", "Fill in the window's title or its program.");
         String match = title != null && (title.contains("*") || title.contains("?")) ? "wildcard" : "contains";
         List<Object> h = windowHandles(ctx, new DesktopObject.WindowSpec(title, match, process, null));
         if (h.isEmpty()) throw new ActionException("DESKTOP_UI.OBJECT_NOT_FOUND", "No open window matches " + (title == null || title.isBlank() ? process : "'" + title + "'"),
@@ -387,7 +387,7 @@ public final class DesktopUiPackage {
                 if (path != null && !path.isBlank()) {
                     target = (Map<String, Object>) call(ctx, "msaa_act", Map.of("handle", handle, "path", path.strip(), "action", "properties"));
                 } else {
-                    if ((name == null || name.isBlank()) && (role == null || role.isBlank())) throw new ActionException("DESKTOP_UI.BAD_INPUT", "Give the control's name, role or path");
+                    if ((name == null || name.isBlank()) && (role == null || role.isBlank())) throw new ActionException("DESKTOP_UI.BAD_INPUT", "Give the control's name, role or path", "Give a control's name, role or path; Capture in the step fills them in.");
                     List<Object> found = msaaFind(ctx, handle, name, role, null, index + 1);
                     if (found.size() > index) target = (Map<String, Object>) found.get(index);
                 }

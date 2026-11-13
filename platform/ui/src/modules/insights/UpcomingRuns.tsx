@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CrApi, Schedule } from "../../api/cr";
-import { HelpButton, TextInput, type HelpTopic } from "../../components";
+import { HelpButton, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton } from "../../console/ListParts";
 import { name, time } from "./Overview";
 
@@ -39,7 +39,7 @@ export function UpcomingRuns({ api }: { api: CrApi }) {
         <span className="ov-fill" />
         <a className="ui-btn ui-btn-secondary" href="#/schedules">Schedules</a>
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="ov-seg" role="group" aria-label="How far ahead">{RANGES.map(([k, l]) =>

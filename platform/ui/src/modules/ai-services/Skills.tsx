@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { PromptSkill, SkillDefinition } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic } from "../../components";
+import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "../../console/ListParts";
 
 /**
@@ -92,7 +92,7 @@ export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
           <Button kind="secondary" onClick={() => setTemplates(true)}>From a template</Button>
           <Button kind="primary" onClick={() => setPage({ name: null })}>Create skill</Button></>}
       </header>
-      {error && <p className="st-alert" role="alert">{error}</p>}
+      {error && <PageError text={error} />}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-list-search"><TextInput type="search" aria-label="Search skills" placeholder="Search skills" value={q} onChange={(e) => setQ(e.target.value)} /></span>

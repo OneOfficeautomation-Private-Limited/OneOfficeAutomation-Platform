@@ -57,10 +57,10 @@ final class Assistant {
         try {
             Process p = pb.start();
             String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
-            if (p.waitFor() != 0 || out.isEmpty()) throw new OoaException("ASSISTANT.KEY", "Cannot " + op.toLowerCase(Locale.ROOT) + " the API key for this Windows user");
+            if (p.waitFor() != 0 || out.isEmpty()) throw new OoaException("ASSISTANT.KEY", "Cannot " + op.toLowerCase(Locale.ROOT) + " the API key for this Windows user", "Run Studio as the Windows user who stored the key, or store the key again in Settings > AI.");
             return out;
-        } catch (IOException e) { throw new OoaException("ASSISTANT.KEY", "Cannot run PowerShell: " + e.getMessage());
-        } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("ASSISTANT.KEY", "Interrupted"); }
+        } catch (IOException e) { throw new OoaException("ASSISTANT.KEY", "Cannot run PowerShell: " + e.getMessage(), "Check that PowerShell can run for this Windows user.");
+        } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("ASSISTANT.KEY", "Interrupted", "Try again; if it keeps happening, look in the runner's or Studio's log for this code."); }
     }
 
     @SuppressWarnings("unchecked")
@@ -232,7 +232,7 @@ final class Assistant {
     static Object value(String type, String text) {
         String t = text.strip();
         return switch (type) {
-            case "Number" -> { try { yield new java.math.BigDecimal(t); } catch (NumberFormatException e) { throw new OoaException("ASSISTANT.BAD_INPUT", "'" + t + "' is not a number"); } }
+            case "Number" -> { try { yield new java.math.BigDecimal(t); } catch (NumberFormatException e) { throw new OoaException("ASSISTANT.BAD_INPUT", "'" + t + "' is not a number", "Give a number."); } }
             case "Boolean" -> Set.of("true", "yes", "1").contains(t.toLowerCase(Locale.ROOT));
             case "List", "Dictionary", "Record", "Table" -> JsonLite.parse(t);
             default -> text;

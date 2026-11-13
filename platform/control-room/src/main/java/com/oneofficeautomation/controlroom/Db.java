@@ -66,12 +66,12 @@ public final class Db implements AutoCloseable {
                 try (ResultSet r = s.executeQuery("SELECT 1 FROM pg_database WHERE datname = '" + name + "'")) {
                     if (!r.next()) s.execute("CREATE DATABASE " + name);
                 }
-            } catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create the test database: " + e.getMessage()); }
+            } catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create the test database: " + e.getMessage(), "Check that the test database (H2) can be created in the data folder."); }
             return new Db(server + name, user, pw);
         }
         try (Connection c = DriverManager.getConnection(base + ";databaseName=master", user, pw); Statement s = c.createStatement()) {
             s.execute("IF DB_ID('" + name + "') IS NULL BEGIN CREATE DATABASE [" + name + "]; ALTER DATABASE [" + name + "] SET READ_COMMITTED_SNAPSHOT ON; END");
-        } catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create the test database: " + e.getMessage()); }
+        } catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create the test database: " + e.getMessage(), "Check that the test database (H2) can be created in the data folder."); }
         return new Db(base + ";databaseName=" + name + ";sendTimeAsDatetime=false", user, pw);
     }
 
@@ -82,18 +82,18 @@ public final class Db implements AutoCloseable {
      * region's tenant catalog. PostgreSQL and H2 only. A small pool, since a region holds many tenants.
      */
     public Db inSchema(String name, int poolMax) {
-        if (!SCHEMA_NAME.matcher(name).matches()) throw new OoaException("CR.DB_CONFIG", "Not a schema name: " + name);
-        if (sqlServer) throw new OoaException("CR.DB_CONFIG", "Tenants need PostgreSQL (or H2 for tests), not SQL Server");
+        if (!SCHEMA_NAME.matcher(name).matches()) throw new OoaException("CR.DB_CONFIG", "Not a schema name: " + name, "Use lower-case letters, digits and _ in a schema name.");
+        if (sqlServer) throw new OoaException("CR.DB_CONFIG", "Tenants need PostgreSQL (or H2 for tests), not SQL Server", "Host tenants on PostgreSQL; SQL Server serves one organisation only.");
         try (Connection c = open(); Statement s = c.createStatement()) { s.execute("CREATE SCHEMA IF NOT EXISTS " + name); }
-        catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create schema " + name + ": " + e.getMessage()); }
+        catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create schema " + name + ": " + e.getMessage(), "Check that the database user may create schemas (CREATE on the database)."); }
         return new Db(url, user, password, poolMax, name);
     }
 
     /** Removes a schema with everything in it (a deleted tenant). */
     public void dropSchema(String name) {
-        if (!SCHEMA_NAME.matcher(name).matches() || name.equals(schema)) throw new OoaException("CR.DB_CONFIG", "Not a schema to remove: " + name);
+        if (!SCHEMA_NAME.matcher(name).matches() || name.equals(schema)) throw new OoaException("CR.DB_CONFIG", "Not a schema to remove: " + name, "Remove only a tenant's own schema.");
         try (Connection c = open(); Statement s = c.createStatement()) { s.execute("DROP SCHEMA IF EXISTS " + name + " CASCADE"); }
-        catch (SQLException e) { throw new OoaException("CR.DB_ERROR", "Cannot remove schema " + name + ": " + e.getMessage()); }
+        catch (SQLException e) { throw new OoaException("CR.DB_ERROR", "Cannot remove schema " + name + ": " + e.getMessage(), "Check that the database user may drop the schema, and that nothing else is using it."); }
     }
 
     /** The schema this Db works in, or null for the database's default. */
@@ -160,7 +160,7 @@ public final class Db implements AutoCloseable {
     private static OoaException dbError(SQLException e) {
         String state = e.getSQLState() == null ? "" : e.getSQLState();
         if (state.startsWith("23")) return new OoaException("CR.CONFLICT", "The change conflicts with existing data: " + e.getMessage().split("\n")[0], "Refresh and try again.");
-        return new OoaException("CR.DB_ERROR", "Database error: " + e.getMessage().split("\n")[0]);
+        return new OoaException("CR.DB_ERROR", "Database error: " + e.getMessage().split("\n")[0], "Check that the database is running and reachable; the server log has the full error.");
     }
 
     private <T> T withConn(Work2<T> w) {

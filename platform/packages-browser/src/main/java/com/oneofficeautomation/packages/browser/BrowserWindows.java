@@ -81,7 +81,7 @@ final class BrowserWindows {
         if (arg == null) return null;
         Object v = arg instanceof String s ? (s.isBlank() ? null : s.trim().startsWith("{") ? JsonLite.parse(s) : Map.of("source", "variable", "variable", s)) : arg;
         if (v == null) return null;
-        if (!(v instanceof Map<?, ?> m)) throw new ActionException("BROWSER.BAD_WINDOW", "The window must be a dictionary such as {\"source\": \"browser\", \"title\": \"...\"}");
+        if (!(v instanceof Map<?, ?> m)) throw new ActionException("BROWSER.BAD_WINDOW", "The window must be a dictionary such as {\"source\": \"browser\", \"title\": \"...\"}", "Give the window as a dictionary, for example {\"source\": \"browser\", \"title\": \"Orders\"}.");
         Map<String, Object> w = (Map<String, Object>) m;
         boolean any = false;
         for (String k : List.of("title", "url", "variable")) if (!text(w.get(k)).isEmpty()) any = true;
@@ -139,7 +139,7 @@ final class BrowserWindows {
                 continue;
             }
             if (System.currentTimeMillis() >= end) break;
-            try { Thread.sleep(250); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+            try { Thread.sleep(250); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
         String wanted = (title.isEmpty() ? "" : "title " + titleMatch + " '" + title + "'") + (title.isEmpty() || url.isEmpty() ? "" : " and ")
                 + (url.isEmpty() ? "" : "address " + urlMatch + " '" + url + "'");
@@ -216,7 +216,7 @@ final class BrowserWindows {
             case "equals" -> a.equals(v);
             case "regex" -> {
                 try { yield Pattern.compile(value).matcher(actual).find(); }
-                catch (java.util.regex.PatternSyntaxException e) { throw new ActionException("BROWSER.BAD_WINDOW", "Invalid regular expression '" + value + "': " + e.getDescription()); }
+                catch (java.util.regex.PatternSyntaxException e) { throw new ActionException("BROWSER.BAD_WINDOW", "Invalid regular expression '" + value + "': " + e.getDescription(), "Correct the regular expression; the message names where it breaks."); }
             }
             default -> a.matches(("\\Q" + v + "\\E").replace("*", "\\E.*\\Q").replace("?", "\\E.\\Q"));
         };
@@ -360,7 +360,7 @@ final class BrowserWindows {
                 if (System.currentTimeMillis() >= end)
                     throw new ActionException("BROWSER.NOT_LISTENING", "The browser started but did not open debugging port " + port + " within " + (long) timeoutMs + " ms",
                             "Close other windows that use the profile " + dir + ", or set keep_open to false.", true);
-                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             }
         }
         BrowserPackage.BrowserSession bs = attach(ctx, ep, kind, session, timeoutMs);
@@ -405,7 +405,7 @@ final class BrowserWindows {
     static Path executable(String kind, String override) {
         if (override != null && !override.isBlank()) {
             Path p = Path.of(override);
-            if (!Files.isRegularFile(p)) throw new ActionException("BROWSER.NOT_INSTALLED", "No browser program at " + p);
+            if (!Files.isRegularFile(p)) throw new ActionException("BROWSER.NOT_INSTALLED", "No browser program at " + p, "Install the browser on the runner, or correct its path in the step.");
             return p;
         }
         List<String> c = new ArrayList<>();
@@ -425,7 +425,7 @@ final class BrowserWindows {
 
     /** Starts the browser with a debugging port and its own profile; returns the process. */
     static Process start(Path exe, int port, Path profile, String url, boolean headless) {
-        try { Files.createDirectories(profile); } catch (IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot create the profile folder " + profile + ": " + e.getMessage()); }
+        try { Files.createDirectories(profile); } catch (IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot create the profile folder " + profile + ": " + e.getMessage(), "Check that the runner's account may create the profile folder."); }
         List<String> cmd = new ArrayList<>(List.of(exe.toString(), "--remote-debugging-port=" + port, "--user-data-dir=" + profile.toAbsolutePath(),
                 "--no-first-run", "--no-default-browser-check", "--disable-features=msEdgeStartupBoost"));
         if (headless) cmd.add("--headless=new");
@@ -434,7 +434,7 @@ final class BrowserWindows {
             ProcessBuilder pb = new ProcessBuilder(cmd).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD);
             pb.environment().remove("__COMPAT_LAYER");   // an inherited Windows compatibility layer makes the browser quit (see BrowserPackage.browserEnv)
             return pb.start();
-        } catch (IOException e) { throw new ActionException("BROWSER.NOT_INSTALLED", "Cannot start " + exe + ": " + e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("BROWSER.NOT_INSTALLED", "Cannot start " + exe + ": " + e.getMessage(), "Check that the browser is installed on the runner and may be started by the runner's account."); }
     }
 
     static boolean portFree(int port) {

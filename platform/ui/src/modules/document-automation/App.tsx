@@ -123,7 +123,7 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
           )}
           {error && (
             <div className="df-alert" role="alert">
-              <b>Something went wrong.</b> {error}
+              {error}
               <button type="button" className="df-link" onClick={() => setError("")}>Dismiss</button>
             </div>
           )}

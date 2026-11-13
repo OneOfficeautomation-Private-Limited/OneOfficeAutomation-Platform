@@ -105,7 +105,7 @@ public record License(String id, String customer, String edition, LocalDate issu
             f.put("payload", Base64.getEncoder().encodeToString(payload));
             f.put("signature", Base64.getEncoder().encodeToString(s.sign()));
             return JsonLite.write(f);
-        } catch (GeneralSecurityException e) { throw new OoaException("LICENSE.SIGN_FAILED", "Signing failed: " + e.getMessage()); }
+        } catch (GeneralSecurityException e) { throw new OoaException("LICENSE.SIGN_FAILED", "Signing failed: " + e.getMessage(), "Check the vendor key file in the license keys folder; it must be the Ed25519 private key."); }
     }
 
     /** A new Ed25519 key pair: {private (PKCS#8, Base64), public (X.509, Base64)}. */
@@ -113,17 +113,17 @@ public record License(String id, String customer, String edition, LocalDate issu
         try {
             KeyPair kp = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
             return Map.of("private", Base64.getEncoder().encodeToString(kp.getPrivate().getEncoded()), "public", Base64.getEncoder().encodeToString(kp.getPublic().getEncoded()));
-        } catch (GeneralSecurityException e) { throw new OoaException("LICENSE.KEY_FAILED", "Key generation failed: " + e.getMessage()); }
+        } catch (GeneralSecurityException e) { throw new OoaException("LICENSE.KEY_FAILED", "Key generation failed: " + e.getMessage(), "Check that the license tool may write the keys folder."); }
     }
 
     public static PrivateKey privateKey(String base64) {
         try { return KeyFactory.getInstance("Ed25519").generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(base64.trim()))); }
-        catch (Exception e) { throw new OoaException("LICENSE.BAD_KEY", "Not an Ed25519 private key"); }
+        catch (Exception e) { throw new OoaException("LICENSE.BAD_KEY", "Not an Ed25519 private key", "Use the vendor's Ed25519 private key file."); }
     }
 
     public static PublicKey publicKey(String base64) {
         try { return KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(base64.trim()))); }
-        catch (Exception e) { throw new OoaException("LICENSE.BAD_KEY", "Not an Ed25519 public key"); }
+        catch (Exception e) { throw new OoaException("LICENSE.BAD_KEY", "Not an Ed25519 public key", "Use the vendor's Ed25519 public key."); }
     }
 
     @SuppressWarnings("unchecked")

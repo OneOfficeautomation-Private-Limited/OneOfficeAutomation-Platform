@@ -74,7 +74,7 @@ public final class TriggerPollers {
         if (t == null) throw ControlRoom.notFound("Trigger");
         String kind = (String) t.get("kind");
         if (TriggerKinds.pushed(kind))
-            throw new OoaException("CR.BAD_TRIGGER", "Trigger " + id + " starts when its module reports the event: there is nothing to check");
+            throw new OoaException("CR.BAD_TRIGGER", "Trigger " + id + " starts when its module reports the event: there is nothing to check", "Nothing to check by hand; the trigger starts when the module reports the event.");
         Map<String, Object> cfg = config(t);
         Ctx c = new Ctx(t, cfg);
         String cursor = (String) t.get("last_hash");
@@ -87,7 +87,7 @@ public final class TriggerPollers {
                 case "email", "outlook" -> pollMail(mailSources.apply(withSecrets(c)), cfg, cursor, fireExisting);
                 case "servicenow" -> pollServiceNow(cfg, cursor, fireExisting, ref -> secret(c, ref));
                 case "http_poll" -> pollHttp(cfg, cursor, (List<String>) cfg.getOrDefault("_seen", List.of()), fireExisting, ref -> secret(c, ref));
-                default -> throw new OoaException("CR.BAD_TRIGGER", "Trigger " + id + " is not polled by One CommandCenter");
+                default -> throw new OoaException("CR.BAD_TRIGGER", "Trigger " + id + " is not polled by One CommandCenter", "Use Check now only on triggers One CommandCenter checks itself.");
             };
         } catch (IOException | RuntimeException e) {
             String msg = e instanceof IOException ? e.getMessage() : e instanceof OoaException ? e.getMessage() : e.toString();
@@ -131,7 +131,7 @@ public final class TriggerPollers {
                     "Ask the vault folder owner to add the trigger's owner as a consumer.");
         }
         Map<String, Object> row = cr.db.one("SELECT ciphertext FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", p[0], p[1], p[2]);
-        if (row == null) { cr.audit.record(actor, "credential.read", "credential", ref, Map.of("trigger", t.get("id")), "not_found", null); throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found"); }
+        if (row == null) { cr.audit.record(actor, "credential.read", "credential", ref, Map.of("trigger", t.get("id")), "not_found", null); throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found", "Check the credential's name and folder in Manage > Credentials, and that the agent's user may use it."); }
         cr.audit.record(actor, "credential.read", "credential", ref, Map.of("trigger", t.get("id")), "ok", null);
         return cr.vault.decrypt((String) row.get("ciphertext"), ref);
     }
@@ -154,7 +154,7 @@ public final class TriggerPollers {
         String token = (String) m.get("token");
         if (token == null) {
             try { token = GraphMailSource.clientCredentialsToken((String) m.get("login_url"), (String) m.get("tenant_id"), (String) m.get("client_id"), (String) m.get("client_secret")); }
-            catch (IOException e) { throw new OoaException("CR.TRIGGER_SIGN_IN", "Microsoft sign-in failed: " + e.getMessage()); }
+            catch (IOException e) { throw new OoaException("CR.TRIGGER_SIGN_IN", "Microsoft sign-in failed: " + e.getMessage(), "Sign in to Microsoft again in the trigger's connection, or check that the app may still read the mailbox."); }
         }
         return new GraphMailSource((String) m.get("graph_url"), (String) m.get("mailbox"), (String) m.get("mail_folder"), token);
     }

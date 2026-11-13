@@ -292,7 +292,7 @@ public final class ImagePackage {
             }
             ctx.checkCancelled();
             try { Thread.sleep(repeatDelayMs); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 
@@ -362,7 +362,7 @@ public final class ImagePackage {
             ctx.checkCancelled();
             long left = (end - System.nanoTime()) / 1_000_000;
             try { Thread.sleep(Math.max(1, Math.min(intervalMs, Math.max(1, left)))); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 
@@ -398,7 +398,7 @@ public final class ImagePackage {
                         "Check the screen resolution and scaling match the captured picture, or raise the tolerance.", true);
             }
             ctx.checkCancelled();
-            try { Thread.sleep(Math.max(50, intervalMs)); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            try { Thread.sleep(Math.max(50, intervalMs)); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
     }
 
@@ -440,14 +440,14 @@ public final class ImagePackage {
         Rectangle r = region(rx, ry, rw, rh);
         int[] wb = DesktopPackage.focusWindow(window, window != null && !window.isBlank());
         if (wb != null) r = r == null ? new Rectangle(wb[0], wb[1], wb[2], wb[3]) : new Rectangle(wb[0] + r.x, wb[1] + r.y, r.width, r.height);
-        if (initialWaitMs > 0) try { Thread.sleep(initialWaitMs); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        if (initialWaitMs > 0) try { Thread.sleep(initialWaitMs); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         boolean settle = "settle".equals(mode);
         BufferedImage first = screen(r), last = first;
         long end = System.nanoTime() + (long) (timeout * 1e9), steadySince = System.nanoTime();
         double pct = 0;
         while (true) {
             ctx.checkCancelled();
-            try { Thread.sleep(Math.max(50, intervalMs)); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            try { Thread.sleep(Math.max(50, intervalMs)); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
             BufferedImage now = screen(r);
             pct = changedPercent(first, now);
             if (!settle && pct >= Math.max(threshold, 0.0001)) return Out.of("changed", true, "changed_percent", java.math.BigDecimal.valueOf(Math.round(pct * 100) / 100.0));
@@ -499,7 +499,7 @@ public final class ImagePackage {
             if (System.nanoTime() > end)
                 throw new ActionException("IMAGE.NOT_FOUND", "Image not found on screen (best similarity " + res.get("similarity") + "%)", "Check the window is visible and not covered, or raise the tolerance.", true);
             ctx.checkCancelled();
-            try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
         }
         Robot robot = DesktopSupport.robot();
         int cx = ((BigDecimal) res.get("x")).intValue(), cy = ((BigDecimal) res.get("y")).intValue();
@@ -593,7 +593,7 @@ public final class ImagePackage {
             try {
                 if (dp.getParent() != null) Files.createDirectories(dp.getParent());
                 ImageIO.write(diff, "png", dp.toFile());
-            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + dp + ": " + e.getMessage(), null, true); }
+            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + dp + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
             diffPath = dp.toAbsolutePath().toString();
         }
         Map<String, Object> out = new LinkedHashMap<>();

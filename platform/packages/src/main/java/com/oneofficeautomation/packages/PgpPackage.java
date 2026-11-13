@@ -83,7 +83,7 @@ public final class PgpPackage {
         List<String> cmd = new ArrayList<>(List.of(exe(), "--batch", "--yes", "--no-tty", "--status-fd", "1"));
         if (home != null && !home.isBlank()) {
             Path h = ctx.resolvePath(home);
-            try { Files.createDirectories(h); } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+            try { Files.createDirectories(h); } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
             cmd.addAll(List.of("--homedir", h.toString()));
         }
         cmd.addAll(args);
@@ -104,7 +104,7 @@ public final class PgpPackage {
 
     private static String out(ActionContext ctx, String p) {
         Path f = ctx.resolvePath(p);
-        try { if (f.getParent() != null) Files.createDirectories(f.getParent()); } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+        try { if (f.getParent() != null) Files.createDirectories(f.getParent()); } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
         return f.toString();
     }
 
@@ -243,7 +243,7 @@ public final class PgpPackage {
         Path temp = null;
         String h = home;
         if (h == null || h.isBlank()) {
-            try { temp = Files.createTempDirectory("ooa-gpg-"); } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+            try { temp = Files.createTempDirectory("ooa-gpg-"); } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it."); }
             h = temp.toString();
         }
         try {
@@ -264,7 +264,7 @@ public final class PgpPackage {
         List<String> rc = new ArrayList<>(recipients == null ? List.of() : HttpJson.addressList(recipients));
         rc.addAll(kh.fingerprints());
         if (rc.isEmpty() && passphrase == null) throw new ActionException("PGP.NO_RECIPIENT", "Give at least one recipient or a passphrase", "Fill in recipients, public_key_file or passphrase.");
-        for (String r : rc) { if (r.startsWith("-")) throw new ActionException("PGP.BAD_RECIPIENT", "Invalid recipient '" + r + "'"); args.addAll(List.of("-r", r)); }
+        for (String r : rc) { if (r.startsWith("-")) throw new ActionException("PGP.BAD_RECIPIENT", "Invalid recipient '" + r + "'", "Give the recipient's e-mail address or key id as the public key shows it."); args.addAll(List.of("-r", r)); }
         if (armor) args.add("--armor");
         if (cipher != null) args.addAll(List.of("--cipher-algo", cipher));
         if (compression != null) args.addAll(List.of("--compress-algo", compression));
@@ -326,7 +326,7 @@ public final class PgpPackage {
             @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home) {
         if (!gnupgInstalled()) { PgpBuiltIn.sign(ctx, Path.of(file(ctx, path)), ctx.resolvePath(sig), key, secret(pass), home); return Map.of(); }
         List<String> args = new ArrayList<>(List.of("--pinentry-mode", "loopback", "--passphrase-fd", "0"));
-        if (key != null && !key.isBlank()) { if (key.startsWith("-")) throw new ActionException("PGP.BAD_KEY", "Invalid key '" + key + "'"); args.addAll(List.of("-u", key)); }
+        if (key != null && !key.isBlank()) { if (key.startsWith("-")) throw new ActionException("PGP.BAD_KEY", "Invalid key '" + key + "'", "Give the key's id or file as the step expects."); args.addAll(List.of("-u", key)); }
         args.addAll(List.of("-o", out(ctx, sig), "--detach-sign", file(ctx, path)));
         ProcessRunner.Result r = gpg(ctx, home, args, pass instanceof SecureString s ? s.reveal() + "\n" : "\n");
         if (r.exitCode() != 0) throw new ActionException("PGP.SIGN_FAILED", "Signing failed: " + ApplicationPackage.tail(r.stderr()), "Check the key and passphrase.");
@@ -371,7 +371,7 @@ public final class PgpPackage {
         if (email == null || !email.strip().matches("^[^\\s<>()@]+@[^\\s<>()@]+\\.[^\\s<>()@]+$"))
             throw new ActionException("PGP.BAD_EMAIL", "Invalid email address '" + email + "'", "Give an address such as finance-agent@example.com.");
         String c = comment == null || comment.isBlank() ? "" : comment.strip();
-        if (c.matches(".*[<>()\\x00-\\x1f].*")) throw new ActionException("PGP.BAD_COMMENT", "The comment may not contain < > ( ) or control characters");
+        if (c.matches(".*[<>()\\x00-\\x1f].*")) throw new ActionException("PGP.BAD_COMMENT", "The comment may not contain < > ( ) or control characters", "Remove < > ( ) and control characters from the comment.");
         return name.strip() + (c.isEmpty() ? "" : " (" + c + ")") + " <" + email.strip() + ">";
     }
 
@@ -428,7 +428,7 @@ public final class PgpPackage {
         if (publicFile != null && !publicFile.isBlank()) {
             pub = out(ctx, publicFile);
             r = gpg(ctx, home, List.of("--armor", "-o", pub, "--export", fpr), null);
-            if (r.exitCode() != 0) throw new ActionException("PGP.EXPORT_FAILED", "Exporting the public key failed: " + ApplicationPackage.tail(r.stderr()), null);
+            if (r.exitCode() != 0) throw new ActionException("PGP.EXPORT_FAILED", "Exporting the public key failed: " + ApplicationPackage.tail(r.stderr()), "Check that the key exists in the key folder and that GnuPG is installed on the runner.");
         }
         if (privateFile != null && !privateFile.isBlank()) {
             priv = out(ctx, privateFile);

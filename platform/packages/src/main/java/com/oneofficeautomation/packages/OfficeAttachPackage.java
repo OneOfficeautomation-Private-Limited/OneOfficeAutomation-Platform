@@ -98,7 +98,7 @@ public final class OfficeAttachPackage {
                 throw new ActionException(code + ".FAILED", app + " reported an error: " + ApplicationPackage.tail(r.stderr().isBlank() ? out : r.stderr()),
                         "Check the sheet name, range or text; " + app + " may also be busy (a cell being edited or a dialog open).", true);
             return out;
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally { if (file != null) try { Files.deleteIfExists(file); } catch (IOException ignored) { } }
     }
 
@@ -212,7 +212,7 @@ public final class OfficeAttachPackage {
                     "'OOA_JSON=' + (ConvertTo-Json -InputObject $target.Address($false, $false) -Compress)"),
                     List.of(name(workbook), sheet == null ? "" : sheet, start, data.toString()), timeout);
             return Map.of("range", String.valueOf(json(out)));
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true);
         } finally { if (data != null) try { Files.deleteIfExists(data); } catch (IOException ignored) { } }
     }
 

@@ -112,8 +112,8 @@ public final class CurrencyPackage {
         Map<String, BigDecimal> rates = new TreeMap<>();
         for (var e : fixed.entrySet()) {
             BigDecimal v;
-            try { v = Values.toNumber(e.getValue()); } catch (OoaException ex) { throw new ActionException(P + ".BAD_RATE", "Rate for " + e.getKey() + " is not a number"); }
-            if (v.signum() <= 0) throw new ActionException(P + ".BAD_RATE", "Rate for " + e.getKey() + " must be greater than 0");
+            try { v = Values.toNumber(e.getValue()); } catch (OoaException ex) { throw new ActionException(P + ".BAD_RATE", "Rate for " + e.getKey() + " is not a number", "Give each rate as a number, for example 1.08."); }
+            if (v.signum() <= 0) throw new ActionException(P + ".BAD_RATE", "Rate for " + e.getKey() + " must be greater than 0", "Give each rate as a number greater than 0.");
             rates.put(code(e.getKey()), v);
         }
         return new Rates(code(base), rates, null, "fixed");
@@ -206,8 +206,8 @@ public final class CurrencyPackage {
             @Input(name = "rates", type = OoaType.DICTIONARY, required = false, visibleWhen = "source=fixed", description = D_RATES) Map<String, Object> fixed,
             @Input(name = "date", type = OoaType.DATETIME, required = false, example = "2026-03-31",
                     description = "Convert at the rates of this past day (ecb source only); on a weekend or holiday the last working day before it is used. Today's rates when empty.") Object date) {
-        if (amount == null) throw new ActionException(P + ".NO_AMOUNT", "Give an amount to convert");
-        if (decimals < 0 || decimals > 12) throw new ActionException(P + ".BAD_DECIMALS", "decimals must be between 0 and 12");
+        if (amount == null) throw new ActionException(P + ".NO_AMOUNT", "Give an amount to convert", "Fill in the amount to convert.");
+        if (decimals < 0 || decimals > 12) throw new ActionException(P + ".BAD_DECIMALS", "decimals must be between 0 and 12", "Set decimals between 0 and 12.");
         Rates r;
         if (date != null && !(date instanceof String ds && ds.isBlank())) {
             String src = source == null || source.isBlank() ? "ecb" : source;

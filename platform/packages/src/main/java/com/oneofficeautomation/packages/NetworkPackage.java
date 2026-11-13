@@ -146,16 +146,16 @@ public final class NetworkPackage {
                     if (!ip.matches("\\d{1,3}(\\.\\d{1,3}){3}")) throw new ActionException("SNMP.BAD_VALUE", "Invalid IPv4 address '" + ip + "'", "Use the form 192.168.1.10.");
                     byte[] b = new byte[4];
                     String[] p = ip.split("\\.");
-                    for (int i = 0; i < 4; i++) { int n = Integer.parseInt(p[i]); if (n > 255) throw new ActionException("SNMP.BAD_VALUE", "Invalid IPv4 address '" + ip + "'"); b[i] = (byte) n; }
+                    for (int i = 0; i < 4; i++) { int n = Integer.parseInt(p[i]); if (n > 255) throw new ActionException("SNMP.BAD_VALUE", "Invalid IPv4 address '" + ip + "'", "Give an IPv4 address such as 192.168.1.10."); b[i] = (byte) n; }
                     yield tlv(IPADDR, b);
                 }
                 case COUNTER32, GAUGE32, TIMETICKS, COUNTER64 -> {
                     BigInteger n = new BigDecimal(String.valueOf(v).strip()).toBigIntegerExact();
                     BigInteger max = type == COUNTER64 ? BigInteger.ONE.shiftLeft(64) : BigInteger.ONE.shiftLeft(32);
-                    if (n.signum() < 0 || n.compareTo(max) >= 0) throw new ActionException("SNMP.BAD_VALUE", "Value " + n + " is out of range for " + typeName(type));
+                    if (n.signum() < 0 || n.compareTo(max) >= 0) throw new ActionException("SNMP.BAD_VALUE", "Value " + n + " is out of range for " + typeName(type), "Give a value within the range of the type the message names.");
                     yield tlv(type, n.toByteArray());
                 }
-                default -> throw new ActionException("SNMP.BAD_TYPE", "Unsupported value type " + typeName(type));
+                default -> throw new ActionException("SNMP.BAD_TYPE", "Unsupported value type " + typeName(type), "Use one of the value types the step offers.");
             };
         }
 

@@ -23,11 +23,11 @@ public final class PackageIntrospector {
 
     public static PackageInfo inspect(Class<?> cls) {
         OoaPackage meta = cls.getAnnotation(OoaPackage.class);
-        if (meta == null) throw new OoaException("PKG.ERROR", cls.getName() + " is not annotated with @OoaPackage");
-        if (!PKG_ID.matcher(meta.id()).matches()) throw new OoaException("PKG.ERROR", "Invalid package id '" + meta.id() + "'");
+        if (meta == null) throw new OoaException("PKG.ERROR", cls.getName() + " is not annotated with @OoaPackage", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
+        if (!PKG_ID.matcher(meta.id()).matches()) throw new OoaException("PKG.ERROR", "Invalid package id '" + meta.id() + "'", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
         if (!SEMVER.matcher(meta.version()).matches())
-            throw new OoaException("PKG.ERROR", "Package version '" + meta.version() + "' is not semantic (x.y.z)");
-        if (meta.description().isBlank()) throw new OoaException("PKG.ERROR", "Package " + meta.id() + " has no description");
+            throw new OoaException("PKG.ERROR", "Package version '" + meta.version() + "' is not semantic (x.y.z)", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
+        if (meta.description().isBlank()) throw new OoaException("PKG.ERROR", "Package " + meta.id() + " has no description", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
         Map<String, ActionSpec> actions = new TreeMap<>(), conditions = new TreeMap<>(), iterators = new TreeMap<>();
         for (Method m : cls.getMethods()) {
             if (Modifier.isStatic(m.getModifiers())) continue;
@@ -43,7 +43,7 @@ public final class PackageIntrospector {
     }
 
     private static void put(Map<String, ActionSpec> map, ActionSpec s, OoaPackage meta) {
-        if (map.put(s.id(), s) != null) throw new OoaException("PKG.ERROR", "Duplicate " + s.kind() + " '" + s.id() + "' in " + meta.id());
+        if (map.put(s.id(), s) != null) throw new OoaException("PKG.ERROR", "Duplicate " + s.kind() + " '" + s.id() + "' in " + meta.id(), "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
     }
 
     private static ActionSpec spec(String kind, String id, String name, String desc, String category, double timeout,
@@ -53,12 +53,12 @@ public final class PackageIntrospector {
                 "Add a one-sentence description; the AI assistant and agents rely on it.");
         Parameter[] ps = m.getParameters();
         if (ps.length == 0 || ps[0].getType() != ActionContext.class)
-            throw new OoaException("PKG.ERROR", kind + " '" + id + "' must take ActionContext as its first parameter");
+            throw new OoaException("PKG.ERROR", kind + " '" + id + "' must take ActionContext as its first parameter", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
         List<ActionSpec.InputSpec> inputs = new ArrayList<>();
         for (int i = 1; i < ps.length; i++) {
             Input in = ps[i].getAnnotation(Input.class);
-            if (in == null) throw new OoaException("PKG.ERROR", "Parameter " + i + " of '" + id + "' has no @Input");
-            if (in.description().isBlank()) throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' has no description");
+            if (in == null) throw new OoaException("PKG.ERROR", "Parameter " + i + " of '" + id + "' has no @Input", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
+            if (in.description().isBlank()) throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' has no description", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
             Object def = in.defaultValue().isEmpty() ? null : JsonLite.parse(in.defaultValue());
             inputs.add(new ActionSpec.InputSpec(in.name(), in.type(), in.description(), in.label(), in.required(), def,
                     in.pattern(), List.of(in.enumValues()), in.example(), in.visibleWhen(), in.min(), in.max(), List.of(in.formerNames()), in.signInToken()));
@@ -66,7 +66,7 @@ public final class PackageIntrospector {
         for (ActionSpec.InputSpec in : inputs)
             for (String other : in.visibleRule().keySet())
                 if (inputs.stream().noneMatch(x -> x.name().equals(other)))
-                    throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' is shown when '" + other + "' has a value, but there is no such input");
+                    throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' is shown when '" + other + "' has a value, but there is no such input", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
         List<ActionSpec.OutputSpec> outputs = new ArrayList<>();
         for (Output o : m.getAnnotationsByType(Output.class)) outputs.add(new ActionSpec.OutputSpec(o.name(), o.type(), o.description()));
         // a File input is a path on the runner: the command reads or writes local files, so it needs the filesystem

@@ -49,7 +49,7 @@ public final class ConnectorStore {
                 } catch (ActionException e) { row.put("error", e.getMessage()); }
                 out.add(row);
             }
-        } catch (IOException e) { throw new ActionException("CONNECTOR.IO", "Cannot list connectors: " + e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("CONNECTOR.IO", "Cannot list connectors: " + e.getMessage(), "Check that the connectors folder exists and that the runner's account may read it."); }
         return out;
     }
 
@@ -65,12 +65,12 @@ public final class ConnectorStore {
         try {
             Object v = JsonLite.parse(Files.readString(p, StandardCharsets.UTF_8));
             if (!(v instanceof Map<?, ?> m) || !(m.get("operations") instanceof List<?>))
-                throw new ActionException("CONNECTOR.BAD_DEFINITION", p.getFileName() + " is not a connector definition");
+                throw new ActionException("CONNECTOR.BAD_DEFINITION", p.getFileName() + " is not a connector definition", "Remove the file from the connectors folder, or make it again with Import connector.");
             return (Map<String, Object>) m;
         } catch (IOException e) {
-            throw new ActionException("CONNECTOR.IO", "Cannot read " + p.getFileName() + ": " + e.getMessage());
+            throw new ActionException("CONNECTOR.IO", "Cannot read " + p.getFileName() + ": " + e.getMessage(), "Check that the file exists, is not open in another program, and that the runner's account may read it.");
         } catch (IllegalArgumentException e) {
-            throw new ActionException("CONNECTOR.BAD_DEFINITION", p.getFileName() + " is not valid JSON: " + e.getMessage());
+            throw new ActionException("CONNECTOR.BAD_DEFINITION", p.getFileName() + " is not valid JSON: " + e.getMessage(), "Remove the file from the connectors folder, or make it again with Import connector.");
         }
     }
 
@@ -85,14 +85,14 @@ public final class ConnectorStore {
             Path tmp = p.resolveSibling("." + p.getFileName() + ".saving");
             Files.writeString(tmp, pretty(def), StandardCharsets.UTF_8);
             Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) { throw new ActionException("CONNECTOR.IO", "Cannot save connector '" + name + "': " + e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("CONNECTOR.IO", "Cannot save connector '" + name + "': " + e.getMessage(), "Check that the runner's account may write the connectors folder."); }
         return FOLDER + "/" + name + SUFFIX;
     }
 
     /** Deletes a connector; returns false when it did not exist. */
     public static boolean delete(Path workspace, String name) {
         try { return Files.deleteIfExists(file(workspace, name)); }
-        catch (IOException e) { throw new ActionException("CONNECTOR.IO", "Cannot delete connector '" + name + "': " + e.getMessage()); }
+        catch (IOException e) { throw new ActionException("CONNECTOR.IO", "Cannot delete connector '" + name + "': " + e.getMessage(), "Check that the file is not open in another program and that the runner's account may delete it."); }
     }
 
     /** Indented JSON so definitions are easy to read and edit by hand. */

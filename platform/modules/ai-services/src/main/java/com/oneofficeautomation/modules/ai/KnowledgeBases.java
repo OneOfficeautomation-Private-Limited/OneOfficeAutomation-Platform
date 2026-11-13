@@ -41,7 +41,7 @@ public final class KnowledgeBases {
                 Path m = d.resolve("meta.json");
                 if (Files.isRegularFile(m)) try { out.add((Map<String, Object>) JsonLite.parse(Files.readString(m, StandardCharsets.UTF_8))); } catch (IOException | RuntimeException ignored) { }
             }
-        } catch (IOException e) { throw new OoaException("CR.IO", "Cannot read the knowledge bases: " + e.getMessage()); }
+        } catch (IOException e) { throw new OoaException("CR.IO", "Cannot read the knowledge bases: " + e.getMessage(), "Check that the server's data folder has space and that the service account may read and write there."); }
         out.sort(Comparator.comparing(m -> String.valueOf(m.get("name")).toLowerCase(Locale.ROOT)));
         return out;
     }
@@ -58,7 +58,7 @@ public final class KnowledgeBases {
             Path tmp = d.resolve("meta.json.tmp");
             Files.writeString(tmp, JsonLite.write(m), StandardCharsets.UTF_8);
             Files.move(tmp, d.resolve("meta.json"), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) { throw new OoaException("CR.IO", "Cannot save the knowledge base: " + e.getMessage()); }
+        } catch (IOException e) { throw new OoaException("CR.IO", "Cannot save the knowledge base: " + e.getMessage(), "Check that the server's data folder has space and that the service account may read and write there."); }
     }
 
     public List<Map<String, Object>> list(User by) { ctx.require(by, "repo.view", "see knowledge bases"); return all(); }
@@ -70,7 +70,7 @@ public final class KnowledgeBases {
         String folder = b.get("folder") == null || String.valueOf(b.get("folder")).isBlank() ? "" : ctx.normalizeFolder(String.valueOf(b.get("folder")));
         String desc = b.get("description") == null ? "" : String.valueOf(b.get("description")).strip();
         if (desc.length() > 1000) throw new OoaException("CR.BAD_INPUT", "The description is up to 1,000 characters");
-        for (Map<String, Object> o : all()) if (String.valueOf(o.get("name")).equalsIgnoreCase(name) && !o.get("id").equals(id)) throw new OoaException("CR.CONFLICT", "A knowledge base is already called '" + name + "'");
+        for (Map<String, Object> o : all()) if (String.valueOf(o.get("name")).equalsIgnoreCase(name) && !o.get("id").equals(id)) throw new OoaException("CR.CONFLICT", "A knowledge base is already called '" + name + "'", "Choose another name, or open the one that has it.");
         Map<String, Object> m;
         if (id == null) {
             m = new LinkedHashMap<>();
@@ -86,24 +86,24 @@ public final class KnowledgeBases {
     public synchronized void delete(User by, String id, String ip) {
         ctx.require(by, "knowledge.manage", "manage knowledge bases");
         Map<String, Object> m = byName(id);
-        try { deleteTree(root.resolve((String) m.get("id"))); } catch (Exception e) { throw new OoaException("CR.IO", "Cannot delete it: " + e.getMessage()); }
+        try { deleteTree(root.resolve((String) m.get("id"))); } catch (Exception e) { throw new OoaException("CR.IO", "Cannot delete it: " + e.getMessage(), "Check that the server's data folder has space and that the service account may read and write there."); }
         ctx.audit(by.username(), "knowledge.delete", "knowledge_base", (String) m.get("id"), Map.of("name", m.get("name")), "ok", ip);
     }
 
     /** A running run publishes or fetches a base: {op: publish|fetch, name, ...}; the run's agent must be in the base's folder. */
     public Map<String, Object> forRun(Map<String, Object> device, Map<String, Object> body) {
         Map<String, Object> run = ctx.runOfDevice(device, (String) body.get("run_id"));
-        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can use knowledge bases");
+        if (!"running".equals(run.get("status"))) throw new OoaException("CR.FORBIDDEN", "Only running agents can use knowledge bases", "Use this from a step of a running agent.");
         Map<String, Object> r = body.get("request") instanceof Map<?, ?> rq ? cast(rq) : Map.of();
         Map<String, Object> m = byName(String.valueOf(r.get("name")));
         String folder = String.valueOf(m.get("folder"));
         if (!folder.isEmpty() && !String.valueOf(run.get("bot_path")).startsWith(folder + "/"))
-            throw new OoaException("CR.FORBIDDEN", "The knowledge base " + m.get("name") + " is only for agents in " + folder);
+            throw new OoaException("CR.FORBIDDEN", "The knowledge base " + m.get("name") + " is only for agents in " + folder, "Run the agent from the folder the knowledge base is for, or ask an administrator to share it more widely.");
         Path index = root.resolve((String) m.get("id")).resolve("index.json.gz");
         try {
             if ("publish".equals(r.get("op"))) {
                 byte[] gz = Base64.getDecoder().decode(String.valueOf(r.get("content")));
-                if (gz.length > MAX_BYTES) throw new OoaException("CR.TOO_LARGE", "A knowledge base is up to 200 MB");
+                if (gz.length > MAX_BYTES) throw new OoaException("CR.TOO_LARGE", "A knowledge base is up to 200 MB", "Split the documents over more than one knowledge base.");
                 synchronized (this) {
                     Path tmp = index.resolveSibling("index.json.gz.tmp");
                     Files.write(tmp, gz);
@@ -120,7 +120,7 @@ public final class KnowledgeBases {
             if (String.valueOf(m.get("sha256")).equals(r.get("sha256"))) return Map.of("not_modified", true, "sha256", m.get("sha256"));
             byte[] gz = Files.readAllBytes(index);
             return Map.of("sha256", sha(gz), "content", Base64.getEncoder().encodeToString(gz));
-        } catch (IOException e) { throw new OoaException("CR.IO", "Cannot use the knowledge base: " + e.getMessage(), null, true, null); }
+        } catch (IOException e) { throw new OoaException("CR.IO", "Cannot use the knowledge base: " + e.getMessage(), "Check that the server's data folder has space and that the service account may read and write there.", true, null); }
     }
 
     @SuppressWarnings("unchecked")

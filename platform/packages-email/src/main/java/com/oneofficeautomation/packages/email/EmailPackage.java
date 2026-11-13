@@ -98,7 +98,7 @@ public final class EmailPackage {
         if (why != null || m.contains("connect") || m.contains("timed out") || m.contains("UnknownHost"))
             return new ActionException("EMAIL.UNREACHABLE", "Cannot reach the mail server: " + (why != null ? why + " (" + m.replaceAll(";\\s*timeout -?\\d+", "") + ")" : m),
                     "Check host, port, security and network access.", true);
-        return new ActionException("EMAIL.ERROR", m, null);
+        return new ActionException("EMAIL.ERROR", m, "Check the mail server's address, port and the sign-in in the connection; the message has the server's answer.");
     }
 
     private static Properties props(String protocol, String host, int port, String security, boolean oauth) {
@@ -176,7 +176,7 @@ public final class EmailPackage {
         } catch (AddressException e) {
             throw new ActionException("EMAIL.BAD_ADDRESS", "Invalid email address: " + e.getMessage(), "Check the sender and recipient addresses.");
         } catch (MessagingException e) { throw mail(e);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     /** Jakarta Mail store protocol for the reading protocol and connection security, e.g. imaps or pop3. */
@@ -375,7 +375,7 @@ public final class EmailPackage {
             e.put("unread", wasUnread && !(markRead && !s.pop3));
             if (markRead && !s.pop3) m.setFlag(Flags.Flag.SEEN, true);
             return Map.of("email", com.oneofficeautomation.packages.MailRecord.withCommonKeys(e));
-        } catch (MessagingException | IOException e) { throw e instanceof MessagingException me ? mail(me) : new ActionException("EMAIL.READ_FAILED", e.getMessage()); }
+        } catch (MessagingException | IOException e) { throw e instanceof MessagingException me ? mail(me) : new ActionException("EMAIL.READ_FAILED", e.getMessage(), "Check the mail server's address, port and the sign-in in the connection, and that the mailbox exists."); }
     }
 
     /** High, low or normal, from the Importance, Priority or X-Priority header. */
@@ -441,7 +441,7 @@ public final class EmailPackage {
             Path dir = ctx.resolvePath(target);
             return Map.of("files", saveParts(m, dir, pattern, overwrite, inline));
         } catch (MessagingException e) { throw mail(e);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     /** Saves the attachments of one email whose names match the pattern; returns the saved paths. */
@@ -494,7 +494,7 @@ public final class EmailPackage {
             ctx.info("Saved " + saved.size() + " attachment(s) from " + msgs.length + " email(s)");
             return Map.of("files", saved, "email_count", BigDecimal.valueOf(msgs.length));
         } catch (MessagingException e) { throw mail(e);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     @Action(id = "mark", name = "Mark read or unread", category = "Mailbox", capabilities = "network", description = "Mark an email as read or unread, and optionally set or clear its follow-up flag.",
@@ -819,7 +819,7 @@ public final class EmailPackage {
             cc.remove(self);
             if (excludeSender && orig.getFrom() != null) for (Address a : orig.getFrom()) { to.remove(key(a)); cc.remove(key(a)); }
         }
-        if (to.isEmpty()) throw new ActionException("EMAIL.NO_RECIPIENT", "The original email has no sender to reply to", null);
+        if (to.isEmpty()) throw new ActionException("EMAIL.NO_RECIPIENT", "The original email has no sender to reply to", "Reply only to messages that have a sender; use Send email for a new message instead.");
         m.setRecipients(Message.RecipientType.TO, to.values().toArray(new Address[0]));
         m.setRecipients(Message.RecipientType.CC, cc.isEmpty() ? null : cc.values().toArray(new Address[0]));
         copies(m, extraCc, bcc);
@@ -909,7 +909,7 @@ public final class EmailPackage {
             ctx.info("Forwarded email " + id + " to " + addressText(msg.getRecipients(Message.RecipientType.TO)));
             return Map.of("message_id", Objects.toString(msg.getMessageID(), ""));
         } catch (MessagingException e) { throw mail(e);
-        } catch (IOException e) { throw new ActionException("EMAIL.READ_FAILED", e.getMessage()); }
+        } catch (IOException e) { throw new ActionException("EMAIL.READ_FAILED", e.getMessage(), "Check the mail server's address, port and the sign-in in the connection, and that the mailbox exists."); }
     }
 
     private Map<String, Object> replyImpl(ActionContext ctx, long id, String body, boolean html, boolean all, boolean include, List<Object> attachments,
@@ -924,7 +924,7 @@ public final class EmailPackage {
             ctx.info("Replied to email " + id);
             return Map.of("message_id", Objects.toString(msg.getMessageID(), ""));
         } catch (MessagingException e) { throw mail(e);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     @Action(id = "reply", name = "Reply to email", category = "Send", timeoutSeconds = 120, capabilities = "network",
@@ -1052,7 +1052,7 @@ public final class EmailPackage {
     public Map<String, Object> folderExists(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, example = "Processed", description = "Folder name; use / or the server's separator for subfolders.") String folder,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
-        if (folder == null || folder.isBlank()) throw new ActionException("EMAIL.BAD_INPUT", "Give a folder name", null);
+        if (folder == null || folder.isBlank()) throw new ActionException("EMAIL.BAD_INPUT", "Give a folder name", "Fill in the folder's name.");
         try { return Map.of("exists", ms(ctx, session).store.getFolder(folder).exists()); }
         catch (MessagingException e) { throw mail(e); }
     }
@@ -1076,7 +1076,7 @@ public final class EmailPackage {
             return Map.of("path", p.toString(), "attachments", BigDecimal.valueOf(msg.attachments.size()));
         }
         catch (MessagingException e) { throw mail(e);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     /** The parts of a MIME message an Outlook .msg file holds. */
@@ -1140,7 +1140,7 @@ public final class EmailPackage {
             return Map.of("path", writeEml(m, emlTarget(ctx.resolvePath(local), local.endsWith("/") || local.endsWith("\\"), m.getSubject(), overwrite)).toString());
         }
         catch (MessagingException e) { throw mail(e);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
 }

@@ -11,7 +11,8 @@ export function Dialog({ open, onClose, title, icon, children, footer, width = 5
   { open: boolean; onClose: () => void; title: string; icon?: ReactNode; children: ReactNode; footer: ReactNode; width?: number }) {
   const body = useRef<HTMLDivElement>(null);
   const focusFirstField = (e: Event) => {
-    const field = body.current?.querySelector<HTMLElement>("input:not([type=hidden]), select, textarea");
+    // a field marked data-autofocus first (the Create dialog's Name sits right of its other panes), else the first field
+    const field = body.current?.querySelector<HTMLElement>("[data-autofocus]") ?? body.current?.querySelector<HTMLElement>("input:not([type=hidden]), select, textarea");
     if (field) { e.preventDefault(); field.focus(); }
   };
   return (

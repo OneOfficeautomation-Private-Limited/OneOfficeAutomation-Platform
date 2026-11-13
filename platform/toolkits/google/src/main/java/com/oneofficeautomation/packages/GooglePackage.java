@@ -316,8 +316,8 @@ public final class GooglePackage {
             @Input(name = "reply_to", required = false, description = "Address(es) that replies go to, when not the sender.") Object replyTo,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         List<String> rcpt = HttpJson.addressList(to);
-        for (String a : rcpt) if (a.contains("\r") || a.contains("\n")) throw new ActionException(P + ".BAD_ADDRESS", "Invalid address");
-        if (subject.contains("\r") || subject.contains("\n")) throw new ActionException(P + ".BAD_SUBJECT", "The subject cannot contain line breaks");
+        for (String a : rcpt) if (a.contains("\r") || a.contains("\n")) throw new ActionException(P + ".BAD_ADDRESS", "Invalid address", "Use an e-mail address such as name@example.com; separate several with commas.");
+        if (subject.contains("\r") || subject.contains("\n")) throw new ActionException(P + ".BAD_SUBJECT", "The subject cannot contain line breaks", "Write the subject on one line.");
         if (cc != null || bcc != null || (attachments != null && !attachments.isEmpty()) || !blank(from) || replyTo != null) {
             Map<String, String> headers = new LinkedHashMap<>();
             headers.put("From", from);
@@ -370,7 +370,7 @@ public final class GooglePackage {
 
     private static void writeFile(Path p, byte[] data) {
         try { if (p.getParent() != null) Files.createDirectories(p.getParent()); Files.write(p, data); }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     // ------------------------------------------------------------------ A1 notation
@@ -462,7 +462,7 @@ public final class GooglePackage {
 
     private static Map<String, Object> sheet(ActionContext ctx, Object token, String id, String name, String ep) {
         List<Map<String, Object>> all = sheetList(ctx, token, id, ep);
-        if (all.isEmpty()) throw new ActionException(P + ".NO_SHEET", "The spreadsheet has no sheets", null);
+        if (all.isEmpty()) throw new ActionException(P + ".NO_SHEET", "The spreadsheet has no sheets", "Add a sheet to the spreadsheet, or check that the id is the right spreadsheet.");
         if (blank(name)) return all.get(0);
         for (Map<String, Object> m : all) if (name.equals(m.get("title"))) return m;
         for (Map<String, Object> m : all) if (name.equalsIgnoreCase(str(m.get("title")))) return m;
@@ -2159,7 +2159,7 @@ public final class GooglePackage {
             if (to.isEmpty() && !cc.isEmpty()) { to.putAll(cc); cc.clear(); }
         }
         for (String a : HttpJson.addressList(extraCc)) if (!to.containsKey(addr(a))) cc.putIfAbsent(addr(a), a);
-        if (to.isEmpty()) throw new ActionException(P + ".NO_RECIPIENT", "The original message has no sender to reply to", null);
+        if (to.isEmpty()) throw new ActionException(P + ".NO_RECIPIENT", "The original message has no sender to reply to", "Reply only to messages that have a sender; use Send for a new message instead.");
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("To", String.join(", ", to.values()));
         headers.put("Cc", String.join(", ", cc.values()));
@@ -2298,7 +2298,7 @@ public final class GooglePackage {
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         Map<String, Object> r = call(ctx, token, "GET", GMAIL + "messages/" + HttpJson.enc(id) + "?format=raw", ep, null);
-        if (r.get("raw") == null) throw new ActionException(P + ".NO_CONTENT", "Gmail returned no raw content for message " + id, null);
+        if (r.get("raw") == null) throw new ActionException(P + ".NO_CONTENT", "Gmail returned no raw content for message " + id, "The service answered in an unexpected way; try again, and if it keeps happening check the service's status page.");
         Path p = ctx.resolvePath(local);
         if (local.endsWith("/") || local.endsWith("\\") || Files.isDirectory(p)) {
             String subj = Objects.toString(hdr(obj(call(ctx, token, "GET", GMAIL + "messages/" + HttpJson.enc(id) + "?format=metadata&metadataHeaders=Subject", ep, null).get("payload")), "Subject"), "");
@@ -2476,7 +2476,7 @@ public final class GooglePackage {
         if (blank(title)) throw bad("Give the document a title", null);
         Map<String, Object> r = call(ctx, token, "POST", DOCS, ep, Map.of("title", title));
         String id = str(r.get("documentId"));
-        if (blank(id)) throw new ActionException(P + ".BAD_RESPONSE", "Google Docs did not return the new document's id", null);
+        if (blank(id)) throw new ActionException(P + ".BAD_RESPONSE", "Google Docs did not return the new document's id", "The service answered in an unexpected way; try again, and if it keeps happening check the service's status page.");
         if (text != null && !text.isEmpty()) docsBatch(ctx, token, id, ep, List.of(insertAtEnd(text)));
         if (!blank(folder)) driveMove(ctx, token, id, folder, ep);
         return Out.of("document_id", id, "url", docUrl(id));

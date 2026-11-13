@@ -1,3 +1,4 @@
+import { errorText } from "../api/client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Flow, FsEntry, FsListing, OpenWindow, VaultCredentialRef } from "../api/client";
 import { Button, Dialog, Icon, IconButton, Select, TextInput } from "../components";
@@ -127,7 +128,7 @@ export function FileBrowser({ folder, start, onPick, onClose }: { folder: boolea
   const go = (path: string) => {
     if (!vars) return;
     setError(null);
-    vars.api.fsList(path).then(setAt, (e) => setError(e instanceof Error ? e.message : String(e)));
+    vars.api.fsList(path).then(setAt, (e) => setError(errorText(e)));
   };
   useEffect(() => { go(start ? start.replace(/[\\/][^\\/]*\.[^\\/]+$/, "") : ""); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const entries: FsEntry[] = at?.entries ?? [];

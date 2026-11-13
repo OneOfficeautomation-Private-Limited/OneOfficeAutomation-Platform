@@ -84,7 +84,7 @@ public final class CustomToolkits {
         // loading a toolkit runs its code in the server, which SaaS tenants share
         if (cr.tenant != null) throw ControlRoom.notInSaas("Uploading custom toolkits");
         if (jar == null || jar.length == 0) throw new OoaException("CR.BAD_INPUT", "Send the toolkit's jar file");
-        if (jar.length > MAX_BYTES) throw new OoaException("CR.TOO_LARGE", "Toolkit jars are at most 10 MB");
+        if (jar.length > MAX_BYTES) throw new OoaException("CR.TOO_LARGE", "Toolkit jars are at most 10 MB", "Keep a toolkit jar under 10 MB; leave libraries out that One CommandCenter already has.");
         String sha = ToolkitJar.sha256(jar);
         Map<String, Object> d = ToolkitJar.descriptor(jar);
         PackageSigning.PublisherKey key = keyOf(String.valueOf(d.get("publisher")));
@@ -92,7 +92,7 @@ public final class CustomToolkits {
         try {
             Files.createDirectories(f.getParent());
             if (!Files.exists(f)) Files.write(f, jar);
-        } catch (IOException e) { throw new OoaException("CR.STORAGE", "Cannot keep the jar: " + e.getMessage()); }
+        } catch (IOException e) { throw new OoaException("CR.STORAGE", "Cannot keep the jar: " + e.getMessage(), "Check that the server's data folder has space and that the service account may write there."); }
         PackageRegistry.LoadedPackage lp;
         try {
             ToolkitJar.Loaded l = check(f, key);
@@ -118,7 +118,7 @@ public final class CustomToolkits {
     private ToolkitJar.Loaded check(Path jar, PackageSigning.PublisherKey key) {
         ToolkitJar.Loaded l = ToolkitJar.load(jar, CustomToolkits.class.getClassLoader());
         if (l.signature() == null || !key.publisher().equals(l.signature().publisher()))
-            throw new OoaException("PKG.UNTRUSTED", "The jar is not signed by a trusted publisher");
+            throw new OoaException("PKG.UNTRUSTED", "The jar is not signed by a trusted publisher", "Sign the jar with a publisher certificate that is trusted in Administration > Settings > Toolkits.");
         String pid = com.oneofficeautomation.sdk.PackageIntrospector.inspect(l.cls()).meta().id();
         if (firstParty.contains(pid)) throw new OoaException("CR.CONFLICT", "The toolkit id " + pid + " belongs to a toolkit that comes with the product", "Give your toolkit its own id, e.g. com.yourcompany.billing.");
         Map<String, Object> other = db.one("SELECT publisher FROM custom_toolkits WHERE toolkit_id = ? AND publisher <> ?", pid, key.publisher());
@@ -132,7 +132,7 @@ public final class CustomToolkits {
         for (Map<String, Object> r : db.query("SELECT toolkit_id, version, publisher, sha256 FROM custom_toolkits")) {
             try {
                 Path f = file((String) r.get("sha256"));
-                if (!ToolkitJar.sha256(Files.readAllBytes(f)).equals(r.get("sha256"))) throw new OoaException("PKG.TAMPERED", "The stored jar was changed");
+                if (!ToolkitJar.sha256(Files.readAllBytes(f)).equals(r.get("sha256"))) throw new OoaException("PKG.TAMPERED", "The stored jar was changed", "Upload the toolkit jar again.");
                 PackageSigning.PublisherKey key = keyOf((String) r.get("publisher"));
                 ToolkitJar.Loaded l = check(f, key);
                 registry.trust(key);
@@ -185,7 +185,7 @@ public final class CustomToolkits {
             try {
                 out.add(Map.of("id", pid, "version", ver, "publisher", r.get("publisher"), "public_key", r.get("public_key"), "sha256", r.get("sha256"),
                     "jar", Base64.getEncoder().encodeToString(Files.readAllBytes(file((String) r.get("sha256"))))));
-            } catch (IOException e) { throw new OoaException("RUN.TOOLKIT_MISSING", "The jar of " + w + " cannot be read on One CommandCenter: " + e.getMessage()); }
+            } catch (IOException e) { throw new OoaException("RUN.TOOLKIT_MISSING", "The jar of " + w + " cannot be read on One CommandCenter: " + e.getMessage(), "Upload the toolkit again in Manage > Toolkits."); }
         }
         return out;
     }
