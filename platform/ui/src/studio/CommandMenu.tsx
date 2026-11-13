@@ -21,6 +21,6 @@ export function CommandMenu({ view, onView, controlRoom, editing = false, curren
       // Document Automation has its own pages beside the console (/documents/); the others are console pages
       hrefFor={(page) => !controlRoom ? undefined : page === "docautomation" ? controlRoom.replace(/\/?$/, "/") + "documents/" : controlRoom + "next/#/" + page}
       home={{ href: controlRoom ? controlRoom + "next/" : undefined }}
-      offTitle="Sign in to One CommandCenter (Automation, Public tab) to open this page" console groups={MENU_GROUPS} />
+      offTitle="Sign in to One CommandCenter (Agents, Public tab) to open this page" console groups={MENU_GROUPS} />
   );
 }

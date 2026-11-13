@@ -47,7 +47,7 @@ export function Home({ api, user, pageHref }: { api: CrApi; user: CrUser; pageHr
   ] : [];
   const platform: Figure[] = d ? [
     { n: d.devices_online + " / " + d.devices_total, label: "Runners online", href: link("devices", "devices.view"), bad: d.devices_total > 0 && d.devices_online === 0 },
-    { n: String(d.bots), label: "Agents in the repository", href: link("automation", "repo.view") },
+    { n: String(d.bots), label: "Agents (Public)", href: link("automation", "repo.view") },
     { n: String(d.schedules), label: "Active schedules", href: link("schedules", "schedules.view") },
     ...(d.queue_items_waiting !== undefined ? [{ n: String(d.queue_items_waiting), label: "Work items waiting", href: link("queues") }] : []),
     { n: (d.hours_saved_30d ?? 0) + " h", label: "Hours saved (30 days)" },

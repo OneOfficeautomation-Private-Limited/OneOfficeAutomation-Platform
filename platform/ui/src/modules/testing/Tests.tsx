@@ -86,7 +86,7 @@ const HELP: HelpTopic = { title: "Agent tests",
   about: "Test sets run an agent with chosen inputs and check what it gives back, also for AI answers. Each run of a set is scored and kept, so you see "
     + "when an agent starts to fail.",
   items: [
-    { name: "Folders", text: "A test set sits in its agent's folder, as in Automation. Pick a folder to list its test sets; All test sets shows every one." },
+    { name: "Folders", text: "A test set sits in its agent's folder, as in Agents. Pick a folder to list its test sets; All test sets shows every one." },
     { name: "Last result", text: "Passing when every case passed in the latest run, Failing when one or more failed, or Not run. The filter shows only one "
       + "of these." },
     { name: "Last score and Version tested", text: "How many cases passed in the latest run, and which version of the agent it tested." },
@@ -193,7 +193,7 @@ export function Tests({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
               <button type="button" className="cc-tree-name" aria-current={folder === "" ? "page" : undefined} onClick={() => setFolder("")}><FolderIcon open />All test sets<span className="cc-tree-n">{all.length}</span></button></div>
               <ul>{kids("").map((f) => node(f, 1))}</ul></li>
           </ul>
-          <p className="cc-pane-foot">A test set sits in its agent's folder, as in Automation.</p>
+          <p className="cc-pane-foot">A test set sits in its agent's folder, as in Agents.</p>
         </nav>
         <div className="cc-files-pane">
           <div className="cc-pane-head">

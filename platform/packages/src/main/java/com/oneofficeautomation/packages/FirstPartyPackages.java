@@ -76,7 +76,7 @@ public final class FirstPartyPackages {
 
     /**
      * Lets toolkits prepare slow first-use work in the background when a host that runs bots starts (the Bot Agent,
-     * One AgentStudio): each optional toolkit class on the classpath with a public static warmUp() has it called, e.g.
+     * OneAgentStudio): each optional toolkit class on the classpath with a public static warmUp() has it called, e.g.
      * PDF builds the computer's font list. Returns at once; never fails.
      */
     public static void warmUp() {

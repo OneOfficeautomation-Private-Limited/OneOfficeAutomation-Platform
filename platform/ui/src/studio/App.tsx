@@ -105,7 +105,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   }, [api, reloadTree]);
 
   const current = tabs.find((t) => t.path === active) ?? null;
-  useEffect(() => { document.title = current ? current.name + " · One AgentStudio" : "One CommandCenter"; }, [current?.name]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { document.title = current ? current.name + " · OneAgentStudio" : "One CommandCenter"; }, [current?.name]);   // eslint-disable-line react-hooks/exhaustive-deps
   const agent = current?.kind === "agent" ? current : null;
   const isClone = !!agent && repoStates[agent.path]?.status === "cloned";
   const item = current?.kind === "item" ? current : null;
@@ -473,14 +473,14 @@ export function App({ api: given }: { api?: StudioApi }) {
   return (
     <div className="st-app">
       <header className="st-top">
-        {/* one One CommandCenter as AA's Control Room: only the editor (the dev canvas) is One AgentStudio */}
-        <div className="st-brand"><span className="st-logo is-light"><BrandMark light /></span>{current ? "One AgentStudio" : "One CommandCenter"}</div>
+        {/* one One CommandCenter as AA's Control Room: only the editor (the dev canvas) is OneAgentStudio */}
+        <div className="st-brand"><span className="st-logo is-light"><BrandMark light /></span>{current ? "OneAgentStudio" : "One CommandCenter"}</div>
         <nav aria-label="Breadcrumb" className="st-crumbs">
           {current?.kind === "agent" && current.trail?.length
             ? current.trail.map((t, i) => <span key={i}><button type="button" className="st-crumb-link" title={"Back to " + t.name + ", at the Run agent step (line " + t.line + ")"}
                 onClick={() => backTo(i)}>{t.name} › line {t.line}</button><span aria-hidden="true"> / </span></span>)
             : current ? current.path.split("/").slice(0, -1).map((p, i) => <span key={i}>{p}<span aria-hidden="true"> › </span></span>) : null}
-          <span className="st-crumb-current">{current ? current.name : "Automation"}</span>
+          <span className="st-crumb-current">{current ? current.name : "Agents"}</span>
           {current?.kind === "agent" && (() => {
             const callers = agents.filter((a) => a.path !== current.path && current.flow.id && (a.runs ?? []).includes(current.flow.id));
             return callers.length ? <span className="st-crumb-callers" title="Agents in this workspace with a Run agent step for this agent"> · Run by {callers.map((a, i) =>
@@ -518,7 +518,7 @@ export function App({ api: given }: { api?: StudioApi }) {
           if (where === "studio") { setAskTrigger({ kind, n: Date.now() }); return; }
           // One CommandCenter's triggers start the agent checked in there: its Create trigger, for this agent
           const cr = info?.controlRoom;
-          if (!cr) { setNotice("Connect One AgentStudio to One CommandCenter to add this trigger."); return; }
+          if (!cr) { setNotice("Connect OneAgentStudio to One CommandCenter to add this trigger."); return; }
           const url = (extra: Record<string, string> = {}) => cr + "next/#/triggers?" + new URLSearchParams({ new: kind, bot: agent.path, ...extra }).toString();
           if (kind !== "mouse_clicked") { window.open(url(), "_blank", "noopener"); return; }
           // a click trigger: the element picker first (as Capture), then Create trigger with its window and element filled in.

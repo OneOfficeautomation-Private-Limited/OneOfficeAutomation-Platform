@@ -334,7 +334,7 @@ holding it, the runner, since when, and when the lease runs out (marked when it 
 runners sees the list. Administrators (permission **Release environment locks**) can **Release** a lock by hand, for
 example when a run is stuck; the run is not stopped, and the release is written to the audit trail.
 
-**Without One CommandCenter.** In One AgentStudio on its own, locks work on this computer only: they are kept in
+**Without One CommandCenter.** In OneAgentStudio on its own, locks work on this computer only: they are kept in
 memory and shared by the runs in that program, with the same rules. Separate `ooa run` commands do not share them.
 
 ## 12. The assistant in the notification area

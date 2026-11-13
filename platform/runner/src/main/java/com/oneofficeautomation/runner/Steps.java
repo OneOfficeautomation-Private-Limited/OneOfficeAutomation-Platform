@@ -40,7 +40,7 @@ public final class Steps {
             if (!(o instanceof Map)) continue;
             Map<String, Object> s = (Map<String, Object>) o;
             out.add(s);
-            // in the order One AgentStudio shows them, so a step's place in this list is its line number:
+            // in the order OneAgentStudio shows them, so a step's place in this list is its line number:
             // children, else-if branches, else, catch blocks, finally, switch cases, default, then for each state of a
             // state machine its entry steps and the steps of each of its transitions
             if (s.get("children") instanceof List<?> l) out.addAll(walk((List<Object>) l));
@@ -75,7 +75,7 @@ public final class Steps {
     }
 
     /**
-     * The step lists inside a state machine in the order One AgentStudio shows them: for each state its entry steps, then
+     * The step lists inside a state machine in the order OneAgentStudio shows them: for each state its entry steps, then
      * the steps of each of its transitions. Empty for other steps.
      */
     @SuppressWarnings("unchecked")

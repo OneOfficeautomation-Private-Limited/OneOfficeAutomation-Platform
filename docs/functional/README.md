@@ -1,6 +1,6 @@
 # ONEOFFICEAUTOMATION functional specification
 
-**Product:** ONEOFFICEAUTOMATION (OOA) 0.2.0, One CommandCenter, One AgentStudio, OneRunner
+**Product:** ONEOFFICEAUTOMATION (OOA) 0.2.0, One CommandCenter, OneAgentStudio, OneRunner
 **Collection:** Functional (what each feature does, its rules, states, limits, permissions and options)
 
 ## What this covers
@@ -32,14 +32,14 @@ console where they are changed.
 | 11 | [Operations, audit and dashboards](11-operations-audit-and-dashboards.md) | Agent Activity pages, Home, Operations, dashboards and KPIs, Audit Trail, retention, e-mail, backups |
 | 12 | [Agent tests](12-agent-tests.md) | Test sets, cases, expectations and comparisons, scoring, history |
 | 13 | [Licensing and editions](13-licensing-and-editions.md) | Evaluation, licence files and states, seats, enforcement, SaaS subscription seats |
-| 14 | [One AgentStudio](14-studio-features.md) | Explorer, editor views, step settings, validation, run and debug, Run from here, child agents, recorder and capture, assistant, One CommandCenter link |
+| 14 | [OneAgentStudio](14-studio-features.md) | Explorer, editor views, step settings, validation, run and debug, Run from here, child agents, recorder and capture, assistant, One CommandCenter link |
 
 ## Product parts named in this collection
 
 | Name | What it is |
 | --- | --- |
 | One CommandCenter | The central server and its web console: repository, runs, runners, schedules, triggers, queues, workflows, vault, users, audit, settings. Its API is under `/api/`. |
-| One AgentStudio | The browser-based designer for agents and other automation items, served at `/studio/` by `ooa server`, working on a private workspace on the designer's computer. |
+| OneAgentStudio | The browser-based designer for agents and other automation items, served at `/studio/` by `ooa server`, working on a private workspace on the designer's computer. |
 | OneRunner | The service on each machine that takes runs from One CommandCenter and runs each agent in its own worker process. Called "runner" or "device" in the API. |
 | Credential vault | The encrypted credential store of One CommandCenter. |
 | Workflow | The workflow designer (in Studio) and runtime (in One CommandCenter) with the Task inbox. |

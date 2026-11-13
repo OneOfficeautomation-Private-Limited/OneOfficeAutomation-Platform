@@ -288,7 +288,7 @@ A calendar is used in two places:
   dates. The runner reads the calendar from One CommandCenter once per run, as the run's user (who needs permission
   to view schedules); each read is in the Audit Trail as `agent.calendar`. A name that does not exist fails the step
   with `DATETIME.CALENDAR_NOT_FOUND`.
-- In One AgentStudio, or any run without One CommandCenter, the same steps take the **holidays** (a list of
+- In OneAgentStudio, or any run without One CommandCenter, the same steps take the **holidays** (a list of
   YYYY-MM-DD dates) and the **weekend** (such as `SAT,SUN`, `FRI,SAT` or `NONE`) on the step itself; a calendar name
   there fails with `DATETIME.NO_COMMAND_CENTER`. Holidays given with a calendar are added to its dates, and a weekend
   given with a calendar replaces the calendar's.
@@ -744,7 +744,7 @@ export them.
 
 ### Business > Agents: each agent's own dashboard
 
-A builder can mark an output of an agent as **Business figure (KPI)** in One AgentStudio, but every value an agent's
+A builder can mark an output of an agent as **Business figure (KPI)** in OneAgentStudio, but every value an agent's
 runs return (its outputs) can be looked at here.
 
 1. Open **Operational Insights > Business**. The **Agents** tab lists every agent whose runs returned values in the

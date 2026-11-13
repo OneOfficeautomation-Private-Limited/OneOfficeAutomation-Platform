@@ -29,7 +29,7 @@ final class ModelConnections {
         Path p = ctx.workDir().resolve("model-connections.json");
         if (!Files.isRegularFile(p)) return Map.of();
         try { Object v = JsonLite.parse(Files.readString(p)); return v instanceof Map ? (Map<String, Object>) v : Map.of(); }
-        catch (Exception e) { throw new ActionException("AI.BAD_CONNECTIONS", "model-connections.json is not valid JSON: " + e.getMessage(), "Fix the file, or edit connections in One AgentStudio."); }
+        catch (Exception e) { throw new ActionException("AI.BAD_CONNECTIONS", "model-connections.json is not valid JSON: " + e.getMessage(), "Fix the file, or edit connections in OneAgentStudio."); }
     }
 
     /**

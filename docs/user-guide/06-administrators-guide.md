@@ -197,7 +197,7 @@ page unlocks an account at once.
 - **Notice on the sign-in page**: text shown before anyone signs in, for example terms of use or "This system is for
   authorised use only".
 - **People accept the notice to sign in**: people must tick **I have read and accept this** before the sign-in and
-  single sign-on buttons work. One AgentStudio asks for the tick too when it connects.
+  single sign-on buttons work. OneAgentStudio asks for the tick too when it connects.
 - The **Environment name** (Settings > General, section 12) is shown on the sign-in page as well.
 
 ### Network

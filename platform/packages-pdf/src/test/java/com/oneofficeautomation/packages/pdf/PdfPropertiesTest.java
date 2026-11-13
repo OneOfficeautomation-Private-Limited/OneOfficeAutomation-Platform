@@ -164,7 +164,7 @@ class PdfPropertiesTest {
         assertEquals("PDF.BAD_COLOR", code(() -> pdf.extractImages(ctx, "four.pdf", "x", 1, null, "2", "png", "x", "sepia", 0, null, null)));
     }
 
-    /** Gap: draw the area to read in One AgentStudio - the page comes back as a picture with its size in points. */
+    /** Gap: draw the area to read in OneAgentStudio - the page comes back as a picture with its size in points. */
     @Test void pageAsPictureForTheAreaPicker() throws Exception {
         Map<String, Object> r = pdf.renderPage(ctx, "four.pdf", 2, 72, null);
         String img = (String) r.get("image");

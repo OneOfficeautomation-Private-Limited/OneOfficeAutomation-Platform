@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.oneofficeautomation.com/flow/v1.json",
   "title": "OOA Flow v1",
-  "description": "Versioned definition of a ONEOFFICEAUTOMATION automation. Shared by One AgentStudio, Recorder, Runner, the AI co-pilot, the agent runtime, Git sync and import/export. Changes within v1 are additive only.",
+  "description": "Versioned definition of a ONEOFFICEAUTOMATION automation. Shared by OneAgentStudio, Recorder, Runner, the AI co-pilot, the agent runtime, Git sync and import/export. Changes within v1 are additive only.",
   "type": "object",
   "required": ["kind", "id", "name"],
   "additionalProperties": false,
@@ -153,7 +153,7 @@
             "properties": {
               "codes": {"type": "array", "items": {"type": "string"}, "description": "Error codes or prefixes ending in '*'. Empty = catch all."},
               "message_to": {"type": "string", "description": "Variable that receives the error message (String)."},
-              "line_to": {"type": "string", "description": "Variable that receives the line number of the step that failed (Number), as numbered in One AgentStudio's list."},
+              "line_to": {"type": "string", "description": "Variable that receives the line number of the step that failed (Number), as numbered in OneAgentStudio's list."},
               "as": {"type": "string", "description": "Variable that receives the error as a Dictionary (code, message, suggestedFix, stepId, line, action and, with screenshot, the picture's path)."},
               "screenshot": {"type": ["boolean", "string"], "description": "Take a screenshot when this block catches an error: true saves it under screenshots/ in the workspace, a text value is the file path to use. Never fails the Catch."},
               "continueOnError": {"type": "boolean", "default": false, "description": "Errors raised by steps inside this Catch block are logged and skipped."},

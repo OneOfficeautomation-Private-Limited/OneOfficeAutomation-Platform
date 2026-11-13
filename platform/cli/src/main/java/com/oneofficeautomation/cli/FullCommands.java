@@ -12,15 +12,15 @@ final class FullCommands {
     static final String DATA = "One CommandCenter data folder (default: ~/OOA Command Center).";
 
     static void add(OoaCli c) {
-        database(c.command("server", "Start everything on this computer: One CommandCenter, One AgentStudio (/studio) and a runner.", a -> Ooa.server(a.o()))
+        database(c.command("server", "Start everything on this computer: One CommandCenter, OneAgentStudio (/studio) and a runner.", a -> Ooa.server(a.o()))
             .number("--port", "N", "The port (default 8720).")
             .opt("--host", "HOST", "The address to listen on (default 127.0.0.1, this computer only).")
-            .opt("--workspace", "DIR", "One AgentStudio's workspace (default: ~/OOA Workspace).")
+            .opt("--workspace", "DIR", "OneAgentStudio's workspace (default: ~/OOA Workspace).")
             .flag("--no-agent", "Do not start the runner for this computer.")
             .flag("--no-browser", "Do not open the browser.")
             .opt("--agent-config", "FILE", "The local runner's registration (default: one file per data folder in ~/.ooa-agent).")
             .opt("--agent-workspace", "DIR", "The local runner's workspace (default: ~/OOA Agent Workspace)."));
-        c.command("studio", "Start One AgentStudio on its own (http://localhost:8710).", a -> Ooa.studio(a.o()))
+        c.command("studio", "Start OneAgentStudio on its own (http://localhost:8710).", a -> Ooa.studio(a.o()))
             .opt("--workspace", "DIR", "The workspace (default: ~/OOA Workspace).")
             .number("--port", "N", "The port (default 8710).");
         database(c.command("control-room", "Start One CommandCenter (http://localhost:8720).", a -> Ooa.controlRoom(a.o()))

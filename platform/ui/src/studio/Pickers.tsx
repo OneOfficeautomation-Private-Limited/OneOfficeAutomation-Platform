@@ -211,7 +211,7 @@ function DirectoryPicker({ step, field }: { step: FlowStep; field: string }) {
     setBusy(true); setError(null);
     try {
       const flow: Flow = {
-        kind: "TaskBot", id: "studio_check", name: "One AgentStudio check",
+        kind: "TaskBot", id: "studio_check", name: "OneAgentStudio check",
         variables: [{ name: "t", type: "Any", direction: "output" }],
         steps: [{ id: "c", action: "ooa.active_directory/connect", args: { ...conn, session: "studio_browse" } },
           { id: "q", action: "ooa.active_directory/run_query", args: { session: "studio_browse", base_dn: dn || undefined, scope: "one_level", max_results: 500,

@@ -193,7 +193,7 @@ optional module.
 | UI | File | Served from | Notes |
 | --- | --- | --- | --- |
 | One CommandCenter console | `control-room/src/main/resources/console/cr.js` | `/` on One CommandCenter | Pages registered in `PAGES` and `VIEWS`; helpers `h()`, `header()`, `dataTable()`, `modal()`, `openDrawer()`, `tabStrip()`; live updates by a long request to `/api/changes` |
-| One AgentStudio | `platform/ui` (TypeScript and React, built into the CLI) | `/studio/` inside `ooa server`, or `ooa studio` on port 8710 | Automation page, agent steps (list or flow), Actions panel by toolkit family, settings panels built from manifests (`x-ooa-panel`), debugger, output panel, capture and record |
+| OneAgentStudio | `platform/ui` (TypeScript and React, built into the CLI) | `/studio/` inside `ooa server`, or `ooa studio` on port 8710 | Automation page, agent steps (list or flow), Actions panel by toolkit family, settings panels built from manifests (`x-ooa-panel`), debugger, output panel, capture and record |
 | Browser extension | `browser-extension/background.js`, `content.js` | Loaded unpacked or by policy | Manifest V3 for Edge/Chrome, `manifest.firefox.json` for Firefox |
 
 ## Related documents

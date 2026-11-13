@@ -12,7 +12,7 @@ export type MenuSection = { id: string; label: string; color: string; icon: Icon
 /** The kernel's own pages; feature modules add theirs (modules/<id>/module.ts). */
 export const KERNEL_SECTIONS: MenuSection[] = [
   { id: "build", label: "Build", color: "#2f6fde", icon: "folder", pages: [
-    { id: "automation", label: "Automation", perm: "repo.view" }, { id: "templates", label: "Agent Templates", perm: "repo.view" }] },
+    { id: "automation", label: "Agents", perm: "repo.view" }, { id: "templates", label: "Agent Templates", perm: "repo.view" }] },
   { id: "manage", label: "Manage", color: "#0f766e", icon: "pulse", pages: [
     { id: "activity", label: "Agent Activity", perm: "runs.view" }, { id: "inbox", label: "Task inbox" }, { id: "devices", label: "Runner Machines", perm: "devices.view" },
     { id: "locks", label: "Environment locks", perm: "devices.view" },
@@ -20,15 +20,16 @@ export const KERNEL_SECTIONS: MenuSection[] = [
     { id: "queues", label: "Work queues", perm: "queues.view" },
     { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },
     { id: "credentials", label: "Credential vault" }, { id: "toolkits", label: "Agent ToolKits", perm: "toolkits.manage" }] },
-  { id: "insights", label: "Operational insights", color: "#0e7490", icon: "sliders", pages: [] },
+  { id: "ai", label: "AI", color: "#7c3aed", icon: "spark", pages: [
+    { id: "connections", label: "Model Connections", perm: "connections.manage" }] },
   { id: "administration", label: "Administration", color: "#475569", icon: "gear", pages: [
     { id: "users", label: "Users", perm: "users.manage" }, { id: "roles", label: "Roles", perm: "users.manage" },
     { id: "teams", label: "Teams", perm: "teams.manage|team_lead" },
     { id: "audit", label: "Audit Trail", perm: "audit.view" }, { id: "events", label: "Event subscriptions", perm: "events.manage" },
     { id: "licenses", label: "Licenses", perm: "users.manage|settings.manage" },
     { id: "settings", label: "Settings", perm: "settings.manage" }] },
-  { id: "ai", label: "AI", color: "#7c3aed", icon: "spark", pages: [
-    { id: "connections", label: "Model Connections", perm: "connections.manage" }] },
+  // 13 Nov 2026 round 3: Agent Insights (was Operational insights) comes last: Build, Manage, AI, Administration, Agent Insights
+  { id: "insights", label: "Agent Insights", color: "#0e7490", icon: "sliders", pages: [] },
 ];
 
 /** The menu: the kernel's sections with the pages of every module found (modules/registry.ts). */
@@ -42,7 +43,7 @@ export const MENU_SECTIONS: MenuSection[] = withModules(KERNEL_SECTIONS, UI_MODU
  */
 export type MenuGroup = { id: string; label: string; icon: IconName; section: string; pages: string[] };
 export const MENU_GROUPS: MenuGroup[] = [
-  { id: "g-automation", label: "Automation", icon: "folder", section: "build", pages: ["automation", "templates", "apitasks", "tests", "toolkits"] },
+  { id: "g-automation", label: "Agents", icon: "folder", section: "build", pages: ["automation", "templates", "apitasks", "tests", "toolkits"] },
   // improvement list 12 Nov 2026 (items 4, 7, 9): Ideas and Apps, Operations and Business, and every Administration page
   // are entries of their own; Manage and AI keep their groups
   { id: "g-ideas", label: "Ideas", icon: "idea", section: "build", pages: ["ideas"] },

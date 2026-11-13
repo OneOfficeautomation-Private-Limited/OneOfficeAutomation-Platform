@@ -28,7 +28,7 @@ function dur(ms?: number | null) {
 const shown = (v: unknown) => v == null || v === "" ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
 
 const HELP: HelpTopic = { title: "Business: Agents", about: "Every agent whose runs return values (its outputs), with a dashboard made for it from those values, "
-  + "as AA's Business dashboards. Values marked KPI in One AgentStudio come first.",
+  + "as AA's Business dashboards. Values marked KPI in OneAgentStudio come first.",
   items: [
     { name: "Values it records", text: "The outputs the agent's runs returned in the period; KPI-marked ones are shown first and bold." },
     { name: "With values", text: "How many of its runs returned at least one value." },
@@ -123,7 +123,7 @@ function AgentBusiness({ api, user, path, agents, days: initialDays, onClose, on
         <span className="ov-fill" />
         <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
         <RefreshButton onClick={load} />
-        {user.permissions.includes("repo.view") && <Button kind="secondary" onClick={() => { location.hash = "#/automation?q=" + encodeURIComponent(name(path)); }}>Open in Automation</Button>}
+        {user.permissions.includes("repo.view") && <Button kind="secondary" onClick={() => { location.hash = "#/automation?q=" + encodeURIComponent(name(path)); }}>Open in Agents</Button>}
         {user.permissions.includes("insights.design") && numbers.length > 0 && <Button kind="primary" onClick={copy}>Make my own copy</Button>}
       </div>
       <div className="ov-tabs cc-agent-tabs" role="tablist" aria-label="Business figures">

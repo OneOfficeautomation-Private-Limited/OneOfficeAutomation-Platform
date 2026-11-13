@@ -463,20 +463,20 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls.filter((c) => c.method === "POST").every((c) => c.headers?.["X-OOA-Request"] === "1")).toBe(true);
   });
 
-  it("shows the menu by task; every page opens here, with no One AgentStudio page (as AA's one Control Room)", async () => {
+  it("shows the menu by task; every page opens here, with no OneAgentStudio page (as AA's one Control Room)", async () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    for (const s of ["Build", "Manage", "Operational insights", "Administration", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
+    for (const s of ["Build", "Manage", "Agent Insights", "Administration", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     // round 2 item 2 (M1, 13 Nov 2026): one section open at a time; on Home none is, so every heading fits
     const entries = () => within(menu).getAllByRole("button").filter((b) => b.classList.contains("st-menu-entry")).map((b) => b.textContent);
     expect(entries()).toEqual([]);
     const all: (string | null)[] = [];
-    for (const s of ["Build", "Manage", "Operational insights", "Administration", "AI"]) {
+    for (const s of ["Build", "Manage", "Agent Insights", "Administration", "AI"]) {
       fireEvent.click(within(menu).getByRole("button", { name: s }));
       expect(within(menu).getByRole("button", { name: s }).getAttribute("aria-expanded")).toBe("true");
       all.push(...entries());   // opening one closes the one before
     }
-    expect(all).toEqual(["Automation", "Ideas", "Apps",
+    expect(all).toEqual(["Agents", "Ideas", "Apps",
       "Activity", "Runners", "Scheduling", "Work queues", "Shared data", "Credentials", "Overview", "Alerts", "Operations", "Business",
       "Users", "Roles", "Teams", "Settings", "Policies", "Audit trail", "Licenses", "One Chat", "AI setup", "Document Automation"]);   // improvement list 12 Nov 2026, items 4, 7, 9
     fireEvent.click(within(menu).getByRole("button", { name: "AI" }));   // the open one folds from its heading too
@@ -515,7 +515,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(menu).getByRole("button", { name: "Credentials" })).toBeTruthy();   // the vault is for everyone, under MANAGE as AA's
     expect(within(menu).queryByText("Administration")).toBeNull();   // no page in it is open to a viewer
     expect(within(menu).queryByRole("link", { name: "Users" })).toBeNull();
-    expect(within(menu).queryByText("Operational insights")).toBeNull();   // no page in it is open to a viewer
+    expect(within(menu).queryByText("Agent Insights")).toBeNull();   // no page in it is open to a viewer
     fireEvent.click(within(menu).getByRole("button", { name: "AI" }));
     expect(within(menu).getByRole("button", { name: "Document Automation" })).toBeTruthy();   // AI shows only what a viewer may open
     expect(within(menu).queryByRole("link", { name: "Model Connections" })).toBeNull();
@@ -584,7 +584,7 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.keyDown(within(first).getByRole("button", { name: /^Actions for the run of / }), { key: "Enter" });
     const menu = await screen.findByRole("menu");
     expect(within(menu).getByRole("menuitem", { name: "Run again" })).toBeTruthy();
-    expect(within(menu).getByRole("menuitem", { name: "Open the agent in Automation" })).toBeTruthy();
+    expect(within(menu).getByRole("menuitem", { name: "Open the agent in Agents" })).toBeTruthy();
     fireEvent.keyDown(menu, { key: "Escape" });
     expect(calls.some((c) => c.route.startsWith("runs?") && c.route.includes("filter=history") && c.route.includes("from="))).toBe(true);   // the last 90 days
     const agentCell = (name: string) => (_: string, el: Element | null) => el?.tagName === "TD" && !!el.textContent?.endsWith(name);
@@ -961,9 +961,9 @@ describe("rebuilt One CommandCenter console", () => {
     location.hash = "";
   });
 
-  it("shows Automation as AA's one page: Public on the left, Private on the right for people who build agents", async () => {
+  it("shows Agents as AA's one page: Public on the left, Private on the right for people who build agents", async () => {
     render(<ConsoleApp api={fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin"] } as typeof admin }).api} />);
-    await go("Automation");
+    await go("Agents");
     const where = await screen.findByRole("tablist", { name: "Where" });
     expect(within(where).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Public", "Private"]);
     await waitFor(() => expect(within(where).getByRole("tab", { name: "Private" }).getAttribute("href")).toBe("../studio/#private"));
@@ -972,12 +972,12 @@ describe("rebuilt One CommandCenter console", () => {
     expect(await screen.findByRole("menuitem", { name: /^New agent/ })).toBeTruthy();   // made in Private (#private/new)
     cleanup();
     render(<ConsoleApp api={fakeServer({ signedIn: viewer }).api} />);   // no right to build agents: Private is shown, off
-    await go("Automation");
+    await go("Agents");
     expect(within(await screen.findByRole("tablist", { name: "Where" })).getByRole("tab", { name: "Private" }).getAttribute("aria-disabled")).toBe("true");
     expect(screen.queryByRole("button", { name: "Create" })).toBeNull();   // nothing a viewer may create
   });
 
-  it("opens Create trigger for an agent and event from One AgentStudio's command list", async () => {
+  it("opens Create trigger for an agent and event from OneAgentStudio's command list", async () => {
     location.hash = "#/triggers?new=email&bot=" + encodeURIComponent("Finance/Invoice intake.flow.json");
     render(<ConsoleApp api={fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "triggers.view", "triggers.manage"] } as typeof admin }).api} />);
     const d = await screen.findByRole("dialog", { name: /trigger/i });
@@ -985,7 +985,7 @@ describe("rebuilt One CommandCenter console", () => {
     location.hash = "";
   });
 
-  it("opens a click trigger with the element captured in One AgentStudio filled in, and offers key-press triggers", async () => {
+  it("opens a click trigger with the element captured in OneAgentStudio filled in, and offers key-press triggers", async () => {
     location.hash = "#/triggers?" + new URLSearchParams({ new: "mouse_clicked", bot: "Finance/Invoice intake.flow.json", window: "Invoice - ERP", process: "erp.exe",
       element_name: "Submit", element_type: "Button", automation_id: "btnSubmit", unknown: "ignored" }).toString();
     render(<ConsoleApp api={fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "triggers.view", "triggers.manage"] } as typeof admin }).api} />);
@@ -1082,7 +1082,7 @@ describe("rebuilt One CommandCenter console", () => {
   it("exports, promotes and imports agents, keeps the code analysis policy and an agent's findings, and the files of a folder (AA's Bot Lifecycle Management)", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin", "repo.delete", "lifecycle.export", "lifecycle.import"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Automation");
+    await go("Agents");
     const agentsList = await screen.findByRole("table", { name: "Agents list" });
     expect(await within(agentsList).findAllByRole("button", { name: /^Actions for / })).not.toHaveLength(0);
     const made: string[] = [];
@@ -2180,13 +2180,13 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(t).getByText(/curl -X POST/).textContent).not.toContain("tok-new");   // the example never repeats the token
     fireEvent.click(within(t).getByRole("button", { name: "Done" }));
     // as AA, where an API task is a kind of automation: Automation marks the agent, and its menu leads to its Agent API
-    await go("Automation");
+    await go("Agents");
     const agents = await screen.findByRole("table", { name: "Agents list" });
     const row = (await within(agents).findByText("Invoice intake")).closest("tr")!;
     expect(await within(row).findByText("API")).toBeTruthy();
   });
 
-  it("opens Create Agent API with the agent chosen when Automation sends it (#/apitasks?new=)", async () => {
+  it("opens Create Agent API with the agent chosen when Agents sends it (#/apitasks?new=)", async () => {
     location.hash = "#/apitasks?new=" + encodeURIComponent("Finance/Invoice intake.flow.json");
     const { api } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
@@ -2197,7 +2197,7 @@ describe("rebuilt One CommandCenter console", () => {
     location.hash = "";
   });
 
-  it("shows Agent tests laid out as Automation: folders, the last result, a test set's page with its cases, a run on a pool and each case's checks", async () => {
+  it("shows Agent tests laid out as Agents: folders, the last result, a test set's page with its cases, a run on a pool and each case's checks", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.start", "repo.checkin"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Agent tests");
@@ -2230,7 +2230,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(within(d).getByRole("complementary", { name: "The selected case" })).getByText("Failed")).toBeTruthy();
   });
 
-  it("shows Agent Templates laid out as Automation: a folder tree, folders made and templates moved, install into a folder, an agent shared for approval", async () => {
+  it("shows Agent Templates laid out as Agents: a folder tree, folders made and templates moved, install into a folder, an agent shared for approval", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lifecycle.import"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Agent Templates");
@@ -2278,10 +2278,10 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "templates/share", body: { path: "Finance/Invoice intake.flow.json", name: "Invoice intake", description: "", category: "Finance" } }));
   });
 
-  it("shows Automation as AA's public workspace: a folder tree pane, files and folders, folder permissions, an agent's versions compared, a version asked to go live, a run, approvals, recovery", async () => {
+  it("shows Agents as AA's public workspace: a folder tree pane, files and folders, folder permissions, an agent's versions compared, a version asked to go live, a run, approvals, recovery", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin", "repo.delete", "repo.permissions", "runs.start"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    await go("Automation");
+    await go("Agents");
     const list = await screen.findByRole("table", { name: "Agents list" });
     expect(await within(list).findByText("By vic")).toBeTruthy();
     // AA's columns, the same as the Private workspace's Public tab; the folder because subfolders are included
@@ -2291,7 +2291,7 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(within(list).getByRole("columnheader", { name: "Code analysis" })).toBeTruthy();
     // AA's Automation page: the folder tree pane, and subfolders listed first in the files-and-folders pane
-    expect(screen.getByRole("heading", { name: "Automation" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Agents" })).toBeTruthy();
     expect(within(list).getAllByRole("row").some((r) => r.classList.contains("cc-folder-row"))).toBe(true);
     expect(screen.getByLabelText("Include subfolders")).toBeTruthy();
     expect(within(list).getByText("Workflow")).toBeTruthy();
@@ -2313,7 +2313,7 @@ describe("rebuilt One CommandCenter console", () => {
     const steps = await within(d).findByRole("list", { name: "Steps" });
     expect(within(steps).getByText("Open workbook")).toBeTruthy();
     expect(within(steps).getByText("$total is greater than 1000")).toBeTruthy();
-    // as One AgentStudio's step list: START, numbered lines, END; a block folds
+    // as OneAgentStudio's step list: START, numbered lines, END; a block folds
     expect([...steps.querySelectorAll(".st-step-n")].map((n) => n.textContent)).toEqual(["1", "2", "3"]);
     expect(steps.querySelector(".st-start")).toBeTruthy();
     fireEvent.click(within(steps).getByRole("button", { name: "Fold line 2" }));

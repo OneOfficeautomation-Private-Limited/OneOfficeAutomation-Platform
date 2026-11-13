@@ -141,7 +141,7 @@ public final class FormsPackage {
     @Output(name = "name", type = OoaType.STRING, description = "Name of the open form, for the other form actions.")
     @Output(name = "address", type = OoaType.STRING, description = "Local address of the form window (this computer only).")
     public Map<String, Object> display(ActionContext ctx,
-            @Input(name = "form", type = OoaType.FILE, example = "Forms/Leave request.form.json", description = "The form (.form.json) made in One AgentStudio's form designer.") String formPath,
+            @Input(name = "form", type = OoaType.FILE, example = "Forms/Leave request.form.json", description = "The form (.form.json) made in OneAgentStudio's form designer.") String formPath,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "Name to refer to the open form by; the form's id when empty.") String name,
             @Input(name = "title", type = OoaType.STRING, required = false, description = "Window title; the form's name when empty.") String title,
             @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Values to fill in first, by field id (the designer's defaults otherwise).") Map<String, Object> values,
@@ -163,7 +163,7 @@ public final class FormsPackage {
             if (!(o instanceof Map<?, ?> m) || !(m.get("fields") instanceof List)) throw new IllegalArgumentException("no fields");
             @SuppressWarnings("unchecked") Map<String, Object> f = (Map<String, Object>) o;
             form = f;
-        } catch (Exception e) { throw new ActionException("FORMS.BAD_FORM", "Not a form from the form designer: " + p.getFileName() + " (" + e.getMessage() + ")", "Open it in One AgentStudio's form designer and save it again."); }
+        } catch (Exception e) { throw new ActionException("FORMS.BAD_FORM", "Not a form from the form designer: " + p.getFileName() + " (" + e.getMessage() + ")", "Open it in OneAgentStudio's form designer and save it again."); }
         String n = name == null || name.isBlank() ? String.valueOf(form.getOrDefault("id", p.getFileName().toString().replace(".form.json", ""))) : name.strip();
         Object old = ctx.sessions().remove("form:" + n);
         if (old instanceof FormWindow.Session os) os.close();

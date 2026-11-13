@@ -57,7 +57,7 @@ export type ConnectorOperation = { id: string; name: string; method: string; pat
   parameters?: { name: string; required?: boolean; default?: unknown }[]; body?: { example?: unknown }; result?: { binary?: boolean } };
 export type ConnectorDef = { name: string; title?: string; server?: string; operations: ConnectorOperation[] };
 /** An open window: a browser tab (with the extension's tab id, or a debugging endpoint) or an application window. */
-/** A file or folder on this computer (One AgentStudio's Browse…). */
+/** A file or folder on this computer (OneAgentStudio's Browse…). */
 export type FsEntry = { name: string; path: string; dir: boolean };
 /** A folder's contents, its parent, and the places to start from (drives, home, the workspace). */
 export type FsListing = { path?: string; parent?: string; entries: FsEntry[]; places: { name: string; path: string }[] };
@@ -185,12 +185,12 @@ export class StudioApi {
         headers: body === undefined ? undefined : { "Content-Type": "application/json" },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
-    } catch { throw new ApiFailure(0, noAnswer("One AgentStudio", 0)); }
+    } catch { throw new ApiFailure(0, noAnswer("OneAgentStudio", 0)); }
     const text = await res.text();
     let data: { error?: ApiError } = {};
     try { data = text ? JSON.parse(text) : {}; }
-    catch { throw new ApiFailure(res.status, res.ok ? { code: "HTTP.NOT_JSON", message: "One AgentStudio answered with a page instead of data", suggestedFix: "Reload the page; if it keeps happening, check the address you use." } : noAnswer("One AgentStudio", res.status, res.statusText)); }
-    if (!res.ok) throw new ApiFailure(res.status, data.error ?? noAnswer("One AgentStudio", res.status, res.statusText));
+    catch { throw new ApiFailure(res.status, res.ok ? { code: "HTTP.NOT_JSON", message: "OneAgentStudio answered with a page instead of data", suggestedFix: "Reload the page; if it keeps happening, check the address you use." } : noAnswer("OneAgentStudio", res.status, res.statusText)); }
+    if (!res.ok) throw new ApiFailure(res.status, data.error ?? noAnswer("OneAgentStudio", res.status, res.statusText));
     return data as T;
   }
 

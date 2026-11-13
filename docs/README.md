@@ -1,6 +1,6 @@
 # ONEOFFICEAUTOMATION documentation
 
-Documentation for ONEOFFICEAUTOMATION (OOA) 0.2.0: One CommandCenter, One AgentStudio, OneRunner and the toolkits.
+Documentation for ONEOFFICEAUTOMATION (OOA) 0.2.0: One CommandCenter, OneAgentStudio, OneRunner and the toolkits.
 It is in five collections, each for a different reader. Start with the one that matches what you need to do.
 
 | Collection | For | What it answers |
@@ -29,7 +29,7 @@ It is in five collections, each for a different reader. Start with the one that 
 | --- | --- |
 | [Index of the user guides](user-guide/00-README.md) | All |
 | [Getting started](user-guide/01-getting-started.md) | All |
-| [One AgentStudio basics](user-guide/02-studio-basics.md) | Builder |
+| [OneAgentStudio basics](user-guide/02-studio-basics.md) | Builder |
 | [Building agents](user-guide/03-studio-building-agents.md) | Builder |
 | [Running and debugging agents](user-guide/04-studio-running-and-debugging.md) | Builder |
 | [Operator's guide](user-guide/05-operators-guide.md) | Operator |
@@ -62,7 +62,7 @@ It is in five collections, each for a different reader. Start with the one that 
 | [Operations, audit and dashboards](functional/11-operations-audit-and-dashboards.md) | Run pages, audit trail, KPIs |
 | [Agent tests](functional/12-agent-tests.md) | Test sets and scoring |
 | [Licensing and editions](functional/13-licensing-and-editions.md) | Evaluation, licences, seats |
-| [One AgentStudio](functional/14-studio-features.md) | Editor, run, debug, Run from here |
+| [OneAgentStudio](functional/14-studio-features.md) | Editor, run, debug, Run from here |
 
 ## Architecture
 

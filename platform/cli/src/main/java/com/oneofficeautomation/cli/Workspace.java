@@ -184,7 +184,7 @@ final class Workspace {
     String readItem(String path) throws IOException {
         Path p = resolve(path);
         if (!Files.isRegularFile(p)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path, "Reload the workspace (F5); it may have been renamed, moved or deleted.");
-        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "One AgentStudio cannot open this kind of file: " + path, "Open it with another program.");
+        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "OneAgentStudio cannot open this kind of file: " + path, "Open it with another program.");
         if (Files.size(p) > MAX_ITEM) throw new OoaException("WORKSPACE.TOO_LARGE", "The file is larger than 2 MB: " + path, "Open files larger than 2 MB in another program.");
         return Files.readString(p, java.nio.charset.StandardCharsets.UTF_8);
     }
@@ -192,7 +192,7 @@ final class Workspace {
     /** Saves a text item atomically; JSON items must stay valid JSON objects. */
     String writeItem(String path, String text, java.util.function.Function<String, Object> parseJson) throws IOException {
         Path p = resolve(path);
-        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "One AgentStudio cannot save this kind of file: " + path, "Edit this file in the program it belongs to.");
+        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "OneAgentStudio cannot save this kind of file: " + path, "Edit this file in the program it belongs to.");
         if (p.getParent() == null || !Files.isDirectory(p.getParent())) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found for " + path, "Choose a folder that exists; reload the workspace if it was renamed or moved.");
         if (text == null) throw new OoaException("WORKSPACE.BAD_CONTENT", "Nothing to save", "Add content before saving.");
         if (text.length() > MAX_ITEM) throw new OoaException("WORKSPACE.TOO_LARGE", "The content is larger than 2 MB", "Save less than 2 MB in one file.");

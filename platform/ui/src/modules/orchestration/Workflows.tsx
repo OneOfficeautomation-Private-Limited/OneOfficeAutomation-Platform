@@ -10,7 +10,7 @@ import { FormField } from "../../console/Inbox";
  * Manage > Workflow, built as AA's Process Composer requests and UiPath Maestro's instances (checked against their docs
  * and Blue Prism's, 31 Oct 2026): tabs In progress and Finished; each run with its workflow, reference, status and
  * current stage. A run opens with its timeline (agents, people's tasks, decisions) and data, and Cancel while it is
- * going. Start a workflow with its own start form, or data as JSON. Workflows are designed in One AgentStudio.
+ * going. Start a workflow with its own start form, or data as JSON. Workflows are designed in OneAgentStudio.
  * Laid out as the design plan's step 8 (approved on the canvas 31 Oct 2026): the list pattern with status pills, and a
  * run in a side panel beside the list: its stages as a track, the facts, then Timeline, People's tasks and Data.
  * Review round 2 (31 Oct 2026): the workflow's icon, why a finished run ended (on one line, whole on hover), and a menu
@@ -26,7 +26,7 @@ const going = (r: WorkflowRun) => r.status === "running" || r.status === "waitin
 const PILL: Record<string, string> = { running: "active", waiting: "pending", completed: "success", failed: "failed", cancelled: "stopped" };
 
 const HELP: HelpTopic = { title: "Workflow",
-  about: "Workflows chain agents, people and decisions. Design them in One AgentStudio and put them live, then start them here; "
+  about: "Workflows chain agents, people and decisions. Design them in OneAgentStudio and put them live, then start them here; "
     + "people get their steps in the Task inbox. The list refreshes every 10 seconds.",
   items: [
     { name: "Start a workflow", text: "Choose a live workflow, fill in its start form or give starting data as JSON, and add a reference to find the "
@@ -150,7 +150,7 @@ function StartWorkflow({ api, onClose, onStarted }: { api: CrApi; onClose: () =>
     <Dialog open title="Start a workflow" width={620} onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!path} onClick={start}>Start</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      {flows && !flows.length ? <p className="st-muted">No workflow is live yet. In One AgentStudio create a Workflow, check it in and put it in production.</p> : <>
+      {flows && !flows.length ? <p className="st-muted">No workflow is live yet. In OneAgentStudio create a Workflow, check it in and put it in production.</p> : <>
         <Field label="Workflow (its live version)">{(id) => <Select id={id} value={path} onChange={(e) => setPath(e.target.value)} options={(flows ?? []).map((p) => ({ value: p, label: flowName(p) }))} />}</Field>
         {fields.length ? <div className="cc-taskform" role="group" aria-label="Start form">{fields.map((x) => <FormField key={x.id} field={x} value={answers[x.id]} disabled={false} onChange={(v) => setAnswers({ ...answers, [x.id]: v })} />)}</div>
           : <Field label="Starting data (JSON, optional)">{(id) => <TextArea id={id} rows={4} value={json} placeholder='{"amount": 1200, "vendor": "Acme"}' onChange={(e) => setJson(e.target.value)} />}</Field>}

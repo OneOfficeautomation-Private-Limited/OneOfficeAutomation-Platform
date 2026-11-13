@@ -91,7 +91,7 @@ export function Value({ api, user, onNotice , title, tabs }: { api: CrApi; user:
   const agentMenu = (a: Agent) => [
     ...(canChange ? [{ key: "minutes", label: "Change savings…", onSelect: () => setEditing(a) }] : []),
     { key: "runs", label: "Its runs in Agent Activity", onSelect: () => { location.hash = "#/activity?" + new URLSearchParams({ tab: "completed", status: "success", bot: a.bot_path }).toString(); } },
-    ...(can("repo.view") ? [{ key: "open", label: "Open in Automation", onSelect: () => { location.hash = "#/automation?q=" + encodeURIComponent(name(a.bot_path)); } }] : []),
+    ...(can("repo.view") ? [{ key: "open", label: "Open in Agents", onSelect: () => { location.hash = "#/automation?q=" + encodeURIComponent(name(a.bot_path)); } }] : []),
   ];
   const nums = (r: ValueRow) => <><td className="cc-num">{r.hours} h</td><td className="cc-num">{money(r.money)}</td><td className="cc-num">{r.run_hours} h</td><td className="cc-num">{perRunHour(r)}</td></>;
   const numHeads = [["Hours saved", "Each successful run × its agent's minutes saved"], ["Money saved", "Hours saved × the cost of an hour (Settings)"],

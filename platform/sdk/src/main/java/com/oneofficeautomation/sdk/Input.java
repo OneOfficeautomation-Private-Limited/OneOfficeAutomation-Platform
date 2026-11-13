@@ -27,7 +27,7 @@ public @interface Input {
     double max() default Double.NaN;
     /**
      * Names this input had before it was renamed (K8, command review batch 10): a step that still uses one runs as
-     * before, the validator accepts it, and One AgentStudio moves its value to the new name when the step is opened.
+     * before, the validator accepts it, and OneAgentStudio moves its value to the new name when the step is opened.
      */
     String[] formerNames() default {};
     /**

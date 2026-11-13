@@ -12,7 +12,7 @@ import java.util.function.Function;
  * so two agents never use the same single-user system together, such as one SAP login or one shared mailbox session.
  * <p>
  * With One CommandCenter the locks are kept there and shared by every runner; the Bot Agent relays each request and
- * One CommandCenter checks which run asks. In One AgentStudio without One CommandCenter, locks work on this computer
+ * One CommandCenter checks which run asks. In OneAgentStudio without One CommandCenter, locks work on this computer
  * only: they are kept in memory and shared by the runs in this program, with the same rules.
  * <p>
  * A lock belongs to the run that took it. It is given back by Release lock, when the agent that took it ends (however
@@ -89,7 +89,7 @@ public final class EnvironmentLocksPackage {
     @Action(id = "acquire", name = "Acquire lock", category = "Environment locks", timeoutSeconds = MAX_WAIT + 120,
             description = "Take a named lock so no other agent run uses the same system at the same time. Optionally wait until the run holding it gives it back. "
                 + "The lock is given back by Release lock, or when this agent ends. With One CommandCenter the lock is shared by every runner; "
-                + "in One AgentStudio on its own it works on this computer only.",
+                + "in OneAgentStudio on its own it works on this computer only.",
             panel = "name, wait_seconds, [Fail when the lock is not acquired: fail_if_not_acquired] | lease_seconds, comment")
     @Output(name = "acquired", type = OoaType.BOOLEAN, description = "True when this run now holds the lock.")
     @Output(name = "held_by", type = OoaType.STRING, description = "When not acquired: the run, runner and person holding it, and since when.")
@@ -169,7 +169,7 @@ public final class EnvironmentLocksPackage {
         return Boolean.TRUE.equals(store(ctx).call("check", checkedName(name), 0, null).get("held"));
     }
 
-    /** Locks on this computer only (One AgentStudio without One CommandCenter): one map in this program, same rules. */
+    /** Locks on this computer only (OneAgentStudio without One CommandCenter): one map in this program, same rules. */
     static final class Local {
         record Lock(String name, String runId, Instant acquired, Instant expires, String comment) { }
         static final ConcurrentHashMap<String, Lock> LOCKS = new ConcurrentHashMap<>();

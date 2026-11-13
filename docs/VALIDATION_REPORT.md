@@ -156,8 +156,8 @@ repository with check-in/check-out) gets its own report.
 
 | Item | Result |
 | --- | --- |
-| Enterprise look | Light and dark themes in One AgentStudio and One CommandCenter, remembered per browser. |
-| One-branded agentic naming | Agents, Headless API agents, One AgentStudio, One CommandCenter, OneRunner, Agent Repository (Public / My Workspace), Agent check-in/check-out, Live production version, Agent Runs (Live/History), One Agent Vault, Shared Global values, Workflow, One Document Intelligence, One Prompt Skill, Audit Trail; roles Administrator, Agent builder, Agent operator, Viewer. |
+| Enterprise look | Light and dark themes in OneAgentStudio and One CommandCenter, remembered per browser. |
+| One-branded agentic naming | Agents, Headless API agents, OneAgentStudio, One CommandCenter, OneRunner, Agent Repository (Public / My Workspace), Agent check-in/check-out, Live production version, Agent Runs (Live/History), One Agent Vault, Shared Global values, Workflow, One Document Intelligence, One Prompt Skill, Audit Trail; roles Administrator, Agent builder, Agent operator, Viewer. |
 | Studio editor | Debugger (breakpoints also in child agents, step into/over/out, call stack, variable edits), Quick add, flow view, AI assistant that builds and explains agents, Model Connections, custom connectors from OpenAPI/Swagger/Postman, Publish to One CommandCenter for workflows and forms. |
 | Toolkits | From 328 to 875 actions in 72 toolkits. New: PowerPoint, GitHub, Azure DevOps, Asana, Zendesk, Okta, Box, DocuSign, Snowflake, Databricks, Kafka, custom connectors, fuzzy match, currency, trigger loop, Windows Credential Manager, interrupts; large additions to Excel, Word, Microsoft 365, Google Workspace, email, data, system, database, REST, FTP, PDF, browser, window, SAP GUI, Active Directory, terminal, Jira, Slack, Salesforce, Workday and ServiceNow; Hugging Face and SageMaker AI providers. |
 | One CommandCenter | Work queues (SLA, priority, retries, CSV/JSON import), runner pools, run priority and result callbacks, holiday calendars and schedule ownership, custom roles, API keys, settings and announcement, toolkit manager with "used by", hours saved, external vaults (HashiCorp, Azure Key Vault, AWS Secrets Manager, CyberArk), AI governance, MCP server for AI assistants, single sign-on (OpenID Connect), Workflow runtime with a Task inbox. |
@@ -221,7 +221,7 @@ repository with check-in/check-out) gets its own report.
 - Left out on purpose (reasons in the tables): EWS, .msg export, password-protected zip, NTLM, SNMP v3, ODBC, MP3, terminal types other than 3270, weak PDF encryption.
 
 
-# Validation report: Part 6 (One AgentStudio usability)
+# Validation report: Part 6 (OneAgentStudio usability)
 
 ## What was added
 

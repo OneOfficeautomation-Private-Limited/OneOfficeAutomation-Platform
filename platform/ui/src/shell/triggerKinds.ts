@@ -1,7 +1,7 @@
 /**
  * The events that start an agent (Manage > Triggers, built as AA's event triggers): their settings and help, in three
  * groups: on the runner, checked by One CommandCenter, and reported by Document Automation. Shared by the console's
- * Triggers page and the command list of One AgentStudio's agent editor, so both offer the same triggers.
+ * Triggers page and the command list of OneAgentStudio's agent editor, so both offer the same triggers.
  */
 export type F = [key: string, label: string, placeholder?: string, value?: string, type?: "number" | "check", checked?: boolean];
 const FOLDER: F[] = [["folder", "Folder on the runner", "C:\\Invoices\\Inbox"], ["pattern", "File or folder name pattern", "*", "*"], ["recursive", "Include sub-folders", "", "", "check"]];
@@ -43,7 +43,7 @@ export const KINDS: Record<string, { label: string; fields: F[]; help: string }>
   mouse_clicked: { label: "Mouse click on an element or window", fields: [["window", "Window title pattern", "*Invoice*"], ["process", "Or program", "erp.exe"],
     ["button", "Mouse button (left, right, middle or any)", "left", "left"], ["element_name", "Element name (optional)", "Submit"], ["element_type", "Element type (optional)", "Button"],
     ["automation_id", "Automation id (optional)", "btnSubmit"], DEBOUNCE],
-    help: "Windows runners with a signed-in desktop. Fires when the person clicks in this window, or on this element only. In One AgentStudio, pick this event to capture the element. "
+    help: "Windows runners with a signed-in desktop. Fires when the person clicks in this window, or on this element only. In OneAgentStudio, pick this event to capture the element. "
       + "The agent gets the button, window, program and the element's name and type, never screen contents. Clicks made by programs are ignored. Input: trigger_click." },
   email: { label: "New email (IMAP mailbox)", fields: [["host", "IMAP server", "imap.example.com"], ["port", "Port", "993", "993", "number"], ["ssl", "Use SSL/TLS", "", "", "check", true],
     ["username", "User name", "invoices@example.com"], ["password_ref", "Password (vault reference)", "mail/imap/password"], ["mail_folder", "Mailbox folder", "INBOX", "INBOX"], ...MAIL_FILTERS, INTERVAL],

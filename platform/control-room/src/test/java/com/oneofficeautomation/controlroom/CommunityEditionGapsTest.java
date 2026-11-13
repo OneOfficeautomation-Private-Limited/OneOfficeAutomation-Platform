@@ -119,7 +119,7 @@ class CommunityEditionGapsTest {
         cr.checkin(admin, "Proc/Q.process.json", json("{\"name\":\"Q\",\"stages\":[{\"id\":\"a\",\"type\":\"bot\",\"name\":\"Q\",\"bot\":\"Archive/Quote.flow.json\"}]}"), "v1", true, null);
         assertEquals("CR.IN_USE", code(() -> cr.moveBot(admin, "Archive/Quote.flow.json", "Sales", null)));
 
-        // a builder's copy goes to the Private workspace (One AgentStudio), not into the repository
+        // a builder's copy goes to the Private workspace (OneAgentStudio), not into the repository
         assertEquals("CR.COPY_TO_PRIVATE", code(() -> cr.copyBot(jane, "Archive/Quote.flow.json", null, null)));
         Map<String, Object> copy = cr.copyBot(admin, "Archive/Quote.flow.json", null, null);
         assertEquals("Archive/Quote (copy).flow.json", copy.get("path"));

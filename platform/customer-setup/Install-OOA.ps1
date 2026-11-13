@@ -92,7 +92,7 @@ if (-not $Role) {
     if ($Silent) { $Role = "CommandCenter" }
     else {
         Write-Host "ONEOFFICEAUTOMATION $version setup"
-        Write-Host "  1  One CommandCenter (with One AgentStudio): the server people sign in to"
+        Write-Host "  1  One CommandCenter (with OneAgentStudio): the server people sign in to"
         Write-Host "  2  Runner: a computer that runs agents for One CommandCenter elsewhere"
         $Role = if ((Ask "Install which (1 or 2)?" "1") -eq "2") { "Runner" } else { "CommandCenter" }
     }

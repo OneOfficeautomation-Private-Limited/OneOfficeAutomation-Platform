@@ -235,5 +235,5 @@ permission changes, file uploads and deletes.
 - [01 Agents and automation items](01-agents-and-automation-items.md)
 - [10 Users, roles, teams and security](10-users-roles-teams-and-security-features.md)
 - [13 Licensing and editions](13-licensing-and-editions.md)
-- [14 One AgentStudio](14-studio-features.md)
+- [14 OneAgentStudio](14-studio-features.md)
 - [One CommandCenter and runner, sections 4 and 10i](../user-guide/00-README.md)

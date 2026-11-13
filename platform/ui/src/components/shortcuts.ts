@@ -1,5 +1,5 @@
 /**
- * Every keyboard shortcut of One AgentStudio and One CommandCenter, in one list (item 9, 1 Nov 2026). The key handlers
+ * Every keyboard shortcut of OneAgentStudio and One CommandCenter, in one list (item 9, 1 Nov 2026). The key handlers
  * match keys with is(e, id), and menu labels, tooltips and the Keyboard shortcuts dialog show keyOf(id), so a key shown
  * is a key that works (shortcuts.test.ts checks every entry has a handler, and that no label writes a key by hand).
  * Following AA's editor and UiPath's debugger; nothing the browser keeps for itself (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab, F1)
@@ -57,13 +57,13 @@ export const SHORTCUTS: Shortcut[] = [
   S("steps.record", "Ctrl+Shift+R", "Record", "Agent steps", "studio", "studio/Editor.tsx"),
   S("fields.variable", "Ctrl+Space", "Insert a variable in a field", "Agent steps", "studio", "studio/ValueSources.tsx"),
 
-  S("files.copy", "Ctrl+C", "Copy", "Automation list", "studio", "studio/Automation.tsx"),
-  S("files.cut", "Ctrl+X", "Cut", "Automation list", "studio", "studio/Automation.tsx"),
-  S("files.paste", "Ctrl+V", "Paste into this folder", "Automation list", "studio", "studio/Automation.tsx"),
-  S("files.all", "Ctrl+A", "Select every item", "Automation list", "studio", "studio/Automation.tsx"),
-  S("files.delete", "Del", "Delete", "Automation list", "studio", "studio/Automation.tsx"),
-  S("files.rename", "F2", "Rename", "Automation list", "studio", "studio/Automation.tsx"),
-  S("files.clear", "Esc", "Clear the selection", "Automation list", "studio", "studio/Automation.tsx"),
+  S("files.copy", "Ctrl+C", "Copy", "Agents list", "studio", "studio/Automation.tsx"),
+  S("files.cut", "Ctrl+X", "Cut", "Agents list", "studio", "studio/Automation.tsx"),
+  S("files.paste", "Ctrl+V", "Paste into this folder", "Agents list", "studio", "studio/Automation.tsx"),
+  S("files.all", "Ctrl+A", "Select every item", "Agents list", "studio", "studio/Automation.tsx"),
+  S("files.delete", "Del", "Delete", "Agents list", "studio", "studio/Automation.tsx"),
+  S("files.rename", "F2", "Rename", "Agents list", "studio", "studio/Automation.tsx"),
+  S("files.clear", "Esc", "Clear the selection", "Agents list", "studio", "studio/Automation.tsx"),
 
   S("list.next", "↓", "Go to the next row", "Lists", "console", "console/listKeys.ts"),
   S("list.previous", "↑", "Go to the row before", "Lists", "console", "console/listKeys.ts"),

@@ -22,7 +22,7 @@ describe("errors without the API's own answer", () => {
     const studio = new StudioApi("/api/", (async () => new Response("", { status: 403 })) as unknown as typeof fetch);
     const s = await studio.info().catch((x) => x);
     expect(s).toBeInstanceOf(ApiFailure);
-    expect(s.message).toBe("One AgentStudio answered 403. You do not have permission for this. An administrator can give it to your role.");
+    expect(s.message).toBe("OneAgentStudio answered 403. You do not have permission for this. An administrator can give it to your role.");
   });
 
   it("keeps the API's own error and adds its fix to the message once", async () => {

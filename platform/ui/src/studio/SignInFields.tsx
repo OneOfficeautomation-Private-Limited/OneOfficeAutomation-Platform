@@ -4,7 +4,7 @@ import { Field, Select, TextInput } from "../components";
  * A1 (command review, batch 7): the sign-in of a saved connection for toolkits that take an access token (Microsoft
  * 365, Google, Email with OAuth). Kept in the connection's settings and vault references with sign_in_ names
  * (runner: OAuthSignIn); the runner gets the token when a step needs one and renews it before it runs out. Used by
- * One AgentStudio's and One CommandCenter's connection forms.
+ * OneAgentStudio's and One CommandCenter's connection forms.
  *
  * K1 (command review, batch 10): every connector that marks its token input, and the sign-ins unattended agents of
  * those services need: a service account's key (Google, DocuSign), an app that signs with a private key (Okta), a

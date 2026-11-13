@@ -48,7 +48,7 @@ Return every control that matches the object's used properties (the index is ign
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or One AgentStudio's desktop capture): window, properties with match and use, path and index. |
+| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or OneAgentStudio's desktop capture): window, properties with match and use, path and index. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `0` | More options | How long to wait for at least one match, in seconds; 0 looks once. |
 
 **Results**
@@ -70,7 +70,7 @@ Find a captured control and return all its current UI Automation properties and 
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or One AgentStudio's desktop capture): window, properties with match and use, path and index. |
+| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or OneAgentStudio's desktop capture): window, properties with match and use, path and index. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `10` | More options | How long to wait for the object to appear, in seconds. |
 
 **Results**
@@ -91,7 +91,7 @@ Find a captured control and return the control that contains it, one or more lev
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or One AgentStudio's desktop capture): window, properties with match and use, path and index. |
+| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or OneAgentStudio's desktop capture): window, properties with match and use, path and index. |
 | Levels | `levels` | Number | No | `1` | Main; choice Go up = A number of levels | How many levels to go up: 1 is the direct container. Range: 1 to 50 |
 | Control type | `control_type` | Text | No |  | Main; choice Go up = To the nearest of a type | Go up to the nearest container of this type instead, e.g. Pane, Group, DataItem, Table, List, Window. Example: `Pane` |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `10` | More options | How long to wait for the object to appear, in seconds. |
@@ -118,7 +118,7 @@ Read a grid, table or detailed list view in a Windows application into a Data Ta
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Captured object | `object` | Dictionary | Yes |  | Main | The captured grid, table or list control. The captured object (from Pick object or One AgentStudio's desktop capture): window, properties with match and use, path and index. |
+| Captured object | `object` | Dictionary | Yes |  | Main | The captured grid, table or list control. The captured object (from Pick object or OneAgentStudio's desktop capture): window, properties with match and use, path and index. |
 | Maximum rows | `max_rows` | Number | No | `10000` | More options | Stop after this many rows. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `10` | More options | How long to wait for the object to appear, in seconds. |
 
@@ -170,7 +170,7 @@ Find a captured control in a Windows application and act on it: click, set or re
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or One AgentStudio's desktop capture): window, properties with match and use, path and index. |
+| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or OneAgentStudio's desktop capture): window, properties with match and use, path and index. |
 | Action | `action` | Text | No | `click` | Main | What to do with the object. One of: `click`, `set_text`, `get_text`, `get_property`, `get_all_properties`, `select_item`, `expand`, `collapse`, `toggle`, `check`, `uncheck`, `invoke`, `focus`, `get_children`, `get_list_items`, `get_table`, `wait_appear`, `wait_disappear`, `scroll_into_view`, `get_coordinates` |
 | Click type | `click_type` | Text | No | `left` | Main | click: which click to make. One of: `left`, `right`, `double`, `middle` |
 | Text | `text` | Any | No |  | Main | set_text: the text to enter (a Credential is accepted and never logged). |
@@ -229,7 +229,7 @@ Wait until a captured control appears, or until it disappears, in a Windows appl
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or One AgentStudio's desktop capture): window, properties with match and use, path and index. |
+| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or OneAgentStudio's desktop capture): window, properties with match and use, path and index. |
 | State | `state` | Text | No | `appear` | Main | Wait for the object to appear or to disappear. One of: `appear`, `disappear` |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `30` | Main | Maximum wait in seconds. |
 | Fail on timeout | `fail_on_timeout` | Yes/No | No | Yes | More options | Fail the step when the time runs out; false returns found = false instead. |
@@ -282,4 +282,4 @@ True when the captured control can be found now in a Windows application (self-h
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or One AgentStudio's desktop capture): window, properties with match and use, path and index. |
+| Captured object | `object` | Dictionary | Yes |  | Main | The captured object (from Pick object or OneAgentStudio's desktop capture): window, properties with match and use, path and index. |

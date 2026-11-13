@@ -398,7 +398,7 @@ public final class Ooa {
             try { val = json.parse(raw); } catch (RuntimeException e) { val = raw; }
             inputs.put(kv.substring(0, eq), val);
         }
-        // Credential inputs ({"$credential": "folder/credential/attribute"}) are read from OOA_SECRET_... variables, as in One AgentStudio.
+        // Credential inputs ({"$credential": "folder/credential/attribute"}) are read from OOA_SECRET_... variables, as in OneAgentStudio.
         Runner runner = Runner.builder(FirstPartyPackages.registry()).sink(new EventSink.ConsoleSink(false)).service("vault", new EnvVault())
                 .schemaValidator(schemaValidator()).workDir(Path.of(".")).build();
         RunResult r = runner.run(flow, inputs);

@@ -68,7 +68,7 @@ describe("keyboard shortcuts", () => {
     expect(keyOf("steps.menu")).toBe("Shift+F10");   // the menu key has no label of its own
     expect(withKey("Save", "app.save")).toBe("Save (Ctrl+S or Ctrl+Enter)");
     expect(shortcutsFor("console").map(([a]) => a)).toEqual(["Everywhere", "Lists"]);
-    expect(shortcutsFor("studio").map(([a]) => a)).toEqual(["Everywhere", "Run and debug", "Agent steps", "Automation list"]);
+    expect(shortcutsFor("studio").map(([a]) => a)).toEqual(["Everywhere", "Run and debug", "Agent steps", "Agents list"]);
     // never a key the browser keeps for itself
     for (const s of SHORTCUTS) for (const k of s.keys) expect(["Ctrl+W", "Ctrl+T", "Ctrl+N", "Ctrl+Tab", "F1", "Ctrl+L", "Ctrl+P"]).not.toContain(k);
   });

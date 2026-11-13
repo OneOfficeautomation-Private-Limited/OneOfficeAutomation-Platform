@@ -40,7 +40,7 @@ public final class RepoFiles {
     public static String check(String path) {
         String p = path == null ? "" : path.trim().replace('\\', '/');
         if (!FILE.matcher(p).matches() || p.contains("..") || p.matches(".*\\.(flow|process|form)\\.json$"))
-            throw new OoaException("CR.BAD_PATH", "Invalid file path '" + path + "'", "Use folders and a file name, e.g. Finance/Templates/invoice.xlsx (agents are checked in from One AgentStudio).");
+            throw new OoaException("CR.BAD_PATH", "Invalid file path '" + path + "'", "Use folders and a file name, e.g. Finance/Templates/invoice.xlsx (agents are checked in from OneAgentStudio).");
         return p;
     }
 

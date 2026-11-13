@@ -40,6 +40,6 @@ describe("The menu's sections (M1, 13 Nov 2026 round 2)", () => {
       hrefFor={() => undefined} home={{ onClick: () => {} }} viewer={null} console groups={MENU_GROUPS} />);
     expect(screen.getByRole("button", { name: "Build" }).getAttribute("aria-expanded")).toBe("true");   // Agent ToolKits is in Build > Automation
     expect(screen.getByRole("button", { name: "Manage" }).getAttribute("aria-expanded")).toBe("false");
-    expect(screen.getByRole("button", { name: "Automation" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: "Agents" }).getAttribute("aria-current")).toBe("page");
   });
 });

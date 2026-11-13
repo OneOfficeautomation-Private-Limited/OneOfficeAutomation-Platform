@@ -40,7 +40,7 @@ const HELP_TOOLKIT: HelpTopic = { title: "Agent toolkit",
   about: "One toolkit: the agents that use it with the versions they need, and its details.",
   items: [
     { name: "Agents that use it", text: "Each agent with the version range it requires and whether the default version fits. Click an agent to find it in "
-      + "Automation." },
+      + "Agents." },
     { name: "Require in every agent that uses it", text: "Type a version range, such as ^2.0.0, and press Update agents. Each agent gets a new version with "
       + "that range; its live version stays until you choose the new one. Needs permission to check in agents." },
     { name: "Default fits", text: "No means the agent asks for versions the default does not meet; update its range or keep the version it needs "
@@ -176,7 +176,7 @@ function ToolkitView({ api, t, canUpdate, onSwitch, onClose, onNotice }: { api: 
           <table className="cc-list-table" aria-label="Agents using the toolkit">
             <thead><tr><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col" className="cc-num">Latest</th><th scope="col">Requires</th><th scope="col">Default {v?.installed ?? t.version} fits</th></tr></thead>
             <tbody>
-              {(v?.agents ?? []).map((a) => <tr key={a.path} title="Open the agent in Automation" onClick={() => { location.hash = "#/automation?q=" + encodeURIComponent(agentName(a.path)); }}>
+              {(v?.agents ?? []).map((a) => <tr key={a.path} title="Open the agent in Agents" onClick={() => { location.hash = "#/automation?q=" + encodeURIComponent(agentName(a.path)); }}>
                 <td><span className="cc-aico" aria-hidden="true">A</span>{agentName(a.path)}</td><td>{folderOf(a.path)}</td><td className="cc-num">v{a.version}</td>
                 <td className="ui-mono">{a.required || "Any version"}</td>
                 <td><span className={"cc-pill is-" + (a.satisfied ? "success" : "failed")}><span className="cc-pill-dot" />{a.satisfied ? "Yes" : "No"}</span></td></tr>)}

@@ -22,7 +22,7 @@ const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 const titleOf = (w: DashWidget) => w.title || (w.source === "runs" ? METRICS.find(([m]) => m === (w.metric ?? "runs"))?.[1] ?? "Runs" : (AGGS.find(([a]) => a === (w.agg ?? "sum"))?.[1] ?? "") + " of " + w.kpi);
-const HELP: HelpTopic = { title: "Dashboards", about: "Business figures your agents record (outputs marked KPI in One AgentStudio) and figures about the "
+const HELP: HelpTopic = { title: "Dashboards", about: "Business figures your agents record (outputs marked KPI in OneAgentStudio) and figures about the "
   + "runs, on dashboards you keep to yourself or share. The figures refresh every minute.",
   items: [
     { name: "New dashboard", text: "Start from nothing or from a ready-made dashboard (Operations at a glance, Value, or one over a business figure), "
@@ -242,7 +242,7 @@ function DashboardEditor({ api, d, copy, kpis, agents, onClose, onSaved }: { api
             ...(i < widgets.length - 1 ? [{ key: "down", label: "Move down", onSelect: () => move(i, 1) }] : []),
             { key: "remove", label: "Remove", separatorBefore: true, onSelect: () => setWidgets(widgets.filter((_, j) => j !== i)) }]} /></td></tr>)}</tbody></table>
         : <p className="st-muted">No widgets yet: add one, or start from a ready-made dashboard.</p>}
-      {kpis.length === 0 && <p className="st-muted">No KPI values recorded yet: mark an agent's outputs as KPI in One AgentStudio and run it. Run figures work now.</p>}
+      {kpis.length === 0 && <p className="st-muted">No KPI values recorded yet: mark an agent's outputs as KPI in OneAgentStudio and run it. Run figures work now.</p>}
       {widget && <WidgetEditor w={widget.w} kpis={kpis} agents={agents} onClose={() => setWidget(null)}
         onDone={(w) => { setWidgets(widget.i == null ? [...widgets, w] : widgets.map((x, j) => j === widget.i ? w : x)); setWidget(null); }} />}
     </Dialog>

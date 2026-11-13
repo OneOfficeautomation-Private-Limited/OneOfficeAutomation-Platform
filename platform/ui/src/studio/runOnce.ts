@@ -20,7 +20,7 @@ export async function runOnce(api: StudioApi, flow: Flow, inputs: Record<string,
 /** A one-step flow around an action, for runOnce. */
 export function oneStep(action: string, args: Record<string, unknown>, out: Record<string, string>): Flow {
   return {
-    kind: "TaskBot", id: "studio_check", name: "One AgentStudio check",
+    kind: "TaskBot", id: "studio_check", name: "OneAgentStudio check",
     variables: Object.values(out).map((v) => ({ name: v, type: "Any", direction: "output" as const })),
     steps: [{ id: "s1", action, args, out }],
   };

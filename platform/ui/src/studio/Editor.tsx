@@ -532,7 +532,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     ];
     if (clipboard) items.push({ key: "paste", label: "Paste after", description: clipboard.steps.length + (clipboard.steps.length === 1 ? " step" : " steps") + " copied", shortcut: keyOf("steps.paste"), onSelect: () => act.paste() });
     items.push(
-      { key: "share", label: "Copy to shared clipboard", description: "Paste in any agent, in any One AgentStudio window", separatorBefore: true, onSelect: act.share },
+      { key: "share", label: "Copy to shared clipboard", description: "Paste in any agent, in any OneAgentStudio window", separatorBefore: true, onSelect: act.share },
       { key: "from-shared", label: "Paste from shared clipboard", onSelect: act.fromShared },
       { key: "rename", label: "Rename", description: "Shown on the step", shortcut: keyOf("steps.rename"), onSelect: act.note },
       { key: "duplicate", label: "Duplicate", shortcut: keyOf("steps.duplicate"), separatorBefore: true, onSelect: act.duplicate },

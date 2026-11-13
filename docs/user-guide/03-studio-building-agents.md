@@ -1,4 +1,4 @@
-# Building agents in One AgentStudio
+# Building agents in OneAgentStudio
 
 **Audience:** agent builders who know the Studio screen (see [Studio basics](02-studio-basics.md)) and want to build
 real agents: adding steps, filling in settings, working with variables, conditions, loops and error handling.

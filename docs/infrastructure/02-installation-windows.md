@@ -35,7 +35,7 @@ Every package carries `sbom.cdx.json` (CycloneDX software bill of materials). Ch
 
 ## 2. Before you start
 
-- Decide the role of the computer: **One CommandCenter** (the server people sign in to; includes One AgentStudio) or
+- Decide the role of the computer: **One CommandCenter** (the server people sign in to; includes OneAgentStudio) or
   **Runner** (runs agents for One CommandCenter elsewhere).
 - For One CommandCenter that will be licensed, prepare SQL Server (or PostgreSQL) and two accounts: see
   [05. Databases](05-databases.md).

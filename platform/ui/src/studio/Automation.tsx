@@ -9,11 +9,11 @@ import type { StudioView } from "./CommandMenu";
 import { ITEM_TYPES, displayName, typeLabel, type ItemType } from "./itemTypes";
 
 const VIEW_TITLE: Record<StudioView, [string, (n: WorkspaceNode) => boolean]> = {
-  automation: ["Automation", (n) => n.type !== "folder"],
+  automation: ["Agents", (n) => n.type !== "folder"],
 };
 
 /** The top folder's name on both tabs (improvement list 13 Nov 2026, item 2: one name, as Public's). */
-export const ROOT = "Automation";
+export const ROOT = "Agents";
 const folderTree = (n: WorkspaceNode): TreeNode => ({ id: n.path, label: n.name, children: (n.children ?? []).filter((c) => c.type === "folder").map(folderTree) });
 
 /** What opens in an editor here: agents and the other items; data files stay as they are. */

@@ -118,7 +118,7 @@ export function FileField({ id, name, value, fallback, onCommit, apply, folder }
 }
 
 /**
- * Browse this computer's folders (One AgentStudio runs here): drives, the home folder and the workspace first; a file
+ * Browse this computer's folders (OneAgentStudio runs here): drives, the home folder and the workspace first; a file
  * is chosen with a click, a folder with "Use this folder".
  */
 export function FileBrowser({ folder, start, onPick, onClose }: { folder: boolean; start: string; onPick: (path: string) => void; onClose: () => void }) {
@@ -159,7 +159,7 @@ const vaultRef = (v: unknown) => v && typeof v === "object" && typeof (v as { $c
 
 /**
  * A credential straight from the vault (folder, credential and attribute, chosen from One CommandCenter's vault when
- * One AgentStudio is connected to it, or typed), or a Credential variable mapped when the agent runs.
+ * OneAgentStudio is connected to it, or typed), or a Credential variable mapped when the agent runs.
  */
 export function CredentialField({ id, name, value, onCommit, apply }: FieldProps) {
   const vars = useVars();

@@ -62,9 +62,9 @@ export function SignIn({ api, status, home, onSignedIn }: { api: StudioApi; stat
   );
 }
 
-/** The repository's folders as a tree, from the agents' paths (the root is "Automation", as on the Private tab). */
+/** The repository's folders as a tree, from the agents' paths (the root is "Agents", as on the Private tab). */
 function folderTree(paths: string[]): TreeNode {
-  const root: TreeNode = { id: "", label: "Automation", children: [] };
+  const root: TreeNode = { id: "", label: "Agents", children: [] };
   for (const p of paths) {
     let at = root;
     const parts = folderOf(p).split("/").filter(Boolean);

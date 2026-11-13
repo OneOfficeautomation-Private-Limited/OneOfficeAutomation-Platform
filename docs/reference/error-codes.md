@@ -81,7 +81,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `AGENT.SESSION_FAILED` | Windows did not keep the credential for …: … | Run the command as an administrator; check the account and password. | agent |
 | `AGENT.STOPPED` | …The agent was stopped by a Stop agent step… | Nothing to fix: a Stop agent step ended the run on purpose. | runner |
 | `AGENT.TOOL_NEEDS_SECRET` | Agent '…' needs a Credential input, which a model must never supply | Read the credential inside the agent instead of taking it as an input. | toolkits/ai |
-| `AGENT.TOOL_UNDOCUMENTED` | Agent '…' has no description | Add a description under Properties in One AgentStudio (with no step selected); the AI agent reads it to decide when to call this agent. | toolkits/ai |
+| `AGENT.TOOL_UNDOCUMENTED` | Agent '…' has no description | Add a description under Properties in OneAgentStudio (with no step selected); the AI agent reads it to decide when to call this agent. | toolkits/ai |
 | `AGENT.TOO_DEEP` | Agents calling agents calling agents are nested too deeply | Simplify the agent's tools. | cli |
 | `AGENT.UNREACHABLE` | Cannot reach One CommandCenter at …: …<br>Cannot reach Command Center at …: … | Check One CommandCenter's address in the runner's settings and that the runner can reach it (network, proxy, firewall).<br>Check the URL and network; the agent keeps retrying. | agent |
 | `AGENT.UPDATE` | One CommandCenter sent an empty file list<br>Unexpected file name …<br>The downloaded … does not match its checksum; update stopped | Try the update again later; if it keeps failing, install the runner again from One CommandCenter. | agent |
@@ -309,7 +309,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `BROWSER.NOT_SUPPORTED` | This action is not available for a tab driven through the browser connector<br>Running a script inside an iframe is not available for a tab driven through the browser connector | Use the Capture element action, or open the browser with engine playwright for this agent.<br>Open the browser with engine playwright, or run the script on the main page. | packages-browser |
 | `BROWSER.NOT_VISIBLE` | … has no position because it is not visible | Scroll the element into view or wait until it shows, then try again. | packages-browser |
 | `BROWSER.NO_DOWNLOAD` | Clicking … did not start a download within … s | Check the element starts a download (not a new page or tab), or raise start_timeout_ms. | packages-browser |
-| `BROWSER.NO_ELEMENT` | Give the captured object or a selector<br>Give the captured item or a selector<br>Give the captured Next button or its selector | Use Capture in One AgentStudio, or type a selector.<br>Use Pick or Capture in One AgentStudio, or type a selector.<br>Capture the element (Capture in the step), or fill in its selector. | packages-browser |
+| `BROWSER.NO_ELEMENT` | Give the captured object or a selector<br>Give the captured item or a selector<br>Give the captured Next button or its selector | Use Capture in OneAgentStudio, or type a selector.<br>Use Pick or Capture in OneAgentStudio, or type a selector.<br>Capture the element (Capture in the step), or fill in its selector. | packages-browser |
 | `BROWSER.NO_FIELDS` | Name at least one field to read from each item | Fields: {"Name": "h3", "Price": ".price"} | packages-browser |
 | `BROWSER.NO_TAB` | No matching tab among … open tab(s) | Check the tab number or title text. | packages-browser |
 | `BROWSER.OBJECT_NOT_FOUND` | No element matches the captured object … within … ms | Open the step's captured object and loosen the properties (contains, wildcard), use Test to check it, or recapture. | packages-browser |
@@ -385,7 +385,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `CONNECTION.INVALID` | connections.json is not valid JSON: … | Fix the file in the workspace. | runner |
-| `CONNECTION.NOT_FOUND` | There is no saved connection named '…' | Create it under Connections (One CommandCenter or One AgentStudio), or choose another connection on the step. | runner |
+| `CONNECTION.NOT_FOUND` | There is no saved connection named '…' | Create it under Connections (One CommandCenter or OneAgentStudio), or choose another connection on the step. | runner |
 | `CONNECTION.SIGN_IN_FAILED` | Cannot sign the sign-in request: …<br>Connection '…' could not reach its sign-in server: …<br>Connection '…' could not sign in (HTTP …)…message……: …message…… | Check the private key in the connection (PEM or the JSON key file as the service gave it).<br>Check the token address and that the runner can reach it.<br>Check the App id, the installation id and the key. | runner |
 | `CONNECTION.SIGN_IN_INCOMPLETE` | The sign-in's private key: …<br>Connection '…': … | Put the key (PEM, or Google's JSON key file) in the vault and pick it in the connection.<br>… | runner |
 | `CONNECTION.WRONG_TOOLKIT` | Connection '…' is for …, not … | Choose a connection made for …. | runner |
@@ -411,7 +411,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `CONNECTOR.MISSING_BODY` | … needs a request body (…contentType…) | Set body on this step. | packages |
 | `CONNECTOR.MISSING_BODY_FIELD` | … body needs …, … | Add them to body. | packages |
 | `CONNECTOR.MISSING_PARAMETER` | … needs …, …<br>… path still has a placeholder: … | Add them to parameters, e.g. {"… \(.*……": ...}.<br>Give every path parameter. | packages |
-| `CONNECTOR.NOT_FOUND` | There is no connector named '…' | Check the connector's name in Manage connectors.<br>Import the API description first (Connectors in One AgentStudio, or the import_connector action). | cli, packages |
+| `CONNECTOR.NOT_FOUND` | There is no connector named '…' | Check the connector's name in Manage connectors.<br>Import the API description first (Connectors in OneAgentStudio, or the import_connector action). | cli, packages |
 | `CONNECTOR.NO_CREDENTIAL` | This operation needs … | Map credential to a vault Credential and set the non-secret fields in auth. | packages |
 | `CONNECTOR.NO_OPERATIONS` | The API description has no operations | Check that the file lists paths or requests. | packages |
 | `CONNECTOR.NO_SERVER` | Connector '…' has no absolute server URL…… (…)… | Set base_url on this step, or edit "server" in the connector definition. | packages |
@@ -425,13 +425,13 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `CONNECTOR.UNREACHABLE` | Cannot reach …: … | Check the server URL, proxy and network access. | packages |
 | `CONNECTOR.UNSUPPORTED_AUTH` | Auth scheme '…id…' (…) is not supported | …note…note…Choose another scheme with auth.scheme, or add headers yourself. | packages |
 | `CONNECTOR.UNSUPPORTED_VERSION` | Unsupported spec version …openapi…swagger… | Use OpenAPI 3.x or Swagger 2.0. | packages |
-| `CONNECTOR.YAML_UNSUPPORTED` | YAML files cannot be read here because no YAML parser is installed<br>The installed YAML parser is not compatible: … | Convert the spec to JSON (most API tools can export JSON), or import it from One AgentStudio, which can read YAML.<br>Convert the spec to JSON and import it again. | packages |
+| `CONNECTOR.YAML_UNSUPPORTED` | YAML files cannot be read here because no YAML parser is installed<br>The installed YAML parser is not compatible: … | Convert the spec to JSON (most API tools can export JSON), or import it from OneAgentStudio, which can read YAML.<br>Convert the spec to JSON and import it again. | packages |
 
 ## CR
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `CR.AGENT_TAMPERED` | Version … of … was changed after check-in (checksum mismatch) | Check the audit trail, then check the agent in again from One AgentStudio. | control-room |
+| `CR.AGENT_TAMPERED` | Version … of … was changed after check-in (checksum mismatch) | Check the audit trail, then check the agent in again from OneAgentStudio. | control-room |
 | `CR.APPROVAL_REQUIRED` | Production versions need approval | Ask for approval; another person with the approval right decides. | control-room |
 | `CR.BACKUP` | The backup failed: …<br>Reading … failed: …<br>… is not a ONEOFFICEAUTOMATION backup | Check the backup folder exists and the server may write to it.<br>Check that the database is running; then run the backup again.<br>Choose a backup file made by ONEOFFICEAUTOMATION (Administration > Settings > Data > Backups). | control-room |
 | `CR.BAD_BUNDLE` | This is not an agent bundle<br>The bundle was made by a newer One CommandCenter<br>The bundle's checksum does not match: it was changed or damaged | Export one with Lifecycle > Export in One CommandCenter.<br>Update this One CommandCenter first.<br>Export the bundle again from the source One CommandCenter; do not change it on the way. | control-room |
@@ -443,7 +443,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `CR.BAD_SCHEDULE` | No next run could be computed<br>kind must be every, daily, weekly, monthly or cron<br>every_minutes must be at least 1 | Correct the schedule in Manage > Scheduling and save it again.<br>Set the kind to every, daily, weekly, monthly or cron.<br>Set every_minutes to 1 or more. | control-room |
 | `CR.BAD_TRIGGER` | Trigger … is not a runner trigger<br>Not a supported JSON path: …<br>… | Choose a trigger of the kind This runner watches in Manage > Triggers.<br>Examples: $.items[*], $.data.results, value<br>Correct the trigger's settings the message names. | control-room, modules/document-automation |
 | `CR.CONFLICT` | Another user has the e-mail address …<br>There is already an agent at …<br>Runner … is the default runner of several people | Use another e-mail address, or change the other user's address first.<br>Choose another name or folder, or delete the agent that is there first.<br>Give them other default runners first, or keep it multi-user. | control-room, modules/ai-services, modules/governance, modules/low-code, modules/orchestration |
-| `CR.COPY_TO_PRIVATE` | Copies are made in your Private workspace | Use Copy to Private on the agent in One AgentStudio's Public tab, change it there, then check it in. | control-room |
+| `CR.COPY_TO_PRIVATE` | Copies are made in your Private workspace | Use Copy to Private on the agent in OneAgentStudio's Public tab, change it there, then check it in. | control-room |
 | `CR.CSRF` | Missing request header X-OOA-Request | Send the header X-OOA-Request: 1 with every change request; the console does this itself, so reload the page. | control-room |
 | `CR.DB_CONFIG` | A Windows account is DOMAIN\name (a gMSA ends in $): …<br>… may hold only letters, digits, '.', '-' and '_': …<br>Cannot write …: … | Write the account as DOMAIN\name (a gMSA ends in $).<br>Use only letters, digits, '.', '-' and '_'.<br>Check that you may write the configuration folder (run the command as an administrator). | cli, control-room |
 | `CR.DB_COPY` | Copying … failed: …<br>Reading … failed: … | Check that the new database is reachable and empty, then copy again.<br>Check that the old database is reachable, then copy again. | cli |
@@ -454,14 +454,14 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `CR.DB_UPGRADE_NEEDED` | Module … needs schema version … (the database has …); the account … may not change tables<br>The database schema is at version … and this release needs …; the account … may not change tables | Run: ooa db migrate (it signs in with the setup account) | control-room |
 | `CR.DELETED` | Agent … was deleted<br>A deleted agent is at … | Recover it in the agent repository (Deleted agents) to use it again.<br>Recover it first (Deleted agents), or use another name.<br>Recover or rename it first. | control-room |
 | `CR.DEVICE_DISABLED` | That runner is disabled<br>The runner of the run is disabled | Enable the runner in Manage > Runners, or choose another runner.<br>Enable the runner in Manage > Runners, or let the run go on on another runner. | control-room |
-| `CR.DUPLICATE_ID` | Agent id '…' is already used by …path…<br>Agent id '…bot_id…' is already used here by …path… | Give this agent its own id: in One AgentStudio, select no step and change Agent id under Properties. Copy and Duplicate give a copy its own id.<br>Give one of the two agents another id (the Agent id in its details), then import again. | control-room |
+| `CR.DUPLICATE_ID` | Agent id '…' is already used by …path…<br>Agent id '…bot_id…' is already used here by …path… | Give this agent its own id: in OneAgentStudio, select no step and change Agent id under Properties. Copy and Duplicate give a copy its own id.<br>Give one of the two agents another id (the Agent id in its details), then import again. | control-room |
 | `CR.DUPLICATE_REFERENCE` | The queue already has an item with reference '…' | Use a new reference, or update the item that has it.<br>Give each item its own reference, or add it with if_exists skip or update. | control-room |
 | `CR.FILE_TYPE_BLOCKED` | Programs and scripts (.exe, .dll, .msi, .bat, .ps1 and similar) may not be uploaded | An administrator can allow them in Settings | control-room |
 | `CR.FORBIDDEN` | You do not have permission to …<br>The access token lacks the scope …<br>Unknown webhook or wrong secret | Ask One CommandCenter administrator for the right role.<br>Make a token with the scope the message names, or ask an administrator to.<br>Check the webhook's address and secret in Manage > Triggers; copy them again if the secret was replaced. | control-room, modules/ai-services, modules/coe, modules/document-automation, modules/governance, modules/integration, modules/low-code, modules/one-chat |
 | `CR.GIT` | The branch … is not in Git yet<br>In the SaaS service the Git remote is an https:// or SSH address<br>The Git server refused the push: …… (…)… | Sync to Git first, so the branch holds the agents.<br>Use the address your Git server shows for cloning.<br>Check the token's write access to the branch. | modules/integration |
 | `CR.HTTPS_REQUIRED` | Runners connect to One CommandCenter only over HTTPS | Point the runner at the https:// address of One CommandCenter. | control-room |
 | `CR.INTERNAL` | Cannot make the Teams package: …<br>… | Try again; if it keeps happening, an administrator can look in the server log. | modules/low-code |
-| `CR.INVALID_BOT` | … validation problem(s): …message… | Fix the problems in One AgentStudio (Check now lists them) before checking in.<br>Open the agent in the source One CommandCenter, fix the problems Check now lists, and export it again. | control-room |
+| `CR.INVALID_BOT` | … validation problem(s): …message… | Fix the problems in OneAgentStudio (Check now lists them) before checking in.<br>Open the agent in the source One CommandCenter, fix the problems Check now lists, and export it again. | control-room |
 | `CR.IN_USE` | … still owns …, …<br>The agent is used by …, …<br>Workflows name this agent by path: …, … | Hand those to someone else first, or disable the user instead.<br>Delete or change those first.<br>Change those workflows after moving. | control-room |
 | `CR.IO` | Cannot store the file: …<br>The stored content of … is missing: …<br>Cannot save the template folders: … | Check that the server's data folder has space and that the service account may write there.<br>Upload the file again.<br>Check that the server's data folder has space and that the service account may read and write there. | control-room, modules/ai-services |
 | `CR.IP_BLOCKED` | This address may not use One CommandCenter | Ask an administrator to add your network address to the allowed list (Administration > Policies > IP allow list). | control-room |
@@ -988,7 +988,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `FORMS.BAD_COLOR` | Not a colour: '…' | Use #rrggbb, e.g. #d97706, or a colour name such as red. | packages |
 | `FORMS.BAD_FIELD` | Each field must be a Dictionary with at least id and type<br>Field ids must be unique and use letters, digits and _ ('…')<br>A dynamic area cannot hold another area | Give each field as a dictionary with at least id and type.<br>Give every field its own id of letters, digits and _.<br>Put the inner area's fields directly in the outer area. | packages |
-| `FORMS.BAD_FORM` | Not a form from the form designer: … (…) | Open it in One AgentStudio's form designer and save it again. | packages |
+| `FORMS.BAD_FORM` | Not a form from the form designer: … (…) | Open it in OneAgentStudio's form designer and save it again. | packages |
 | `FORMS.BAD_KIND` | Unknown highlight kind '…' | Use color, warning or error. | packages |
 | `FORMS.BAD_MODE` | Unknown mode '…' | Use replace or append. | packages |
 | `FORMS.ELEMENT_NOT_FOUND` | The form has no field or button '…'<br>The form has no field '…' to fill in | Use an id from the form designer (select the field to see its id).<br>Use field ids from the form designer. | packages |
@@ -1131,7 +1131,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `INTERRUPT.BAD_RULE` | close_window answers window rules only<br>A rule needs a name<br>Rule '…': give either a window title pattern or an element selector | Use close_window only on window rules.<br>Give the rule a name.<br>Use when_window or when_element, not both. | packages |
-| `INTERRUPT.NO_REPOSITORY` | This run cannot start child agents | Run the agent from One AgentStudio or One CommandCenter. | packages |
+| `INTERRUPT.NO_REPOSITORY` | This run cannot start child agents | Run the agent from OneAgentStudio or One CommandCenter. | packages |
 | `INTERRUPT.NO_SESSION` | No browser session '…' is open to click … | Use x,y screen coordinates for desktop windows, or open the browser session first. | packages |
 
 ## JAVA
@@ -1986,7 +1986,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `STUDIO.NO_ACCESS` | This folder cannot be opened: … | Choose another folder. | cli |
 | `STUDIO.NO_BROWSER_MODULE` | The Browser module is not installed | Add packages-browser to ooa.optionalModules in gradle.properties. | cli |
 | `STUDIO.NO_DESKTOP_MODULE` | The Windows desktop module is not installed<br>The Window toolkit is not installed<br>The Desktop objects toolkit is not installed | Add packages-windows to ooa.optionalModules in gradle.properties.<br>Add packages-windows to ooa.optionalModules in gradle.properties and run Studio on Windows. | cli |
-| `STUDIO.PORT_IN_USE` | Port … is already in use; another One AgentStudio may still be running | Stop the other One AgentStudio (Ctrl+C in its window), or start this one with --port …. | cli |
+| `STUDIO.PORT_IN_USE` | Port … is already in use; another OneAgentStudio may still be running | Stop the other OneAgentStudio (Ctrl+C in its window), or start this one with --port …. | cli |
 | `STUDIO.TOO_LARGE` | Uploads are limited to … MB per file<br>The folder is larger than 200 MB<br>The file is larger than 200 MB | Upload a smaller file, or put large files in a share the runner reads.<br>Download smaller folders, or copy it in File Explorer.<br>Copy it in File Explorer instead. | cli, vendor-tools |
 | `STUDIO.TOO_MANY_RUNS` | Four runs are already in progress | Wait for a run to finish or stop one. | cli |
 | `STUDIO.UNKNOWN` | Unknown file operation … | Update the Studio page (reload it); it is older than the server. | cli |
@@ -2195,7 +2195,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `VAULT.EXTERNAL_DENIED` | The external vault refused access to … (HTTP …)<br>No token is stored for this HashiCorp Vault link<br>No client secret is stored for this Azure Key Vault link | Check the sign-in secret and the vault's access policy for One CommandCenter.<br>Store the missing secret for this link in Manage > Credentials > External vaults.<br>Check the Azure app's tenant, client id and secret in the link. | control-room |
 | `VAULT.EXTERNAL_UNREACHABLE` | The external vault did not answer: …<br>Interrupted while reading the external vault | Check the vault URL and network access from One CommandCenter.<br>Try again; if it keeps happening, an administrator can look in the server log. | control-room |
 | `VAULT.LOCAL_READ_ONLY` | Credentials can only be saved by an agent running from One CommandCenter | In Studio credentials are read from environment variables; run the agent from One CommandCenter to save one. | packages |
-| `VAULT.NOT_FOUND` | Credential '…' not found<br>Vault folder … not found<br>You have not stored your own value for '…' | For local testing set the environment variable … before starting One AgentStudio.<br>Check the credential's name and folder in Manage > Credentials, and that the agent's user may use it.<br>Store your own value for this credential in Manage > Credentials (My values). | cli, control-room, runner |
+| `VAULT.NOT_FOUND` | Credential '…' not found<br>Vault folder … not found<br>You have not stored your own value for '…' | For local testing set the environment variable … before starting OneAgentStudio.<br>Check the credential's name and folder in Manage > Credentials, and that the agent's user may use it.<br>Store your own value for this credential in Manage > Credentials (My values). | cli, control-room, runner |
 | `VAULT.NO_SECRET` | Input 'value' must be a Credential, so nothing was saved | Give a Credential variable or a vault reference {"$credential": "folder/credential/attribute"}; typed text is refused. | packages |
 | `VAULT.PASSWORD_ONLY` | The secret … may only be typed into password fields<br>The credential … may only be typed into password fields, and … is not one | Nothing to change: the agent may type this secret only into a password field.<br>Point the action at the password field, or ask the credential owner to clear Password fields only. | packages-browser, sdk |
 | `VAULT.REFERENCE_NOT_ALLOWED` | Input '…' is not a Credential field, so the vault reference in it would be sent as plain text | Use the command's Credential field for the secret (for example password, bearer_token or access_token). | runner |
@@ -2331,7 +2331,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `WORKSPACE.HIDDEN` | Hidden paths cannot be used: … | Use a path without a leading dot. | cli |
 | `WORKSPACE.INTO_ITSELF` | A folder cannot be moved into itself<br>A folder cannot be copied into itself | Choose a folder outside the one being moved.<br>Choose a folder outside the one being copied. | cli |
 | `WORKSPACE.LINK` | Links cannot be copied: … | Copy the file the link points to instead. | cli |
-| `WORKSPACE.NOT_EDITABLE` | One AgentStudio cannot open this kind of file: …<br>One AgentStudio cannot save this kind of file: … | Open it with another program.<br>Edit this file in the program it belongs to. | cli |
+| `WORKSPACE.NOT_EDITABLE` | OneAgentStudio cannot open this kind of file: …<br>OneAgentStudio cannot save this kind of file: … | Open it with another program.<br>Edit this file in the program it belongs to. | cli |
 | `WORKSPACE.NOT_FOUND` | Folder not found: …<br>Not found: …<br>Folder not found for … | Choose a folder that exists; reload the workspace if it was renamed or moved.<br>Reload the workspace (F5); it may have been renamed, moved or deleted. | cli |
 | `WORKSPACE.OUTSIDE` | Path is outside the workspace: … | Choose a file or folder inside the workspace instead. | cli |
 | `WORKSPACE.ROOT` | The workspace itself cannot be renamed<br>The workspace itself cannot be moved<br>The workspace itself cannot be copied | Choose a file or folder inside the workspace instead. | cli |

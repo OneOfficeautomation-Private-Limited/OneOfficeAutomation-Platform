@@ -299,7 +299,7 @@ A condition (used by `core/if`, `elseIf`, `while` loops and `wait_until`) may be
   `RUN.TIMEOUT`. Run workers set 24 hours.
 - **Stopping**: the cancel flag makes the next check raise `RUN.CANCELLED`, which ends the run as `stopped` and is never
   caught by a Catch block.
-- **The agent's error handler** (`onError`, "On error" in One AgentStudio): steps that run once when an error escapes
+- **The agent's error handler** (`onError`, "On error" in OneAgentStudio): steps that run once when an error escapes
   every Try block of the main steps (`Runner.Run.handleError`).
 
   ```json

@@ -400,7 +400,7 @@ public final class Runner {
         Map<String, Object> withConnection(String name, String pid, ActionSpec spec, Map<String, Object> raw) {
             if (!(connections().get(name) instanceof Map<?, ?> found))
                 throw new OoaException("CONNECTION.NOT_FOUND", "There is no saved connection named '" + name + "'",
-                        "Create it under Connections (One CommandCenter or One AgentStudio), or choose another connection on the step.");
+                        "Create it under Connections (One CommandCenter or OneAgentStudio), or choose another connection on the step.");
             Map<String, Object> conn = (Map<String, Object>) found;
             Object pkgOf = conn.get("package");
             if (pkgOf instanceof String cp && !cp.isBlank() && !cp.equals(pid))
@@ -1321,7 +1321,7 @@ public final class Runner {
         @SuppressWarnings("unchecked")
         Map<String, Object> errorInfo(OoaException e) {
             Map<String, Object> m = new LinkedHashMap<>(e.toMap());
-            // the main steps then the error handler's, numbered on as One AgentStudio shows them; subflows are numbered apart
+            // the main steps then the error handler's, numbered on as OneAgentStudio shows them; subflows are numbered apart
             if (walked == null) {
                 walked = Steps.walk(flow.get("steps") instanceof List<?> l ? (List<Object>) l : List.of());
                 walked.addAll(Steps.walk(Steps.onErrorSteps(flow)));
@@ -1330,7 +1330,7 @@ public final class Runner {
             for (int i = 0; i < walked.size(); i++)
                 if (String.valueOf(walked.get(i).get("id")).equals(e.stepId())) { line = BigDecimal.valueOf(i + 1); action = walked.get(i).get("action"); break; }
             String inSub = null;
-            if (line == null)   // a step of a subflow: its line within the subflow, as One AgentStudio numbers it
+            if (line == null)   // a step of a subflow: its line within the subflow, as OneAgentStudio numbers it
                 for (var sub : Steps.subflows(flow).entrySet()) {
                     List<Map<String, Object>> w = Steps.walk(sub.getValue());
                     for (int i = 0; i < w.size() && line == null; i++)

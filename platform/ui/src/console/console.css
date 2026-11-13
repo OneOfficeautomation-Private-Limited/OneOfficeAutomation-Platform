@@ -249,7 +249,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-main .st-page-head > :first-child { flex: 1 1 320px; min-width: 0; }
 /*
  * Design plan, step 2 (colours, option B chosen 31 Oct 2026): the console's light theme on a soft blue canvas with navy
- * text, so neither the page nor its text reads grey; cards and tables stay white. One AgentStudio keeps theme.css as it
+ * text, so neither the page nor its text reads grey; cards and tables stay white. OneAgentStudio keeps theme.css as it
  * is. tools/check-contrast.mjs checks this block too (every text colour at least 4.5:1 on every surface).
  * Borders and lines, option B "strong" (chosen 31 Oct 2026 on the canvas): three steps, all checked by the same tool.
  * --ui-border frames panels, dialogs and tab rows (3:1 on white); --ui-line sits under page titles and table headers;
@@ -657,7 +657,7 @@ span.cc-code-tw { cursor: default; }
 .cc-agent-steps { grid-template-columns: 1fr; }
 .cc-agent-code { border-right: 0; border-bottom: 1px solid var(--ui-border); }
 }
-/* The agent's steps as One AgentStudio's step list (same classes, read-only), and the list grows with the agent: the
+/* The agent's steps as OneAgentStudio's step list (same classes, read-only), and the list grows with the agent: the
    page scrolls, never a one-line box with its own scroll bar */
 .cc-agent-steps { flex: 1 0 auto; min-height: 0; align-items: stretch; }
 .cc-agent-code { min-height: 100%; }
@@ -719,7 +719,7 @@ table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow
 .cc-signin-notice { border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); padding: 8px 10px; font-size: 12.5px; max-height: 160px; overflow-y: auto; white-space: pre-wrap; }
 .cc-signin-notice p { margin: 0 0 6px; }
 .cc-signin-note { margin: 0; color: var(--ui-text); font-size: 12.5px; }
-/* AA's one Automation page: Public and Private tabs; Private links to One AgentStudio, or is off with the reason */
+/* AA's one Automation page: Public and Private tabs; Private links to OneAgentStudio, or is off with the reason */
 a.ov-tab { text-decoration: none; }
 .ov-tab.is-off { color: var(--ui-text-3); cursor: not-allowed; }
 /* SCIM provisioning in Settings > Single sign-on (item 4f) */
@@ -772,7 +772,7 @@ a.ov-tab { text-decoration: none; }
 .cc-group-tab:hover { background: var(--ui-row-hover); color: var(--ui-text); }
 .cc-group-tab[aria-current="page"] { color: var(--ui-text); font-weight: 600; box-shadow: inset 0 -3px 0 var(--ui-accent); }
 
-/* ---- Option B, step 2 (8 Nov 2026): one set of sizes in the console (not One AgentStudio) ----
+/* ---- Option B, step 2 (8 Nov 2026): one set of sizes in the console (not OneAgentStudio) ----
    Since Console A (improvement list 12 Nov 2026, item 1: dense like AA): 13 px text (12.5 px for hints and secondary
    lines), 14 px icons in buttons and 16 px in icon buttons, 28 px buttons and fields, 30 px table rows, 32 px tabs, one
    tab style, an 18 px page title. */

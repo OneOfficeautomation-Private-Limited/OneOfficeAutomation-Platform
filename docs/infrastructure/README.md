@@ -19,7 +19,7 @@ folders, and the CI workflow). Where an older document says something different,
 | Part | What it is | Where it runs | Network |
 | --- | --- | --- | --- |
 | **One CommandCenter** | The central Java server: web console, REST API, the runner API, webhooks, Agent APIs, the MCP endpoint, schedules, triggers, work queues, vault, audit trail | Windows Server, or Linux (package or container) | Listens on TCP 8720 by default (HTTP or HTTPS) |
-| **One AgentStudio** | The agent editor, served by One CommandCenter at `/studio/` when started with `ooa server`, or on its own with `ooa studio` (port 8710) | The builder's own computer | Loopback (127.0.0.1) only |
+| **OneAgentStudio** | The agent editor, served by One CommandCenter at `/studio/` when started with `ooa server`, or on its own with `ooa studio` (port 8710) | The builder's own computer | Loopback (127.0.0.1) only |
 | **OneRunner** | The process that takes work from One CommandCenter and runs agents, each in its own worker process | Windows (desktop or service); headless runners also on Linux and macOS | Outbound only, to One CommandCenter |
 | **Database** | Everything One CommandCenter keeps: users, agents, runs, schedules, vault values, audit trail | SQL Server 2019+, PostgreSQL 14+, or the embedded H2 for evaluation | One CommandCenter connects out to it |
 | **Data folder** | Configuration files, the vault key file (if used), repository files, backups, logs, audit checkpoints | Local disk, or shared storage for several nodes | - |

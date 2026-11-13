@@ -28,7 +28,7 @@ For infrastructure architects and server administrators planning an installation
 | One CommandCenter (container) | Any OCI runtime: Docker, Amazon ECS/Fargate, Azure Container Apps/AKS, Google GKE/Cloud Run (always at least one instance) | `ubuntu-latest`: image alone, with PostgreSQL 16, backup and restore, a SaaS region with two tenants |
 | Runner for screen agents | 64-bit Windows 10/11 or Windows Server with a signed-in, unlocked desktop session | Windows build-and-test job |
 | Headless runner (no screen) | Windows service; Linux; macOS | `ubuntu-latest` on every push, `macos-latest` on the main branch |
-| One AgentStudio | Windows (same machine as `ooa server`), opened in a browser on that machine | Studio UI tests on Linux |
+| OneAgentStudio | Windows (same machine as `ooa server`), opened in a browser on that machine | Studio UI tests on Linux |
 
 `ooa check` reports a non-Windows operating system as WARN, not FAIL: One CommandCenter is supported there, but
 runners that use the screen need Windows. A 32-bit system is a FAIL.
@@ -56,7 +56,7 @@ The bundled Java is not replaced by a runner self-update; update it by installin
 | Use | Browsers |
 | --- | --- |
 | One CommandCenter console | Current Chrome, Edge or Firefox |
-| One AgentStudio | Chrome or Edge on the Studio computer |
+| OneAgentStudio | Chrome or Edge on the Studio computer |
 | Agents that start their own browser | Playwright-driven Chromium-family browser started by the runner |
 | Browser connector (agents in the user's own browser) | Edge and Chrome (Manifest V3 extension), Firefox 140 or later |
 

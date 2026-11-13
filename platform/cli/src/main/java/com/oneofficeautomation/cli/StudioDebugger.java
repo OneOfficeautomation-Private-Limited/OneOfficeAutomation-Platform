@@ -7,7 +7,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * One AgentStudio's debugger: stops before steps that have a breakpoint, or after a step command (step into, over, out),
+ * OneAgentStudio's debugger: stops before steps that have a breakpoint, or after a step command (step into, over, out),
  * and holds the run until the developer continues. While stopped, the call stack and variables can be read and
  * variables changed. Breakpoints are step ids and apply in child agents too.
  */
@@ -89,6 +89,6 @@ final class StudioDebugger implements Runner.Debugger {
         }
     }
 
-    /** Releases a stopped run (used when the run is stopped from One AgentStudio). */
+    /** Releases a stopped run (used when the run is stopped from OneAgentStudio). */
     void release() { synchronized (lock) { stopped = null; mode = Mode.RUN; lock.notifyAll(); } }
 }

@@ -31,7 +31,7 @@ const HELP: HelpTopic = { title: "Prompt Skills",
     { name: "Show", text: "Every skill, only yours, only those shared with everyone, or only templates." },
     { name: "Shared", text: "A shared skill may be used by every agent; a private one only by its owner's agents." },
     { name: "Open", text: "Opens the skill's page with its prompt and its versions. Clicking the row does the same." },
-    { name: "Copy the name", text: "Copies the skill's name so you can paste it into the Prompt Skills step in One AgentStudio." },
+    { name: "Copy the name", text: "Copies the skill's name so you can paste it into the Prompt Skills step in OneAgentStudio." },
     { name: "Delete…", text: "Deletes the skill and all its versions after you confirm. Agents that run it will then fail. Shown to its owner and to those "
       + "who manage every skill." },
   ] };

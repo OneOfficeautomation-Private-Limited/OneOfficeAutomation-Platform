@@ -68,14 +68,14 @@ public final class StudioServer {
         HttpServer server;
         try { server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0); }
         catch (java.net.BindException e) {
-            throw new OoaException("STUDIO.PORT_IN_USE", "Port " + port + " is already in use; another One AgentStudio may still be running",
-                    "Stop the other One AgentStudio (Ctrl+C in its window), or start this one with --port " + (port + 1) + ".");
+            throw new OoaException("STUDIO.PORT_IN_USE", "Port " + port + " is already in use; another OneAgentStudio may still be running",
+                    "Stop the other OneAgentStudio (Ctrl+C in its window), or start this one with --port " + (port + 1) + ".");
         }
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.createContext("/", this::handle);
         server.start();
         startServices();
-        System.out.println("ONEOFFICEAUTOMATION One AgentStudio (preview) is running.");
+        System.out.println("ONEOFFICEAUTOMATION OneAgentStudio (preview) is running.");
         System.out.println("  Open:      http://localhost:" + port);
         System.out.println("  Workspace: " + workspace);
         System.out.println("  Press Ctrl+C to stop.");
@@ -103,7 +103,7 @@ public final class StudioServer {
 
     private void handle(HttpExchange ex) throws IOException {
         try {
-            if (!ex.getRemoteAddress().getAddress().isLoopbackAddress()) { send(ex, 403, "text/plain", "One AgentStudio is only available on this computer"); return; }
+            if (!ex.getRemoteAddress().getAddress().isLoopbackAddress()) { send(ex, 403, "text/plain", "OneAgentStudio is only available on this computer"); return; }
             String host = Optional.ofNullable(ex.getRequestHeaders().getFirst("Host")).orElse("");
             if (!host.startsWith("localhost:") && !host.startsWith("127.0.0.1:")) { send(ex, 403, "text/plain", "Forbidden host"); return; }
             String origin = ex.getRequestHeaders().getFirst("Origin");
@@ -142,7 +142,7 @@ public final class StudioServer {
     private void asset(HttpExchange ex, String path) throws IOException {
         if (path.equals("/next") || path.startsWith("/next/")) { ex.getResponseHeaders().set("Location", base + "/"); send(ex, 302, "text/plain", "Moved"); return; }
         if ((path.equals("/") || path.equals("/index.html")) && StudioServer.class.getResource("/studio-next/index.html") == null) {
-            send(ex, 503, "text/plain; charset=utf-8", "One AgentStudio's page was not built into this copy. Build it with Node.js 22 installed: gradlew :cli:installDist");
+            send(ex, 503, "text/plain; charset=utf-8", "OneAgentStudio's page was not built into this copy. Build it with Node.js 22 installed: gradlew :cli:installDist");
             return;
         }
         nextAsset(ex, path.substring(1));
@@ -179,7 +179,7 @@ public final class StudioServer {
     private void api(HttpExchange ex, String method, String route) throws IOException {
         if (method.equals("GET") && route.equals("info")) {
             Map<String, Object> info = new LinkedHashMap<>();
-            info.put("product", "ONEOFFICEAUTOMATION One AgentStudio");
+            info.put("product", "ONEOFFICEAUTOMATION OneAgentStudio");
             info.put("edition", "preview");
             info.put("workspace", workspace.toString());
             info.put("controlRoom", sameServerControlRoom == null ? null : "/");
@@ -436,7 +436,7 @@ public final class StudioServer {
             if (registry.allManifests().stream().noneMatch(m -> "ooa.browser".equals(m.get("id"))))
                 throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
             Map<String, Object> flow = new LinkedHashMap<>();
-            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture"); flow.put("name", "One AgentStudio capture");
+            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture"); flow.put("name", "OneAgentStudio capture");
             flow.put("variables", List.of(Map.of("name", "selector", "type", "String", "direction", "output"), Map.of("name", "element", "type", "Dictionary", "direction", "output"),
                     Map.of("name", "object", "type", "Dictionary", "direction", "output"), Map.of("name", "alternatives", "type", "Dictionary", "direction", "output")));
             Map<String, Object> args = new LinkedHashMap<>();
@@ -456,7 +456,7 @@ public final class StudioServer {
             if (registry.allManifests().stream().noneMatch(m -> "ooa.browser".equals(m.get("id"))))
                 throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
             Map<String, Object> flow = new LinkedHashMap<>();
-            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture_test"); flow.put("name", "One AgentStudio capture test");
+            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture_test"); flow.put("name", "OneAgentStudio capture test");
             flow.put("variables", List.of(Map.of("name", "count", "type", "Number", "direction", "output"), Map.of("name", "first", "type", "Dictionary", "direction", "output")));
             Map<String, Object> args = new LinkedHashMap<>();
             args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
@@ -490,7 +490,7 @@ public final class StudioServer {
             savedConnections(ex, method, route.equals("connections") ? null : route.substring("connections/".length()));
         } else if (method.equals("GET") && route.equals("builtins")) {
             Runner probe = runner(new EventSink.ListSink());
-            Map<String, Object> flow = Map.of("kind", "TaskBot", "id", "probe", "name", "One AgentStudio", "variables",
+            Map<String, Object> flow = Map.of("kind", "TaskBot", "id", "probe", "name", "OneAgentStudio", "variables",
                     List.of(Map.of("name", "s", "type", "Any", "direction", "output"), Map.of("name", "g", "type", "Any", "direction", "output")),
                     "steps", List.of(Map.of("id", "a", "action", "core/set", "args", Map.of("variable", "s", "value", "$sys")),
                             Map.of("id", "b", "action", "core/set", "args", Map.of("variable", "g", "value", "$global"))));
@@ -505,7 +505,7 @@ public final class StudioServer {
                 throw desktop ? new OoaException("STUDIO.NO_DESKTOP_MODULE", "The Windows desktop module is not installed", "Add packages-windows to ooa.optionalModules in gradle.properties.")
                         : new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
             Map<String, Object> flow = new LinkedHashMap<>();
-            flow.put("kind", "TaskBot"); flow.put("id", "studio_recorder"); flow.put("name", "One AgentStudio recorder");
+            flow.put("kind", "TaskBot"); flow.put("id", "studio_recorder"); flow.put("name", "OneAgentStudio recorder");
             flow.put("variables", List.of(Map.of("name", "steps", "type", "List", "direction", "output")));
             Map<String, Object> args = new LinkedHashMap<>();
             if (!desktop) {
@@ -568,7 +568,7 @@ public final class StudioServer {
         if (req.get("timeout_seconds") != null) args.put("timeout_seconds", req.get("timeout_seconds"));
         List<String> outs = List.of("x", "y", "screen_x", "screen_y", "window", "window_width", "window_height");
         Map<String, Object> flow = new LinkedHashMap<>();
-        flow.put("kind", "TaskBot"); flow.put("id", "studio_pick_point"); flow.put("name", "One AgentStudio pick a point");
+        flow.put("kind", "TaskBot"); flow.put("id", "studio_pick_point"); flow.put("name", "OneAgentStudio pick a point");
         flow.put("variables", outs.stream().map(o -> (Object) Map.of("name", o, "type", o.equals("window") ? "String" : "Number", "direction", "output")).toList());
         Map<String, Object> out = new LinkedHashMap<>();
         for (String o : outs) out.put(o, o);
@@ -591,7 +591,7 @@ public final class StudioServer {
         Map<String, Object> args = new LinkedHashMap<>();
         for (String k : List.of("timeout_seconds", "screenshot", "highlight")) if (req.get(k) != null) args.put(k, req.get(k));
         Map<String, Object> flow = new LinkedHashMap<>();
-        flow.put("kind", "TaskBot"); flow.put("id", "studio_capture_desktop"); flow.put("name", "One AgentStudio desktop capture");
+        flow.put("kind", "TaskBot"); flow.put("id", "studio_capture_desktop"); flow.put("name", "OneAgentStudio desktop capture");
         flow.put("variables", List.of(Map.of("name", "object", "type", "Dictionary", "direction", "output")));
         flow.put("steps", List.of(Map.of("id", "pick", "action", "ooa.desktop_ui/pick_object", "args", args, "out", Map.of("object", "object"))));
         RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(900));
@@ -605,7 +605,7 @@ public final class StudioServer {
      * debugging port, desktop titles only on Windows.
      */
     /**
-     * Browse… in a step's file or folder field: a folder of this computer (One AgentStudio only answers this computer,
+     * Browse… in a step's file or folder field: a folder of this computer (OneAgentStudio only answers this computer,
      * so it shows the person's own disks), folders first, then files, by name; with no path, the places to start
      * from: the workspace, the home folder and the drives.
      */
@@ -643,7 +643,7 @@ public final class StudioServer {
         if (!eps.isBlank()) args.put("endpoints", Arrays.stream(eps.split(",")).map(String::trim).filter(e -> !e.isEmpty()).toList());
         args.put("include_desktop", !"false".equalsIgnoreCase(q.getOrDefault("desktop", "true")));
         Map<String, Object> flow = new LinkedHashMap<>();
-        flow.put("kind", "TaskBot"); flow.put("id", "studio_list_windows"); flow.put("name", "One AgentStudio window list");
+        flow.put("kind", "TaskBot"); flow.put("id", "studio_list_windows"); flow.put("name", "OneAgentStudio window list");
         flow.put("variables", List.of(Map.of("name", "windows", "type", "List", "direction", "output")));
         flow.put("steps", List.of(Map.of("id", "list", "action", "ooa.browser/list_windows", "args", args, "out", Map.of("windows", "windows"))));
         RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(60));
@@ -820,7 +820,7 @@ public final class StudioServer {
     /**
      * The AI assistant: turns a description into agent steps using a Model Connection. The model gets the action
      * catalog (ids, names, required inputs) and the agent's variables, answers with JSON, and the result is validated
-     * before One AgentStudio shows it for review.
+     * before OneAgentStudio shows it for review.
      */
     @SuppressWarnings("unchecked")
     Map<String, Object> assistantBuild(Map<String, Object> req) {
@@ -859,7 +859,7 @@ public final class StudioServer {
                 + "(* = required input):\n" + catalog;
         String user = "Existing variables: " + json.write(flow.getOrDefault("variables", List.of()), false) + "\nRequest: " + prompt;
         Map<String, Object> run = new LinkedHashMap<>();
-        run.put("kind", "TaskBot"); run.put("id", "studio_assistant"); run.put("name", "One AgentStudio assistant");
+        run.put("kind", "TaskBot"); run.put("id", "studio_assistant"); run.put("name", "OneAgentStudio assistant");
         // The texts go in as inputs, so their $name and ${...} examples are never read as variable references.
         run.put("variables", List.of(Map.of("name", "answer", "type", "String", "direction", "output"),
                 Map.of("name", "request", "type", "String", "direction", "input"), Map.of("name", "instructions", "type", "String", "direction", "input")));

@@ -1,4 +1,4 @@
-# Running and debugging agents in One AgentStudio
+# Running and debugging agents in OneAgentStudio
 
 **Audience:** agent builders who want to test their agents in Studio, follow a run step by step, find out why a step
 fails, and fix it quickly.

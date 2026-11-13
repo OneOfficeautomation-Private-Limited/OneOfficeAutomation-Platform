@@ -28,7 +28,7 @@ export const SETTING_HELP: Record<string, string> = {
   lockout_attempts: "After this many wrong passwords or two-step codes in a row, the account is locked. 0 never locks accounts, which makes guessing easier, so keep it on.",
   lockout_minutes: "How long a locked account stays locked. An administrator can unlock it at once from the person's page in Users.",
   signin_notice: "Text shown on the sign-in page before anyone signs in, such as terms of use or a statement that activity is recorded. Empty shows nothing.",
-  signin_notice_accept: "People must tick I have read and accept this before the sign-in and single sign-on buttons work. One AgentStudio asks for the tick too when it signs in here.",
+  signin_notice_accept: "People must tick I have read and accept this before the sign-in and single sign-on buttons work. OneAgentStudio asks for the tick too when it signs in here.",
   api_key_max_days: "The longest an API key may last. New keys asked for with no end, or a longer one, get this lifetime. Keys made earlier keep theirs.",
   password_max_days: "Asks people for a new password after this many days. Many security teams now prefer long passwords with two-step sign-in instead; 0 never asks.",
   mfa_required: "Who must enter a code from an authenticator app as well as their password. Optional lets each person decide in their profile; Required asks them to set it up at their next sign-in.",
@@ -84,7 +84,7 @@ export const SETTING_HELP: Record<string, string> = {
   runner_error_screenshots: "Runners take a picture of the screen when a step fails and its Catch block asks for one. Switch it off where screens show private data; the run log then says no picture was taken.",
   runner_screen_pictures: "Lets administrators ask a runner for a picture of its screen, to see why an agent is stuck. Every picture is recorded in the Audit Trail. Switch it off where screens show private data.",
   // Agents and repository
-  production_approval: "A second person must approve each new version before it becomes the live version that runs, schedules and triggers use. The request waits in Automation until someone approves it.",
+  production_approval: "A second person must approve each new version before it becomes the live version that runs, schedules and triggers use. The request waits in Agents until someone approves it.",
   agents_write_credentials: "Lets agents save a new value of a credential in the vault, for example the new password after a reset, with the Save credential value action. The user the run runs as still needs permission to change that credential, and every save is recorded in the Audit Trail without the value. Off: agents only read credentials.",
   block_executable_uploads: "Refuses programs and scripts (.exe, .dll, .ps1 and similar) as repository files and template uploads, so nobody can slip a program in through the repository.",
   git_remote_url: "A Git repository that keeps a copy of every agent version, written as its https address. Use it for a second copy or for review in your Git tools. Leave it empty for no Git copy.",

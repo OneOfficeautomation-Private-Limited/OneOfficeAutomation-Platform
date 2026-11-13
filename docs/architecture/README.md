@@ -51,7 +51,7 @@ The other collections cover different ground:
 | Name in the product | Name in the code | Meaning |
 | --- | --- | --- |
 | One CommandCenter | `control-room` module, `ControlRoom`, `ControlRoomServer` | The shared server: repository, runs, users, vault, schedules, audit |
-| One AgentStudio | `cli` module, `StudioServer`, `studio.js` | The browser-based designer, served on this computer only |
+| OneAgentStudio | `cli` module, `StudioServer`, `studio.js` | The browser-based designer, served on this computer only |
 | OneRunner | `agent` module, `Agent`, `RunWorker` | The worker that runs agents on a machine |
 | Runner engine | `runner` module, `Runner` | The interpreter for an agent definition |
 | Agent | a Flow JSON file (`*.flow.json`); "bot" in older code | One automation |

@@ -1,8 +1,8 @@
-# 14 One AgentStudio
+# 14 OneAgentStudio
 
 ## What this covers
 
-The feature specification of One AgentStudio, the browser-based designer served at `/studio/`: the layout and the
+The feature specification of OneAgentStudio, the browser-based designer served at `/studio/`: the layout and the
 Automation home, the Explorer and the private workspace, the editor views of an agent, the canvas and its editing
 commands, the Actions and Variables panels, the step settings panel (choices, tick boxes, More options, error
 handling), validation and the Problems tab, running and the Run window, debugging with breakpoints, Run from here (with
@@ -276,9 +276,9 @@ and **Private** (right) tabs in both apps, as AA's one Automation page: in One C
 builder's workspace for people who build agents (`repo.checkin`) and is shown switched off for others; Studio's menu is
 the console's, so administrators and developers see one layout and differ only in what they may open.
 
-Since 2 Nov 2026 there is one One CommandCenter, as AA has one Control Room: the menu has no One AgentStudio page, and
+Since 2 Nov 2026 there is one One CommandCenter, as AA has one Control Room: the menu has no OneAgentStudio page, and
 the Private workspace's pages say **One CommandCenter** in the top bar and the browser tab. Only the editor (the dev
-canvas, an agent or other item open) says **One AgentStudio**, with the item's name in the tab. One CommandCenter's
+canvas, an agent or other item open) says **OneAgentStudio**, with the item's name in the tab. One CommandCenter's
 Automation offers **Create > New agent** (`../studio/#private/new`, which opens Create > Agent on the Private tab) and,
 on an agent's page, **Edit** (the Public tab, to check it out), both only for people who may check in.
 

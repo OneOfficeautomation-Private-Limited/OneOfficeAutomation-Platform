@@ -55,7 +55,7 @@ export function TriggersPanel({ api, path, kind: asked }: { api: StudioApi; path
   const remove = async (t: Trigger) => { setAsking(null); await save(all.filter((x) => x.id !== t.id)); };
   return (
     <div className="st-triggers">
-      <p className="st-pad st-muted">Start this agent on its own, on this computer, while One AgentStudio is running.</p>
+      <p className="st-pad st-muted">Start this agent on its own, on this computer, while OneAgentStudio is running.</p>
       {asking && <div className="st-ask" role="alert"><span>Delete the trigger “{triggerText(asking)}”? It stops starting this agent.</span>
         <Button kind="danger" onClick={() => { remove(asking); }}>Delete</Button><Button kind="plain" onClick={() => setAsking(null)}>Cancel</Button></div>}
       <ul className="st-trigger-list">

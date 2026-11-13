@@ -121,7 +121,7 @@ final class WindowsService {
                 Winsvc.SERVICE_DESCRIPTION d = new Winsvc.SERVICE_DESCRIPTION();
                 d.lpDescription = mode.equals("agent")
                     ? "Runs ONEOFFICEAUTOMATION agents sent by One CommandCenter (headless agents; desktop agents need a signed-in runner)."
-                    : "ONEOFFICEAUTOMATION One CommandCenter" + (mode.equals("server") ? " and One AgentStudio" : "") + " on port " + o.getOrDefault("port", "8720") + ".";
+                    : "ONEOFFICEAUTOMATION One CommandCenter" + (mode.equals("server") ? " and OneAgentStudio" : "") + " on port " + o.getOrDefault("port", "8720") + ".";
                 api.ChangeServiceConfig2(svc, SERVICE_CONFIG_DESCRIPTION, d);
                 // restart one minute after an unexpected stop; the failure count resets after a day
                 List<Winsvc.SC_ACTION> actions = new ArrayList<>();

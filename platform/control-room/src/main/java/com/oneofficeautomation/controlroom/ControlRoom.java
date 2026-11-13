@@ -953,7 +953,7 @@ public final class ControlRoom {
         if (row == null) throw notFound("Version " + v + " of " + path);
         // the checksum taken at check-in must still match: a version changed in the database is never sent to a runner or editor
         if (row.get("sha256") != null && !Security.sha256((String) row.get("content")).equals(row.get("sha256")))
-            throw new OoaException("CR.AGENT_TAMPERED", "Version " + v + " of " + path + " was changed after check-in (checksum mismatch)", "Check the audit trail, then check the agent in again from One AgentStudio.");
+            throw new OoaException("CR.AGENT_TAMPERED", "Version " + v + " of " + path + " was changed after check-in (checksum mismatch)", "Check the audit trail, then check the agent in again from OneAgentStudio.");
         return Map.of("version", row.get("version"), "flow", JsonLite.parse((String) row.get("content")));
     }
 
@@ -1036,13 +1036,13 @@ public final class ControlRoom {
         boolean workflow = FlowFiles.isWorkflow(path), form = FlowFiles.isForm(path);
         List<Map<String, Object>> problems = problemsOf(path, flow);
         if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"),
-                "Fix the problems in One AgentStudio (Check now lists them) before checking in.", false, Map.of("problems", problems));
+                "Fix the problems in OneAgentStudio (Check now lists them) before checking in.", false, Map.of("problems", problems));
         // feature modules may refuse it first (governance: code analysis rules that block check-in)
         if (modules != null) for (ModuleContext.CheckinListener l : modules.checkins) l.before(path, flow);
         String botId = workflow || form ? (workflow ? "workflow:" : "form:") + path.replaceAll("\\.(process|form)\\.json$", "") : String.valueOf(flow.get("id"));
         return db.tx(() -> {
             Map<String, Object> other = db.one("SELECT path FROM bots WHERE bot_id = ? AND path <> ?", botId, path);
-            if (other != null) throw new OoaException("CR.DUPLICATE_ID", "Agent id '" + botId + "' is already used by " + other.get("path"), "Give this agent its own id: in One AgentStudio, select no step and change Agent id under Properties. Copy and Duplicate give a copy its own id.");
+            if (other != null) throw new OoaException("CR.DUPLICATE_ID", "Agent id '" + botId + "' is already used by " + other.get("path"), "Give this agent its own id: in OneAgentStudio, select no step and change Agent id under Properties. Copy and Duplicate give a copy its own id.");
             Map<String, Object> b = db.one("SELECT latest_version, locked_by, production_version, deleted_at FROM bots WHERE path = ?", path);
             if (b != null && b.get("deleted_at") != null)
                 throw new OoaException("CR.DELETED", "A deleted agent is at " + path, "Recover it first (Deleted agents), or use another name.");
@@ -1165,11 +1165,11 @@ public final class ControlRoom {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> copyBot(User by, String path, String toPath, String ip) {
-        // as AA, a copy is made in the person's Private workspace (One AgentStudio's Copy to Private); a copy straight into
+        // as AA, a copy is made in the person's Private workspace (OneAgentStudio's Copy to Private); a copy straight into
         // the repository is for administrators only (for example while reorganising)
         if (!can(by, "repo.production"))
             throw new OoaException("CR.COPY_TO_PRIVATE", "Copies are made in your Private workspace",
-                    "Use Copy to Private on the agent in One AgentStudio's Public tab, change it there, then check it in.");
+                    "Use Copy to Private on the agent in OneAgentStudio's Public tab, change it there, then check it in.");
         Map<String, Object> flow = new LinkedHashMap<>((Map<String, Object>) getBot(by, path, "latest").get("flow"));
         String to = toPath == null || toPath.isBlank() ? path.replaceAll("\\.(flow|process|form)\\.json$", "") + " (copy)" + path.substring(path.lastIndexOf(".", path.length() - 6)) : toPath.trim();
         if (!to.matches(".*\\.(flow|process|form)\\.json$") || !to.substring(to.indexOf('.', to.lastIndexOf('/') + 1)).equals(path.substring(path.indexOf('.', path.lastIndexOf('/') + 1))))

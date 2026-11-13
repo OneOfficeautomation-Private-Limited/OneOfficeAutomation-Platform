@@ -23,15 +23,15 @@ const keyOf = (t: AgentTemplate) => t.source + ":" + t.id;
 const withParents = (f: string) => f.split("/").map((_, i, a) => a.slice(0, i + 1).join("/"));
 
 const HELP: HelpTopic = { title: "Agent Templates",
-  about: "Ready-made agents to install into Automation and adapt, from ONEOFFICEAUTOMATION's template catalogue and, where the service allows, shared by "
+  about: "Ready-made agents to install into Agents and adapt, from ONEOFFICEAUTOMATION's template catalogue and, where the service allows, shared by "
     + "others in your region.",
   items: [
     { name: "Folders", text: "Pick a folder to list its templates; All templates shows every one. The catalogue's categories are the first folders." },
-    { name: "Status", text: "Show only templates already installed in Automation, or only those not installed yet." },
-    { name: "Installed in", text: "The Automation folders that already hold this template's agents." },
-    { name: "Install…", text: "Puts the template's agents into a folder of Automation as new agents you can change. Agents already there are kept as they "
+    { name: "Status", text: "Show only templates already installed in Agents, or only those not installed yet." },
+    { name: "Installed in", text: "The folders in Agents that already hold this template's agents." },
+    { name: "Install…", text: "Puts the template's agents into a folder of Agents as new agents you can change. Agents already there are kept as they "
       + "are. Needs permission to import." },
-    { name: "Open in Automation", text: "For an installed template: shows its agents in Automation." },
+    { name: "Open in Agents", text: "For an installed template: shows its agents on the Agents page." },
     { name: "Move to folder…", text: "Shows the template in another folder here. It does not change where its agents go when you install it. For "
       + "administrators." },
     { name: "Create", text: "New folder makes a folder here, inside the chosen one; the folder's ⋯ menu renames, moves or deletes it when it is empty. For "
@@ -45,10 +45,10 @@ const HELP: HelpTopic = { title: "Agent Templates",
 const HELP_TEMPLATE: HelpTopic = { title: "Agent template",
   about: "One template: what it does, the agents inside it and where they are already installed.",
   items: [
-    { name: "What is inside", text: "The agents the template installs, and the Automation folders where each is already." },
+    { name: "What is inside", text: "The agents the template installs, and the folders in Agents where each is already." },
     { name: "Install", text: "Choose a folder; the agents go there as new agents you can change. Install again into… puts another copy in a different "
       + "folder." },
-    { name: "Open in Automation", text: "Shows the installed agents in Automation." },
+    { name: "Open in Agents", text: "Shows the installed agents on the Agents page." },
     { name: "Move to folder…", text: "Shows the template in another folder of Agent Templates. For administrators." },
   ] };
 
@@ -122,7 +122,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
     { key: "open", label: "Open", onSelect: () => setOpen(t) },
     ...(arrangeable ? [{ key: "move", label: "Move to folder…", onSelect: () => setDialog({ kind: "move", t }) }] : []),
     ...(can("lifecycle.import") ? [{ key: "install", label: installedIn(t).length ? "Install again into…" : "Install…", onSelect: () => setDialog({ kind: "install", t }) }] : []),
-    ...(installedIn(t).length ? [{ key: "automation", label: "Open in Automation", onSelect: () => { location.hash = openIn(t).slice(1); } }] : []),
+    ...(installedIn(t).length ? [{ key: "automation", label: "Open in Agents", onSelect: () => { location.hash = openIn(t).slice(1); } }] : []),
   ];
 
   if (open) {   // a template's own page, in place of the panes, as an agent opens in Automation
@@ -139,7 +139,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
             <span className="cc-none">{open.source === "region" ? "Shared by " + open.publisher : open.publisher}</span>
             <span className="ov-fill" />
             {arrangeable && <Button kind="plain" onClick={() => setDialog({ kind: "move", t: open })}>Move to folder…</Button>}
-            {where.length > 0 && <a className="ui-btn ui-btn-secondary cc-btn-link" href={openIn(open)}>Open in Automation</a>}
+            {where.length > 0 && <a className="ui-btn ui-btn-secondary cc-btn-link" href={openIn(open)}>Open in Agents</a>}
             {can("lifecycle.import") && <Button kind="primary" onClick={() => setDialog({ kind: "install", t: open })}>{where.length ? "Install again into…" : "Install"}</Button>}
             <CloseView onClick={() => setOpen(null)} to="the templates" />
           </div>
@@ -147,7 +147,7 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
             {open.description && <p>{open.description}</p>}
             <h3 className="cc-au-sec">What is inside</h3>
             <table className="cc-list-table" aria-label="Agents in this template">
-              <thead><tr><th scope="col">Agent</th><th scope="col">In Automation</th></tr></thead>
+              <thead><tr><th scope="col">Agent</th><th scope="col">In Agents</th></tr></thead>
               <tbody>{open.agents.map((a) => { const at = repo.filter((p) => p === a || p.endsWith("/" + a.split("/").pop()));
                 return <tr key={a} className="is-static"><td><span className="cc-aico" aria-hidden="true">A</span><strong>{agentName(a)}</strong></td>
                   <td>{at.length ? at.map((p) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "(top)").join(", ") : <span className="cc-none">Not installed</span>}</td></tr>; })}</tbody>
@@ -254,7 +254,7 @@ function Install({ api, t, onClose, onDone }: { api: CrApi; t: AgentTemplate; on
   const [error, setError] = useState<string | null>(null);
   const [processes, setProcesses] = useState<TemplateProcessResult[] | null>(null);
   const install = () => api.installTemplate(t.source, t.id, folder.trim() || "Templates").then((r) => {
-    if (r.ok && r.processes_ok !== false && !r.processes?.some((p) => p.note)) onDone("Installed " + t.name + " in " + r.folder + ": open it in Automation."
+    if (r.ok && r.processes_ok !== false && !r.processes?.some((p) => p.note)) onDone("Installed " + t.name + " in " + r.folder + ": open it in Agents."
       + (r.processes?.length ? " Its document processes are drafts in Document Automation." : ""));
     else if (r.ok) setProcesses(r.processes ?? []);
     else setResults(r.results);
@@ -329,7 +329,7 @@ function MoveTemplate({ t, at, folders, onClose, onMove }: { t: AgentTemplate; a
       {error && <p className="st-alert" role="alert">{error}</p>}
       <Field label="To the folder">{(id) => <Select id={id} value={to} onChange={(e) => setTo(e.target.value)}
         options={[{ value: "", label: "(top: Agent Templates)" }, ...folders.map((f) => ({ value: f, label: "\u00a0\u00a0\u00a0".repeat(f.split("/").length - 1) + f.split("/").pop() }))]} />}</Field>
-      <p className="cc-list-hint">Only where it shows here changes: installing still puts its agents in the folder you choose in Automation.</p>
+      <p className="cc-list-hint">Only where it shows here changes: installing still puts its agents in the folder you choose in Agents.</p>
     </Dialog>
   );
 }

@@ -559,7 +559,7 @@ public final class PdfPackage {
     }
 
     @Action(id = "render_page", name = "Get page as picture", category = "Document", idempotent = true, timeoutSeconds = 120, capabilities = "filesystem",
-            description = "Render one page as a PNG picture, returned as data (data: URI) with the page size in points; used by One AgentStudio to draw an area to read, and to show a page in forms or emails.",
+            description = "Render one page as a PNG picture, returned as data (data: URI) with the page size in points; used by OneAgentStudio to draw an area to read, and to show a page in forms or emails.",
             panel = "path, page, [The file has a password: password] | dpi")
     @Output(name = "image", type = OoaType.STRING, description = "The page as a data:image/png;base64 URI.")
     @Output(name = "width_points", type = OoaType.NUMBER, description = "Page width in points (72 per inch), as Extract text from area measures it.")

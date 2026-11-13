@@ -93,7 +93,7 @@ by its name (`invoice_number`, `total`…).
 
 ## 6. Document events start agents (triggers "On Document Automation")
 
-Manage > Triggers > Create trigger (and the Triggers group among One AgentStudio's actions) has a group **On Document
+Manage > Triggers > Create trigger (and the Triggers group among OneAgentStudio's actions) has a group **On Document
 Automation**:
 
 | Event | Starts the agent when |

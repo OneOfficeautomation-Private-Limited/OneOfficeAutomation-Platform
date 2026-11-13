@@ -25,7 +25,7 @@ const HELP: HelpTopic = { title: "Agent APIs", about: "An agent behind its own a
   items: [
     { name: "Create Agent API", text: "Choose a name, a live agent, where it runs and how long a caller waits for the result. "
       + "The token is shown once when you create it, with an example call. It needs the Manage Agent APIs permission." },
-    { name: "Folders", text: "The folders of the agents behind the Agent APIs, as in Automation. Pick one to see only its Agent APIs." },
+    { name: "Folders", text: "The folders of the agents behind the Agent APIs, as in Agents. Pick one to see only its Agent APIs." },
     { name: "Runner", text: "A runner, a runner pool, or One CommandCenter itself (serverless). "
       + "Serverless suits agents that only call web services and work on data; they run for at most 5 minutes unless an administrator allows longer (Settings, up to 60)." },
     { name: "Waits up to", text: "How long a caller waits for the run to finish. "
@@ -96,7 +96,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
               <ul>{folders.map((f) => <li key={f}><div className={"cc-tree-row" + (folder === f ? " is-on" : "")} style={{ paddingLeft: 6 + 16 * f.split("/").length }}><span className="cc-tree-chev" />
                 <button type="button" className="cc-tree-name" aria-current={folder === f ? "page" : undefined} onClick={() => setFolder(f)}><FolderIcon />{f.split("/").pop()}<span className="cc-tree-n">{count(f)}</span></button></div></li>)}</ul></li>
           </ul>
-          <p className="cc-pane-foot">The folders of the agents behind them, as in Automation.</p>
+          <p className="cc-pane-foot">The folders of the agents behind them, as in Agents.</p>
         </nav>
         <div className="cc-files-pane">
           <div className="cc-pane-head"><span className="cc-crumbs-path"><FolderIcon open /><button type="button" className="cc-link" onClick={() => setFolder("")}>Agent APIs</button>
@@ -128,7 +128,7 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
                 ))}
                 {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No Agent APIs match." : <span className="cc-api-empty">
                   <strong>No Agent APIs yet.</strong> An Agent API puts one live agent behind its own address and token, so another system can run it like a web service and get its outputs back.
-                  Make one with Create Agent API here, or from an agent's ⋯ menu in <a href="#/automation">Automation</a>.</span>}</td></tr>}
+                  Make one with Create Agent API here, or from an agent's ⋯ menu in <a href="#/automation">Agents</a>.</span>}</td></tr>}
                 {!list && !error && <tr className="is-static"><td colSpan={10} className="cc-none" role="status">Loading…</td></tr>}
               </tbody>
             </table>

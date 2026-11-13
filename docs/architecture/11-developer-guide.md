@@ -209,7 +209,7 @@ to `cli/build/generated/ui/studio-next` and into the jar; the npm packages that 
 
 ### Interface languages
 
-One CommandCenter console shows its texts in English, German, French, Spanish and Japanese (One AgentStudio is in
+One CommandCenter console shows its texts in English, German, French, Spanish and Japanese (OneAgentStudio is in
 English for now). After a change to visible texts:
 
 1. `python scripts/i18n-extract.py` (in `platform`) refreshes the list of texts,

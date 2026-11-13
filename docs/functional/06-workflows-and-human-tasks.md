@@ -26,7 +26,7 @@ notifications by inbox and e-mail, cancellation, and the permissions involved.
 
 ## 1. Workflows and forms as repository items
 
-- A workflow is a `Name.process.json` item and a form a `Name.form.json` item, designed in One AgentStudio (Create >
+- A workflow is a `Name.process.json` item and a form a `Name.form.json` item, designed in OneAgentStudio (Create >
   Workflow, Create > Form) and published with **Publish to One CommandCenter**, which checks them in as the live
   production version.
 - Like agents they have versions, check-out and a live production version. A workflow run uses the live version of the
@@ -207,5 +207,5 @@ Audited: `workflow.start`, `workflow.completed`, `workflow.failed`, `workflow.ca
 - [01 Agents and automation items](01-agents-and-automation-items.md)
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [11 Operations, audit and dashboards](11-operations-audit-and-dashboards.md) (e-mail settings)
-- [14 One AgentStudio](14-studio-features.md)
+- [14 OneAgentStudio](14-studio-features.md)
 - [One CommandCenter and runner, section 7](../user-guide/00-README.md)

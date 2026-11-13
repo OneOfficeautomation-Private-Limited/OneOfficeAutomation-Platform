@@ -65,7 +65,7 @@ export function CreateDialog({ type, folderPath, folders, blueprints = [], onCre
         onChange={(e) => setName(e.target.value)} aria-invalid={!!error && !name.trim()} />
       <span className="st-create-label" id="st-create-folder">Save in</span>
       <FolderTree folders={folders} value={folderPath} onChange={onChangeFolder} labelledBy="st-create-folder" />
-      <span className="st-create-path">{["Automation", ...folderPath.split("/").filter(Boolean)].join(" / ")}{name.trim() && " / " + name.trim()}</span>
+      <span className="st-create-path">{["Agents", ...folderPath.split("/").filter(Boolean)].join(" / ")}{name.trim() && " / " + name.trim()}</span>
     </div>
   );
 
@@ -129,7 +129,7 @@ type Node = { path: string; name: string; children: Node[] };
 /** Every folder of the workspace as a tree; a click chooses the folder, the arrow opens and closes it. */
 function FolderTree({ folders, value, onChange, labelledBy }: { folders: string[]; value: string; onChange: (p: string) => void; labelledBy: string }) {
   const root = useMemo(() => {
-    const top: Node = { path: "", name: "Automation", children: [] };
+    const top: Node = { path: "", name: "Agents", children: [] };
     const byPath = new Map<string, Node>([["", top]]);
     for (const f of [...new Set(folders.filter(Boolean))].sort()) {
       const parts = f.split("/");

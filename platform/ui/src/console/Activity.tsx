@@ -125,7 +125,7 @@ const HELP: HelpTopic = { title: "Agent Activity", about: "What is running now, 
     { name: "More filters", text: "Adds Started by, to find the runs one person started." },
     { name: "Columns", text: "Choose which columns the list shows; your choice is kept for next time." },
     { name: "Export CSV", text: "Saves every run the filters find as a CSV file. With runs selected it becomes Export selected and saves only those." },
-    { name: "Actions (⋯)", text: "A run's own menu: open it, stop it while it runs, run it again once it ended, or find its agent in Automation." },
+    { name: "Actions (⋯)", text: "A run's own menu: open it, stop it while it runs, run it again once it ended, or find its agent on the Agents page." },
   ] };
 const HELP_RUN: HelpTopic = { title: "A run", about: "One run beside the list: how it stands, why it ended and what to try, then its steps, log, variables, "
   + "inputs and outputs. While it runs, it follows along live.",
@@ -278,7 +278,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
       { key: "open", label: "Open", onSelect: () => openRun(r.id) },
       ...(can("runs.start") && active ? [{ key: "stop", label: "Stop", onSelect: () => one("Stop asked for the run of " + name(r.bot_path) + " (after the current step)", () => api.control(r.id, "stop")) }] : []),
       ...(can("runs.start") && !active ? [{ key: "rerun", label: "Run again", onSelect: () => one("Started " + name(r.bot_path) + " again", () => api.rerun(r.id)) }] : []),
-      ...(can("repo.view") ? [{ key: "agent", label: "Open the agent in Automation", onSelect: () => { location.hash = "#/automation?q=" + encodeURIComponent(name(r.bot_path)); } }] : []),
+      ...(can("repo.view") ? [{ key: "agent", label: "Open the agent in Agents", onSelect: () => { location.hash = "#/automation?q=" + encodeURIComponent(name(r.bot_path)); } }] : []),
     ];
   };
   const rows: ReactNode[] = [];

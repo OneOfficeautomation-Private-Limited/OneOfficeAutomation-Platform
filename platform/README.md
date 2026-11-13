@@ -138,7 +138,7 @@ agents read them.
 
 ## What is in the platform now
 
-- **One AgentStudio**: agents, headless API agents, forms, workflows, document intelligence, Prompt Skills and scripts;
+- **OneAgentStudio**: agents, headless API agents, forms, workflows, document intelligence, Prompt Skills and scripts;
   debugger with breakpoints, Quick add, flow view, AI assistant, Model Connections and custom connectors.
 - **Toolkits**: core logic and data, files, Office (Excel, Word, PowerPoint), Microsoft 365, Google Workspace, email,
   PDF, browser, Windows, databases, REST/SOAP and custom connectors (OpenAPI, Swagger, Postman), and enterprise apps

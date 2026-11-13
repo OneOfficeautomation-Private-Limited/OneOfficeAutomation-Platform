@@ -17,7 +17,7 @@ import java.util.function.Function;
 import static com.oneofficeautomation.packages.PackagesTest.REG;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** G33: environment locks on this computer (One AgentStudio without One CommandCenter), and the relay to One CommandCenter. */
+/** G33: environment locks on this computer (OneAgentStudio without One CommandCenter), and the relay to One CommandCenter. */
 class EnvironmentLocksTest {
     @TempDir Path dir;
     final EnvironmentLocksPackage pkg = new EnvironmentLocksPackage();

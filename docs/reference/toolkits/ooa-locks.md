@@ -15,7 +15,7 @@ Toolkit `ooa.locks`, version 1.0.0. Named locks that one agent run holds at a ti
 
 `ooa.locks/acquire` (action)
 
-Take a named lock so no other agent run uses the same system at the same time. Optionally wait until the run holding it gives it back. The lock is given back by Release lock, or when this agent ends. With One CommandCenter the lock is shared by every runner; in One AgentStudio on its own it works on this computer only.
+Take a named lock so no other agent run uses the same system at the same time. Optionally wait until the run holding it gives it back. The lock is given back by Release lock, or when this agent ends. With One CommandCenter the lock is shared by every runner; in OneAgentStudio on its own it works on this computer only.
 
 **Settings**
 

@@ -1,8 +1,8 @@
 import type { HelpTopic } from "../components";
 
-/** One AgentStudio's Help panel text (issue 11, design B, 1 Nov 2026): what each area is for and how to use it. */
+/** OneAgentStudio's Help panel text (issue 11, design B, 1 Nov 2026): what each area is for and how to use it. */
 export const AUTOMATION_HELP: HelpTopic = {
-  title: "Automation (Private)", about: "Your own workspace on this computer: agents, workflows, forms, scripts and files, in folders. Only you see it until you check an agent in to One CommandCenter.",
+  title: "Agents (Private)", about: "Your own workspace on this computer: agents, workflows, forms, scripts and files, in folders. Only you see it until you check an agent in to One CommandCenter.",
   items: [
     { name: "Folders", text: "Pick a folder on the left to see what is in it. The ⋮ at the top of the pane, or a right-click on a folder, has New folder, Rename, Upload, Download as zip and more." },
     { name: "Create", text: "Pick a folder first, then press Create and choose what to make: an agent, an AI agent, a workflow, a form, a document type, a prompt skill or a script. It is made in that folder and opens." },
@@ -19,7 +19,7 @@ export const AUTOMATION_HELP: HelpTopic = {
   ] };
 
 export const PUBLIC_HELP: HelpTopic = {
-  title: "Automation (Public)", about: "The agent repository in One CommandCenter, shared with your team. Agents here have versions; the live version is the one runs, schedules and triggers use.",
+  title: "Agents (Public)", about: "The agent repository in One CommandCenter, shared with your team. Agents here have versions; the live version is the one runs, schedules and triggers use.",
   items: [
     { name: "Folders", text: "The repository's folders, as in Private. Pick one to see its sub-folders and agents; a search looks through every folder." },
     { name: "Check out", text: "Copies the latest version into the same folder in your workspace so you can change it, and stops others from checking it out meanwhile. Change it, then press Check in in the editor. If your own item already has that name in that folder, rename or move it first." },
@@ -63,7 +63,7 @@ export const DETAILS_HELP: HelpTopic = {
   items: [
     { name: "Properties", text: "The selected step's settings. Fields marked required must be filled before the agent can run; a value can be typed, or taken from a variable with the picker next to the field." },
     { name: "Variables", text: "The agent's variables: inputs it is given, outputs it returns, and values it keeps while it runs. Add one with its type; the ⋮ on a variable renames, copies or deletes it." },
-    { name: "Triggers", text: "Start this agent on its own on this computer, for example every few minutes or when a file appears, while One AgentStudio is running." },
+    { name: "Triggers", text: "Start this agent on its own on this computer, for example every few minutes or when a file appears, while OneAgentStudio is running." },
     { name: "Dependencies", text: "What the agent uses: other agents it runs, files, forms and toolkits. Click one to open it or to go to the step that uses it." },
     { name: "Width and hiding", text: "Drag the panel's edge to resize it, or fold it away with the arrow at the top." },
   ] };

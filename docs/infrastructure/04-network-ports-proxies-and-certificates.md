@@ -203,7 +203,7 @@ name against the URL, so register with an address that is in the certificate.
 | Listener | Address | Who uses it |
 | --- | --- | --- |
 | Internal plain-HTTP listener | `127.0.0.1`, a random port, only when HTTPS is on | The runner and Studio built into `ooa server`, so they need no certificate trust |
-| One AgentStudio standalone (`ooa studio`) | `127.0.0.1:8710` | The builder's browser on that computer; other host names are refused |
+| OneAgentStudio standalone (`ooa studio`) | `127.0.0.1:8710` | The builder's browser on that computer; other host names are refused |
 | Studio inside `ooa server` | `/studio/` on One CommandCenter port, offered only to browsers on the same computer | The builder |
 | Browser connector native host | `127.0.0.1`, random port, with a random token | Agents and Studio on the same computer |
 | Java application bridge | `127.0.0.1`, with a token | The runner, for Swing/AWT automation |

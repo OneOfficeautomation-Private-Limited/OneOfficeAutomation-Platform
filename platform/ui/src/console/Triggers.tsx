@@ -43,7 +43,7 @@ const HELP: HelpTopic = { title: "Triggers",
       + "events are watched on that runner. Needs permission to manage triggers." },
     { name: "Key presses and clicks", text: "Windows runners only. A key-press trigger listens for one named key or combination (such as F9 or "
       + "CTRL+ENTER), optionally only in one window; typed text is never recorded. A click trigger listens in one window, or on one element captured "
-      + "in One AgentStudio. Repeats within the debounce time are ignored." },
+      + "in OneAgentStudio. Repeats within the debounce time are ignored." },
     { name: "Vault references", text: "Passwords and tokens are never typed into a trigger: give a vault reference such as mail/imap/password. The "
       + "trigger's owner must be a consumer of that vault folder." },
     { name: "Webhook", text: "After creating a webhook trigger you see its address and secret once. Call the address with POST and send the secret in the "
@@ -65,8 +65,8 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const [runners, setRunners] = useState<Runner[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, string>>({});
-  // One AgentStudio's command list opens #/triggers?new=<event>&bot=<agent>: Create trigger, for that agent and event
-  // a click trigger from One AgentStudio also brings the captured element's settings (window, process, element_name, ...)
+  // OneAgentStudio's command list opens #/triggers?new=<event>&bot=<agent>: Create trigger, for that agent and event
+  // a click trigger from OneAgentStudio also brings the captured element's settings (window, process, element_name, ...)
   const [dialog, setDialog] = useState<null | { kind: "new"; event?: string; bot?: string; preset?: Record<string, string> } | { kind: "edit"; t: Trigger } | { kind: "hook"; url: string; secret: string }>(() => {
     const q = new URLSearchParams(location.hash.split("?")[1] ?? "");
     const ev = q.get("new");

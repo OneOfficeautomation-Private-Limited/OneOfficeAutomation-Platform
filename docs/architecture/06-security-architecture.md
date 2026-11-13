@@ -336,7 +336,7 @@ the repository root.
 | Component | What it is | Network exposure |
 | --- | --- | --- |
 | One CommandCenter | Java server: web console, REST API, runner API, webhooks, Agent APIs, MCP endpoint | TCP 8720 (configurable), HTTP or HTTPS; with HTTPS also a plain-HTTP listener on 127.0.0.1 for this machine's own runner and Studio |
-| One AgentStudio | Web designer at `/studio/` | Same port; this computer only (loopback) |
+| OneAgentStudio | Web designer at `/studio/` | Same port; this computer only (loopback) |
 | OneRunner | Java process (sign-in task or Windows service) that polls One CommandCenter and runs agents | Outbound only, to One CommandCenter |
 | Run workers | One Java process per run, started by the runner | None (stdin and stdout pipe to the runner) |
 | Browser connector | Edge, Chrome or Firefox extension plus a native messaging host | 127.0.0.1 with a random token |

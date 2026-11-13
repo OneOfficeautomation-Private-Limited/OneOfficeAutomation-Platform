@@ -1,15 +1,15 @@
-# One AgentStudio basics
+# OneAgentStudio basics
 
 **Audience:** everyone who builds agents: new builders, business analysts who automate their own work, and
 developers who are new to ONEOFFICEAUTOMATION.
 
-**You will learn to:** open One AgentStudio, find your way around its screen, create and organise agents and other
+**You will learn to:** open OneAgentStudio, find your way around its screen, create and organise agents and other
 items in your workspace, upload files, and work faster with keyboard shortcuts.
 
 ## Contents
 
-1. [What One AgentStudio is](#1-what-one-agent-studio-is)
-2. [Open One AgentStudio](#2-open-one-agent-studio)
+1. [What OneAgentStudio is](#1-what-one-agent-studio-is)
+2. [Open OneAgentStudio](#2-open-one-agent-studio)
 3. [The Automation home](#3-the-automation-home)
 4. [The screen when an agent is open](#4-the-screen-when-an-agent-is-open)
 5. [Create agents, folders and other items](#5-create-agents-folders-and-other-items)
@@ -23,11 +23,11 @@ items in your workspace, upload files, and work faster with keyboard shortcuts.
 
 ---
 
-## 1. What One AgentStudio is
+## 1. What OneAgentStudio is
 
-One AgentStudio is the editor where you build, test and debug agents: the screen you get when an agent (or another
+OneAgentStudio is the editor where you build, test and debug agents: the screen you get when an agent (or another
 item) is open. Everything else is One CommandCenter, as in AA, where there is one Control Room: the **Private** tab of
-**Build > Automation** is your own workspace, and opening an item there opens it in One AgentStudio. It runs in your web
+**Build > Automation** is your own workspace, and opening an item there opens it in OneAgentStudio. It runs in your web
 browser (Chrome or Edge), but only on your own computer: it reads and writes your private workspace, called **My
 Workspace**.
 
@@ -40,7 +40,7 @@ Workspace**.
 Besides agents, the workspace holds **forms**, **workflows**, **document intelligence** items, **Prompt Skills**,
 **scripts** (Python, PowerShell, VBScript, JavaScript) and ordinary files such as workbooks and CSV files.
 
-## 2. Open One AgentStudio
+## 2. Open OneAgentStudio
 
 1. Make sure ONEOFFICEAUTOMATION is running on your computer (see [Getting started](01-getting-started.md)).
 2. In One CommandCenter open **Build > Automation** and click the **Private** tab (it is there for people who may check
@@ -48,14 +48,14 @@ Besides agents, the workspace holds **forms**, **workflows**, **document intelli
    - If One CommandCenter runs on the same computer, your private workspace uses the sign-in you already have there.
    - If Studio runs on its own, the window that started it shows its address (`Open: http://localhost:<port>`).
 3. The **Automation** page opens on your **Private** tab.
-4. Click an agent (or make one with **Create ▾**). It opens in **One AgentStudio**, the editor.
+4. Click an agent (or make one with **Create ▾**). It opens in **OneAgentStudio**, the editor.
 
 **What you see:** the same top bar and menu as everywhere in One CommandCenter. The top bar says **One
-CommandCenter** on the Automation page and changes to **One AgentStudio** only while an agent or other item is open in
+CommandCenter** on the Automation page and changes to **OneAgentStudio** only while an agent or other item is open in
 the editor; the browser tab then shows the item's name. Close the item to come back to the Automation page.
 
 > **Tip:** Studio only answers browsers on the same computer. Opening it from another machine gives
-> "One AgentStudio is only available on this computer". This is on purpose: your workspace is private.
+> "OneAgentStudio is only available on this computer". This is on purpose: your workspace is private.
 
 The first time Studio starts with an empty workspace, it copies in the sample agents so you have something to look at.
 
@@ -92,11 +92,11 @@ To come back to the home page at any time, click the **house** button in the top
 
 ## 4. The screen when an agent is open
 
-Open an agent (click it on the **Automation** page). The top bar now says **One AgentStudio**, and the screen has
+Open an agent (click it on the **Automation** page). The top bar now says **OneAgentStudio**, and the screen has
 these parts:
 
 ```
-┌ top bar: One AgentStudio · breadcrumb · Unsaved · Search items · Save · Run · Debug · Check in · Close ──────────┐
+┌ top bar: OneAgentStudio · breadcrumb · Unsaved · Search items · Save · Run · Debug · Check in · Close ──────────┐
 │menu│ Actions            │  agent tab · steps toolbar (Undo, Redo, ⋯, List | Flow, …)│ Details                  │
 │    │ (search, groups,   │  START ─ 1 step ─ 2 step … ─ END                         │ Properties · Variables · │
 │    │  Triggers)         │──────────────────────────────────────────────────────────│ Triggers · Dependencies  │
@@ -108,7 +108,7 @@ these parts:
 
 | Item | What it does |
 | --- | --- |
-| **One AgentStudio** | The editor's name; every other page says One CommandCenter. |
+| **OneAgentStudio** | The editor's name; every other page says One CommandCenter. |
 | Breadcrumb | **Folder › agent name**. When you opened this agent from a parent agent, it shows the way back (see [Child agents](09-child-agents.md)). A **Run by** note lists agents that run this one. |
 | **Unsaved** | Appears when you have changes that are not saved. |
 | **Search items in the workspace** | Finds agents and other items (Ctrl+K). |
@@ -326,9 +326,9 @@ opens its ⋯ menu. **?** or **Help > Keyboard shortcuts** shows them.
 
 | What you see | What to do |
 | --- | --- |
-| "Cannot reach One AgentStudio server: …" | ONEOFFICEAUTOMATION is not running, or was stopped. Start it again and reload the page. |
+| "Cannot reach OneAgentStudio server: …" | ONEOFFICEAUTOMATION is not running, or was stopped. Start it again and reload the page. |
 | The page does not open; "port … is already in use" in the start window | Another Studio is still running. Close it, or start this one on another port (`--port`). |
-| "One AgentStudio is only available on this computer" | Open Studio on the computer where it runs. |
+| "OneAgentStudio is only available on this computer" | Open Studio on the computer where it runs. |
 | "Open or create an agent first (Explorer tab)." | You clicked an action with no agent open. Open or create one. |
 | "Select a file or folder to rename." | Select an item in the Explorer first; the top **Workspace** row cannot be renamed. |
 | An upload fails with "Uploads are limited to 50 MB per file" | Split or compress the file, or keep it on a shared drive and use its full path. |

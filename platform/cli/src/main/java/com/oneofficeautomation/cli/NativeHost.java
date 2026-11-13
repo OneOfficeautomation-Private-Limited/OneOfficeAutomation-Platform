@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * The browser connector's native-messaging host ({@code ooa native-host}). The browser starts it for the extension;
  * it speaks the native-messaging protocol on stdin/stdout (a 4-byte little-endian length, then UTF-8 JSON) and relays
- * requests from agents and One AgentStudio on this computer, which connect to a local socket.
+ * requests from agents and OneAgentStudio on this computer, which connect to a local socket.
  *
  * <p>Registration: once the extension says hello, the host writes {@code ~/.ooa/bridge/<browser>-<pid>.json} with its
  * port and a random token. Clients connect to 127.0.0.1:port, send one line {"token": "..."} and then one JSON object

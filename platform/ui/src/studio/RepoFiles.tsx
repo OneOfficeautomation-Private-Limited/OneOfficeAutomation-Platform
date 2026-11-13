@@ -28,7 +28,7 @@ export function RepoFileBrowser({ onPick, onClose }: { onPick: (path: string) =>
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   useEffect(() => {
-    vars?.api.crFiles().then(setFiles, (e) => setError((errorText(e)) + " Sign in to One CommandCenter on the Automation page's Public tab, then try again."));
+    vars?.api.crFiles().then(setFiles, (e) => setError((errorText(e)) + " Sign in to One CommandCenter on the Agents page's Public tab, then try again."));
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const shown = useMemo(() => (files ?? []).filter((f) => !q.trim() || f.path.toLowerCase().includes(q.trim().toLowerCase())), [files, q]);
   return (
@@ -40,7 +40,7 @@ export function RepoFileBrowser({ onPick, onClose }: { onPick: (path: string) =>
         {shown.map((f) => <li key={f.path}>
           <button type="button" role="option" aria-selected="false" className="st-fs-item" onClick={() => onPick(f.path)} title={f.path}>
             <Icon name="doc" size={14} />{f.path}<span className="st-muted st-fs-size">{size(f.size)}</span></button></li>)}
-        {files && !shown.length && <li className="st-muted">{files.length ? "Nothing matches." : "No files are kept in One CommandCenter yet. Add them on its Automation page (Files)."}</li>}
+        {files && !shown.length && <li className="st-muted">{files.length ? "Nothing matches." : "No files are kept in One CommandCenter yet. Add them on its Agents page (Files)."}</li>}
         {!files && !error && <li className="st-muted">Reading the files…</li>}
       </ul>
     </Dialog>

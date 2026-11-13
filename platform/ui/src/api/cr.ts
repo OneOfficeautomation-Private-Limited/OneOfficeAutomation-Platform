@@ -257,7 +257,7 @@ export class CrApi {
   /** Two-step sign-in: a new key for an authenticator app, then turning it on with a code (gives recovery codes once). */
   mfaSetup() { return this.call<{ secret: string; otpauth_uri: string }>("POST", "auth/mfa/setup"); }
   mfaEnable(code: string) { return this.call<{ recovery_codes: string[] }>("POST", "auth/mfa/enable", { code }); }
-  /** Whether One AgentStudio is offered on this computer (it lives beside One CommandCenter under ooa server). */
+  /** Whether OneAgentStudio is offered on this computer (it lives beside One CommandCenter under ooa server). */
   async studio() { return !!(await this.call<{ studio?: string }>("GET", "health")).studio; }
   /** The optional modules installed, each filling a page of the menu. */
   async plugins() { return (await this.call<{ plugins?: ConsolePlugin[] }>("GET", "plugins")).plugins ?? []; }
@@ -535,7 +535,7 @@ export class CrApi {
   async folderPermissions(folder: string) { return (await this.call<{ permissions?: { principal: string; access: string }[] }>("GET", "repo/permissions?folder=" + encodeURIComponent(folder))).permissions ?? []; }
   async saveFolderPermissions(folder: string, permissions: { principal: string; access: string }[]) { await this.call("PUT", "repo/permissions", { folder, permissions }); }
   moveAgent(path: string, folder: string) { return this.call<{ path: string }>("POST", "repo/move", { path, folder }); }
-  /** A copy straight into the repository: administrators only (builders use Copy to Private in One AgentStudio). */
+  /** A copy straight into the repository: administrators only (builders use Copy to Private in OneAgentStudio). */
   copyAgent(path: string, to: string) { return this.call<{ path?: string }>("POST", "repo/copy", { path, to }); }
   deleteAgent(path: string, reason?: string) { return this.call<{ deleted: string; called_by?: string[] }>("POST", "repo/delete", reason ? { path, reason } : { path }); }
   async recoverAgent(path: string) { await this.call("POST", "repo/recover", { path }); }

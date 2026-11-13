@@ -4,7 +4,7 @@
 step; business users and operators can skip the install part if someone has already set One CommandCenter up.
 
 **What you will have at the end:** ONEOFFICEAUTOMATION running on one computer, your own administrator password, a
-tour of the menu, and a first agent that you built in One AgentStudio, checked in to One CommandCenter, ran on a
+tour of the menu, and a first agent that you built in OneAgentStudio, checked in to One CommandCenter, ran on a
 runner and looked at in **Agent Activity**.
 
 ## Contents
@@ -76,7 +76,7 @@ Start it from the Start menu (**ONEOFFICEAUTOMATION**), with `START-OOA.cmd`, or
 
 What happens:
 
-1. A console window opens. It starts **One CommandCenter**, **One AgentStudio** (at `/studio/`) and a **One
+1. A console window opens. It starts **One CommandCenter**, **OneAgentStudio** (at `/studio/`) and a **One
    Runner** for this computer, all on `http://localhost:8720`.
 2. The runner for this computer registers itself, so you need no registration key on this computer.
 3. Your browser opens One CommandCenter sign-in page.
@@ -193,7 +193,7 @@ The menu has **Home** and five sections, each a row with its icon and name. Clic
 open at a time, so the whole menu fits on the screen, and the section of the page you are on opens by itself. Type in
 **Find a page** at the top to search all pages; press Enter to open the first match. **Collapse menu** at the bottom
 makes the menu narrow (icons only) or full again; when it is narrow, point at (or click) a section's icon to see its
-pages and open one. The menu is the same in One AgentStudio.
+pages and open one. The menu is the same in OneAgentStudio.
 
 | Section | Pages | What you do there |
 | --- | --- | --- |
@@ -210,7 +210,7 @@ schedules, triggers, shared values, work queues, Operational Insights and Prompt
 agents checked in to run; **Private** (on the right) is a builder's own workspace. Everyone sees the same menu and
 pages; only what you may open differs. **Private** works for people who build agents (who may check agents in) when the
 workspace runs beside One CommandCenter on the same computer. The top bar says **One CommandCenter** everywhere and
-**One AgentStudio** only in the editor, when an agent or other item is open.
+**OneAgentStudio** only in the editor, when an agent or other item is open.
 
 Every page has an **i** after its title: it opens a help panel that explains each part of the page.
 
@@ -229,12 +229,12 @@ browser remembers it) and **Export CSV**.
 
 You will build an agent that takes a name and writes a greeting to the run log, then run it from One CommandCenter.
 
-### 6.1 Build it in One AgentStudio
+### 6.1 Build it in OneAgentStudio
 
 1. In One CommandCenter, open **Build > Automation** and click its **Private** tab (it is there for people who may
    check agents in). Your own workspace opens, on the **Private** tab of the **Automation** page.
 2. Press **Create ▾** and choose **Agent**. In the **New agent** dialog type the name `Hello` and press **Create and
-   edit**. The agent opens in One AgentStudio's editor. (On the **Public** tab, **Create ▾ > New agent** does steps 1
+   edit**. The agent opens in OneAgentStudio's editor. (On the **Public** tab, **Create ▾ > New agent** does steps 1
    and 2 at once.)
 3. In the **Details** panel on the right, open the **Variables** tab and press **New**. Name the variable `name`, keep
    **Type** String, tick **Use as input** and press **Create variable**. Add a second one, `greeting`, type String,

@@ -113,7 +113,7 @@ Commands:
                        (vendor build).
   server             Start everything on this computer: One CommandCenter, One
                        AgentStudio (/studio) and a runner.
-  studio             Start One AgentStudio on its own (http://localhost:8710).
+  studio             Start OneAgentStudio on its own (http://localhost:8710).
   control-room       Start One CommandCenter (http://localhost:8720).
   reset-admin        Print a new one-time password for a user who forgot
                        theirs. Stop the server first.
@@ -313,7 +313,7 @@ Usage: ooa server [-h] [--no-agent] [--no-browser] [--agent-config=FILE]
                   [--agent-workspace=DIR] [--data=DIR] [--db-config=FILE]
                   [--db-password-env=VAR] [--db-url=URL] [--db-user=NAME]
                   [--host=HOST] [--port=N] [--workspace=DIR]
-Start everything on this computer: One CommandCenter, One AgentStudio (/studio)
+Start everything on this computer: One CommandCenter, OneAgentStudio (/studio)
 and a runner.
       --agent-config=FILE   The local runner's registration (default: one file
                               per data folder in ~/.ooa-agent).
@@ -333,7 +333,7 @@ and a runner.
       --no-agent            Do not start the runner for this computer.
       --no-browser          Do not open the browser.
       --port=N              The port (default 8720).
-      --workspace=DIR       One AgentStudio's workspace (default: ~/OOA
+      --workspace=DIR       OneAgentStudio's workspace (default: ~/OOA
                               Workspace).
 ```
 
@@ -341,7 +341,7 @@ and a runner.
 
 ```text
 Usage: ooa studio [-h] [--port=N] [--workspace=DIR]
-Start One AgentStudio on its own (http://localhost:8710).
+Start OneAgentStudio on its own (http://localhost:8710).
   -h, --help            Show this help.
       --port=N          The port (default 8710).
       --workspace=DIR   The workspace (default: ~/OOA Workspace).

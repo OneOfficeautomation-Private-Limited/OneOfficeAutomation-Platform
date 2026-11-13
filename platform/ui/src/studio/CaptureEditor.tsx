@@ -337,7 +337,7 @@ export const browserOf = (w: OpenWindow) => w.browser || (/^msedge$/i.test(w.pro
  * window, where only that application's clicks and typing are recorded; or a new page at an address. A browser
  * window Studio cannot reach says how to connect it, and offers a new recording window or desktop recording instead.
  */
-export function WhereDialog({ mode, tabs: given, url, onChoose, onClose, onRefresh, ownTitle = "One AgentStudio" }:
+export function WhereDialog({ mode, tabs: given, url, onChoose, onClose, onRefresh, ownTitle = "OneAgentStudio" }:
   { mode: "capture" | "record"; tabs: OpenWindow[]; url?: string; onChoose: (c: WhereChoice) => void; onClose: () => void;
     onRefresh?: () => Promise<OpenWindow[]>; ownTitle?: string }) {
   const [all, setAll] = useState(given);
@@ -399,14 +399,14 @@ export function WhereDialog({ mode, tabs: given, url, onChoose, onClose, onRefre
           <div className="st-where-head">Browser windows ({browserWindows.length})</div>
           {browserWindows.map((w, i) => <button key={i} type="button" className={`st-where${unreached === w ? " is-on" : ""}`} aria-pressed={unreached === w}
             onClick={() => setUnreached(w)}>
-            <strong>{w.title}</strong><span>{BROWSER_NAMES[browserOf(w)]}{reachedBrowsers.has(browserOf(w)) ? " · its tabs are listed above" : " · not connected to One AgentStudio"}</span></button>)}
+            <strong>{w.title}</strong><span>{BROWSER_NAMES[browserOf(w)]}{reachedBrowsers.has(browserOf(w)) ? " · its tabs are listed above" : " · not connected to OneAgentStudio"}</span></button>)}
         </div>}
         {!tabs.length && !programs.length && !browserWindows.length && <p className="st-muted">{mode === "record"
           ? "No open window was found. Open the application or page first and press Refresh, or open a new page."
           : "No open browser window: open a new page."}</p>}
       </div>
       {unreached && <div className="st-where-help" role="status">
-        <p><strong>{BROWSER_NAMES[ub]} is not connected to One AgentStudio</strong>, so its pages cannot be recorded as web steps.
+        <p><strong>{BROWSER_NAMES[ub]} is not connected to OneAgentStudio</strong>, so its pages cannot be recorded as web steps.
           Add the ONEOFFICEAUTOMATION Browser Connector to {BROWSER_NAMES[ub]} and press Refresh: its tabs then appear above.</p>
         <div className="st-cr-acts">
           {ub !== "firefox" && <Button kind="primary" onClick={() => { setBrowser(ub === "chrome" ? "chrome" : "edge"); setAsking(true); setUnreached(null); }}>Record a page in a new {BROWSER_NAMES[ub]} window…</Button>}

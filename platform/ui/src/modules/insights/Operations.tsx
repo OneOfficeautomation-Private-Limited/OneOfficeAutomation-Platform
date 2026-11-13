@@ -90,7 +90,7 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
   /** An agent's row: its statistics, its runs, and the agent in Automation. */
   const agentMenu = (path: string) => [{ key: "stats", label: "Statistics", onSelect: () => setStats(path) },
     { key: "runs", label: "Its runs in Agent Activity", onSelect: () => { location.hash = activity({ bot: path }); } },
-    ...(can("repo.view") ? [{ key: "open", label: "Open in Automation", onSelect: () => { location.hash = "#/automation?q=" + encodeURIComponent(name(path)); } }] : [])];
+    ...(can("repo.view") ? [{ key: "open", label: "Open in Agents", onSelect: () => { location.hash = "#/automation?q=" + encodeURIComponent(name(path)); } }] : [])];
   const agentCells = (path: string) => <><td><span className="cc-aico" aria-hidden="true">A</span>{name(path)}</td><td>{folderOf(path)}</td></>;
   const lists: [ListTab, string, number, boolean][] = o ? [["failed", "Why runs failed", o.failure_reasons?.length ?? 0, true], ["most_failed", "Agents that fail most", o.most_failed.length, true],
     ["most_run", "Agents run most", o.most_run.length, false], ["longest", "Take longest", o.longest.length, false], ["by_runner", "Runners", o.by_runner.length, false],

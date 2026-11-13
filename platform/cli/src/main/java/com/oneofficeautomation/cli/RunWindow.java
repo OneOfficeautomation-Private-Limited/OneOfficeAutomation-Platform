@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
- * The run window shown on the desktop while an agent started from One AgentStudio runs: always on top of the
+ * The run window shown on the desktop while an agent started from OneAgentStudio runs: always on top of the
  * applications the agent works in, without taking the keyboard focus from them. It shows the agent, the line
  * being run (its line number, as on the canvas) with its action, the elapsed time and progress, and
  * Pause/Resume and Stop. It closes a few seconds after the run ends.

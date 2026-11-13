@@ -14,9 +14,9 @@ describe("the UI module registry", () => {
     expect(MENU_SECTIONS.map((s) => s.id + ": " + s.pages.map((p) => p.id).join(" "))).toEqual([
       "build: automation templates apitasks tests ideas apps",
       "manage: activity inbox devices locks schedules triggers queues workflows globals data savedconn credentials toolkits",
-      "insights: insights alerts alert-rules operations business runner-status upcoming",
+      "ai: chat connections skills docautomation knowledge governance",   // 13 Nov 2026 round 3: AI after Manage, Agent Insights last
       "administration: users roles teams policies audit events licenses settings",
-      "ai: chat connections skills docautomation knowledge governance",
+      "insights: insights alerts alert-rules operations business runner-status upcoming",
     ]);
   });
 
@@ -30,7 +30,7 @@ describe("the UI module registry", () => {
 
   it("without a module its pages are simply not there, and a section with no pages is hidden", () => {
     const without = withModules(KERNEL_SECTIONS, UI_MODULES.filter((m) => m.id !== "insights" && m.id !== "orchestration"));
-    expect(without.map((s) => s.id)).toEqual(["build", "manage", "administration", "ai"]);
+    expect(without.map((s) => s.id)).toEqual(["build", "manage", "ai", "administration"]);
     expect(without.find((s) => s.id === "manage")!.pages.map((p) => p.id)).not.toContain("workflows");
   });
 

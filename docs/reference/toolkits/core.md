@@ -166,7 +166,7 @@ A named group of steps that keeps the agent tidy; it changes nothing when the ag
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Title | `title` | Text | No |  | Main | Group title shown in One AgentStudio. |
+| Title | `title` | Text | No |  | Main | Group title shown in OneAgentStudio. |
 
 *Time limit 60 s.*
 
@@ -258,7 +258,7 @@ No settings.
 
 `core/pause` (action)
 
-Stop and wait until someone presses Resume in One AgentStudio or One CommandCenter, or until the time limit.
+Stop and wait until someone presses Resume in OneAgentStudio or One CommandCenter, or until the time limit.
 
 **Settings**
 

@@ -249,6 +249,6 @@ At check-in, the repository's code analysis policy is applied as well ([document
 - [02 Toolkits and actions](02-toolkits-and-actions.md)
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
-- [14 One AgentStudio](14-studio-features.md)
+- [14 OneAgentStudio](14-studio-features.md)
 - [Command catalogue](../COMMAND_CATALOG.md)
 - [Architecture](../architecture/README.md)

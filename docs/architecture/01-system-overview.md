@@ -38,7 +38,7 @@ database, in containers, or as a multi-tenant service in several regions.
 
 | Role | What they do | Main part they use |
 | --- | --- | --- |
-| Agent builder (developer, citizen developer) | Designs, tests and debugs agents, forms, workflows and Prompt Skills; checks them in | One AgentStudio |
+| Agent builder (developer, citizen developer) | Designs, tests and debugs agents, forms, workflows and Prompt Skills; checks them in | OneAgentStudio |
 | Agent operator | Starts agents, watches runs, works on work-queue items | One CommandCenter console, desktop assistant |
 | Business user | Completes human tasks and approvals in workflows; starts agents they are allowed to run | Task inbox, desktop assistant |
 | Administrator | Manages people, roles, runners, vault, settings, licences, toolkits, model connections | One CommandCenter console, `ooa` command line |
@@ -66,7 +66,7 @@ database, in containers, or as a multi-tenant service in several regions.
 
 ```mermaid
 flowchart LR
-    builder([Agent builder]) --> studio[One AgentStudio]
+    builder([Agent builder]) --> studio[OneAgentStudio]
     operator([Operator / business user]) --> console[One CommandCenter console]
     operator --> tray[Desktop assistant]
     admin([Administrator]) --> console
@@ -91,7 +91,7 @@ flowchart LR
 | Part | Module | Purpose |
 | --- | --- | --- |
 | **One CommandCenter** | `control-room` | The shared server. Holds the agent repository with versions and the live production version, users, roles, teams, the vault, runners and pools, schedules, triggers, work queues, workflows and the task inbox, Agent APIs, dashboards, the audit trail and AI governance. Serves the web console (`cr.js`) and the REST API under `/api/`. |
-| **One AgentStudio** | `cli` (`StudioServer`, `studio.js`) | The designer. Edits agents and other items in a private folder (My Workspace), validates them, runs and debugs them on the same computer, records and captures web and desktop elements, and checks items in and out of One CommandCenter. Answers only browsers on the same computer. |
+| **OneAgentStudio** | `cli` (`StudioServer`, `studio.js`) | The designer. Edits agents and other items in a private folder (My Workspace), validates them, runs and debugs them on the same computer, records and captures web and desktop elements, and checks items in and out of One CommandCenter. Answers only browsers on the same computer. |
 | **OneRunner** | `agent` (`Agent`, `RunWorker`) | The worker on each machine. Registers once with a one-time key, sends a heartbeat every 10 seconds, waits for work with a long poll, and runs each job in its own Java process. Also watches the machine for runner-side triggers. |
 | **Runner engine** | `runner` (`Runner`) | The interpreter for an agent definition. Used by Studio, by every run worker and, for serverless Agent APIs, inside One CommandCenter. |
 | **Toolkits** | `packages` and the optional `packages-*` modules | 79 toolkits with 1,057 actions, 47 conditions and 12 loop types, the AWS EC2 toolkit (`ooa.aws_ec2`) included. The [toolkit reference](../reference/toolkits/README.md) lists them all. |

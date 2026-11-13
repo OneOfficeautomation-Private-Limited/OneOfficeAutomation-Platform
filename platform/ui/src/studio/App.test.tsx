@@ -200,9 +200,9 @@ describe("new Studio", () => {
   it("shows One CommandCenter menu in five sections by task, with links to One CommandCenter pages", async () => {
     render(<App api={fakeServer().api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    for (const s of ["Build", "Manage", "Operational insights", "Administration", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
+    for (const s of ["Build", "Manage", "Agent Insights", "Administration", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("searchbox", { name: "Find a page" })).toBeTruthy();   // the console's menu: find a page, one section open
-    expect(within(menu).getByRole("button", { name: "Automation" }).getAttribute("aria-current")).toBe("page");
+    expect(within(menu).getByRole("button", { name: "Agents" }).getAttribute("aria-current")).toBe("page");
     // improvement list 13 Nov 2026, item 3: the same entries as the console (BUILD: Automation, Ideas, Apps); one section open at a time (round 2, M1)
     fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));
     await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/next/#/queues"));   // the console, not the classic one
@@ -213,8 +213,8 @@ describe("new Studio", () => {
 
   it("opens the Help panel beside the page from the i after a title, and closes it with its close button", async () => {
     render(<App api={fakeServer().api} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Help: Automation (Private)" }));
-    const help = screen.getByRole("complementary", { name: "Help: Automation (Private)" });
+    fireEvent.click(await screen.findByRole("button", { name: "Help: Agents (Private)" }));
+    const help = screen.getByRole("complementary", { name: "Help: Agents (Private)" });
     expect(within(help).getByText("Create")).toBeTruthy();
     fireEvent.click(within(help).getByRole("button", { name: "Close the help" }));
     expect(screen.queryByRole("complementary", { name: /^Help/ })).toBeNull();
@@ -264,7 +264,7 @@ describe("new Studio", () => {
     render(<App api={api} />);
     const tree = await screen.findByRole("tree", { name: "Folders" });
     fireEvent.click(await within(tree).findByText("Finance"));
-    expect(screen.getByRole("heading", { name: "Automation" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Agents" })).toBeTruthy();
 
     // the Create menu (opened from the keyboard here) offers the types, then the dialog asks only the name
     const create = screen.getByRole("button", { name: "Create ▾" });
@@ -277,8 +277,8 @@ describe("new Studio", () => {
     const tree2 = within(dialog).getByRole("tree", { name: "Save in" });
     const chosen = () => within(tree2).getAllByRole("treeitem").filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.querySelector(".st-tree-name")!.textContent);
     expect(chosen()).toEqual(["Finance"]);
-    fireEvent.click(within(tree2).getByRole("button", { name: "Automation" }));
-    expect(chosen()).toEqual(["Automation"]);
+    fireEvent.click(within(tree2).getByRole("button", { name: "Agents" }));
+    expect(chosen()).toEqual(["Agents"]);
     fireEvent.click(within(tree2).getByRole("button", { name: "Finance" }));
     expect(chosen()).toEqual(["Finance"]);
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Invoice intake Germany" } });
@@ -329,11 +329,11 @@ describe("new Studio", () => {
     expect(screen.getAllByRole("button", { name: "Close Invoice intake" })).toHaveLength(1);
   });
 
-  it("opens an agent in a tab with numbered steps, properties and variables, and Close returns to Automation", async () => {
+  it("opens an agent in a tab with numbered steps, properties and variables, and Close returns to Agents", async () => {
     render(<App api={fakeServer().api} />);
     const search = await screen.findByLabelText("Search items");
     const brand = () => document.querySelector(".st-brand")?.textContent;
-    expect([brand(), document.title]).toEqual(["One CommandCenter", "One CommandCenter"]);   // AA's one Control Room: only the editor is One AgentStudio
+    expect([brand(), document.title]).toEqual(["One CommandCenter", "One CommandCenter"]);   // AA's one Control Room: only the editor is OneAgentStudio
     fireEvent.change(search, { target: { value: "intake" } });
     fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
 
@@ -355,19 +355,19 @@ describe("new Studio", () => {
     fireEvent.blur(screen.getByLabelText("Description"));
     expect(await screen.findByText("Unsaved")).toBeTruthy();
 
-    expect([brand(), document.title]).toEqual(["One AgentStudio", "Invoice intake · One AgentStudio"]);
+    expect([brand(), document.title]).toEqual(["OneAgentStudio", "Invoice intake · OneAgentStudio"]);
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Don't save" }));   // the id and description changed
-    expect(await screen.findByRole("heading", { name: "Automation" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Agents" })).toBeTruthy();
     expect(brand()).toBe("One CommandCenter");
   });
 
-  it("opens Create > Agent on the Private tab when One CommandCenter's Automation asks for a new agent (#private/new)", async () => {
+  it("opens Create > Agent on the Private tab when One CommandCenter's Agents asks for a new agent (#private/new)", async () => {
     location.hash = "#private/new";
     render(<App api={fakeServer().api} />);
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
-    expect(within(dialog).getByRole("treeitem", { selected: true }).textContent).toContain("Automation");   // the top folder is chosen (13 Nov 2026: called Automation on both tabs)
+    expect(within(dialog).getByRole("treeitem", { selected: true }).textContent).toContain("Agents");   // the top folder is chosen (13 Nov 2026: called Automation on both tabs)
     expect(location.hash).toBe("");
   });
 
@@ -381,7 +381,7 @@ describe("new Studio", () => {
     }) as unknown as typeof fetch;
     try {
       render(<App />);
-      await screen.findByRole("heading", { name: "Automation" });
+      await screen.findByRole("heading", { name: "Agents" });
       await new Promise((r) => setTimeout(r, 200));
       expect(seen.filter((u) => u.endsWith("/info")).length).toBe(1);
       expect(seen.filter((u) => u.endsWith("/packages")).length).toBe(1);
@@ -392,11 +392,11 @@ describe("new Studio", () => {
     const { api } = fakeServer();
     const { unmount } = render(<App api={api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    expect(within(menu).getByRole("button", { name: "Automation" })).toBeTruthy();   // the page on screen opens its section (Build)
+    expect(within(menu).getByRole("button", { name: "Agents" })).toBeTruthy();   // the page on screen opens its section (Build)
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));   // opening another closes it (round 2, M1)
     expect(within(menu).getByRole("link", { name: "Work queues" })).toBeTruthy();
-    expect(within(menu).queryByRole("button", { name: "Automation" })).toBeNull();
+    expect(within(menu).queryByRole("button", { name: "Agents" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));   // and a heading folds its own
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "Collapse menu" }));
@@ -517,7 +517,7 @@ describe("new Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     const ask = await screen.findByRole("dialog", { name: "Save changes to Invoice intake?" });
     fireEvent.click(within(ask).getByRole("button", { name: "Don't save" }));
-    expect(await screen.findByRole("heading", { name: "Automation" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Agents" })).toBeTruthy();
   });
 
   /** Saves and returns the agent as the server received it. */
@@ -1063,7 +1063,7 @@ describe("new Studio", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));   // opens it in a tab
     await screen.findByRole("region", { name: "Agent steps" });
     fireEvent.click(screen.getByRole("button", { name: "Expand menu" }));   // the menu folds while an agent is open
-    fireEvent.click(screen.getByRole("button", { name: "Automation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Agents" }));
     await goToFolder("Finance", "Invoices");
     fireEvent.contextMenu(await waitFor(() => row("Invoice intake")));
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Rename/ }));
@@ -1708,7 +1708,7 @@ describe("new Studio", () => {
     await act(async () => { fireEvent.submit(form); });
     expect(created).toContainEqual({ connect: "http://cc.example:8720", user: "ravi" });
     // laid out as Private: the folders on the left, a folder's sub-folders and agents on the right
-    expect(within(await screen.findByRole("tree", { name: "Folders" })).getByText("Automation")).toBeTruthy();   // one top folder name on both tabs
+    expect(within(await screen.findByRole("tree", { name: "Folders" })).getByText("Agents")).toBeTruthy();   // one top folder name on both tabs
     expect(screen.getByText("Signed in as ravi").getAttribute("title")).toBe("http://cc.example:8720");   // the address only on hover
     fireEvent.click(await within(await screen.findByRole("tree", { name: "Folders" })).findByText("Finance"));   // 13 Nov 2026: folders are chosen in the tree
     const row = (await screen.findByText("Invoice intake")).closest("tr")!;
@@ -1886,7 +1886,7 @@ describe("new Studio", () => {
       { source: "browser", title: "Search - Firefox tab", url: "https://www.example.com/search", browser: "firefox", tab_id: 1, connector: true },
       { source: "browser", title: "Google", url: "https://www.google.com/", browser: "edge", endpoint: "http://127.0.0.1:9222" },
       { source: "application", title: "Untitled - Notepad", process: "notepad", browser: "" },
-      { source: "application", title: "One AgentStudio - Google Chrome", process: "chrome", browser: "chrome" },
+      { source: "application", title: "OneAgentStudio - Google Chrome", process: "chrome", browser: "chrome" },
       { source: "application", title: "Guide.pdf - Personal - Microsoft Edge", process: "msedge", browser: "edge" },
       { source: "application", title: "Google - Microsoft​ Edge", process: "msedge", browser: "edge" },   // the agents' window: its tab is listed
       { source: "application", title: "Sticky Notes", process: "ApplicationFrameHost", browser: "" },   // a Store app's frame and its program
@@ -1905,7 +1905,7 @@ describe("new Studio", () => {
     expect(within(within(where).getByRole("group", { name: "Browser windows" })).getAllByRole("button")).toHaveLength(1);   // the agents' window is not offered twice
     // a browser Studio cannot reach: how to connect it, or a new recording window, or record it as an application
     fireEvent.click(within(within(where).getByRole("group", { name: "Browser windows" })).getByRole("button", { name: /Guide.pdf/ }));
-    expect(within(where).getByRole("status").textContent).toContain("Microsoft Edge is not connected to One AgentStudio");
+    expect(within(where).getByRole("status").textContent).toContain("Microsoft Edge is not connected to OneAgentStudio");
     fireEvent.click(within(where).getByRole("button", { name: "Record a page in a new Microsoft Edge window…" }));
     expect((within(where).getByLabelText("Browser") as HTMLSelectElement).value).toBe("edge");
     // Refresh reads the windows again

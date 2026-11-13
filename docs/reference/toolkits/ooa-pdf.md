@@ -298,7 +298,7 @@ Read the text of a scanned PDF (pages that are pictures, with no text layer) wit
 
 `ooa.pdf/render_page` (action)
 
-Render one page as a PNG picture, returned as data (data: URI) with the page size in points; used by One AgentStudio to draw an area to read, and to show a page in forms or emails.
+Render one page as a PNG picture, returned as data (data: URI) with the page size in points; used by OneAgentStudio to draw an area to read, and to show a page in forms or emails.
 
 **Settings**
 

@@ -138,7 +138,7 @@ final class ControlRoomLink {
 
     /**
      * The vault credentials the signed-in person may use, as folder (locker), credential and attribute: never a value.
-     * For a step's Credential field in One AgentStudio; none when not connected.
+     * For a step's Credential field in OneAgentStudio; none when not connected.
      */
     @SuppressWarnings("unchecked")
     List<Map<String, Object>> credentials() {

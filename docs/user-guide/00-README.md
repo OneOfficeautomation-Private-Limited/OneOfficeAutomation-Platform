@@ -23,7 +23,7 @@ ONEOFFICEAUTOMATION has three parts:
 
 | Part | What it is | Who uses it |
 | --- | --- | --- |
-| **One AgentStudio** | The designer. You build agents (automations), forms, workflows, Prompt Skills and document intelligence items in your own private workspace, and test them on your computer. | Builders |
+| **OneAgentStudio** | The designer. You build agents (automations), forms, workflows, Prompt Skills and document intelligence items in your own private workspace, and test them on your computer. | Builders |
 | **One CommandCenter** | The web console and server. It keeps the shared agent repository, runs agents on runners, holds schedules, triggers, work queues, the vault, users, licences and the audit trail. | Operators, administrators, business users, builders |
 | **OneRunner** | The program on each computer that runs agents. It registers with One CommandCenter, takes work and reports back every step. | Runner owners (and, indirectly, everyone) |
 
@@ -39,7 +39,7 @@ recorded in the **Audit Trail**.
 | --- | --- | --- | --- |
 | 00 | This page | Everyone | The list of guides and where to start |
 | 01 | [Getting started](01-getting-started.md) | Everyone | First install on one computer, first sign-in, the menu, building and running a first agent end to end |
-| 02 | [Studio basics](02-studio-basics.md) | Builders | One AgentStudio's screen, workspace, explorer, actions, variables |
+| 02 | [Studio basics](02-studio-basics.md) | Builders | OneAgentStudio's screen, workspace, explorer, actions, variables |
 | 03 | [Building agents in Studio](03-studio-building-agents.md) | Builders | Steps, conditions, loops, error handling, inputs and outputs, good practice |
 | 04 | [Running and debugging in Studio](04-studio-running-and-debugging.md) | Builders | Run, Debug, breakpoints, the run console, problems |
 | 05 | [Operator's guide](05-operators-guide.md) | Operators | Agent Activity, running and deploying agents, schedules, triggers, work queues, workflows, Operational Insights (Overview, Alerts, Operations, Business: agents' dashboards, value, dashboards e-mailed on a schedule), handling failures |
