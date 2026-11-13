@@ -148,14 +148,19 @@ Second-site preparation:
 1. Fail the database over to the second site (or restore the latest backup there) so it can be written.
 2. Make the second site's copy of the repository folder the live one (and point `repo_files_folder` at it if the
    path differs; that setting is in the database).
-3. Run `ooa check --data DIR` on a second-site node. Besides the computer, it confirms that the vault key opens the
-   stored credentials and that every repository file and toolkit jar the database lists is in the folder. Fix every
-   FAIL first.
-4. Start the second-site nodes; point the DNS name or the load balancer at them. One node leads within about 30 to 40
-   seconds.
-5. Runners reconnect through the DNS name by themselves. A runner registered with a server's own name needs
+3. Run `ooa dr check --data DIR` on a second-site node (and `ooa check` for the computer itself). It shows, as PASS,
+   WARN or FAIL with what to do: the database here is writable (no longer a read-only replica), the schema is this
+   release's, the vault key decrypts the stored values, which node still holds the leader lease and which nodes are
+   running, every repository file the database lists is in this site's folder, the newest backup, and the address.
+   Fix every FAIL first; `ooa dr status` shows the same without the exit code.
+4. Run `ooa dr promote --data DIR --public-url https://ooa-dr.company.com --yes` (added 14 Nov 2026). It refuses while
+   a check fails; otherwise it ends the failed site's leader lease (so a node here leads as soon as it starts instead of
+   waiting for the lease to run out), sets the public address if given, and writes a record to
+   `DIR\dr\promote-<time>.txt`. Without `--yes` it only shows the checks.
+5. Start the second-site nodes; point the DNS name or the load balancer at them.
+6. Runners reconnect through the DNS name by themselves. A runner registered with a server's own name needs
    `ooa agent move --url https://ooa.company.com`.
-6. What happens to work:
+7. What happens to work:
    - a run that was going finishes if its runner reaches the second site; otherwise it fails with `AGENT.LOST` once
      its runner has not reported for two minutes;
    - serverless runs fail after their time limit;
@@ -166,7 +171,7 @@ Second-site preparation:
 
 1. Re-establish replication from the second site back to the main site (database and repository folder).
 2. In a planned window: stop the second-site nodes, fail the database back, make the main site's folder live.
-3. `ooa check` on a main-site node, start the main nodes, point the DNS name back.
+3. `ooa dr check` and `ooa dr promote --yes` on a main-site node, start the main nodes, point the DNS name back.
 4. Re-protect: the second site becomes the standby again.
 
 If the replica cannot be used, restore the latest built-in backup with `ooa backup restore` (same key) at the site

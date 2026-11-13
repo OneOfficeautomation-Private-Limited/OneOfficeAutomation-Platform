@@ -164,6 +164,12 @@ final class FullCommands {
         database(c.command("vault rekey", "Re-encrypt every stored secret with a new master key. Stop the server first.", a -> Ooa.vaultRekey(a.o()))
             .required("--new-key-env", "VAR", "The environment variable with the new key (32 random bytes, Base64)."));
 
+        c.group("dr", "Disaster recovery: check a second site and make it the active one (docs/infrastructure/07-backup-restore-and-disaster-recovery.md).");
+        dr(c, "status", "This site's database, leader, nodes, repository files, last backup and address.");
+        dr(c, "check", "The same as checks with what to do; exit code 1 when one fails.");
+        dr(c, "promote", "After the DBA failed the database over here: end the old leader lease, set the address, write a record.")
+            .opt("--public-url", "URL", "The address people and runners use at this site.").flag("--yes", "Go ahead (without it, only the checks are shown).");
+
         c.group("backup", "Back up and restore One CommandCenter.");
         database(c.command("backup now", "Make a backup into the backup folder.", a -> BackupCommand.run("now", a.o(), null)));
         database(c.command("backup list", "List the backups, newest first.", a -> BackupCommand.run("list", a.o(), null)));
@@ -241,6 +247,11 @@ final class FullCommands {
 
     static OoaCli.Cmd db(OoaCli c, String verb, String description) {
         return c.command("db " + verb, description, a -> DbCommand.run(verb, a.o()))
+            .opt("--data", "DIR", DATA).opt("--config", "FILE", "The settings file (default DIR/config/ooa-db.properties).");
+    }
+
+    static OoaCli.Cmd dr(OoaCli c, String verb, String description) {
+        return c.command("dr " + verb, description, a -> DrCommand.run(verb, a.o()))
             .opt("--data", "DIR", DATA).opt("--config", "FILE", "The settings file (default DIR/config/ooa-db.properties).");
     }
 
