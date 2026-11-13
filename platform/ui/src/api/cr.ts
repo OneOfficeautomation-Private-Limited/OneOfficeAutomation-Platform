@@ -48,6 +48,13 @@ export type Alert = { id: string; rule_id: string; rule_name?: string; kind: Ale
 /** A feature module running in this One CommandCenter (Settings > This One CommandCenter). */
 export type ModuleInfo = { id: string; name: string; version: string; schema: number };
 
+/** My account (round 3, item 9). */
+export type MyProfile = { username: string; display_name: string; first_name?: string; last_name?: string; email?: string; created?: string; last_login?: string;
+  last_sign_in_from?: string; roles: string[]; permissions: string[]; teams: { name: string; lead: boolean }[]; license_seats: string[]; mfa_enabled: boolean;
+  sign_in: string; password_expires?: string };
+export type MySession = { id: string; created: string; expires: string; from: string; current: boolean };
+export type MyDevices = { default_runner: string | null; hint?: string;
+  runners: { id: string; name: string; computer?: string; platform?: string; version?: string; last_seen?: string; status: string; shared: boolean; default: boolean }[] };
 export type CrError = { code: string; message: string; hint?: string; suggestedFix?: string };
 /** A run of an agent, as the runs list gives it; a running run carries its progress. */
 export type Run = { id: string; bot_path: string; version?: number; device_id?: string; device_name?: string | null; status: string;
@@ -561,6 +568,11 @@ export class CrApi {
   }
   /** The person's own API keys (shown once when made), as the classic console's Your API keys. */
   async apiKeys() { return (await this.call<{ keys: ApiKey[] }>("GET", "apikeys")).keys; }
+  // My account (round 3, item 9): a person's own profile, where they are signed in, and their runners
+  myProfile() { return this.call<MyProfile>("GET", "me/profile"); }
+  async mySessions() { return (await this.call<{ sessions: MySession[] }>("GET", "me/sessions")).sessions; }
+  async endOtherSessions() { return (await this.call<{ ended: number }>("POST", "me/sessions/end-others", {})).ended; }
+  myDevices() { return this.call<MyDevices>("GET", "me/devices"); }
   createApiKey(name: string, days: number) { return this.call<{ name?: string; key: string }>("POST", "apikeys", { name, days }); }
   async revokeApiKey(id: string) { await this.call("DELETE", "apikeys/" + encodeURIComponent(id)); }
   // ---- Agent Templates: ready-made agents to install, share to the region, or load from a signed catalogue file ----

@@ -143,7 +143,7 @@ Every check-in is a new version. Only one version is **live in production** at a
 work queues and workflows always use it. A check-in changes the live version only when you tick **Make this the live
 version** (agents) or publish a workflow or form.
 
-In One CommandCenter (**Build > Automation**, click an agent, its **Versions** tab):
+In One CommandCenter (**Build > Agents**, click an agent, its **Versions** tab):
 
 - each version with its **Labels**, **Comment**, **By** and **When**; a **Live** tag marks the live one;
 - **Make live** makes an older or newer version live (or **Ask to make live**, when approval is on);
@@ -172,7 +172,7 @@ Until then, runs keep using the version that was live before.
 
 Workbooks, templates and lists that your agent opens must be on the runner too:
 
-1. In One CommandCenter, open **Build > Automation**, choose the folder, and in **Files** below its agents press
+1. In One CommandCenter, open **Build > Agents**, choose the folder, and in **Files** below its agents press
    **Upload a file** (up to 25 MB; uploading again makes a new version).
 2. The agent lists the files it needs (its `requires.files`, for example `Finance/Templates/invoice.xlsx`). Before each
    run, the runner places each file at the same path in its workspace, so the agent opens it by that path.

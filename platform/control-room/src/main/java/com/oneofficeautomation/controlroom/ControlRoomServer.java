@@ -676,6 +676,14 @@ public final class ControlRoomServer {
                 if (!m.equals("GET")) { notFound(ex); return; }
                 sendJson(ex, 200, helpLinks());
             }
+            // My account (round 3, item 9): a person's own profile, where they are signed in, and their runners
+            case "me" -> {
+                if (m.equals("GET") && route.equals("me/profile")) sendJson(ex, 200, cr.myAccount.profile(u));
+                else if (m.equals("GET") && route.equals("me/sessions")) sendJson(ex, 200, Map.of("sessions", cr.myAccount.sessions(u, token(ex))));
+                else if (m.equals("POST") && route.equals("me/sessions/end-others")) sendJson(ex, 200, Map.of("ended", cr.myAccount.signOutOthers(u, token(ex), ip)));
+                else if (m.equals("GET") && route.equals("me/devices")) sendJson(ex, 200, cr.myAccount.devices(u));
+                else notFound(ex);
+            }
             case "database" -> {
                 if (!m.equals("GET")) { notFound(ex); return; }
                 cr.require(u, "settings.manage", "see the database details");

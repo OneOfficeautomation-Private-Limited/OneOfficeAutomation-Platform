@@ -481,7 +481,7 @@ the runner's rights: trust only code you would install yourself.
 
 ## 10. The agent repository: folders, approvals, Git and policies
 
-The agent repository is the **Public** tab of **Build > Automation**; builders use it daily (see
+The agent repository is the **Public** tab of **Build > Agents**; builders use it daily (see
 [15 Publishing](15-publishing-to-command-center.md)). Administrator tasks:
 
 - **Folder permissions** (needs `repo.permissions`): choose a folder, press **Folder permissions**, add roles
@@ -611,6 +611,7 @@ test something (**Send a test e-mail** and the like) use the saved settings, so 
 | | Limits | **Largest upload** (25 MB by default; limits files sent inside requests, such as Excel work items or licences); **Work queue check interval** |
 | | Value of automation | **Minutes saved per successful run** (for agents without their own), **Cost of an hour of the manual work** and **Currency**, used by Home and **Business > Value** |
 | | Templates | **Template catalogue** (section 11) |
+| | Help links | **Documentation address** and **Video address**: where every Docs and Video link in the product points (each page, dialog and command adds its own path; documentation links add the version too). Point them at the company's own copy when this server has no internet. Empty: the product's own sites. Links for single pages can also be changed without a restart in `<data>/config/help-links.json` (see `docs/architecture/help-links.md`) |
 | **Sign-in and security** | | Sessions, passwords, lockout, the sign-in page, API keys, two-step sign-in, network and built-in roles (sections 3, 5 and 6) |
 | **Single sign-on** | | OpenID Connect, SAML 2.0, Active Directory or LDAP, groups to roles and SCIM provisioning (section 5) |
 | **Runner Machines** | Updates and secrets | **Update runners automatically**, **Give runners a new secret every** (days), **Remove temporary runners after** (hours without contact) |
@@ -697,7 +698,7 @@ workflow event is recorded and hash-chained.
   so deleting the newest records is found too.
 
 For a summary (who acted, sign-ins and failed sign-ins, what failed or was refused, the busiest day) open
-**Operational Insights > Operations > Audit**; its **Open in Audit Trail** brings you back here with the same filters.
+**Agent Insights > Operations > Audit**; its **Open in Audit Trail** brings you back here with the same filters.
 To keep a copy outside One CommandCenter, forward every entry to your SIEM by syslog or HTTPS (section 12).
 
 ### Event subscriptions: events and run logs to other systems

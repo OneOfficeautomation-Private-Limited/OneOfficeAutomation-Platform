@@ -103,7 +103,7 @@ recorded in the **Audit Trail**.
 | Agent | An automation: a list of steps that OneRunner carries out. Saved as a `.flow.json` file. |
 | Workflow | A chain of agents, people (forms, approvals) and decisions, run by One CommandCenter. Saved as `.process.json`. |
 | Form | A set of fields people fill in, used by workflows. Saved as `.form.json`. |
-| Agent repository | One CommandCenter's shared store of agents, with every version: the **Public** tab of **Build > Automation**. Your own workspace (the **Private** tab) is private; the repository is shared. |
+| Agent repository | One CommandCenter's shared store of agents, with every version: the **Public** tab of **Build > Agents**. Your own workspace (the **Private** tab) is private; the repository is shared. |
 | Live production version | The version of an agent that runs, schedules, triggers, work queues and workflows use. |
 | Runner | A computer with OneRunner registered to One CommandCenter. |
 | Runner pool | A named group of runners; work sent to a pool goes to its least busy online runner. |

@@ -189,6 +189,12 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "repo/dependencies") return ok({ path: "Finance/Invoice intake.flow.json", agents: [{ bot_id: "pdf-1", path: "Shared/Read PDF.flow.json", found: true }], called_by: [], toolkits: ["ooa.excel"] });
     if (route === "repo/production") return ok({ production_request: { id: "q2" } });
     if (route === "runs" && init.method === "POST") return body?.run_as_users ? ok({ started: 1, runs: [{ run_as: "admin", run_id: "r10" }] }) : ok({ run_id: "r9", version: 3 });
+    if (route === "me/profile") return ok({ username: "admin", display_name: "Asha Admin", email: "asha@example.com", roles: ["admin"], permissions: ["users.manage", "runs.view"],
+      teams: [{ name: "Finance", lead: true }], license_seats: ["developer"], mfa_enabled: false, sign_in: "password", last_login: "2026-11-13T08:00:00Z", last_sign_in_from: "10.0.0.5" });
+    if (route === "me/sessions") return ok({ sessions: [{ id: "a1", created: "2026-11-13T08:00:00Z", expires: "2026-11-13T20:00:00Z", from: "10.0.0.5", current: true },
+      { id: "b2", created: "2026-11-12T08:00:00Z", expires: "2026-11-13T18:00:00Z", from: "10.0.0.9", current: false }] });
+    if (route === "me/sessions/end-others") return ok({ ended: 1 });
+    if (route === "me/devices") return ok({ default_runner: "d1", hint: "Your last run stopped because PC-1 stopped reporting.", runners: [{ id: "d1", name: "PC-1", computer: "pc-1", platform: "Windows 11", version: "0.2.0", last_seen: "2026-11-13T08:00:00Z", status: "offline", shared: false, default: true }] });
     if (route === "apikeys" && (init.method ?? "GET") === "GET") return ok({ keys: [{ id: "k1", name: "ERP sync", created: "2026-11-01T08:00:00Z", expires: null, last_used: null }] });
     if (route === "apikeys" && init.method === "POST") return ok({ name: body.name, key: "ooa_k_shown_once" });
     if (route.startsWith("apikeys/") && init.method === "DELETE") return ok({});
@@ -489,15 +495,31 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(await screen.findByRole("menu")).queryByRole("menuitem", { name: /^Classic console/ })).toBeNull();   // one console: the classic one was removed (13 Nov 2026)
   });
 
-  it("keeps the person's own API keys, password and two-step sign-in in Your account (moved from the classic console, 13 Nov 2026)", async () => {
+  it("shows My account and My devices from the account icon, as AA's user menu (round 3, item 9); API keys and the password open from it", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
     const account = await screen.findByRole("button", { name: /^Account: / });
     fireEvent.keyDown(account, { key: "Enter" });
     const menu = await screen.findByRole("menu");
-    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent?.split(/(?=[A-Z][a-z]+ [a-z])/)[0])).toBeTruthy();
-    expect(within(menu).getByRole("menuitem", { name: /^Change password/ })).toBeTruthy();
-    fireEvent.click(within(menu).getByRole("menuitem", { name: /^Your API keys/ }));
+    const items = within(menu).getAllByRole("menuitem").map((i) => i.textContent ?? "");
+    expect(items.length).toBe(3);
+    ["My account", "My devices", "Sign out"].forEach((l, n) => expect(items[n].startsWith(l)).toBe(true));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /^My account/ }));
+    const dlg = await screen.findByRole("dialog", { name: "My account" });
+    expect(await within(dlg).findByText("asha@example.com")).toBeTruthy();
+    expect(within(dlg).getByText("Finance (lead)")).toBeTruthy();
+    expect(within(dlg).getByText("Developer")).toBeTruthy();   // the licence seat
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Sign out everywhere else" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "me/sessions/end-others" }));
+    expect(await within(dlg).findByText("Signed out 1 other session.")).toBeTruthy();
+    fireEvent.mouseDown(within(dlg).getByRole("tab", { name: "My devices" }));
+    expect(await within(dlg).findByText("PC-1")).toBeTruthy();
+    expect(within(dlg).getByText(/stopped reporting/)).toBeTruthy();
+    expect(within(dlg).getByText("Your default runner")).toBeTruthy();
+    fireEvent.mouseDown(within(dlg).getByRole("tab", { name: "My profile" }));
+    expect(await within(dlg).findByRole("button", { name: "Change password" })).toBeTruthy();
+    fireEvent.click(within(dlg).getByRole("button", { name: "Your API keys" }));
+
     const keys = await screen.findByRole("dialog", { name: "Your API keys" });
     expect(await within(keys).findByText("ERP sync")).toBeTruthy();
     fireEvent.change(within(keys).getByLabelText("Name"), { target: { value: "Nightly" } });

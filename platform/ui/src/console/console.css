@@ -913,3 +913,10 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
 .cc-app table td.cc-clip.cc-fill { max-width: 0; width: 100%; min-width: 140px; }
 .cc-app table th.cc-fill { width: 100%; }
 .cc-app table td.cc-clip.cc-cap { max-width: 150px; }
+/* round 3, item 9: My account */
+.cc-my-dl { display: grid; grid-template-columns: 190px 1fr; gap: 6px 12px; margin: 10px 0; }
+.cc-my-dl dt { color: var(--ui-text-2); }
+.cc-my-dl dd { margin: 0; }
+.cc-my-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
+.cc-my-h { margin: 6px 0; font-size: 14px; }
+.cc-my-note { margin-top: 10px; font-size: 12px; }

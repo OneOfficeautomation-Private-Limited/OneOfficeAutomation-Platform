@@ -173,15 +173,15 @@ password.
 
 ### The top bar
 
-- **One CommandCenter**, then the environment name when your administrator has set one (for example **Production**
-  in red).
-- Where you are: the section and the page, for example **Operational insights › Business**. Click the section to go
-  to its first page.
+- **☰** folds the menu on the left to icons, and opens it again.
+- The company logo, then the environment name when your administrator has set one (for example **Production** in red).
+- Where you are: the section and the page, for example **Agent Insights › Business**. Click the section to go to its
+  first page.
 - **Search pages and agents** (Ctrl+K): type part of a page's or an agent's name, or paste a run id to open that run.
+- **OneOfficeAutomation**, in the middle (it hides on narrow windows).
 - The bell shows how many alerts are open; click it to open **Alerts**.
 - **Help** (the question mark): **Keyboard shortcuts**.
-- Your account: **Phone notifications**, **Your API keys**, **Change password**, **Turn on two-step sign-in** (until it
-  is on) and **Sign out**.
+- Your account (the person icon): **My account**, **My devices** and **Sign out** (see [My account](#my-account)).
 
 Banners can appear under the top bar: an administrator's **announcement** (for example planned maintenance), a
 warning that your password must be changed soon, and, for administrators, the **licence banner** (evaluation days
@@ -191,28 +191,43 @@ left, a licence about to expire).
 
 The menu has **Home** and five sections, each a row with its icon and name. Click a section to open it; one section is
 open at a time, so the whole menu fits on the screen, and the section of the page you are on opens by itself. Type in
-**Find a page** at the top to search all pages; press Enter to open the first match. **Collapse menu** at the bottom
-makes the menu narrow (icons only) or full again; when it is narrow, point at (or click) a section's icon to see its
-pages and open one. The menu is the same in OneAgentStudio.
+**Find a page** at the top to search all pages; press Enter to open the first match. **☰** on the top bar makes the menu
+narrow (icons only) or full again; when it is narrow, point at (or click) a section's icon to see its pages and open
+one. Drag the menu's edge to make it wider or narrower. The menu is the same in OneAgentStudio and Document Automation.
 
 | Section | Pages | What you do there |
 | --- | --- | --- |
-| **Build** | Automation (Public: the agent repository; Private: your own workspace), Agent Templates, Agent APIs, Agent tests | Find, build and run agents, install ready-made ones, publish agents as web services, test agents |
+| **Build** | Agents (Public: the agent repository; Private: your own workspace), Agent Templates, Agent APIs, Agent tests | Find, build and run agents, install ready-made ones, publish agents as web services, test agents |
 | **Manage** | Agent Activity, Task inbox, Runner Machines, Schedules, Triggers, Work queues, Workflow, Shared Global values, Connections, Credential vault, Agent ToolKits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows, secrets and the shared settings agents use |
-| **Operational insights** | Overview, Alerts, Operations, Business | How things stand now, alerts, how agents, runners and queues worked (Operations), and what the work is worth (Business). See [05 Operator's guide](05-operators-guide.md#11-operational-insights-overview-alerts-and-operations) |
-| **Administration** | Users, Roles, Teams, Policies, Audit Trail, Licenses, Settings | People, access, rules for agents' folders, audit, licences and system settings |
-| **AI** | Model Connections, Prompt Skills, Document Automation, AI governance | Model connections, AI prompts, reading documents with AI (an add-on module; the page says when it is not installed) and the record of AI use |
+| **AI** | One Chat, AI setup (Model Connections, Prompt Skills, Knowledge bases, AI governance), Document Automation | Asking in plain words, AI models and prompts, reading documents with AI (an add-on module; the page says when it is not installed) and the record of AI use |
+| **Administration** | Users, Roles, Teams, Settings, Policies, Audit Trail, Event subscriptions, Licenses | People, access, rules for agents' folders, audit, licences and system settings |
+| **Agent Insights** | Overview, Alerts, Operations, Business | How things stand now, alerts, how agents, runners and queues worked (Operations), and what the work is worth (Business). See [05 Operator's guide](05-operators-guide.md#11-operational-insights-overview-alerts-and-operations) |
 
 You only see the pages your role allows. For example, a **Viewer** sees the agent repository, runs, runners,
-schedules, triggers, shared values, work queues, Operational Insights and Prompt Skills, but cannot change anything.
+schedules, triggers, shared values, work queues, Agent Insights and Prompt Skills, but cannot change anything.
 
-**Automation** has two tabs, as AA's one Automation page: **Public** (on the left) is the agent repository, with the
-agents checked in to run; **Private** (on the right) is a builder's own workspace. Everyone sees the same menu and
-pages; only what you may open differs. **Private** works for people who build agents (who may check agents in) when the
-workspace runs beside One CommandCenter on the same computer. The top bar says **One CommandCenter** everywhere and
-**OneAgentStudio** only in the editor, when an agent or other item is open.
+**Agents** has two tabs, as AA's one Automation page: **Public** (on the left) is the agent repository, with the agents
+checked in to run; **Private** (on the right) is a builder's own workspace. Everyone sees the same menu and pages; only
+what you may open differs. **Private** works for people who build agents (who may check agents in) when the workspace
+runs beside One CommandCenter on the same computer. The top bar names no product, except **OneAgentStudio** in the
+editor, when an agent or other item is open.
 
-Every page has an **i** after its title: it opens a help panel that explains each part of the page.
+Every page has an **i** after its title: it opens a help panel that explains each part of the page. After it comes one
+line saying what the page does, then **Docs** (the documentation, in a new tab) and **Video** (how to use it, played
+beside the page). Dialogs, Settings sections and each agent command have the same two links, and an error with a code
+has **Learn more**.
+
+### My account
+
+The person icon on the top bar opens **My account** (as AA's user menu):
+
+- **My profile**: your name, user name, e-mail, roles, how many permissions they give, teams (and which you lead), your
+  licence seat, how you sign in, two-step sign-in, your last sign-in and from where, and when your password must change.
+  From here open **Your API keys**, **Change password**, **Turn on two-step sign-in** and **Phone notifications**.
+  **Where you are signed in** lists your sessions; **Sign out everywhere else** ends all but this one (recorded in the
+  Audit Trail).
+- **My devices**: your default runner and every runner you are a default user of, each with its status, computer,
+  version and when it last reported. When your last run stopped because its runner stopped reporting, it says so.
 
 ### Keys that save time
 
@@ -231,7 +246,7 @@ You will build an agent that takes a name and writes a greeting to the run log, 
 
 ### 6.1 Build it in OneAgentStudio
 
-1. In One CommandCenter, open **Build > Automation** and click its **Private** tab (it is there for people who may
+1. In One CommandCenter, open **Build > Agents** and click its **Private** tab (it is there for people who may
    check agents in). Your own workspace opens, on the **Private** tab of the **Automation** page.
 2. Press **Create ▾** and choose **Agent**. In the **New agent** dialog type the name `Hello` and press **Create and
    edit**. The agent opens in OneAgentStudio's editor. (On the **Public** tab, **Create ▾ > New agent** does steps 1
@@ -261,11 +276,11 @@ You will build an agent that takes a name and writes a greeting to the run log, 
 Without the tick, a check-in stores a new version only and the live version stays as it was (an agent's first version
 is always live). With the tick, the new version becomes the **live production version** straight away, unless your
 administrator has turned on **Approval before production**; then the version waits for a second person to approve it
-(**Production approvals** in the **Manage ▾** menu of **Build > Automation**).
+(**Production approvals** in the **Manage ▾** menu of **Build > Agents**).
 
 ### 6.3 Run it from One CommandCenter
 
-1. In One CommandCenter open **Build > Automation**. On its **Public** tab the `Hello` agent shows `v1` under
+1. In One CommandCenter open **Build > Agents**. On its **Public** tab the `Hello` agent shows `v1` under
    **Latest** and **Live v1** under **Live**.
 2. Choose **Run…** in its row's **⋯** menu (or click the row and press **Run**). The **Run Hello** dialog opens; it
    runs the live version, v1.

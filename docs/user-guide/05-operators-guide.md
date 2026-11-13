@@ -27,7 +27,7 @@ work on work queue items. Creating schedules, triggers, work queues and Agent AP
 
 ## 1. Your working day at a glance
 
-1. Open **Home**, or **Operational Insights > Overview** for everything that needs attention in one list. Check
+1. Open **Home**, or **Agent Insights > Overview** for everything that needs attention in one list. Check
    failed runs, open alerts and runners online.
 2. Open **Manage > Agent Activity**: the **In progress** tab shows what runs now and what waits.
 3. Look at **Manage > Work queues** for items past their service level (a red "overdue" pill).
@@ -135,7 +135,7 @@ than the version that ran). A message gives the new run's id; from a run's detai
 
 ## 3. Running an agent: runners, pools and run-as users
 
-Agents run from **Build > Automation** (needs `runs.start`). Only agents with a live production version offer **Run…**
+Agents run from **Build > Agents** (needs `runs.start`). Only agents with a live production version offer **Run…**
 in their row's **⋯** menu (or **Run** on the agent's page); a live workflow's page has **Start in Workflow** instead.
 
 1. Choose **Run…**. The **Run <agent>** dialog opens and says which live version it runs.
@@ -747,7 +747,7 @@ export them.
 A builder can mark an output of an agent as **Business figure (KPI)** in OneAgentStudio, but every value an agent's
 runs return (its outputs) can be looked at here.
 
-1. Open **Operational Insights > Business**. The **Agents** tab lists every agent whose runs returned values in the
+1. Open **Agent Insights > Business**. The **Agents** tab lists every agent whose runs returned values in the
    period, KPI-marked ones first. Choose the period, or search for an agent or a value.
 2. Click an agent. Its page has three tabs:
    - **Dashboard**: made for you from its values: runs that returned values, the total of each number value, the first

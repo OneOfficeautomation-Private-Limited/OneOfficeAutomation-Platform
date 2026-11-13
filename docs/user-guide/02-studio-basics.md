@@ -27,7 +27,7 @@ items in your workspace, upload files, and work faster with keyboard shortcuts.
 
 OneAgentStudio is the editor where you build, test and debug agents: the screen you get when an agent (or another
 item) is open. Everything else is One CommandCenter, as in AA, where there is one Control Room: the **Private** tab of
-**Build > Automation** is your own workspace, and opening an item there opens it in OneAgentStudio. It runs in your web
+**Build > Agents** is your own workspace, and opening an item there opens it in OneAgentStudio. It runs in your web
 browser (Chrome or Edge), but only on your own computer: it reads and writes your private workspace, called **My
 Workspace**.
 
@@ -43,7 +43,7 @@ Besides agents, the workspace holds **forms**, **workflows**, **document intelli
 ## 2. Open OneAgentStudio
 
 1. Make sure ONEOFFICEAUTOMATION is running on your computer (see [Getting started](01-getting-started.md)).
-2. In One CommandCenter open **Build > Automation** and click the **Private** tab (it is there for people who may check
+2. In One CommandCenter open **Build > Agents** and click the **Private** tab (it is there for people who may check
    agents in). You can also go to **http://localhost:8720/studio/** in Chrome or Edge.
    - If One CommandCenter runs on the same computer, your private workspace uses the sign-in you already have there.
    - If Studio runs on its own, the window that started it shows its address (`Open: http://localhost:<port>`).
@@ -61,7 +61,7 @@ The first time Studio starts with an empty workspace, it copies in the sample ag
 
 ## 3. The Automation home
 
-The home page is **Automation** (in the menu on the left: **Build > Automation**). As in One CommandCenter, it has two
+The home page is **Automation** (in the menu on the left: **Build > Agents**). As in One CommandCenter, it has two
 tabs:
 
 | Tab | What it holds |

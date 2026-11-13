@@ -88,6 +88,8 @@ public final class ControlRoom {
     public final Cluster cluster;
     public final RunnerUpdates runnerUpdates;
     public final RunnerCare runnerCare;
+    /** A person's own profile, sessions and runners (round 3, item 9). */
+    final MyAccount myAccount;
     /** Environment locks (gap G33): named locks one run holds at a time. */
     public final EnvironmentLocks locks;
     /** Long-running agents (G36): suspended runs, what they wait for, callback URLs. */
@@ -167,6 +169,7 @@ public final class ControlRoom {
         this.mfa = new Mfa(this);
         this.runnerUpdates = new RunnerUpdates(this);
         this.runnerCare = new RunnerCare(this);
+        this.myAccount = new MyAccount(this);
         this.locks = new EnvironmentLocks(this);
         this.runWaits = new RunWaits(this);
         this.events = new EventSubscriptions(this);

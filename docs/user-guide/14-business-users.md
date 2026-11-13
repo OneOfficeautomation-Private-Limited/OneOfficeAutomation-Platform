@@ -174,7 +174,7 @@ reason and a link to the run).
 
 ## 9a. Suggest a process to automate
 
-If part of your work is repetitive, suggest it: in One CommandCenter open **Build > Automation ideas** and choose
+If part of your work is repetitive, suggest it: in One CommandCenter open **Build > Agents ideas** and choose
 **Suggest an idea**. Say what should be automated, how it is done today, your department, roughly how many cases a
 month and how many minutes each takes by hand. Everyone signed in can see the ideas and vote for the ones they would
 use (vote again to take a vote back).
