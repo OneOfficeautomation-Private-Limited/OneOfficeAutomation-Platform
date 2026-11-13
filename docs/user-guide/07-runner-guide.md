@@ -66,6 +66,24 @@ hand on their own default runner. Administrators assign seats on **Administratio
 
 ## 3. Register a runner
 
+### The quick way: download a ready runner installer
+
+As AA's Connect local device, One CommandCenter can give a ready installer: a ZIP of the product with its own Java and
+an `Install.cmd` that already holds this One CommandCenter's address and a one-time key.
+
+- For your own computer: **My devices > Connect to my computer > Download the runner installer** (permission *Connect
+  own computer as a runner*). The key works once, for one hour; the runner becomes your local runner.
+- For a runner machine: **Runner Machines > Register a runner > Create key > Download the runner installer**
+  (administrators). The key works once, for 24 hours.
+
+Unzip it on the runner machine and double-click `Install.cmd`: it installs the runner for the signed-in Windows user
+(no administrator rights needed) and registers it. From an administrator's prompt, `Install.cmd -AllUsers -Service`
+installs it for everyone as a service.
+
+The download is there when the server has a setup package to make it from: the newest `ooa-setup-<version>.zip` in the
+data folder's `downloads` folder (put one there on Linux, container and SaaS servers), or the server's own folder when
+it was installed from the setup package on Windows. Otherwise the dialog says so and shows the commands below.
+
 ### Step 1: make a registration key (administrator)
 
 1. In One CommandCenter open **Manage > Runner Machines** and press **Register a runner**.

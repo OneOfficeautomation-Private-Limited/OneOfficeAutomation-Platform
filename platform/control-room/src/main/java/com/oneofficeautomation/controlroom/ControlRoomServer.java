@@ -679,6 +679,21 @@ public final class ControlRoomServer {
                 sendJson(ex, 200, helpLinks());
             }
             // My account (round 3, item 9): a person's own profile, where they are signed in, and their runners
+            // a ready runner installer (round 4, A1): GET runner-package/info says whether one can be made here;
+            // GET runner-package?key=... streams the ZIP for a key the person made (My devices or Runner Machines)
+            case "runner-package" -> {
+                if (!m.equals("GET")) { notFound(ex); return; }
+                if (route.equals("runner-package/info")) { sendJson(ex, 200, RunnerPackage.availability(cr)); return; }
+                java.time.Instant expires = RunnerPackage.checkKey(cr, u, q.get("key"));
+                if (RunnerPackage.source(cr) == null) RunnerPackage.write(cr, OutputStream.nullOutputStream(), "", "", expires, "");   // says why, as an error
+                securityHeaders(ex);
+                ex.getResponseHeaders().set("Content-Type", "application/zip");
+                ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"ooa-runner-" + u.username().replaceAll("[^A-Za-z0-9_.-]", "_") + ".zip\"");
+                ex.getResponseHeaders().set("Cache-Control", "no-store");
+                ex.sendResponseHeaders(200, 0);
+                try (OutputStream os = ex.getResponseBody()) { RunnerPackage.write(cr, os, origin(ex), q.get("key"), expires, u.username()); }
+                cr.audit.record(u.username(), "device.runner_package", "device", null, Map.of("from", String.valueOf(RunnerPackage.availability(cr).get("from"))), "ok", ip);
+            }
             case "me" -> {
                 if (m.equals("GET") && route.equals("me/profile")) sendJson(ex, 200, cr.myAccount.profile(u));
                 else if (m.equals("GET") && route.equals("me/sessions")) sendJson(ex, 200, Map.of("sessions", cr.myAccount.sessions(u, token(ex))));

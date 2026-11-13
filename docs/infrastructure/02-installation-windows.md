@@ -233,6 +233,20 @@ ooa service install --mode server --host 127.0.0.1 --port 8720 --data D:\OOA\cc
 Turn on HTTPS before other machines connect (see [04](04-network-ports-proxies-and-certificates.md)); the installer
 logs a reminder, and the server prints a warning when it listens beyond this computer without TLS.
 
+## 6a. Runner installers downloaded from One CommandCenter
+
+People and administrators can download a ready runner installer from the console (My devices > Connect to my computer;
+Runner Machines > Register a runner): a ZIP of the product and its Java, with `Install.cmd` holding the server's
+address (`public_url`, else the address used) and a one-time key. It is streamed, never kept on disk, and each
+download is in the Audit Trail (`device.runner_package`). The server makes it from:
+
+1. the newest `ooa-setup-*.zip` in `DATA\downloads` (copy the release's setup package there; needed on Linux, container
+   and SaaS servers, which have no Windows runtime of their own), or
+2. its own installed folder, when installed from the setup package (it has `Install-OOA.ps1`, `bin\ooa.bat` and
+   `runtime\`). `OOA_INSTALL_DIR` points elsewhere if needed.
+
+Document Automation (`DocFlow\`), data, logs and the setup's own `Install.cmd` are left out.
+
 ## 7. Runners started at sign-in (`ooa agent install-task`)
 
 Runners whose agents use the screen must run in the signed-in user's session:

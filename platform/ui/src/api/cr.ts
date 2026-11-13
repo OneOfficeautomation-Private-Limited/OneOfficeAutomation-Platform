@@ -579,6 +579,9 @@ export class CrApi {
   async runnerChoices() { return (await this.call<{ runners: { id: string; name: string; computer: string }[] }>("GET", "me/runner-choices")).runners; }
   chooseDefaultRunner(deviceId: string) { return this.call<MyDevices>("PUT", "me/default-runner", { device_id: deviceId }); }
   connectKey() { return this.call<{ key: string; expires_in_hours: number }>("POST", "me/connect-key", {}); }
+  /** Round 4 A1: whether a ready runner installer can be made here, and its address for a key (a plain download link). */
+  runnerPackageInfo() { return this.call<{ available: boolean; from?: string; why?: string }>("GET", "runner-package/info"); }
+  runnerPackageUrl(key: string) { return this.base + "runner-package?key=" + encodeURIComponent(key); }
   setDeviceCredentials(b: { username: string; password: string; device_id?: string | null }) { return this.call<{ ok: boolean }>("PUT", "me/device-credentials", b); }
   removeDeviceCredentials(deviceId?: string | null) { return this.call<{ ok: boolean }>("DELETE", "me/device-credentials" + (deviceId ? "?device_id=" + encodeURIComponent(deviceId) : "")); }
   checkDeviceLogin(deviceId: string, apply = false) { return this.call<{ asked: boolean }>("POST", "me/devices/" + encodeURIComponent(deviceId) + (apply ? "/apply-login" : "/check-login"), {}); }

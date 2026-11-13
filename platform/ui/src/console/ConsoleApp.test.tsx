@@ -198,6 +198,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "me/runner-choices") return ok({ runners: [{ id: "d1", name: "PC-1", computer: "pc-1" }, { id: "d2", name: "SHARED-1", computer: "shared-1" }] });
     if (route === "me/default-runner") return ok({ default_runner: body.device_id, can_choose: true, can_connect: true, credentials_set: false, runners: [{ id: body.device_id, name: "SHARED-1", status: "online", shared: true, default: true }] });
     if (route === "me/connect-key") return ok({ key: "ooareg_mine", expires_in_hours: 1 });
+    if (route === "runner-package/info") return ok({ available: true, from: "this installation" });
     if (route === "me/device-credentials") return ok({ ok: true });
     if (route.startsWith("me/devices/") && route.endsWith("/check-login")) return ok({ asked: true });
     if (route === "me/devices") return ok({ can_choose: true, can_connect: true, credentials_set: calls.some((c) => c.route === "me/device-credentials"), default_runner: "d1", hint: "Your last run stopped because PC-1 stopped reporting.", runners: [{ id: "d1", name: "PC-1", computer: "pc-1", platform: "Windows 11", version: "0.2.0", last_seen: "2026-11-13T08:00:00Z", status: "offline", shared: false, default: true }] });
@@ -523,6 +524,8 @@ describe("rebuilt One CommandCenter console", () => {
 
     await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Connect to my computer" })); });
     expect(await within(dlg).findByText(/agent register --url .* --key ooareg_mine/)).toBeTruthy();
+    // round 4 A1: a ready installer with the address and key in it, as AA's Connect local device
+    expect((await within(dlg).findByRole("link", { name: "Download the runner installer" })).getAttribute("href")).toBe("/api/runner-package?key=ooareg_mine");
 
     fireEvent.click(within(dlg).getByRole("button", { name: "Set credentials" }));
     const cred = within(dlg).getByRole("group", { name: "Device credentials" });

@@ -403,6 +403,7 @@ function RegisterRunner({ api, onClose }: { api: CrApi; onClose: () => void }) {
         <label className="st-check-line"><input type="checkbox" checked={temporary} onChange={(e) => setTemporary(e.target.checked)} /> Temporary runner (VDI or pooled desktop): removed by itself after a time without contact, freeing its seat</label>
       </> : <div role="region" aria-label="Registration commands">
         <p>On the runner machine, run one of these. The key works once, expires in 24 hours and is shown only now.</p>
+        <RunnerDownload api={api} runnerKey={key} />
         <h3 className="cc-log-title">Already installed (in its folder)</h3>
         <code className="cc-key">{"bin\\ooa.bat agent register --url " + url + " --key " + key}</code>
         <h3 className="cc-log-title">With the MSI (runs as a Windows service)</h3>
@@ -412,6 +413,16 @@ function RegisterRunner({ api, onClose }: { api: CrApi; onClose: () => void }) {
       </div>}
     </Dialog>
   );
+}
+
+/** Round 4 A1, as AA's Connect local device: the runner installer with this address and key in it, when this server has a setup package. */
+export function RunnerDownload({ api, runnerKey }: { api: CrApi; runnerKey: string }) {
+  const [info, setInfo] = useState<{ available: boolean; why?: string } | null>(null);
+  useEffect(() => { api.runnerPackageInfo().then(setInfo, () => setInfo({ available: false })); }, [api]);
+  if (!info) return null;
+  return info.available
+    ? <p><a className="ui-btn ui-btn-primary" href={api.runnerPackageUrl(runnerKey)} download>Download the runner installer</a> Unzip it on the runner machine and double-click Install.cmd: the address and key are already in it.</p>
+    : <p className="st-muted">{info.why ?? "No ready installer here."} Use one of the commands below instead.</p>;
 }
 
 function PoolDialog({ api, pool, members: initial, runners, chooseOwners, onClose, onSaved }: { api: CrApi; pool: RunnerPool | null; members?: string[]; chooseOwners: boolean; runners: Runner[]; onClose: () => void; onSaved: (t: string) => void }) {

@@ -3,6 +3,7 @@ import type { CrApi, MyDevices, MyProfile, MySession } from "../api/cr";
 import { Button, Dialog, Field, Select, Tabs, TabPanel, TextInput } from "../components";
 import { HelpLinks } from "../shell/HelpLinks";
 import { when } from "./ListParts";
+import { RunnerDownload } from "./Devices";
 
 /**
  * My account (13 Nov 2026 round 3, item 9, stage A), as AA's user menu: My profile (who you are here, your roles,
@@ -117,7 +118,8 @@ export function MyAccountDialog({ api, onClose, onApiKeys, onPassword, onTwoStep
               <div className="cc-my-actions"><Button kind="primary" disabled={!chosen} onClick={saveDefault}>Save changes</Button><Button kind="plain" onClick={() => setChoices(null)}>Cancel</Button></div>
             </div>}
             {connect && <div className="cc-my-form" role="group" aria-label="Connect to my computer">
-              <p>Install the runner on the computer you want to use, then give it this address and key. The key works once, for 1 hour.</p>
+              <RunnerDownload api={api} runnerKey={connect.key} />
+              <p>Or install the runner yourself and give it this address and key. The key works once, for 1 hour.</p>
               <dl className="cc-dl cc-my-dl">{row("Address", location.origin)}{row("Key", <code>{connect.key}</code>)}</dl>
               <p>With the setup package: run <code>Install.cmd</code> and give the address and key when it asks. With the product already installed, from its folder:</p>
               <pre className="cc-my-code">{"bin\\ooa.bat agent register --url " + location.origin + " --key " + connect.key + "\nbin\\ooa.bat agent install-task"}</pre>
