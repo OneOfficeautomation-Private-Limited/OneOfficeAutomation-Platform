@@ -169,8 +169,7 @@ Double-clicking `ooa-<version>.msi` (added 14 Nov 2026) shows a guided install, 
 1. **What is this computer for?** One CommandCenter, a Runner, or Files only (set the computer up later).
 2. One CommandCenter: **Express** (a Windows service on port 8720 with the built-in evaluation database) or
    **Custom**: the port, the listen address, the data folder, the service and the account it runs as (empty: Local
-   System; or a group managed service account `DOMAIN
-ame$`, which needs no password), and the database: built-in,
+   System; or a group managed service account `DOMAIN\name$`, which needs no password), and the database: built-in,
    or **SQL Server with Windows sign-in** (the service account signs in; the schema is made as the account running
    setup, or by the DBA from `bin\ooa.bat db script`).
 3. Runner: One CommandCenter's address, the registration key (hidden as you type), the runner's name, a certificate
@@ -205,8 +204,7 @@ msiexec /i ooa-<version>.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 RE
 | `DB_SERVER` | None | SQL Server for One CommandCenter, with `DB_WINDOWS_AUTH=1` (Windows sign-in; added 14 Nov 2026) |
 | `DB_NAME` | `ooa_command_center` | The database |
 | `DB_WINDOWS_AUTH` | None | `1`: sign in to SQL Server as the service account |
-| `SERVICE_ACCOUNT` | Local System | The account the One CommandCenter service runs as: a group managed service account (`DOMAIN
-ame$`) or a built-in account |
+| `SERVICE_ACCOUNT` | Local System | The account the One CommandCenter service runs as: a group managed service account (`DOMAIN\name$`) or a built-in account |
 
 Notes:
 
