@@ -82,8 +82,37 @@ class InsightsFiguresTest {
         assertEquals("AGENT.LOST", r.get("top_error"));
         assertNotNull(r.get("last_run"));
         assertTrue(((Number) c.get("online")).intValue() >= 1);
-        assertEquals(List.of(Map.of("code", "AGENT.LOST", "runs", 2L)), c.get("top_errors"));
+        assertTrue(((List<?>) c.get("top_errors")).contains(Map.of("code", "AGENT.LOST", "runs", 2L)), String.valueOf(c.get("top_errors")));   // other tests add runs too
         assertEquals(0, ((Number) c.get("schedules")).intValue());
+    }
+
+    /** 13 Nov 2026: a run that ended without a finish time is not busy until now, and a runner's time in use is at most 100%. */
+    @Test @SuppressWarnings("unchecked") void unfinishedEndedRunsAreNotBusy() {
+        String key = (String) cr.createRegistrationKey(admin, 1, null).get("key");
+        String device = (String) cr.registerDevice(key, "PC-3", "pc-3", "Windows 11", "0.2.0", null).get("device_id");
+        Instant t = Instant.now().minus(Duration.ofHours(20));
+        for (int i = 0; i < 2; i++)
+            db.update("INSERT INTO runs (id, bot_path, version, device_id, status, requested_by, source, created, started, finished, error, cancel_requested, pause_requested) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    ControlRoom.id("run"), "Ops/Report.flow.json", 1, device, "failed", "admin", "schedule", t, t.plusSeconds(1), null, "{\"code\":\"TEST.UNFINISHED\"}", false, false);
+        Map<String, Object> c = cr.modules.service(Analytics.class).capacity(admin, Map.of("days", "1", "tz", "UTC"));
+        Map<String, Object> r = ((List<Map<String, Object>>) c.get("runners")).stream().filter(x -> x.get("device_id").equals(device)).findFirst().orElseThrow();
+        assertEquals(0L, ((Number) r.get("busy_ms")).longValue(), "failed runs with no finish time are not running");
+        assertTrue(((Number) r.get("use")).doubleValue() <= 100.0);
+    }
+
+    /** 13 Nov 2026: a run whose runner went quiet ends when the runner last reported, not when the clock noticed. */
+    @Test void aLostRunEndsWhenItsRunnerWentQuiet() {
+        String key = (String) cr.createRegistrationKey(admin, 1, null).get("key");
+        String device = (String) cr.registerDevice(key, "PC-4", "pc-4", "Windows 11", "0.2.0", null).get("device_id");
+        Instant started = Instant.now().minus(Duration.ofHours(10)), quiet = started.plus(Duration.ofMinutes(5));
+        String id = ControlRoom.id("run");
+        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, requested_by, source, created, started, finished, error, cancel_requested, pause_requested) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                id, "Ops/Report.flow.json", 1, device, "running", "admin", "schedule", started, started, null, null, false, false);
+        db.update("UPDATE devices SET last_seen = ? WHERE id = ?", quiet, device);
+        cr.reap();
+        Map<String, Object> run = db.one("SELECT status, finished FROM runs WHERE id = ?", id);
+        assertEquals("failed", run.get("status"));
+        assertEquals(quiet.toEpochMilli() / 1000, Instant.parse(String.valueOf(run.get("finished"))).toEpochMilli() / 1000);
     }
 
     void run(String device, String status, String error, Instant created) {

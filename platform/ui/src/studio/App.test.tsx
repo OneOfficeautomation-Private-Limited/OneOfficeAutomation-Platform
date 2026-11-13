@@ -202,11 +202,11 @@ describe("new Studio", () => {
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("searchbox", { name: "Find a page" })).toBeTruthy();   // the console's menu: find a page, one section open
-    expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
     expect(within(menu).getByRole("button", { name: "Automation" }).getAttribute("aria-current")).toBe("page");
-    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
+    // improvement list 13 Nov 2026, item 3: the same entries as the console (BUILD: Automation, Ideas, Apps), every section open
     await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/next/#/queues"));   // the console, not the classic one
-    for (const gone of ["Workflows", "Forms", "Templates"]) expect(within(menu).queryByText(gone)).toBeNull();   // made from Create, called from agents
+    for (const entry of ["Ideas", "Apps"]) expect(within(menu).getByText(entry)).toBeTruthy();
+    for (const gone of ["Workflows", "Forms", "Templates", "Agent Templates", "Agent APIs"]) expect(within(menu).queryByText(gone)).toBeNull();   // tabs on Automation's page
   });
 
   it("opens the Help panel beside the page from the i after a title, and closes it with its close button", async () => {
@@ -380,11 +380,12 @@ describe("new Studio", () => {
     const { api } = fakeServer();
     const { unmount } = render(<App api={api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));   // one section open at a time
-    expect(within(menu).getByRole("link", { name: "Work queues" })).toBeTruthy();
-    expect(within(menu).queryByRole("button", { name: "Automation" })).toBeNull();
-    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
+    expect(within(menu).getByRole("link", { name: "Work queues" })).toBeTruthy();   // every section starts open, as in the console
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));   // a heading folds its section
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
+    expect(within(menu).getByRole("button", { name: "Automation" })).toBeTruthy();
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
+    expect(within(menu).getByRole("link", { name: "Work queues" })).toBeTruthy();
     fireEvent.click(within(menu).getByRole("button", { name: "Collapse menu" }));
     expect(within(menu).queryByRole("button", { name: "Automation" })).toBeNull();
     expect(within(menu).getByRole("button", { name: "BUILD" })).toBeTruthy();

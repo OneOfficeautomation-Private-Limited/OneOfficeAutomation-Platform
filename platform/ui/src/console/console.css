@@ -811,11 +811,6 @@ a.ov-tab { text-decoration: none; }
    are as a small line above the page title (not in the top bar). Every colour pair is 4.5:1 or more. */
 .cc-app .cc-top { min-height: 44px; height: 44px; flex-wrap: nowrap; gap: 16px; padding: 0 14px; }
 .cc-app .cc-top .st-brand { width: 214px; flex: none; gap: 9px; }
-.cc-brand-name { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
-.cc-brand-name b { font-size: 13.5px; font-weight: 700; letter-spacing: .1px; white-space: nowrap; }
-.cc-brand-name small { font-size: 10px; font-weight: 600; letter-spacing: .08em; color: #b8c2d1; white-space: nowrap; }   /* 10.3:1 on the top bar */
-.cc-app .cc-top .st-logo { height: 28px; width: 28px; padding: 0; justify-content: center; }
-.cc-app .cc-top .st-logo svg { height: 14px; width: auto; }
 .cc-app .cc-search { flex: 0 1 380px; margin: 0; }
 .cc-app .cc-search input { height: 28px; font-size: 12.5px; }
 .cc-app .st-top-icon { width: 28px; height: 28px; }
@@ -842,3 +837,29 @@ a.ov-tab { text-decoration: none; }
 .cc-app .cc-main .st-page-head { padding: 6px 20px 10px; gap: 10px; }
 .cc-app .cc-main .cc-list-head { min-height: 44px; }
 .cc-app .cc-group-tabs .cc-group-name { font-size: 12px; }
+
+
+
+/* ---- Improvement list 13 Nov 2026 (console side; the shared rules are at the end of studio.css): the console's own
+   rules above come later than studio.css, so its menu and tile overrides are repeated here to win. */
+.cc-app .st-menu-section.is-grouped { border-top: 0; margin-top: 8px; padding-top: 0; }
+.cc-app button.st-menu-group-head, .st-app:not(.cc-app) .st-menu-heading { height: 26px; color: #8ea3c2; font-size: 11px; letter-spacing: .09em; }
+.cc-app button.st-menu-group-head .ui-tile, .st-app:not(.cc-app) .st-menu-heading .ui-tile { display: none; }
+.cc-app .st-menu-group-head .st-menu-caret, .st-app:not(.cc-app) .st-menu-heading .st-menu-caret { color: #6f819c; }
+.cc-app .st-menu-section.is-grouped .st-menu-items, .st-app:not(.cc-app) .st-menu-items { margin-left: 4px; border-left: 0; padding-left: 0; }
+.cc-app .st-menu-entry, .st-app:not(.cc-app) .st-menu-item { color: #ffffff; }
+.cc-app .st-menu-entry > svg { opacity: .75; }
+.cc-app .cc-tiles { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 20px 0; }
+.cc-app .cc-tile { height: 30px; padding: 0 10px; gap: 6px; border-radius: 5px; background: var(--ui-bg); }
+.cc-app .cc-tile .ui-tile { width: 16px !important; height: 16px !important; border-radius: 3px; }
+.cc-app .cc-tile .ui-tile svg { width: 11px; height: 11px; }
+.cc-app .cc-tile-text { flex-direction: row; align-items: baseline; gap: 6px; white-space: nowrap; }
+.cc-app .cc-tile-text strong { font-size: 14px; }
+.cc-app .cc-tile-text span { font-size: 12px; }
+.cc-app .cc-sums { gap: 6px; }
+.cc-app .cc-sum, .cc-app .cc-list > .cc-sums .cc-sum { flex-direction: row; align-items: baseline; gap: 6px; min-width: 0; height: 30px; padding: 0 10px; white-space: nowrap; border-radius: 5px; }
+.cc-app .cc-list > .cc-sums { display: flex; flex-wrap: wrap; gap: 6px; background: transparent; border: 0; }
+.cc-app .cc-list > .cc-sums .cc-sum { border: 1px solid var(--ui-border); background: var(--ui-bg); }
+.cc-app .cc-sum strong { font-size: 14px; line-height: 1; }
+.cc-app .cc-sum strong.cc-sum-text { font-size: 12.5px; }
+.cc-app .cc-sum span { font-size: 12px; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }

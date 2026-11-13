@@ -471,7 +471,7 @@ export function App({ api: given }: { api?: StudioApi }) {
     <div className="st-app">
       <header className="st-top">
         {/* one One CommandCenter as AA's Control Room: only the editor (the dev canvas) is One AgentStudio */}
-        <div className="st-brand"><span className="st-logo"><BrandMark /></span>{current ? "One AgentStudio" : "One CommandCenter"}</div>
+        <div className="st-brand"><span className="st-logo is-light"><BrandMark light /></span>{current ? "One AgentStudio" : "One CommandCenter"}</div>
         <nav aria-label="Breadcrumb" className="st-crumbs">
           {current?.kind === "agent" && current.trail?.length
             ? current.trail.map((t, i) => <span key={i}><button type="button" className="st-crumb-link" title={"Back to " + t.name + ", at the Run agent step (line " + t.line + ")"}

@@ -213,6 +213,9 @@ public final class Analytics {
      * hours per day (in the time zone tz); how long runs waited to start (average and 95%); and the busy time as full-time
      * people (40 hours a week). Runner figures: every run counts, and no agent is named.
      */
+    /** Run states that are still going: only these count as busy until now when a run has no finish time. */
+    private static final Set<String> ACTIVE = Set.of("running", "paused", "claimed", "starting");
+
     public Map<String, Object> capacity(User by, Map<String, String> q) {
         ctx.require(by, "analytics.view", "view runner capacity");
         Instant[] pd = period(q);
@@ -224,7 +227,9 @@ public final class Analytics {
         List<Long> waits = new ArrayList<>();
         for (Map<String, Object> d : db.query("SELECT id FROM devices WHERE enabled = ?", true)) per.put((String) d.get("id"), new long[4]);
         int enabled = per.size();
-        for (Map<String, Object> r : db.query("SELECT device_id, created, started, finished FROM runs WHERE started IS NOT NULL AND started < ? AND (finished IS NULL OR finished > ?) LIMIT " + MAX_ROWS, to, from)) {
+        for (Map<String, Object> r : db.query("SELECT device_id, status, created, started, finished FROM runs WHERE started IS NOT NULL AND started < ? AND (finished IS NULL OR finished > ?) LIMIT " + MAX_ROWS, to, from)) {
+            // a run that ended without a finish time (a lost runner) is not busy until now; only runs still going are (13 Nov 2026: 189.9%)
+            if (r.get("finished") == null && !ACTIVE.contains(String.valueOf(r.get("status")))) continue;
             Instant s = Instant.parse(String.valueOf(r.get("started"))), e = r.get("finished") == null ? to : Instant.parse(String.valueOf(r.get("finished")));
             long[] c = per.computeIfAbsent((String) r.get("device_id"), k -> new long[4]);
             Instant created = Instant.parse(String.valueOf(r.get("created")));
@@ -274,7 +279,7 @@ public final class Analytics {
             total += c[0];
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("device_id", e.getKey()); m.put("busy_ms", c[0]); m.put("runs", c[1]);
-            m.put("use", Math.round(1000.0 * c[0] / period) / 10.0);
+            m.put("use", Math.min(100.0, Math.round(1000.0 * c[0] / period) / 10.0));   // a share of the period: never above 100%
             m.put("avg_wait_ms", c[3] == 0 ? null : c[2] / c[3]);
             Map<String, Object> d = devices.get(e.getKey());
             m.put("name", d == null ? null : d.get("name"));

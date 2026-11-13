@@ -2330,8 +2330,15 @@ public final class ControlRoom {
     public void reap() {
         try { platform.purgeIfDue(); } catch (RuntimeException ignored) { /* retention never stops the clock */ }
         Instant cutoff = now().minus(Duration.ofMinutes(2));
-        for (Map<String, Object> r : db.query("SELECT r.id FROM runs r JOIN devices d ON d.id = r.device_id WHERE r.status = 'running' AND (d.last_seen IS NULL OR d.last_seen < ?)", cutoff)) {
-            db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ? AND status = 'running'", now(),
+        for (Map<String, Object> r : db.query("SELECT r.id, r.started, d.last_seen FROM runs r JOIN devices d ON d.id = r.device_id WHERE r.status = 'running' AND (d.last_seen IS NULL OR d.last_seen < ?)", cutoff)) {
+            // the run ended when its runner went quiet, not when this clock noticed (a computer asleep overnight is not a busy night)
+            Instant ended = now();
+            if (r.get("last_seen") != null) {
+                Instant seen = Instant.parse(String.valueOf(r.get("last_seen")));
+                Instant began = r.get("started") == null ? seen : Instant.parse(String.valueOf(r.get("started")));
+                ended = seen.isBefore(began) ? began : seen;
+            }
+            db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ? AND status = 'running'", ended,
                     JsonLite.write(Map.of("code", "AGENT.LOST", "message", "The runner stopped reporting while the agent was running", "suggestedFix", "Check the runner is on and the OneRunner is running.")), r.get("id"));
             audit.record("system", "run.lost", "run", (String) r.get("id"), null, "failed", null);
             try { locks.releaseForRun((String) r.get("id"), "its runner was lost"); } catch (RuntimeException ignored) { /* the sweep below tries again */ }

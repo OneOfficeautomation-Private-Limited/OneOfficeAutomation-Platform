@@ -4,9 +4,17 @@ import { useId } from "react";
  * The ONEOFFICEAUTOMATION mark: the two linked rings of the product logo (OOA-Logo-Master.svg, 1 Nov 2026), drawn as
  * vectors so it stays sharp at any size. The blue ring is dark, so on the dark top bar it sits on a white tile (.st-logo).
  */
-export function BrandMark({ size = 22, title }: { size?: number; title?: string }) {
+/** `light`: the rings in light blue and light violet, for the dark top bars (improvement list 13 Nov 2026, item 12: no white tile). */
+export function BrandMark({ size = 22, title, light = false }: { size?: number; title?: string; light?: boolean }) {
   const id = useId().replace(/:/g, "");
   const blue = "b" + id, violet = "v" + id;
+  if (light) return (
+    <svg viewBox="39 28 157 101" width={size * 157 / 101} height={size} role={title ? "img" : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
+      <circle cx="89.5" cy="78.5" r="43.3" fill="none" stroke="#7fb8f0" strokeWidth="11" />
+      <circle cx="145.5" cy="78.5" r="43.3" fill="none" stroke="#b79cf5" strokeWidth="11" />
+      <path d="M131.325,89.707 A43.3,43.3 0 0 1 107.799,117.743" fill="none" stroke="#7fb8f0" strokeWidth="11" />
+    </svg>
+  );
   return (
     <svg viewBox="39 28 157 101" width={size * 157 / 101} height={size} role={title ? "img" : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
       <defs>

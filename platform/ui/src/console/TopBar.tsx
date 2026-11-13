@@ -36,8 +36,7 @@ export function TopBar({ api, user, classicHref, onPage, onSignOut, onShortcuts 
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <header className="st-top cc-top">
-      <div className="st-brand"><span className="st-logo"><BrandMark /></span>
-        <span className="cc-brand-name"><b>One CommandCenter</b><small>ONEOFFICE AUTOMATION</small></span></div>
+      <div className="st-brand"><span className="st-logo is-light"><BrandMark light /></span>One CommandCenter</div>
       {user.environment && <EnvironmentLabel env={user.environment} />}
       <Search api={api} user={user} onPage={onPage} />
       <div className="st-top-actions">
