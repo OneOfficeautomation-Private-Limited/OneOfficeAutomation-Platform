@@ -119,8 +119,8 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
           <FilterSelect label="Required" value={req} onChange={setReq} options={[{ value: "all", label: "All" }, { value: "required", label: "Required" }, { value: "optional", label: "Optional" }]} />
         </FilterBar>
         <div className="df-table-wrap">
-          <table className="df-table" style={{ minWidth: 780 }}>
-            <thead><tr><th>Field</th><th>Labels on the page</th><th>Type</th><th>Required</th><th>Format check</th><th>Learned from reviews</th><th><span className="sr-only">Actions</span></th></tr></thead>
+          <table className="df-table">
+            <thead><tr><th>Field</th><th>Labels on the page</th><th>Type</th><th>Required</th><th>Format check</th><th title="Labels learned from reviews">Learned labels</th><th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>
               {fields.map((f) => (
                 <tr key={f.key}>

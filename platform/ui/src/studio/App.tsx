@@ -233,11 +233,13 @@ export function App({ api: given }: { api?: StudioApi }) {
       try {
         if (n.type === "bot") {
           const flow = await api.bot(n.path);
-          setTabs((t) => [...t, { kind: "agent", path: n.path, name: flow.name || n.name, flow, saved: JSON.stringify(flow), past: [], future: [],
+          // round 2 item 5 (13 Nov 2026): a double-click (and the name's own click) asked for the item two or three times
+          // while it loaded, and each added a tab; it is added only if it is not open by now
+          setTabs((t) => t.some((x) => x.path === n.path) ? t : [...t, { kind: "agent", path: n.path, name: flow.name || n.name, flow, saved: JSON.stringify(flow), past: [], future: [],
             selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false, run: null, breakpoints: [] }]);
         } else {
           const it = await api.item(n.path);
-          setTabs((t) => [...t, { kind: "item", path: n.path, name: displayName(n), itemType: it.type, text: it.text, saved: it.text, past: [], future: [] }]);
+          setTabs((t) => t.some((x) => x.path === n.path) ? t : [...t, { kind: "item", path: n.path, name: displayName(n), itemType: it.type, text: it.text, saved: it.text, past: [], future: [] }]);
         }
       } catch (e) { fail(e); return; }
     }

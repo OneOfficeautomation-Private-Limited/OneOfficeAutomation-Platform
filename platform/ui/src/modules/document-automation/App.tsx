@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Icon, Menu, usePersistent } from "../../components";
+import { BrandMark, Icon, Menu, usePersistent } from "../../components";
 import { CommandMenu } from "../../studio/CommandMenu";
 import type { DocFlowApi } from "./api";
 import { Builder } from "./Builder";
@@ -78,9 +78,9 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   return (
     <div className="st-app">
       <header className="st-top">
-        <div className="st-brand"><span className="st-logo" aria-hidden="true" />One Command Center</div>
+        <div className="st-brand"><span className="st-logo is-light" aria-hidden="true"><BrandMark light /></span>One CommandCenter</div>
         <nav className="st-crumbs" aria-label="Breadcrumb">
-          {reviewing ? <span>MANAGE</span> : <span>AI</span>}<Icon name="chevronRight" size={12} />
+          {reviewing ? <span>Manage</span> : <span>AI</span>}<Icon name="chevronRight" size={12} />
           {reviewing ? <span>Task inbox</span> : <span>Document Automation</span>}<Icon name="chevronRight" size={12} />
           <span className="st-crumb-current">{crumb}</span>
         </nav>

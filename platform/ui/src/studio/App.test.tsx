@@ -319,6 +319,16 @@ describe("new Studio", () => {
     expect(wrap.classList.contains("is-full")).toBe(false);
   });
 
+  it("opens an agent once however often it is clicked while it loads (round 2 item 5: a double-click made three tabs)", async () => {
+    render(<App api={fakeServer().api} />);
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "intake" } });
+    const name = await screen.findByRole("button", { name: "Invoice intake" });
+    fireEvent.click(name); fireEvent.click(name); fireEvent.doubleClick(name);
+    await screen.findByRole("region", { name: "Agent steps" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getAllByRole("button", { name: "Close Invoice intake" })).toHaveLength(1);
+  });
+
   it("opens an agent in a tab with numbered steps, properties and variables, and Close returns to Automation", async () => {
     render(<App api={fakeServer().api} />);
     const search = await screen.findByLabelText("Search items");
