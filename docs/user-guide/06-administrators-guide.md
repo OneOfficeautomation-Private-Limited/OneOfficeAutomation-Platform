@@ -421,6 +421,9 @@ secret and press **Link** to keep the secrets in your company vault instead:
 | Azure Key Vault | Key Vault address, Tenant id, Application (client) id | Client secret |
 | AWS Secrets Manager | Region, Access key id, Endpoint | Secret access key |
 | CyberArk Central Credential Provider | Central Credential Provider address, Application id, Safe, Folder | Password (optional) |
+| Delinea Secret Server | Secret Server address, User name | Password. The credential name is the secret's name (or `#id`); the attribute is the field's slug (`password`, `username`) |
+| BeyondTrust Password Safe | Password Safe address, Run as user | API key. The credential name is `SYSTEM/ACCOUNT`; each read checks the account out for 5 minutes and checks it in again |
+| ARCON PAM | GetTargetDevicePassKey address, Token address, Client id, ARCON user name, Open for hours | Password, or `{"client_secret": "...", "password": "..."}`. The credential name is `SERVER/TARGETTYPE/USER[/HOST]` |
 
 Agents still ask for `folder/credential/attribute`; the credential name is the secret's name and the attribute its
 field (`value` for single-value secrets). The value is read live. **Test reading** checks access without showing the

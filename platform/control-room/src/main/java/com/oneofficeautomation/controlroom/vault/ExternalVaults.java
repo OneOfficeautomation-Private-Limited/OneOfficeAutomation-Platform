@@ -28,11 +28,22 @@ import javax.crypto.spec.SecretKeySpec;
  * Reads secrets from an external vault linked to a vault folder. The folder keeps its owners, consumers and audit trail;
  * only the values live outside. A credential "name/attribute" in a linked folder maps to secret "name", field "attribute".
  *
- * Providers: hashicorp (KV v2), azure_keyvault, aws_secrets_manager, cyberark_ccp. The secret that lets One CommandCenter
- * sign in to the external vault (token, client secret, AWS secret key) is stored encrypted in our own vault.
+ * Providers: hashicorp (KV v2), azure_keyvault, aws_secrets_manager, cyberark_ccp, and since 14 Nov 2026 (round 4, A3, as
+ * AA's list) delinea (Secret Server), beyondtrust (Password Safe) and arcon (ARCON PAM). The secret that lets One
+ * CommandCenter sign in to the external vault (token, client secret, AWS secret key, password, API key) is stored
+ * encrypted in our own vault.
+ * <ul>
+ * <li>delinea: an OAuth password sign-in at url/oauth2/token as {@code username}; a credential name is the secret's
+ *     name (or #id), its attribute the field's slug (password, username, ...).</li>
+ * <li>beyondtrust: SignAppin with the API key as {@code username}; a credential name is SYSTEM/ACCOUNT, checked out for
+ *     a few minutes, read and checked in again; its attribute is password.</li>
+ * <li>arcon: an OAuth resource-owner sign-in at {@code token_url} (client {@code client_id}; the secret is the
+ *     password, or {"client_secret": "...", "password": "..."}), then url (ARCON's GetTargetDevicePassKey) with
+ *     ServerIp/TargetType/UserName/OpenForHours[/HostName]; a credential name is SERVER/TARGETTYPE/USER[/HOST].</li>
+ * </ul>
  */
 public final class ExternalVaults {
-    public static final List<String> PROVIDERS = List.of("hashicorp", "azure_keyvault", "aws_secrets_manager", "cyberark_ccp");
+    public static final List<String> PROVIDERS = List.of("hashicorp", "azure_keyvault", "aws_secrets_manager", "cyberark_ccp", "delinea", "beyondtrust", "arcon");
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final ControlRoom cr;
@@ -47,7 +58,7 @@ public final class ExternalVaults {
         if (!PROVIDERS.contains(p)) throw new OoaException("CR.BAD_INPUT", "External vault provider must be one of " + PROVIDERS);
         Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("provider", p);
-        for (String k : List.of("url", "mount", "namespace", "tenant_id", "client_id", "region", "access_key_id", "app_id", "safe", "folder", "token_url", "endpoint")) {
+        for (String k : List.of("url", "mount", "namespace", "tenant_id", "client_id", "region", "access_key_id", "app_id", "safe", "folder", "token_url", "endpoint", "username", "open_hours")) {
             Object v = cfg.get(k);
             if (v instanceof String s && !s.isBlank()) out.put(k, s.trim());
         }
@@ -57,8 +68,12 @@ public final class ExternalVaults {
             case "azure_keyvault" -> { need.accept("url"); need.accept("tenant_id"); need.accept("client_id"); }
             case "aws_secrets_manager" -> { need.accept("region"); need.accept("access_key_id"); }
             case "cyberark_ccp" -> { need.accept("url"); need.accept("app_id"); need.accept("safe"); }
+            case "delinea", "beyondtrust" -> { need.accept("url"); need.accept("username"); }
+            case "arcon" -> { need.accept("url"); need.accept("token_url"); need.accept("username"); }
             default -> { }
         }
+        if (out.get("token_url") instanceof String t && !t.matches("^https?://\\S+$")) throw new OoaException("CR.BAD_INPUT", "The token URL must start with http:// or https://");
+        if (out.get("open_hours") instanceof String h && !h.matches("[1-9][0-9]?")) throw new OoaException("CR.BAD_INPUT", "Open for hours is a whole number from 1 to 99");
         if (out.get("url") instanceof String u && !u.matches("^https?://\\S+$")) throw new OoaException("CR.BAD_INPUT", "The vault URL must start with http:// or https://");
         return out;
     }
@@ -72,7 +87,10 @@ public final class ExternalVaults {
                 case "azure_keyvault" -> azure(cfg, authSecret, name, attribute);
                 case "aws_secrets_manager" -> aws(cfg, authSecret, name, attribute);
                 case "cyberark_ccp" -> cyberark(cfg, authSecret, name, attribute);
-                default -> throw new OoaException("VAULT.EXTERNAL", "Unknown external vault provider " + p, "Use one of the providers the link offers: HashiCorp Vault, Azure Key Vault, AWS Secrets Manager or CyberArk.");
+                case "delinea" -> delinea(cfg, authSecret, name, attribute);
+                case "beyondtrust" -> beyondtrust(cfg, authSecret, name, attribute);
+                case "arcon" -> arcon(cfg, authSecret, name, attribute);
+                default -> throw new OoaException("VAULT.EXTERNAL", "Unknown external vault provider " + p, "Use one of the providers the link offers: HashiCorp Vault, Azure Key Vault, AWS Secrets Manager, CyberArk, Delinea, BeyondTrust or ARCON.");
             };
         } catch (OoaException e) {
             throw e;
@@ -162,6 +180,108 @@ public final class ExternalVaults {
         String key = attribute == null || attribute.isBlank() || attribute.equals("password") || attribute.equals("value") ? "Content" : attribute;
         for (Map.Entry<String, Object> e : r.entrySet()) if (e.getKey().equalsIgnoreCase(key)) return String.valueOf(e.getValue());
         throw new OoaException("VAULT.NOT_FOUND", "Account '" + name + "' has no property '" + attribute + "'", "Check the secret's name and field in the external vault, and the attribute in the credential's link.");
+    }
+
+    private static String form(Map<String, String> m) {
+        StringBuilder b = new StringBuilder();
+        m.forEach((k, v) -> { if (v != null) b.append(b.length() == 0 ? "" : "&").append(enc(k)).append('=').append(enc(v)); });
+        return b.toString();
+    }
+
+    private static OoaException missing(String what) {
+        return new OoaException("VAULT.EXTERNAL_DENIED", "No " + what + " is stored for this link", "Store the missing secret for this link in Manage > Credentials > External vaults.");
+    }
+
+    /** Delinea Secret Server: an OAuth password sign-in, then the secret (by #id or by name) and its field by slug. */
+    private String delinea(Map<String, Object> cfg, String password, String name, String attribute) throws Exception {
+        if (password == null || password.isBlank()) throw missing("password");
+        String base = trimSlash(cfg.get("url"));
+        Map<String, Object> t = send(HttpRequest.newBuilder(URI.create(base + "/oauth2/token")).timeout(Duration.ofSeconds(20))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(form(Map.of("grant_type", "password", "username", String.valueOf(cfg.get("username")), "password", password)))).build(), "the sign-in");
+        String token = String.valueOf(t.get("access_token"));
+        String id;
+        if (name.startsWith("#")) id = name.substring(1);
+        else {
+            Map<String, Object> found = send(HttpRequest.newBuilder(URI.create(base + "/api/v1/secrets?filter.searchText=" + enc(name) + "&take=10")).timeout(Duration.ofSeconds(20))
+                    .header("Authorization", "Bearer " + token).GET().build(), "secret '" + name + "'");
+            Object rec = found.get("records") instanceof List<?> l ? l.stream().filter((r) -> r instanceof Map<?, ?> m && name.equals(m.get("name"))).findFirst().orElse(null) : null;
+            if (!(rec instanceof Map<?, ?> m)) throw new OoaException("VAULT.NOT_FOUND", "Secret '" + name + "' was not found in Delinea Secret Server", "Check the secret's exact name, or give its id as #123.");
+            id = String.valueOf(m.get("id"));
+        }
+        String slug = attribute == null || attribute.isBlank() || attribute.equals("value") ? "password" : attribute;
+        Map<String, Object> v = send(HttpRequest.newBuilder(URI.create(base + "/api/v1/secrets/" + enc(id) + "/fields/" + enc(slug))).timeout(Duration.ofSeconds(20))
+                .header("Authorization", "Bearer " + token).GET().build(), "field '" + slug + "' of secret '" + name + "'");
+        return String.valueOf(v.get("value"));
+    }
+
+    /** BeyondTrust Password Safe: SignAppin, find SYSTEM/ACCOUNT, check it out for a few minutes, read, check in, sign out. */
+    private String beyondtrust(Map<String, Object> cfg, String apiKey, String name, String attribute) throws Exception {
+        if (apiKey == null || apiKey.isBlank()) throw missing("API key");
+        int slash = name.indexOf('/');
+        if (slash <= 0 || slash == name.length() - 1) throw new OoaException("VAULT.NOT_FOUND", "A BeyondTrust credential is named SYSTEM/ACCOUNT, not '" + name + "'", "Rename the credential as the managed system and account, for example sql01/sa.");
+        String base = trimSlash(cfg.get("url")) + "/BeyondTrust/api/public/v3";
+        HttpClient session = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).cookieHandler(new java.net.CookieManager()).build();
+        String auth = "PS-Auth key=" + apiKey + "; runas=" + cfg.get("username") + ";";
+        java.util.function.BiFunction<String, String, HttpRequest.Builder> req = (path, method) -> HttpRequest.newBuilder(URI.create(base + path))
+                .timeout(Duration.ofSeconds(20)).header("Authorization", auth).header("Content-Type", "application/json");
+        sendWith(session, req.apply("/Auth/SignAppin", "POST").POST(HttpRequest.BodyPublishers.ofString("{}")).build(), "the sign-in");
+        try {
+            Map<String, Object> acc = sendWith(session, req.apply("/ManagedAccounts?systemName=" + enc(name.substring(0, slash)) + "&accountName=" + enc(name.substring(slash + 1)), "GET").GET().build(), "account '" + name + "'");
+            Map<String, Object> r = sendWith(session, req.apply("/Requests", "POST").POST(HttpRequest.BodyPublishers.ofString(JsonLite.write(Map.of(
+                    "SystemID", acc.get("SystemId"), "AccountID", acc.get("AccountId"), "DurationMinutes", 5, "Reason", "ONEOFFICEAUTOMATION run")))).build(), "a request for '" + name + "'");
+            String requestId = String.valueOf(r.getOrDefault("value", r.get("RequestID")));
+            try {
+                Map<String, Object> c = sendWith(session, req.apply("/Credentials/" + enc(requestId), "GET").GET().build(), "the password of '" + name + "'");
+                return String.valueOf(c.get("value"));
+            } finally {
+                try { sendWith(session, req.apply("/Requests/" + enc(requestId) + "/Checkin", "PUT").PUT(HttpRequest.BodyPublishers.ofString("{}")).build(), "the check-in"); } catch (RuntimeException ignored) { /* the request expires by itself */ }
+            }
+        } finally {
+            try { sendWith(session, req.apply("/Auth/Signout", "POST").POST(HttpRequest.BodyPublishers.ofString("{}")).build(), "the sign-out"); } catch (RuntimeException ignored) { /* the session expires by itself */ }
+        }
+    }
+
+    /** ARCON PAM: an OAuth resource-owner sign-in, then GetTargetDevicePassKey for SERVER/TARGETTYPE/USER[/HOST]. */
+    private String arcon(Map<String, Object> cfg, String secret, String name, String attribute) throws Exception {
+        if (secret == null || secret.isBlank()) throw missing("password");
+        String clientSecret = null, password = secret;
+        if (secret.trim().startsWith("{") && JsonLite.parse(secret) instanceof Map<?, ?> m) { clientSecret = (String) m.get("client_secret"); password = String.valueOf(m.get("password")); }
+        String[] p = name.split("/");
+        if (p.length < 3 || p.length > 4) throw new OoaException("VAULT.NOT_FOUND", "An ARCON credential is named SERVER/TARGETTYPE/USER[/HOST], not '" + name + "'", "Rename the credential, for example 10.0.0.5/Windows/svc_robot.");
+        Map<String, String> f = new java.util.LinkedHashMap<>();
+        f.put("grant_type", "password"); f.put("username", String.valueOf(cfg.get("username"))); f.put("password", password);
+        if (cfg.get("client_id") instanceof String id) f.put("client_id", id);
+        if (clientSecret != null) f.put("client_secret", clientSecret);
+        Map<String, Object> t = send(HttpRequest.newBuilder(URI.create(String.valueOf(cfg.get("token_url")))).timeout(Duration.ofSeconds(20))
+                .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString(form(f))).build(), "the sign-in");
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("ServerIp", p[0]); body.put("TargetType", p[1]); body.put("UserName", p[2]);
+        body.put("OpenForHours", cfg.getOrDefault("open_hours", "1"));
+        if (p.length == 4) body.put("HostName", p[3]);
+        Map<String, Object> r = send(HttpRequest.newBuilder(URI.create(String.valueOf(cfg.get("url")))).timeout(Duration.ofSeconds(20))
+                .header("Authorization", "Bearer " + t.get("access_token")).header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(JsonLite.write(List.of(body)))).build(), "credential '" + name + "'");
+        Object result = r.get("Result") instanceof List<?> l && !l.isEmpty() ? l.get(0) : r.get("value") instanceof List<?> l2 && !l2.isEmpty() ? l2.get(0) : r;
+        if (result instanceof Map<?, ?> m) {
+            String want = attribute == null || attribute.isBlank() || attribute.equals("value") ? "password" : attribute;
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                String k = String.valueOf(e.getKey());
+                if (k.equalsIgnoreCase(want) || (want.equals("password") && (k.equalsIgnoreCase("Password") || k.equalsIgnoreCase("PassKey") || k.equalsIgnoreCase("TargetPassword")))) return String.valueOf(e.getValue());
+            }
+        }
+        throw new OoaException("VAULT.NOT_FOUND", "ARCON's answer for '" + name + "' has no '" + attribute + "'", "Check the server, target type and user name in ARCON, and the attribute (password) in the credential's link.");
+    }
+
+    private Map<String, Object> sendWith(HttpClient client, HttpRequest req, String what) throws Exception {
+        NetGuard.check(cr, req.uri().toString(), "The external vault");
+        HttpResponse<String> r = client.send(req, HttpResponse.BodyHandlers.ofString());
+        if (r.statusCode() == 404) throw new OoaException("VAULT.NOT_FOUND", what + " was not found in the external vault", "Check the secret's name and field in the external vault, and the attribute in the credential's link.");
+        if (r.statusCode() == 401 || r.statusCode() == 403) throw new OoaException("VAULT.EXTERNAL_DENIED", "The external vault refused access to " + what + " (HTTP " + r.statusCode() + ")", "Check the sign-in secret and the vault's access policy for One CommandCenter.");
+        if (r.statusCode() >= 300) throw new OoaException("VAULT.EXTERNAL", "The external vault answered HTTP " + r.statusCode() + " for " + what, "Check the link's address and secret, and that its identity may read this secret in the external vault.");
+        Object o = r.body().isBlank() ? Map.of() : JsonLite.parse(r.body());
+        @SuppressWarnings("unchecked") Map<String, Object> m = o instanceof Map<?, ?> ? (Map<String, Object>) o : java.util.Collections.singletonMap("value", o);
+        return m;
     }
 
     private String aws(Map<String, Object> cfg, String secretKey, String name, String attribute) throws Exception {

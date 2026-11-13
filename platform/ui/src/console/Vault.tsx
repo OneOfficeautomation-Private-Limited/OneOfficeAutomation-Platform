@@ -19,13 +19,20 @@ import { HelpLinks } from "../shell/HelpLinks";
  * soon (14 days or fewer) marked; agents check it with ooa.vault and may save new values when Settings allows.
  */
 type Tab = "credentials" | "folders" | "requests";
-const EXT: Record<string, string> = { hashicorp: "HashiCorp Vault", azure_keyvault: "Azure Key Vault", aws_secrets_manager: "AWS Secrets Manager", cyberark_ccp: "CyberArk Central Credential Provider" };
+const EXT: Record<string, string> = { hashicorp: "HashiCorp Vault", azure_keyvault: "Azure Key Vault", aws_secrets_manager: "AWS Secrets Manager", cyberark_ccp: "CyberArk Central Credential Provider",
+  delinea: "Delinea Secret Server", beyondtrust: "BeyondTrust Password Safe", arcon: "ARCON PAM" };
 const EXT_FIELDS: Record<string, [string, string, string][]> = {
   hashicorp: [["url", "Vault address", "https://vault.example.com:8200"], ["mount", "KV v2 mount", "secret"], ["namespace", "Namespace (Enterprise, optional)", ""]],
   azure_keyvault: [["url", "Key Vault address", "https://my-vault.vault.azure.net"], ["tenant_id", "Tenant id", ""], ["client_id", "Application (client) id", ""]],
   aws_secrets_manager: [["region", "Region", "eu-west-1"], ["access_key_id", "Access key id", "AKIA..."], ["endpoint", "Endpoint (optional, e.g. VPC endpoint)", ""]],
-  cyberark_ccp: [["url", "Central Credential Provider address", "https://ccp.example.com"], ["app_id", "Application id", ""], ["safe", "Safe", ""], ["folder", "Folder (optional)", ""]] };
-const EXT_SECRET: Record<string, string> = { hashicorp: "Token", azure_keyvault: "Client secret", aws_secrets_manager: "Secret access key", cyberark_ccp: "Password (optional)" };
+  cyberark_ccp: [["url", "Central Credential Provider address", "https://ccp.example.com"], ["app_id", "Application id", ""], ["safe", "Safe", ""], ["folder", "Folder (optional)", ""]],
+  // round 4 A3: credential names are the secret's name or #id (Delinea), SYSTEM/ACCOUNT (BeyondTrust), SERVER/TARGETTYPE/USER[/HOST] (ARCON)
+  delinea: [["url", "Secret Server address", "https://secretserver.example.com/SecretServer"], ["username", "User name", ""]],
+  beyondtrust: [["url", "Password Safe address", "https://pws.example.com"], ["username", "Run as user", ""]],
+  arcon: [["url", "GetTargetDevicePassKey address", "https://pam.example.com/api/ServicePassword/GetTargetDevicePassKey"], ["token_url", "Token address", "https://pam.example.com/api/token"],
+    ["client_id", "Client id (optional)", ""], ["username", "ARCON user name", ""], ["open_hours", "Open for hours (default 1)", "1"]] };
+const EXT_SECRET: Record<string, string> = { hashicorp: "Token", azure_keyvault: "Client secret", aws_secrets_manager: "Secret access key", cyberark_ccp: "Password (optional)", delinea: "Password", beyondtrust: "API key",
+  arcon: "Password (or {\"client_secret\": \"...\", \"password\": \"...\"})" };
 const PLACE: Record<string, string> = { owner: "Owner", manager: "Manager", participant: "Participant", consumer: "Consumer" };
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const list = (v?: string | string[] | null) => (Array.isArray(v) ? v : String(v ?? "").split(",")).map((x) => x.trim()).filter(Boolean);
