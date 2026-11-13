@@ -11,17 +11,17 @@ export type MenuSection = { id: string; label: string; color: string; icon: Icon
 
 /** The kernel's own pages; feature modules add theirs (modules/<id>/module.ts). */
 export const KERNEL_SECTIONS: MenuSection[] = [
-  { id: "build", label: "BUILD", color: "#2f6fde", icon: "folder", pages: [
+  { id: "build", label: "Build", color: "#2f6fde", icon: "folder", pages: [
     { id: "automation", label: "Automation", perm: "repo.view" }, { id: "templates", label: "Agent Templates", perm: "repo.view" }] },
-  { id: "manage", label: "MANAGE", color: "#0f766e", icon: "pulse", pages: [
+  { id: "manage", label: "Manage", color: "#0f766e", icon: "pulse", pages: [
     { id: "activity", label: "Agent Activity", perm: "runs.view" }, { id: "inbox", label: "Task inbox" }, { id: "devices", label: "Runner Machines", perm: "devices.view" },
     { id: "locks", label: "Environment locks", perm: "devices.view" },
     { id: "schedules", label: "Schedules", perm: "schedules.view" }, { id: "triggers", label: "Triggers", perm: "triggers.view" },
     { id: "queues", label: "Work queues", perm: "queues.view" },
     { id: "globals", label: "Shared Global values", perm: "globals.view" }, { id: "savedconn", label: "Connections", perm: "globals.view" },
     { id: "credentials", label: "Credential vault" }, { id: "toolkits", label: "Agent ToolKits", perm: "toolkits.manage" }] },
-  { id: "insights", label: "OPERATIONAL INSIGHTS", color: "#0e7490", icon: "sliders", pages: [] },
-  { id: "administration", label: "ADMINISTRATION", color: "#475569", icon: "gear", pages: [
+  { id: "insights", label: "Operational insights", color: "#0e7490", icon: "sliders", pages: [] },
+  { id: "administration", label: "Administration", color: "#475569", icon: "gear", pages: [
     { id: "users", label: "Users", perm: "users.manage" }, { id: "roles", label: "Roles", perm: "users.manage" },
     { id: "teams", label: "Teams", perm: "teams.manage|team_lead" },
     { id: "audit", label: "Audit Trail", perm: "audit.view" }, { id: "events", label: "Event subscriptions", perm: "events.manage" },

@@ -397,6 +397,12 @@ async function go(name: string) {
   const nav = await screen.findByRole("navigation", { name: "One CommandCenter" });
   const page = MENU_SECTIONS.flatMap((s) => s.pages).find((p) => p.label === name);
   const group = page && groupOf(page.id);
+  // round 2 item 2 (M1): one section open at a time, so open the entry's section first when it is folded
+  const sec = MENU_SECTIONS.find((x) => group ? x.id === group.section : x.pages.some((p) => p.label === name));
+  if (sec && !within(nav).queryByRole("button", { name: group ? group.label : name })) {
+    const head = within(nav).queryByRole("button", { name: sec.label });
+    if (head && head.getAttribute("aria-expanded") === "false") fireEvent.click(head);
+  }
   if (!group) { fireEvent.click(within(nav).getByRole("button", { name })); return; }
   fireEvent.click(within(nav).getByRole("button", { name: group.label }));
   const tabs = screen.queryByRole("navigation", { name: group.label });
@@ -460,16 +466,21 @@ describe("rebuilt One CommandCenter console", () => {
   it("shows the menu by task; every page opens here, with no One AgentStudio page (as AA's one Control Room)", async () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    // option B (8 Nov 2026): every section open, one entry per group of pages
-    expect(within(menu).getAllByRole("button").filter((b) => b.classList.contains("st-menu-entry")).map((b) => b.textContent)).toEqual(["Automation", "Ideas", "Apps",
+    for (const s of ["Build", "Manage", "Operational insights", "Administration", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
+    // round 2 item 2 (M1, 13 Nov 2026): one section open at a time; on Home none is, so every heading fits
+    const entries = () => within(menu).getAllByRole("button").filter((b) => b.classList.contains("st-menu-entry")).map((b) => b.textContent);
+    expect(entries()).toEqual([]);
+    const all: (string | null)[] = [];
+    for (const s of ["Build", "Manage", "Operational insights", "Administration", "AI"]) {
+      fireEvent.click(within(menu).getByRole("button", { name: s }));
+      expect(within(menu).getByRole("button", { name: s }).getAttribute("aria-expanded")).toBe("true");
+      all.push(...entries());   // opening one closes the one before
+    }
+    expect(all).toEqual(["Automation", "Ideas", "Apps",
       "Activity", "Runners", "Scheduling", "Work queues", "Shared data", "Credentials", "Overview", "Alerts", "Operations", "Business",
       "Users", "Roles", "Teams", "Settings", "Policies", "Audit trail", "Licenses", "One Chat", "AI setup", "Document Automation"]);   // improvement list 12 Nov 2026, items 4, 7, 9
-    // item 16: a section folds from its heading and unfolds again (the choice is remembered)
-    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
-    expect(within(menu).queryByRole("button", { name: "Runners" })).toBeNull();
-    expect(within(menu).getByRole("button", { name: "MANAGE" }).getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
+    fireEvent.click(within(menu).getByRole("button", { name: "AI" }));   // the open one folds from its heading too
+    expect(entries()).toEqual([]);
     expect(within(menu).queryAllByRole("link")).toEqual([]);   // every page is rebuilt here
     expect(within(menu).queryByText(/AgentStudio/)).toBeNull();   // only the agent editor carries that name
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -499,11 +510,13 @@ describe("rebuilt One CommandCenter console", () => {
     const { api } = fakeServer({ signedIn: viewer });
     render(<ConsoleApp api={api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
+    fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));
     expect(within(menu).getByRole("button", { name: "Runners" })).toBeTruthy();
     expect(within(menu).getByRole("button", { name: "Credentials" })).toBeTruthy();   // the vault is for everyone, under MANAGE as AA's
-    expect(within(menu).queryByText("ADMINISTRATION")).toBeNull();   // no page in it is open to a viewer
+    expect(within(menu).queryByText("Administration")).toBeNull();   // no page in it is open to a viewer
     expect(within(menu).queryByRole("link", { name: "Users" })).toBeNull();
-    expect(within(menu).queryByText("OPERATIONAL INSIGHTS")).toBeNull();   // no page in it is open to a viewer
+    expect(within(menu).queryByText("Operational insights")).toBeNull();   // no page in it is open to a viewer
+    fireEvent.click(within(menu).getByRole("button", { name: "AI" }));
     expect(within(menu).getByRole("button", { name: "Document Automation" })).toBeTruthy();   // AI shows only what a viewer may open
     expect(within(menu).queryByRole("link", { name: "Model Connections" })).toBeNull();
     fireEvent.keyDown(screen.getByRole("button", { name: "Account: Vic Viewer" }), { key: "Enter" });
@@ -1075,7 +1088,7 @@ describe("rebuilt One CommandCenter console", () => {
     URL.createObjectURL = (() => { made.push("file"); return "blob:x"; }) as typeof URL.createObjectURL;
 
     // export two agents, then promote them to another One CommandCenter
-    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getAllByRole("button", { name: "Manage" }).find((b) => !b.closest("nav"))!, { key: "Enter" });
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Export or promote" }));
     const ex = await screen.findByRole("dialog", { name: "Export or promote agents" });
     const pick = await within(ex).findByRole("group", { name: "Agents to export" });
@@ -1108,7 +1121,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(await screen.findByText("Exported 1 agent to a bundle file.")).toBeTruthy();
 
     // import: what the bundle holds and where each agent goes, before anything happens
-    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getAllByRole("button", { name: "Manage" }).find((b) => !b.closest("nav"))!, { key: "Enter" });
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Import" }));
     const im = await screen.findByRole("dialog", { name: "Import agents" });
     const bundle = { format: "ooa.bundle", exported_by: "vic", agents: [{ path: "Finance/Invoice intake.flow.json", version: 3, production: true }, { path: "Shared/Read PDF.flow.json", version: 1, included_as: "dependency" }] };
@@ -1131,7 +1144,7 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(within(im).getByRole("button", { name: "Done" }));
 
     // the code analysis policies moved to Administration > Policies; the Manage menu points there
-    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getAllByRole("button", { name: "Manage" }).find((b) => !b.closest("nav"))!, { key: "Enter" });
     expect(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /Code analysis policies/ })).toBeTruthy();
     fireEvent.keyDown(within(screen.getByRole("menu")).getAllByRole("menuitem")[0], { key: "Escape" });
 
@@ -1174,7 +1187,7 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(within(menu).getByRole("button", { name: "Roles" }));
     await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Administration›Roles"));
     // item 2: the section of the page on screen folds from its heading like the others, and opens again when a page in it is chosen
-    const adminHead = within(menu).getByRole("button", { name: "ADMINISTRATION" });
+    const adminHead = within(menu).getByRole("button", { name: "Administration" });
     fireEvent.click(adminHead);
     expect(adminHead.getAttribute("aria-expanded")).toBe("false");
     expect(within(menu).queryByRole("button", { name: "Roles" })).toBeNull();
@@ -1198,7 +1211,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(screen.getByRole("separator", { name: "Menu width" })).toBeTruthy();   // the edge can be dragged too
     fireEvent.change(within(menu).getByLabelText("Find a page"), { target: { value: "queue" } });
     const found = within(menu).getByRole("list", { name: "Pages found" });
-    expect(within(found).getAllByRole("button").map((b) => b.textContent)).toEqual(["Work queuesMANAGE"]);
+    expect(within(found).getAllByRole("button").map((b) => b.textContent)).toEqual(["Work queuesManage"]);
     fireEvent.click(within(found).getByRole("button", { name: /^Work queues/ }));
     await waitFor(() => expect(screen.getByRole("navigation", { name: "You are here" }).textContent).toBe("Manage›Work queues"));
 
@@ -2256,7 +2269,7 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(i).getByRole("button", { name: "Install" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "templates/install", body: { source: "vendor", id: "inv", folder: "Finance/From templates" } }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "About Invoice intake" })).getByRole("button", { name: "Close" }));
-    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getAllByRole("button", { name: "Manage" }).find((b) => !b.closest("nav"))!, { key: "Enter" });
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Share an agent" }));
     const sh = await screen.findByRole("dialog", { name: "Share an agent as a template" });
     await waitFor(() => expect((within(sh).getByLabelText("Agent") as HTMLSelectElement).value).toBe("Finance/Invoice intake.flow.json"));
@@ -2342,13 +2355,13 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(run2).getByRole("button", { name: "Run" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "runs", body: { bot_path: "Finance/Invoice intake.flow.json", run_as_users: ["admin"], inputs: { vendor: "Acme" }, mode: "unattended", priority: 5, callback_url: "https://example.com/done" } }));
 
-    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getAllByRole("button", { name: "Manage" }).find((b) => !b.closest("nav"))!, { key: "Enter" });
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Production approvals (1 waiting)" }));
     const ap = await screen.findByRole("dialog", { name: "Production approvals" });
     await act(async () => { fireEvent.click(await within(ap).findByRole("button", { name: "Approve" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/production-requests/q1/approve" }));
     fireEvent.click(within(ap).getByRole("button", { name: /close/i }));
-    fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getAllByRole("button", { name: "Manage" }).find((b) => !b.closest("nav"))!, { key: "Enter" });
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Deleted agents" }));
     const del = await screen.findByRole("dialog", { name: "Deleted agents" });
     await act(async () => { fireEvent.click(await within(del).findByRole("button", { name: "Recover" })); });

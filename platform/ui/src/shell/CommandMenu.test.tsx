@@ -21,7 +21,7 @@ describe("The menu on a phone (G69)", () => {
     expect(nav.className).toContain("is-mini");
     fireEvent.click(screen.getByRole("button", { name: "Expand menu" }));
     expect(nav.className).not.toContain("is-mini");
-    fireEvent.click(screen.getByRole("button", { name: "MANAGE" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
     fireEvent.click(screen.getByRole("button", { name: "Task inbox" }));
     expect(picked).toEqual(["inbox"]);
     expect(nav.className).toContain("is-mini");

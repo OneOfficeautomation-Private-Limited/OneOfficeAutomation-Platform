@@ -200,11 +200,13 @@ describe("new Studio", () => {
   it("shows One CommandCenter menu in five sections by task, with links to One CommandCenter pages", async () => {
     render(<App api={fakeServer().api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
+    for (const s of ["Build", "Manage", "Operational insights", "Administration", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("searchbox", { name: "Find a page" })).toBeTruthy();   // the console's menu: find a page, one section open
     expect(within(menu).getByRole("button", { name: "Automation" }).getAttribute("aria-current")).toBe("page");
-    // improvement list 13 Nov 2026, item 3: the same entries as the console (BUILD: Automation, Ideas, Apps), every section open
+    // improvement list 13 Nov 2026, item 3: the same entries as the console (BUILD: Automation, Ideas, Apps); one section open at a time (round 2, M1)
+    fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));
     await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/next/#/queues"));   // the console, not the classic one
+    fireEvent.click(within(menu).getByRole("button", { name: "Build" }));
     for (const entry of ["Ideas", "Apps"]) expect(within(menu).getByText(entry)).toBeTruthy();
     for (const gone of ["Workflows", "Forms", "Templates", "Agent Templates", "Agent APIs"]) expect(within(menu).queryByText(gone)).toBeNull();   // tabs on Automation's page
   });
@@ -380,22 +382,24 @@ describe("new Studio", () => {
     const { api } = fakeServer();
     const { unmount } = render(<App api={api} />);
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
-    expect(within(menu).getByRole("link", { name: "Work queues" })).toBeTruthy();   // every section starts open, as in the console
-    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));   // a heading folds its section
+    expect(within(menu).getByRole("button", { name: "Automation" })).toBeTruthy();   // the page on screen opens its section (Build)
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
-    expect(within(menu).getByRole("button", { name: "Automation" })).toBeTruthy();
-    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
+    fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));   // opening another closes it (round 2, M1)
     expect(within(menu).getByRole("link", { name: "Work queues" })).toBeTruthy();
-    fireEvent.click(within(menu).getByRole("button", { name: "Collapse menu" }));
     expect(within(menu).queryByRole("button", { name: "Automation" })).toBeNull();
-    expect(within(menu).getByRole("button", { name: "BUILD" })).toBeTruthy();
+    fireEvent.click(within(menu).getByRole("button", { name: "Manage" }));   // and a heading folds its own
+    expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
+    fireEvent.click(within(menu).getByRole("button", { name: "Collapse menu" }));
+    expect(within(menu).getByRole("button", { name: "Build" })).toBeTruthy();
 
     unmount();
     render(<App api={api} />);
     const again = await screen.findByRole("navigation", { name: "One CommandCenter" });
     expect(within(again).getByRole("button", { name: "Expand menu" }).getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(within(again).getByRole("button", { name: "MANAGE" }));   // an icon opens the menu at its section
+    fireEvent.click(within(again).getByRole("button", { name: "Manage" }));   // folded: an icon shows its section's pages in a fly-out
+    expect(within(again).getByRole("button", { name: "Manage" }).getAttribute("aria-expanded")).toBe("true");
     expect(await within(again).findByRole("link", { name: "Work queues" })).toBeTruthy();
+    expect(again.className).toContain("is-mini");   // without unfolding the menu
   });
 
   it("hides and shows the folders, actions and details panels", async () => {

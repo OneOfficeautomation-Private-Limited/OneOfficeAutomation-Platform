@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon, IconTile, Splitter, usePanelSize, usePersistent } from "../components";
 import { canSee, type MenuGroup, type MenuPage, type MenuSection, type MenuViewer } from "./menu";
 
@@ -16,6 +16,10 @@ import { canSee, type MenuGroup, type MenuPage, type MenuSection, type MenuViewe
  * no group is an entry of its own. Every section starts open; each folds from its heading and the choice is
  * remembered (usage review item 16, 9 Nov 2026). Since the improvement list of 12 Nov 2026 (item 2) the section of the
  * page on screen folds too when its heading is clicked, like the others; going to a page opens its section again.
+ * Since 13 Nov 2026 (round 2, item 2, option M1 chosen on the canvas, like AA's menu): each section is a row with its
+ * icon and name on a lighter band; one section is open at a time (the page on screen opens its own), so the whole menu
+ * fits without scrolling; folded to icons, pointing at (or clicking) a section's icon shows its pages in a fly-out, so
+ * every page is one click away.
  */
 type Entry = { id: string; label: string; icon?: MenuGroup["icon"]; first: MenuPage; pages: string[] };
 const WIDTH = { min: 200, max: 360, normal: 232, step: 32 };
@@ -38,13 +42,14 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
   const sectionOf = (id: string | null) => shown.find((s) => s.pages.some((p) => p.id === id))?.label ?? null;
   const [openOne, setOpenOne] = useState<string | null>(() => sectionOf(current));
   useEffect(() => { const s = sectionOf(current); if (s) setOpenOne(s); }, [current]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const [foldedGroups, setFoldedGroups] = usePersistent<string[]>("menu.groups.folded", []);
-  const currentSection = sectionOf(current);
-  const isOpen = (label: string) => groups ? !foldedGroups.includes(label) : inConsole ? openOne === label : !closed.includes(label);
-  const foldGroup = (label: string) => setFoldedGroups(foldedGroups.includes(label) ? foldedGroups.filter((x) => x !== label) : [...foldedGroups, label]);
-  // going to a page opens its section if it was folded (only when the page changes, so a click can still fold it)
-  useEffect(() => { if (groups && currentSection && foldedGroups.includes(currentSection)) setFoldedGroups(foldedGroups.filter((x) => x !== currentSection)); },
-    [current]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const isOpen = (label: string) => groups || inConsole ? openOne === label : !closed.includes(label);
+  // folded to icons: the section whose pages show in a fly-out beside its icon, and where
+  const [fly, setFly] = useState<{ label: string; top: number; left: number } | null>(null);
+  const flyTimer = useRef<number | undefined>(undefined);
+  useEffect(() => { if (!mini) setFly(null); }, [mini]);
+  useEffect(() => { setFly(null); }, [current]);
+  const showFly = (label: string, el: HTMLElement) => { window.clearTimeout(flyTimer.current); const r = el.getBoundingClientRect(); setFly({ label, top: r.top, left: r.right + 4 }); };
+  const hideFly = () => { window.clearTimeout(flyTimer.current); flyTimer.current = window.setTimeout(() => setFly(null), 150); };
   // the entries of a section: its groups with a page the person may see (a page goes where its group is), then its pages in no group
   const visible = new Map(shown.flatMap((s) => s.pages.map((p) => [p.id, p] as const)));
   const entriesOf = (sec: MenuSection): Entry[] => {
@@ -57,7 +62,7 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
     return [...grouped, ...loose];
   };
   const sectionsShown = groups ? sections.filter((s) => entriesOf(s).length) : shown;
-  const toggle = (label: string) => { if (groups) foldGroup(label); else if (inConsole) setOpenOne(openOne === label ? null : label); else toggleSection(label); };
+  const toggle = (label: string) => { if (groups || inConsole) setOpenOne(openOne === label ? null : label); else toggleSection(label); };
   const [width, setWidth] = usePanelSize("console.menu");
   const w = width ?? WIDTH.normal;
   const resize = (by: number) => setWidth(Math.max(WIDTH.min, Math.min(WIDTH.max, w + by)));
@@ -80,7 +85,7 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
     const isCurrent = !!current && e.pages.includes(current);
     const body = <>{e.icon && <Icon name={e.icon} size={18} />}<span className="st-menu-entry-label">{e.label}</span></>;
     if (local.has(e.first.id)) return <button type="button" className={`st-menu-item st-menu-entry${isCurrent ? " is-current" : ""}`} aria-current={isCurrent ? "page" : undefined}
-      onClick={() => { setFind(""); setOpenNarrow(false); onLocal(e.first.id); }}>{body}</button>;
+      onClick={() => { setFind(""); setOpenNarrow(false); setFly(null); onLocal(e.first.id); }}>{body}</button>;
     const href = hrefFor(e.first.id);
     return href ? <a className={`st-menu-item st-menu-entry${isCurrent ? " is-current" : ""}`} href={href} aria-current={isCurrent ? "page" : undefined}>{body}</a>
       : <span className="st-menu-item st-menu-entry is-off" aria-disabled="true" title={offTitle}>{body}</span>;
@@ -111,7 +116,7 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
         {homeEl}
         {sectionsShown.map((sec) => {
           const open = isOpen(sec.label);
-          if (mini) {
+          if (mini && (!groups || narrow)) {
             // folded: one icon per section; it opens the menu at that section
             return (
               <button key={sec.label} type="button" className="st-menu-mini" title={sec.label} aria-label={sec.label}
@@ -120,11 +125,29 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
               </button>
             );
           }
+          if (mini) {
+            // folded (M1): pointing at or clicking a section's icon shows its pages beside it
+            const flying = fly?.label === sec.label;
+            return (
+              <div key={sec.label} className="st-menu-flywrap" onMouseEnter={(ev) => showFly(sec.label, ev.currentTarget)} onMouseLeave={hideFly}
+                onKeyDown={(ev) => { if (ev.key === "Escape") setFly(null); }}>
+                <button type="button" className={`st-menu-mini${sec.pages.some((p) => p.id === current) || entriesOf(sec).some((x) => current && x.pages.includes(current)) ? " is-current" : ""}`}
+                  aria-label={sec.label} aria-expanded={flying} title={sec.label}
+                  onClick={(ev) => flying ? setFly(null) : showFly(sec.label, ev.currentTarget.parentElement!)}>
+                  <Icon name={sec.icon} size={18} />
+                </button>
+                {flying && <div className="st-menu-fly" style={{ top: fly.top, left: fly.left }} onMouseEnter={() => window.clearTimeout(flyTimer.current)}>
+                  <div className="st-menu-fly-title">{sec.label}</div>
+                  <ul className="st-menu-items" aria-label={sec.label}>{entriesOf(sec).map((e) => <li key={e.id}>{entry(e)}</li>)}</ul>
+                </div>}
+              </div>
+            );
+          }
           if (groups) return (
             <div key={sec.label} className="st-menu-section is-grouped">
               <button type="button" className="st-menu-group-head" aria-expanded={open} onClick={() => toggle(sec.label)}
                 title={open ? "Fold " + sec.label : "Unfold " + sec.label}>
-                <IconTile name={sec.icon} color={sec.color} size={20} /><span className="st-menu-label">{sec.label}</span>
+                <Icon name={sec.icon} size={16} /><span className="st-menu-label">{sec.label}</span>
                 <span className="st-menu-caret"><Icon name={open ? "chevronDown" : "chevronRight"} size={12} stroke={2.6} /></span>
               </button>
               {open && <ul className="st-menu-items" aria-label={sec.label}>{entriesOf(sec).map((e) => <li key={e.id}>{entry(e)}</li>)}</ul>}
