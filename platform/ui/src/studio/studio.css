@@ -812,3 +812,56 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .cc-app .cc-sum strong { font-size: 14px; line-height: 1; }
 .cc-app .cc-sum strong.cc-sum-text { font-size: 12.5px; }
 .cc-app .cc-sum span { font-size: 12px; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+
+
+/* ---- Editor X (improvement list 13 Nov 2026, items 5, 6 and 7; chosen on the design canvas) ----
+   One filled main button per area (Save, blue); Run, Debug and Check in are secondary buttons, white with a grey
+   border, their meaning in a small coloured icon; Stop is red only while a run goes; Close is text. In a dialog's
+   footer Run and Debug are that dialog's main action, so they are filled blue there. Segmented switches are quiet
+   (the chosen side a light blue fill, 6.9:1); the canvas tools are one squared group; toolkits have one grey tile;
+   every tab row has one underline style. */
+.ui-btn-run, .ui-btn-debug, .ui-btn-light { background: #ffffff; color: #17202b; border-color: #7d8797; }
+.ui-btn-run:hover:not(:disabled), .ui-btn-debug:hover:not(:disabled), .ui-btn-light:hover:not(:disabled) { background: #eef3fb; color: #17202b; }
+.ui-btn-run > svg { color: #15803d; }
+.ui-btn-debug > svg { color: #b45309; }
+.ui-btn-light > svg { color: #353e4c; }
+.ui-dialog-foot .ui-btn-run, .ui-dialog-foot .ui-btn-debug { background: var(--ui-accent); color: #ffffff; border-color: var(--ui-accent); }
+.ui-dialog-foot .ui-btn-run > svg, .ui-dialog-foot .ui-btn-debug > svg { color: #ffffff; }
+.ui-dialog-foot .ui-btn-run:hover:not(:disabled), .ui-dialog-foot .ui-btn-debug:hover:not(:disabled) { background: #2459c0; color: #ffffff; }
+.st-top .st-top-close { color: #d6dde8; }   /* 13.5:1 on the top bar */
+.st-top .st-top-close:hover:not(:disabled) { background: rgba(255, 255, 255, .1); color: #ffffff; }
+.st-seg { border-color: #7d8797; border-radius: 5px; }
+.st-seg-btn { border-right-color: #c3cad5; }
+.st-seg-btn[aria-checked="true"], .st-seg-btn[aria-selected="true"] { background: #e3edfb; color: #174ba6; font-weight: 600; }
+.st-tool-group { display: inline-flex; align-items: stretch; height: 26px; border: 1px solid #7d8797; border-radius: 5px; overflow: hidden; flex: none; }
+.st-tool-group .st-tool-text, .st-tool-group > [data-state] { height: 100%; border: 0; border-radius: 0; border-right: 1px solid #c3cad5; padding: 0 10px; color: #17202b; background: #ffffff; }
+.st-tool-group > :last-child, .st-tool-group > :last-child .st-tool-text { border-right: 0; }
+.st-tool-group .st-tool-text:hover, .st-tool-group .st-tool-text[data-state="open"] { background: #eef3fb; }
+.st-tool-group .st-tool-text > svg { color: #353e4c; }
+.st-tool-group .st-tool-text.is-ai > svg { color: #6d28d9; }
+.st-tool-group .st-tool-busy { padding: 0 10px; border-right: 1px solid #c3cad5; background: #fdecec; color: #9f1239; font-size: 11.5px; font-weight: 600; }
+.st-actions .st-group .ui-tile { background: #e3e7ee !important; }
+.st-actions .st-group .ui-tile svg { color: #353e4c; }
+.st-actions .st-group-actions { border-left-color: #c3cad5; }
+.ui-tab { background: transparent; color: var(--ui-text-2); font-weight: 500; border-bottom: 2px solid transparent; }
+.ui-tab[data-state="active"] { color: var(--ui-text); font-weight: 600; border-bottom-color: var(--ui-accent); }
+.st-right .ui-tab { flex: 0 0 auto; padding: 0 12px; }
+
+
+/* ---- Create v2 (improvement list 13 Nov 2026, item 4): templates left as a table, Start from / Name / Save in right ---- */
+.st-create.has-start { grid-template-columns: minmax(0, 1fr) 270px; height: 440px; }
+.st-create.has-start .st-create-place { border-left: 1px solid var(--ui-divider); background: var(--ui-tint, #f7f8fa); }
+.st-create-switch { display: flex; align-self: stretch; margin-bottom: 4px; }
+.st-create-switch .st-seg-btn { flex: 1; height: 26px; }
+.st-create-tools { display: flex; gap: 8px; }
+.st-create-tools input[type="search"] { flex: 1; min-width: 0; }
+.st-create-cat { width: 190px; flex: none; height: 28px; }
+.st-create-table { flex: 1; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); overflow: hidden; }
+.st-create-thead { display: grid; grid-template-columns: minmax(0, 1fr) 110px 60px; height: 30px; background: var(--ui-tint, #eef1f5); border-bottom: 1px solid var(--ui-divider); }
+.st-create-th { border: 0; background: transparent; padding: 0 10px; font: inherit; font-weight: 600; text-align: left; color: var(--ui-text); cursor: pointer; }
+.st-create-th.is-steps { text-align: right; }
+.st-create-th:hover { background: var(--ui-row-hover); }
+.st-create-table .st-create-templates { border: 0; border-radius: 0; flex: 1; }
+.st-create-templates li { display: grid; grid-template-columns: minmax(0, 1fr) 110px 60px; gap: 0; padding: 0; min-height: 30px; }
+.st-create-templates li > * { padding: 0 10px; }
+.st-create-templates li .is-steps { text-align: right; }

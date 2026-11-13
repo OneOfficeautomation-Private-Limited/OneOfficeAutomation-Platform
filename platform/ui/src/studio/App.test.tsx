@@ -275,8 +275,8 @@ describe("new Studio", () => {
     const tree2 = within(dialog).getByRole("tree", { name: "Save in" });
     const chosen = () => within(tree2).getAllByRole("treeitem").filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.querySelector(".st-tree-name")!.textContent);
     expect(chosen()).toEqual(["Finance"]);
-    fireEvent.click(within(tree2).getByRole("button", { name: "Workspace" }));
-    expect(chosen()).toEqual(["Workspace"]);
+    fireEvent.click(within(tree2).getByRole("button", { name: "Automation" }));
+    expect(chosen()).toEqual(["Automation"]);
     fireEvent.click(within(tree2).getByRole("button", { name: "Finance" }));
     expect(chosen()).toEqual(["Finance"]);
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Invoice intake Germany" } });
@@ -355,7 +355,7 @@ describe("new Studio", () => {
     location.hash = "#private/new";
     render(<App api={fakeServer().api} />);
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
-    expect(within(dialog).getByRole("treeitem", { selected: true }).textContent).toContain("Workspace");   // the top of the workspace is chosen
+    expect(within(dialog).getByRole("treeitem", { selected: true }).textContent).toContain("Automation");   // the top folder is chosen (13 Nov 2026: called Automation on both tabs)
     expect(location.hash).toBe("");
   });
 
@@ -437,8 +437,8 @@ describe("new Studio", () => {
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
     // Create A (13 Nov 2026): Start from Blank or Template; templates are one line each, with a search
     const start = within(dialog).getByRole("radiogroup", { name: "Start from" });
-    expect(within(start).getByRole("radio", { name: /^Blank/ }).getAttribute("aria-checked")).toBe("true");
-    fireEvent.click(within(start).getByRole("radio", { name: /^Template/ }));
+    expect(within(start).getByRole("radio", { name: "Blank" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(within(start).getByRole("radio", { name: "Template" }));
     const names = () => within(dialog).getAllByRole("option").map((o) => o.querySelector("b")!.textContent);
     expect(names()).toEqual(["Loop through Excel rows"]);
     const search = within(dialog).getByRole("searchbox", { name: "Search templates" });

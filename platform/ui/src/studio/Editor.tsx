@@ -674,8 +674,9 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             <div className="st-seg st-view-seg" role="radiogroup" aria-label="Show the steps as">
               {([["list", "List"], ["flow", "Flow"]] as const).map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={view === k} className="st-seg-btn" onClick={() => setView(k)}>{t}</button>)}
             </div>
-            {/* Editor A (item 6): Assistant, Capture and Record as small text buttons */}
-            <button type="button" className="st-tool-text is-ai" title="Assistant: build steps from a description, or explain this agent" onClick={() => setAssistant("build")}>Assistant</button>
+            {/* Editor X (improvement list 13 Nov 2026, item 5): Assistant, Record and Capture as one squared tool group */}
+            <span className="st-tool-group" role="group" aria-label="Build steps">
+            <button type="button" className="st-tool-text is-ai" title="Assistant: build steps from a description, or explain this agent" onClick={() => setAssistant("build")}><Icon name="spark" size={13} />Assistant</button>
             {recording
               ? <span className="st-tool-busy" role="status"><span className="st-rec-dot" aria-hidden="true" />Recording…</span>
               : <button type="button" className="st-tool-text is-rec" title={withKey("Record actions in a web browser or a Windows application", "steps.record")} onClick={record}><span className="st-rec-dot" aria-hidden="true" />Record</button>}
@@ -684,7 +685,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               : <Menu label="Capture" align="start" items={[
                   { key: "web", label: "Capture a web element", description: "Click it in a browser; adds an action for it", onSelect: () => captureStep(false) },
                   { key: "desktop", label: "Capture a desktop control", description: "Hover it in a Windows application and press Ctrl+Shift+C", onSelect: () => captureStep(true) },
-                ]} trigger={<button type="button" className="st-tool-text is-cap" title="Capture a web element or a desktop control">Capture</button>} />}
+                ]} trigger={<button type="button" className="st-tool-text is-cap" title="Capture a web element or a desktop control"><Icon name="target" size={13} />Capture</button>} />}
+            </span>
             <button type="button" className="ui-icon-btn st-full-btn" aria-pressed={full} onClick={() => toggleFull()}
               aria-label={full ? "Exit full screen" : "Full screen"} title={full ? "Exit full screen (Esc)" : "Full screen: only the canvas"}>
               <Icon name={full ? "shrink" : "expand"} size={16} stroke={2.2} /></button>

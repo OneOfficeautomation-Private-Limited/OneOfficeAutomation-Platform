@@ -5,11 +5,13 @@ import type { ItemType } from "./itemTypes";
 
 /**
  * Step 3 of creating, in AA's order: the type is picked from Create; here what to start from, the name and the folder.
- * Create A (improvement list 12 Nov 2026, item 5, chosen on the design canvas 13 Nov 2026): for an agent, three panes
- * side by side: Start from (Blank or Template) on the left; the templates in the middle, one line each, with a search
- * and a chip per toolkit (no list to open and close); the name and a folder tree with folder icons on the right.
- * Other types show only the name and the folder. Cancel, the close button and Esc close it; Enter creates.
+ * Create v2 (improvement list 13 Nov 2026, item 4, chosen on the design canvas): two columns. On the left the templates
+ * as a table (Name, Category, Steps), sorted by a click on a heading, with a search and a Category filter that gives
+ * each category's count; on the right Start from (Blank or Template, a two-way switch), the name and the folder tree.
+ * With Blank chosen the left says what Blank gives. Other types show only the name and the folder.
+ * Cancel, the close button and Esc close it; Enter creates.
  */
+type SortKey = "name" | "category" | "steps";
 export function CreateDialog({ type, folderPath, folders, blueprints = [], onCreate, onClose, onChangeFolder }:
   { type: ItemType | null; folderPath: string; folders: string[]; blueprints?: Blueprint[]; onCreate: (kind: NewItemKind, name: string, from: Blueprint | null) => Promise<void>;
     onClose: () => void; onChangeFolder: (path: string) => void }) {
@@ -18,6 +20,7 @@ export function CreateDialog({ type, folderPath, folders, blueprints = [], onCre
   const [start, setStart] = useState("");
   const [q, setQ] = useState("");
   const [kit, setKit] = useState("");
+  const [sort, setSort] = useState<{ by: SortKey; up: boolean }>({ by: "name", up: true });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const offers = type?.kind === "TaskBot" ? blueprints : [];
@@ -29,8 +32,15 @@ export function CreateDialog({ type, folderPath, folders, blueprints = [], onCre
   if (!type) return null;
   const from = mode === "template" ? offers.find((b) => b.id === start) ?? null : null;
   const t = q.trim().toLowerCase();
-  const shown = offers.filter((b) => (!kit || toolkitOf(b) === kit) && (!t || (b.name + " " + b.description).toLowerCase().includes(t)));
+  const key = (b: Blueprint): string | number => sort.by === "name" ? b.name.toLowerCase() : sort.by === "category" ? toolkitOf(b) + " " + b.name.toLowerCase() : b.steps.length;
+  const shown = offers.filter((b) => (!kit || toolkitOf(b) === kit) && (!t || (b.name + " " + b.description).toLowerCase().includes(t)))
+    .sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * (sort.up ? 1 : -1); });
   const pick = (b: Blueprint) => { setStart(b.id); if (!name.trim() || offers.some((o) => o.name === name)) setName(b.name); };
+  const head = (by: SortKey, label: string) => {
+    const on = sort.by === by;
+    return <button type="button" className={"st-create-th is-" + by} aria-sort={on ? (sort.up ? "ascending" : "descending") : "none"}
+      onClick={() => setSort(on ? { by, up: !sort.up } : { by, up: true })}>{label}{on && <span aria-hidden="true">{sort.up ? " \u25B2" : " \u25BC"}</span>}</button>;
+  };
 
   const submit = async () => {
     if (mode === "template" && !from) { setError("Choose a template, or start from Blank."); return; }
@@ -43,12 +53,19 @@ export function CreateDialog({ type, folderPath, folders, blueprints = [], onCre
 
   const place = (
     <div className="st-create-place">
+      {offers.length > 0 && <>
+        <span className="st-create-label">Start from</span>
+        <div className="st-seg st-create-switch" role="radiogroup" aria-label="Start from">
+          <button type="button" role="radio" className="st-seg-btn" aria-checked={mode === "blank"} onClick={() => setMode("blank")}>Blank</button>
+          <button type="button" role="radio" className="st-seg-btn" aria-checked={mode === "template"} onClick={() => setMode("template")}>Template</button>
+        </div>
+      </>}
       <label className="st-create-label" htmlFor="st-create-name">Name</label>
       <input id="st-create-name" className="ui-input" data-autofocus value={name} placeholder="For example: Invoice intake Germany"
         onChange={(e) => setName(e.target.value)} aria-invalid={!!error && !name.trim()} />
       <span className="st-create-label" id="st-create-folder">Save in</span>
       <FolderTree folders={folders} value={folderPath} onChange={onChangeFolder} labelledBy="st-create-folder" />
-      <span className="st-create-path">{["Workspace", ...folderPath.split("/").filter(Boolean)].join(" / ")}{name.trim() && " / " + name.trim()}</span>
+      <span className="st-create-path">{["Automation", ...folderPath.split("/").filter(Boolean)].join(" / ")}{name.trim() && " / " + name.trim()}</span>
     </div>
   );
 
@@ -58,34 +75,30 @@ export function CreateDialog({ type, folderPath, folders, blueprints = [], onCre
       footer={<>
         <span className="st-create-esc">Esc closes</span>
         <Button kind="secondary" onClick={onClose}>Cancel</Button>
-        <Button kind="primary" onClick={submit} disabled={busy}>{busy ? "Creating…" : "Create and edit"}</Button>
+        <Button kind="primary" onClick={submit} disabled={busy}>{busy ? "Creating\u2026" : "Create and edit"}</Button>
       </>}>
       <form onSubmit={(e) => { e.preventDefault(); submit(); }} className={"st-create" + (offers.length ? " has-start" : "")}>
-        {offers.length > 0 && <>
-          <div className="st-create-from" role="radiogroup" aria-label="Start from">
-            <span className="st-create-head">Start from</span>
-            <button type="button" role="radio" aria-checked={mode === "blank"} onClick={() => setMode("blank")}>
-              <b>Blank</b><span>An empty agent</span></button>
-            <button type="button" role="radio" aria-checked={mode === "template"} onClick={() => setMode("template")}>
-              <b>Template</b><span>{offers.length} ready-made start{offers.length === 1 ? "" : "s"}</span></button>
-          </div>
-          <div className="st-create-list">
-            {mode === "blank" ? <p className="st-create-blank">An empty agent: you add its steps in the editor.<br />Choose <b>Template</b> to start from a ready-made agent instead.</p> : <>
+        {offers.length > 0 && <div className="st-create-list">
+          {mode === "blank" ? <p className="st-create-blank">An empty agent: you add its steps in the editor.<br />Choose <b>Template</b> on the right to start from a ready-made agent instead.</p> : <>
+            <div className="st-create-tools">
               <input type="search" className="ui-input" aria-label="Search templates" placeholder={"Search " + offers.length + " templates"} value={q}
                 onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape" && q) { e.stopPropagation(); setQ(""); } }} />
-              {kits.length > 1 && <div className="st-create-chips" role="group" aria-label="Toolkit">
-                <button type="button" aria-pressed={!kit} onClick={() => setKit("")}>All</button>
-                {kits.map(([k, n]) => <button key={k} type="button" aria-pressed={kit === k} onClick={() => setKit(kit === k ? "" : k)}>{k} <span>{n}</span></button>)}
-              </div>}
+              {kits.length > 1 && <select className="ui-input st-create-cat" aria-label="Category" value={kit} onChange={(e) => setKit(e.target.value)}>
+                <option value="">Category: All ({offers.length})</option>
+                {kits.map(([k, n]) => <option key={k} value={k}>{k} ({n})</option>)}
+              </select>}
+            </div>
+            <div className="st-create-table">
+              <div className="st-create-thead">{head("name", "Name")}{head("category", "Category")}{head("steps", "Steps")}</div>
               {shown.length ? <ul className="st-create-templates" role="listbox" aria-label="Templates">
                 {shown.map((b) => <li key={b.id} role="option" aria-selected={b.id === start} tabIndex={0} onClick={() => pick(b)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(b); } }}>
-                  <b>{b.name}</b><span>{toolkitOf(b)} · {b.steps.length} step{b.steps.length === 1 ? "" : "s"}</span></li>)}
+                  <b>{b.name}</b><span className="is-category">{toolkitOf(b)}</span><span className="is-steps">{b.steps.length}</span></li>)}
               </ul> : <p className="st-create-blank">Nothing matches “{q.trim()}”.</p>}
-              {from && <p className="st-create-about">{from.description}</p>}
-            </>}
-          </div>
-        </>}
+            </div>
+            {from && <p className="st-create-about">{from.description}</p>}
+          </>}
+        </div>}
         {place}
         {error && <p role="alert" className="st-error st-create-error">{error}</p>}
         <button type="submit" hidden />
@@ -116,7 +129,7 @@ type Node = { path: string; name: string; children: Node[] };
 /** Every folder of the workspace as a tree; a click chooses the folder, the arrow opens and closes it. */
 function FolderTree({ folders, value, onChange, labelledBy }: { folders: string[]; value: string; onChange: (p: string) => void; labelledBy: string }) {
   const root = useMemo(() => {
-    const top: Node = { path: "", name: "Workspace", children: [] };
+    const top: Node = { path: "", name: "Automation", children: [] };
     const byPath = new Map<string, Node>([["", top]]);
     for (const f of [...new Set(folders.filter(Boolean))].sort()) {
       const parts = f.split("/");

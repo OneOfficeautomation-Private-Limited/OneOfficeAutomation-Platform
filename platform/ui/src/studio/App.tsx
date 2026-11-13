@@ -494,13 +494,13 @@ export function App({ api: given }: { api?: StudioApi }) {
           {current && <>
                 <Button kind="primary" icon="save" onClick={() => save(current.path)} disabled={isClone} title={isClone ? "A clone is read-only" : withKey("Save", "app.save")}>Save</Button>
                 {!agent ? null : running
-                  ? <Button kind="light" onClick={stopRun} title={withKey("Stop the run", "run.stop")}>Stop run</Button>
+                  ? <Button kind="danger" icon="close" onClick={stopRun} title={withKey("Stop the run", "run.stop")}>Stop run</Button>
                   : <>
                       <Button kind="run" icon="play" onClick={() => startRun(false)} title={withKey("Run the agent as it is in the editor, on this computer", "run.run")}>Run</Button>
                       <Button kind="debug" icon="bug" onClick={() => startRun(true)} title={withKey("Run and stop at breakpoints, or at the first step", "run.debug")}>Debug</Button>
                     </>}
                 {agent && !isClone && <Button kind="light" icon="globe" onClick={() => setCheckingIn([current.path])} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
-                <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>
+                <Button kind="plain" icon="close" className="st-top-close" onClick={() => close(current.path)}>Close</Button>
               </>}
         </div>
       </header>
