@@ -10,7 +10,7 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     steps: [
       "Search, or filter by status, folder or how documents come in.",
       "Click a column title to sort by it. Click again to reverse.",
-      "The table is wide: scroll it sideways to see activity.",
+      "Show Activity for what is happening, or Set-up for how each process is set up.",
       "Click a row to open that process.",
       "Open Dashboard for the charts.",
     ],

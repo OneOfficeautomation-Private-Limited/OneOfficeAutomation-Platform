@@ -95,8 +95,14 @@ final class DocFlowLauncher {
         } catch (IOException | IllegalArgumentException e) { return false; }
     }
 
-    /** Starts DocFlow in the background and stops it with the platform; failures are logged, never thrown. */
-    static synchronized void start(Path home, Path data) {
+    /**
+     * Starts DocFlow in the background and stops it with the platform; failures are logged, never thrown. DocFlow's own
+     * embedded database can be slow to come up the first time (Windows holding its log file for 30 s): when DocFlow stops
+     * on its own without ever answering, it is started again, at most twice.
+     */
+    static void start(Path home, Path data) { start(home, data, urlOf(localEnv(home)), 2); }
+
+    static synchronized void start(Path home, Path data, String url, int retries) {
         if (started != null && started.isAlive()) return;
         if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) return;   // Linux and containers run DocFlow themselves
         try {
@@ -108,7 +114,13 @@ final class DocFlowLauncher {
             started = pb.start();
             System.out.println("  Document Automation: DocFlow started from " + home + " (its log: " + log + ")");
             Process p = started;
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> stop(p), "stop-docflow"));
+            if (retries == 2) Runtime.getRuntime().addShutdownHook(new Thread(() -> stop(started), "stop-docflow"));
+            p.onExit().thenRun(() -> {
+                if (retries <= 0 || answers(url)) return;
+                System.out.println("  Document Automation: DocFlow stopped while starting; starting it again (see its log).");
+                try { Thread.sleep(5000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                if (!answers(url)) start(home, data, url, retries - 1);
+            });
         } catch (IOException | RuntimeException e) {
             System.out.println("  Document Automation: DocFlow could not be started from " + home + ": " + e.getMessage()
                     + ". Start it with " + home.resolve("windows").resolve("start.bat") + ", or switch this off in Settings > Document Automation.");

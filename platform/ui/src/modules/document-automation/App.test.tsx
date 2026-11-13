@@ -674,10 +674,11 @@ describe("Document Automation", () => {
     expect(within(sections).getAllByRole("link").map((a) => a.textContent)).toEqual(["Table", "Dashboard"]);
     expect(within(sections).getByRole("link", { name: "Table" }).getAttribute("aria-current")).toBe("page");
     const region = await table("Processes");
-    expect(within(region).getByRole("group", { name: /scrolls sideways/ }).className).toBe("df-table-wrap");   // the wide table scrolls in its card
-    expect(within(region).getAllByRole("button").filter((b) => b.className === "df-sort").map((b) => b.textContent!.replace(/ .$/, ""))).toEqual([
-      "Process", "Folder", "Status", "Document types", "Comes in from", "Classification", "Extraction engine", "Checks on", "Review",
-      "Delivers to", "This month", "Today", "Done", "Straight through", "Waiting for review", "Overdue", "Failed", "Last document"]);
+    // 13 Nov 2026 (item 11): ten columns at a time so the table fits; Activity first, Set-up a click away
+    const heads = () => within(region).getAllByRole("button").filter((b) => b.className === "df-sort").map((b) => b.textContent!.replace(/ .$/, ""));
+    expect(heads()).toEqual(["Process", "Status", "This month", "Today", "Done", "Straight through", "Waiting for review", "Overdue", "Failed", "Last document"]);
+    fireEvent.click(within(region).getByRole("button", { name: "Set-up" }));
+    expect(heads()).toEqual(["Process", "Folder", "Status", "Document types", "Comes in from", "Classification", "Extraction engine", "Checks on", "Review", "Delivers to"]);
     const names = () => within(region).getAllByRole("row").slice(1).map((r) => r.querySelector("a")!.textContent);
     expect(names()).toEqual(["AP invoices", "Deliveries", "Expense claims", "One Inbox"]);
     const ap = within(region).getByRole("link", { name: "AP invoices" }).closest("tr")!;
@@ -685,11 +686,14 @@ describe("Document Automation", () => {
     expect(within(ap).getByText("Upload, Watched folder, Bot")).toBeTruthy();
     expect(within(ap).getByText("5 of 6")).toBeTruthy();
     expect(within(ap).getByText("Under 85% · 24 h")).toBeTruthy();
-    expect(within(ap).getByText("1,460")).toBeTruthy();
+    fireEvent.click(within(region).getByRole("button", { name: "Activity" }));
+    expect(within(within(region).getByRole("link", { name: "AP invoices" }).closest("tr")!).getByText("1,460")).toBeTruthy();
+    fireEvent.click(within(region).getByRole("button", { name: "Set-up" }));
     const inbox = within(region).getByRole("link", { name: "One Inbox" }).closest("tr")!;
     expect(within(inbox).getByText("Any type")).toBeTruthy();
     expect(within(inbox).getByText("Recognised")).toBeTruthy();
 
+    fireEvent.click(within(region).getByRole("button", { name: "Activity" }));
     fireEvent.click(within(region).getByRole("button", { name: "This month" }));        // numbers sort largest first
     expect(names()).toEqual(["AP invoices", "One Inbox", "Expense claims", "Deliveries"]);
     expect(within(region).getByRole("columnheader", { name: /This month/ }).getAttribute("aria-sort")).toBe("descending");
@@ -702,6 +706,7 @@ describe("Document Automation", () => {
     fireEvent.click(within(region).getByRole("button", { name: "Clear filters" }));
     fireEvent.change(within(region).getByLabelText("Folder"), { target: { value: "Finance" } });
     expect(names()).toEqual(["Expense claims", "AP invoices"]);
+    fireEvent.click(within(region).getByRole("button", { name: "Set-up" }));            // the folder is a set-up column
     fireEvent.click(within(region).getByText("Finance / Expenses"));                    // anywhere on the row
     expect(location.hash).toBe("#/process/expense-claims");
   });

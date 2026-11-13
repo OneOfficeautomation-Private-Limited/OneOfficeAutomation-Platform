@@ -42,7 +42,17 @@ const COLS: Col[] = [
     cell: (p) => <><span className="df-num">{when(p.lastAt)}</span>{p.lastAt && <div className="df-small">{p.lastDocument}</div>}</> },
 ];
 
-/** Overview, Table: one row per process (One Inbox too). Search, filter and sort; a row opens the process. */
+/** The columns each view shows: what is happening (the default), or how each process is set up. Both fit the screen. */
+const VIEWS = {
+  activity: ["name", "state", "month", "today", "done", "stp", "waiting", "overdue", "failed", "last"],
+  setup: ["name", "folder", "state", "types", "sources", "classify", "extraction", "checks", "review", "deliveries"],
+} as const;
+type View = keyof typeof VIEWS;
+
+/**
+ * Overview, Table: one row per process (One Inbox too). Search, filter and sort; a row opens the process. Since
+ * 13 Nov 2026 (improvement list item 11) it shows ten columns at a time, Activity or Set-up, so it fits the screen.
+ */
 export function ProcessTable({ api }: { api: DocFlowApi }) {
   const [all] = useLoad(() => api.processTable(), [api]);
   const [q, setQ] = useState("");
@@ -50,7 +60,9 @@ export function ProcessTable({ api }: { api: DocFlowApi }) {
   const [folder, setFolder] = useState("all");
   const [source, setSource] = useState<"all" | Source>("all");
   const [sort, setSort] = useState<{ key: string; up: boolean }>({ key: "name", up: true });
+  const [view, setView] = useState<View>("activity");
   if (!all) return <Loading />;
+  const shown = COLS.filter((c) => (VIEWS[view] as readonly string[]).includes(c.key));
 
   const top = (f: string) => folderLabel(f).split(" / ")[0];
   const col = COLS.find((c) => c.key === sort.key)!;
@@ -70,11 +82,15 @@ export function ProcessTable({ api }: { api: DocFlowApi }) {
           ...[...new Set(all.map((p) => top(p.folder)).filter(Boolean))].sort().map((f) => ({ value: f, label: f }))]} />
         <FilterSelect label="Comes in from" value={source} onChange={setSource} options={[{ value: "all", label: "Any way" },
           { value: "upload", label: "Upload" }, { value: "folder", label: "Watched folder" }, { value: "email", label: "Email" }, { value: "bot", label: "Bot" }]} />
+        <div className="df-seg" role="group" aria-label="Show">
+          <button type="button" aria-pressed={view === "activity"} onClick={() => setView("activity")}>Activity</button>
+          <button type="button" aria-pressed={view === "setup"} onClick={() => setView("setup")}>Set-up</button>
+        </div>
       </FilterBar>
-      <div className="df-table-wrap" role="group" aria-label="Process table, scrolls sideways" tabIndex={0}>
+      <div className="df-table-wrap" role="group" aria-label="Process table" tabIndex={0}>
         <table className="df-table df-wide-table">
           <thead><tr>
-            {COLS.map((c) => (
+            {shown.map((c) => (
               <th key={c.key} className={c.right ? "df-right" : undefined} aria-sort={sort.key === c.key ? (sort.up ? "ascending" : "descending") : "none"}>
                 <button type="button" className="df-sort" onClick={() => by(c.key)}>{c.label}{sort.key === c.key && <span aria-hidden="true">{sort.up ? " ▲" : " ▼"}</span>}</button>
               </th>
@@ -83,7 +99,7 @@ export function ProcessTable({ api }: { api: DocFlowApi }) {
           <tbody>
             {rows.map((p) => (
               <tr key={p.id} className="df-row-link" onClick={() => { location.hash = "#/process/" + encodeURIComponent(p.id); }}>
-                {COLS.map((c) => <td key={c.key} className={c.right ? "df-right" : undefined}>{c.cell(p)}</td>)}
+                {shown.map((c) => <td key={c.key} className={c.right ? "df-right" : undefined}>{c.cell(p)}</td>)}
               </tr>
             ))}
           </tbody>
