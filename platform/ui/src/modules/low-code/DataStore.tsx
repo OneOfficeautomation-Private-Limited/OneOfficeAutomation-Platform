@@ -71,7 +71,7 @@ function Entities({ api, can, onNotice }: { api: CrApi; can: Can; onNotice: (t: 
           <Button kind="danger" onClick={() => remove(deleting)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Cancel</Button></div>}
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Entities list">
-            <thead><tr>{["Entity", "Folder", "Fields", "Records", "Changed"].map((h) => <th key={h} scope="col">{h}</th>)}
+            <thead><tr>{["Entity", "Folder", "Fields", "Records", "Last modified"].map((h) => <th key={h} scope="col">{h}</th>)}
               {can.manage && <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>}</tr></thead>
             <tbody>
               {(list ?? []).map((e) => (
@@ -169,7 +169,7 @@ function Records({ api, entity, can, onBack, onNotice }: { api: CrApi; entity: D
           <Button kind="danger" onClick={() => remove(deleting)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Cancel</Button></div>}
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label={entity.name + " records"}>
-            <thead><tr><th scope="col">Id</th>{entity.fields.map((f) => <th key={f.name} scope="col">{f.name}</th>)}<th scope="col">Changed</th>
+            <thead><tr><th scope="col">Id</th>{entity.fields.map((f) => <th key={f.name} scope="col">{f.name}</th>)}<th scope="col">Last modified</th>
               {can.edit && <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>}</tr></thead>
             <tbody>
               {(data?.records ?? []).map((r) => (
@@ -323,7 +323,7 @@ function BucketFiles({ api, bucket, can, onBack, onNotice }: { api: CrApi; bucke
           <Button kind="danger" onClick={() => remove(deleting)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Cancel</Button></div>}
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label={bucket.name + " files"}>
-            <thead><tr><th scope="col">File</th><th scope="col">Size</th><th scope="col">Changed</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
+            <thead><tr><th scope="col">File</th><th scope="col">Size</th><th scope="col">Last modified</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {shown.map((f) => (
                 <tr key={f.path} className="is-static">

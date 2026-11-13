@@ -892,3 +892,25 @@ a.ov-tab { text-decoration: none; }
 .cc-app .cc-strip-cell.is-link:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
 .cc-app .cc-list .ui-tile { flex: none; }
 @media (max-width: 900px) { .cc-app .cc-strip { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } .cc-app .cc-strip > li:nth-child(3n+1) { border-left: 0; } .cc-app .cc-strip > li:nth-child(n+4) { border-top: 1px solid #e3e7ed; } }
+
+/* 13 Nov 2026 round 2, item 6 (A6): every page's figures as Home's strip (H1): one white strip, equal cells split by
+   thin lines, the number over its label. ("body" lifts these above the earlier .cc-app rules.) */
+body .cc-app .cc-sums, body .cc-app .cc-list > .cc-sums { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; margin: 10px 20px 0; padding: 0;
+  background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 6px; overflow: hidden; }
+body .cc-app .cc-list > .cc-sums, body .cc-app .cc-sums.cc-sums-flush { margin-left: 0; margin-right: 0; }
+body .cc-app .cc-sums .cc-sum, body .cc-app .cc-list > .cc-sums .cc-sum { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; height: auto; min-height: 50px;
+  min-width: 0; padding: 4px 14px; border: 0; border-left: 1px solid #e3e7ed; border-radius: 0; background: transparent; text-align: left; }
+body .cc-app .cc-sums .cc-sum:first-child { border-left: 0; }
+body .cc-app .cc-sums .cc-sum strong { font-size: 18px; line-height: 22px; white-space: nowrap; }
+body .cc-app .cc-sums .cc-sum strong.cc-sum-text { font-size: 13px; line-height: 22px; }
+body .cc-app .cc-sums .cc-sum span { max-width: 100%; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body .cc-app .cc-sums button.cc-sum:hover, body .cc-app .cc-sums a.cc-sum:hover { background: #f1f6fe; }
+body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:hover span { color: var(--ui-accent); }
+/* the agent's mark on the line of its name (A6) */
+.cc-agent-cell { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; vertical-align: middle; }
+.cc-agent-cell strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-agent-cell .ui-tile { flex: none; }
+/* A6: the error column takes only the room left (in full on hover); agent and runner names are capped */
+.cc-app table td.cc-clip.cc-fill { max-width: 0; width: 100%; min-width: 140px; }
+.cc-app table th.cc-fill { width: 100%; }
+.cc-app table td.cc-clip.cc-cap { max-width: 150px; }

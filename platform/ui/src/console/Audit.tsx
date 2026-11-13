@@ -74,8 +74,8 @@ const BESIDE_RECORD = new Set(["ts", "actor", "action", "result"]);
 const cut = (t: string, n = 28) => t.length > n ? t.slice(0, n - 1) + "…" : t;
 const COLS: Col[] = [
   { key: "seq", label: "#", cell: (a) => String(a.seq) },
-  { key: "ts", label: "Time", cell: (a) => new Date(a.ts).toLocaleString() },
-  { key: "actor", label: "Who", cell: (a) => a.actor },
+  { key: "ts", label: "Event time", cell: (a) => new Date(a.ts).toLocaleString() },
+  { key: "actor", label: "User", cell: (a) => a.actor },
   { key: "action", label: "What happened", cell: (a) => wordsOf(a.action) + " (" + a.action + ")" },
   { key: "object", label: "Object", cell: (a) => [a.object_type, a.object_id].filter(Boolean).join(" ") },
   { key: "result", label: "Result", cell: (a) => resultOf(a.result)[1] },

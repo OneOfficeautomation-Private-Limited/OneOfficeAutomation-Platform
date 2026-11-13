@@ -113,7 +113,7 @@ export function Policies({ api, user, onNotice }: { api: CrApi; user: CrUser; on
           <Button kind="danger" onClick={() => remove(asking)}>Delete</Button><Button kind="plain" onClick={() => setAsking(null)}>Cancel</Button></div>}
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Policies list">
-            <thead><tr><th scope="col">Name</th><th scope="col">Kind</th><th scope="col">Folders it applies to</th><th scope="col">What it does</th><th scope="col">Updated</th>
+            <thead><tr><th scope="col">Name</th><th scope="col">Kind</th><th scope="col">Folders it applies to</th><th scope="col">What it does</th><th scope="col">Last modified</th>
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {shown.map((p) => <tr key={p.id} onClick={rowClick(() => setOpen(p))}>
@@ -263,7 +263,7 @@ function Stopped({ api, policy }: { api: CrApi; policy: Policy }) {
       </div>
       {masked.length > 0 && <table className="st-table" aria-label="Personal data masked"><thead><tr><th scope="col">Kind</th><th scope="col">Masked</th></tr></thead>
         <tbody>{masked.map(([k, v]) => <tr key={k}><td>{ENTITY[k] ?? k}</td><td>{v}</td></tr>)}</tbody></table>}
-      <table className="st-table" aria-label="Steps stopped"><thead><tr><th scope="col">When</th><th scope="col">Agent</th><th scope="col">Why</th><th scope="col">Run</th></tr></thead>
+      <table className="st-table" aria-label="Steps stopped"><thead><tr><th scope="col">Event time</th><th scope="col">Agent</th><th scope="col">Why</th><th scope="col">Run</th></tr></thead>
         <tbody>{s.stopped.map((x) => <tr key={x.run_id}><td>{new Date(x.created).toLocaleString()}</td><td>{x.agent.replace(/\.(flow|process)\.json$/, "")}</td>
           <td title={x.message}>{x.code === "AI.MODEL_NOT_ALLOWED" ? "A model not allowed" : "An answer flagged as harmful"}</td>
           <td><a href={"#/activity?run=" + encodeURIComponent(x.run_id)}>{x.run_id.slice(0, 12)}…</a></td></tr>)}

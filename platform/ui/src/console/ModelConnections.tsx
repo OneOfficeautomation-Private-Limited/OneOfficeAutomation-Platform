@@ -89,7 +89,7 @@ export function ModelConnections({ api, user, onNotice }: { api: CrApi; user: Cr
           <Button kind="danger" onClick={() => del(ask)}>Delete</Button><Button kind="plain" onClick={() => setAsk(null)}>Cancel</Button></div>}
         <div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Model connections list">
-          <thead><tr><th scope="col">Connection</th><th scope="col">Provider</th><th scope="col">Model</th><th scope="col">Roles</th><th scope="col">Tokens this month</th><th scope="col">Privacy</th><th scope="col">Key</th><th scope="col">Updated</th>
+          <thead><tr><th scope="col">Connection</th><th scope="col">Provider</th><th scope="col">Model</th><th scope="col">Roles</th><th scope="col">Tokens this month</th><th scope="col">Privacy</th><th scope="col">Key</th><th scope="col">Last modified</th>
             <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((c) => (

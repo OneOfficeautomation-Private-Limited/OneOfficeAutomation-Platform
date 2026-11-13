@@ -51,7 +51,7 @@ export function UpcomingRuns({ api }: { api: CrApi }) {
       {!list && !error && <p className="cc-none" role="status">Loading…</p>}
       {list && <div className="cc-list-panel"><div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Upcoming runs">
-          <thead><tr><th>When</th><th>Schedule</th><th>Agent</th><th>Repeats</th><th>Time zone</th><th>Last run</th></tr></thead>
+          <thead><tr><th>Start time</th><th>Schedule</th><th>Agent</th><th>Repeats</th><th>Time zone</th><th>Last run</th></tr></thead>
           <tbody>{shown.map((s) => { const last = s.last_status ? LAST[s.last_status] : null;
             return <tr key={s.id}>
               <td>{time(s.next_run)}</td>

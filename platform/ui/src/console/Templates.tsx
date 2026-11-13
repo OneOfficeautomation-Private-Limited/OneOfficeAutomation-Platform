@@ -27,7 +27,7 @@ const HELP: HelpTopic = { title: "Agent Templates",
     + "others in your region.",
   items: [
     { name: "Folders", text: "Pick a folder to list its templates; All templates shows every one. The catalogue's categories are the first folders." },
-    { name: "State", text: "Show only templates already installed in Automation, or only those not installed yet." },
+    { name: "Status", text: "Show only templates already installed in Automation, or only those not installed yet." },
     { name: "Installed in", text: "The Automation folders that already hold this template's agents." },
     { name: "Install…", text: "Puts the template's agents into a folder of Automation as new agents you can change. Agents already there are kept as they "
       + "are. Needs permission to import." },
@@ -199,15 +199,15 @@ export function Templates({ api, user, onNotice }: { api: CrApi; user: CrUser; o
           <div className="cc-list-tools cc-pane-tools">
             <div className="cc-list-filters" role="group" aria-label="Filters">
               <span className="cc-list-search"><TextInput type="search" aria-label="Search templates" placeholder={"Search in " + (cat ? cat.split("/").pop() : "Agent Templates")} value={q} onChange={(e) => setQ(e.target.value)} /></span>
-              <span className={"cc-chip" + (state ? " is-on" : "")}><Select aria-label="State" value={state} onChange={(e) => setState(e.target.value)}
-                options={[{ value: "", label: "State: Any" }, { value: "installed", label: "State: Installed" }, { value: "not", label: "State: Not installed yet" }]} /></span>
+              <span className={"cc-chip" + (state ? " is-on" : "")}><Select aria-label="Status" value={state} onChange={(e) => setState(e.target.value)}
+                options={[{ value: "", label: "Status: Any" }, { value: "installed", label: "Status: Installed" }, { value: "not", label: "Status: Not installed yet" }]} /></span>
               {(q.trim() || state) && <Button kind="plain" onClick={() => { setQ(""); setState(""); }}>Clear filters</Button>}
             </div>
             <div className="cc-list-right" role="toolbar" aria-label="Templates list tools"><RefreshButton onClick={load} /></div>
           </div>
           <div className="cc-list-scroll">
             <table className="cc-list-table" aria-label="Templates">
-              <thead><tr><th scope="col">Name</th><th scope="col">Folder</th><th scope="col">Category</th><th scope="col">Publisher</th><th scope="col" className="cc-num">Agents</th><th scope="col">State</th><th scope="col">Installed in</th>
+              <thead><tr><th scope="col">Name</th><th scope="col">Folder</th><th scope="col">Category</th><th scope="col">Published by</th><th scope="col" className="cc-num">Agents</th><th scope="col">Status</th><th scope="col">Installed in</th>
                 <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>
                 {subfolders.map((f) => (

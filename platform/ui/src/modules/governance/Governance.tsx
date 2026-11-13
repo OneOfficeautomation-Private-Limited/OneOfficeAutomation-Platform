@@ -83,7 +83,7 @@ export function Governance({ api, onNotice }: { api: CrApi; onNotice: (t: string
           </div>
           <div className="cc-list-scroll">
             {tab === "recent" && <table className="cc-list-table" aria-label="Recent AI calls">
-              <thead><tr><th scope="col">Time</th><th scope="col">Agent</th><th scope="col">User</th><th scope="col">Purpose</th><th scope="col">Model</th><th scope="col" className="cc-num">Tokens</th><th scope="col">Masked</th><th scope="col">Tools used</th><th scope="col">Fingerprint</th></tr></thead>
+              <thead><tr><th scope="col">Event time</th><th scope="col">Agent</th><th scope="col">User</th><th scope="col">Purpose</th><th scope="col">Model</th><th scope="col" className="cc-num">Tokens</th><th scope="col">Masked</th><th scope="col">Tools used</th><th scope="col">Fingerprint</th></tr></thead>
               <tbody>
                 {recent.map((c, i) => <tr key={i} className={c.run_id ? undefined : "is-static"} title={c.run_id ? "Open the run that made this call" : undefined}
                   onClick={rowClick(() => { if (c.run_id) location.hash = "#/activity?run=" + encodeURIComponent(c.run_id); })}>

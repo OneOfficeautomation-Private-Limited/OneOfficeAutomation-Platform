@@ -163,7 +163,7 @@ function AuditFiguresTab({ api, title, tabs }: { api: CrApi; title: string; tabs
           <div className="ov-tabs" role="presentation"><span className="ov-tab cc-ins-head">Failed and denied<span className={"ov-cnt" + (a.not_done.length ? " is-bad" : "")}>{a.not_done.length}</span></span>
             <span className="ov-fill" /><a className="cc-ins-more" href={trail({ result: f.result || "failed" })}>In the Audit Trail</a></div>
           <div className="cc-list-scroll"><table className="cc-list-table" aria-label="Failed and denied">
-            <thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">What</th><th scope="col">On</th><th scope="col">Result</th><th scope="col">Details</th></tr></thead>
+            <thead><tr><th scope="col">Event time</th><th scope="col">User</th><th scope="col">What</th><th scope="col">On</th><th scope="col">Result</th><th scope="col">Details</th></tr></thead>
             <tbody>{a.not_done.map((r: AuditRecord) => <tr key={r.seq} title="Open it in the Audit Trail"
               onClick={rowClick(() => { location.hash = trail({ actor: r.actor, result: r.result, ...(r.object_id ? { object_id: r.object_id } : {}) }); })}>
               <td>{when(r.ts)}</td><td className="cc-clip cc-clip-sm" title={whoName(r.actor)}>{whoName(r.actor)}</td><td>{wordsOf(r.action)}</td><td className="cc-clip cc-clip-sm" title={r.object_id ?? undefined}>{r.object_id ?? ""}</td>

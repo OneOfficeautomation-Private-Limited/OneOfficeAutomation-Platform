@@ -157,7 +157,7 @@ export function Alerts({ api, user, onNotice, view = "alerts" }: { api: CrApi; u
             <thead><tr>
               <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={openAlerts.length > 0 && openAlerts.every((a) => selected.includes(a.id))}
                 onChange={(e) => setSelected(e.target.checked ? openAlerts.map((a) => a.id) : [])} /></th>
-              {["Severity", "Alert", "Rule", "Raised", "State", "Sent to"].map((h) => <th key={h} scope="col">{h}</th>)}
+              {["Severity", "Alert", "Rule", "Raised", "Status", "Sent to"].map((h) => <th key={h} scope="col">{h}</th>)}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>
             </tr></thead>
             <tbody>
@@ -185,7 +185,7 @@ export function Alerts({ api, user, onNotice, view = "alerts" }: { api: CrApi; u
             <Button kind="danger" onClick={() => remove(deleting)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Cancel</Button></div>}
           <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Alert rules">
-            <thead><tr>{["State", "Rule", "Watches", "Condition", "Sends to", "Open alerts", "Last checked"].map((h) => <th key={h} scope="col">{h}</th>)}
+            <thead><tr>{["Status", "Rule", "Watches", "Condition", "Sends to", "Open alerts", "Last checked"].map((h) => <th key={h} scope="col">{h}</th>)}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {(rules ?? []).map((r) => (

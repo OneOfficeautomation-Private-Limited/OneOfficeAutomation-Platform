@@ -111,8 +111,8 @@ export function Operations({ api, user, tabs, part = "lists" }: { api: CrApi; us
         <span className="cc-chip"><Select aria-label="Period" value={days} onChange={(e) => setDays(e.target.value)} options={PERIODS.map(([v, l]) => ({ value: v, label: l }))} /></span>
         {agents.length > 0 && <Select aria-label="Agent" value={f.bot ?? ""} onChange={(e) => setF({ ...f, bot: e.target.value })} options={[{ value: "", label: "All agents" }, ...agents.map((x) => ({ value: x, label: name(x) }))]} />}
         {runners.length > 0 && <Select aria-label="Runner" value={f.device ?? ""} onChange={(e) => setF({ ...f, device: e.target.value })} options={[{ value: "", label: "All runners" }, ...runners.map((d) => ({ value: d.id, label: d.name }))]} />}
-        <Select aria-label="How started" value={f.source ?? ""} onChange={(e) => setF({ ...f, source: e.target.value })}
-          options={[{ value: "", label: "Started any way" }, ...SOURCES.map((v) => ({ value: v, label: howStarted(v) }))]} />
+        <Select aria-label="Trigger" value={f.source ?? ""} onChange={(e) => setF({ ...f, source: e.target.value })}
+          options={[{ value: "", label: "Trigger: Any" }, ...SOURCES.map((v) => ({ value: v, label: "Trigger: " + howStarted(v) }))]} />
         {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
       </div>
       <div className="cc-list-right" role="toolbar" aria-label="List tools"><RefreshButton onClick={load} /></div>
@@ -180,7 +180,7 @@ function StatList<R extends RunStats>({ rows, label, head, cells, name: nameOf, 
   extra?: [string, (r: R) => string, boolean][]; empty?: string }) {
   const span = head.length + 5 + extra.length + (menu ? 1 : 0);
   return <table className="cc-list-table" aria-label={label}>
-    <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}{["Runs", "Completed", "Average", "95% within", "Total"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
+    <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}{["Runs", "Completed", "Average duration", "95% within", "Total duration"].map((h) => <th key={h} scope="col" className="cc-num">{h}</th>)}
       {extra.map(([h, , num]) => <th key={h} scope="col" className={num ? "cc-num" : undefined}>{h}</th>)}
       {menu && <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>}</tr></thead>
     <tbody>{rows.map((r, i) => <tr key={i} className={open ? undefined : "is-static"} title={open ? openTitle : undefined} onClick={open ? rowClick(() => open(r)) : undefined}>
@@ -194,7 +194,7 @@ function StatList<R extends RunStats>({ rows, label, head, cells, name: nameOf, 
 function StatTable<R extends RunStats>({ rows, first, cell, label, extra = [] }: { rows: R[]; first: string; cell: (r: R) => ReactNode; label: string; extra?: [string, (r: R) => string][] }) {
   if (!rows.length) return <p className="st-muted">No runs in the period.</p>;
   return <div className="cc-scroll"><table className="st-table" aria-label={label}>
-    <thead><tr><th scope="col">{first}</th><th scope="col">Runs</th><th scope="col">Completed</th><th scope="col">Average</th><th scope="col">95% within</th><th scope="col">Total</th>
+    <thead><tr><th scope="col">{first}</th><th scope="col">Runs</th><th scope="col">Completed</th><th scope="col">Average duration</th><th scope="col">95% within</th><th scope="col">Total duration</th>
       {extra.map(([h]) => <th key={h} scope="col">{h}</th>)}</tr></thead>
     <tbody>{rows.map((r, i) => <tr key={i}><td>{cell(r)}</td><td>{r.runs}</td><td>{rate(r.success_rate)}</td><td>{dur(r.avg_ms)}</td><td>{dur(r.p95_ms)}</td><td>{dur(r.total_ms)}</td>
       {extra.map(([h, f]) => <td key={h}>{f(r)}</td>)}</tr>)}</tbody>

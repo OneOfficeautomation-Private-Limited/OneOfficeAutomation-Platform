@@ -39,7 +39,7 @@ const HELP: HelpTopic = { title: "Work queues",
       + "the API are checked against the model." },
     { name: "Import queue", text: "Makes a queue from a definition file exported from another queue, with its settings, model, members and waiting items. "
       + "The agent and runner pool are linked when they exist here." },
-    { name: "Processing", text: "On means waiting items are handed to free runners in the queue's pool. Off keeps them waiting; start or stop it from the "
+    { name: "Status", text: "On means waiting items are handed to free runners in the queue's pool. Off keeps them waiting; start or stop it from the "
       + "row's ⋯ menu." },
     { name: "Waiting", text: "New items plus items waiting to retry. A tag shows items an agent was unsure of, which a person must validate." },
     { name: "Service level", text: "The minutes an item may take from being added to being done. Items past it are counted in red." },
@@ -142,7 +142,7 @@ export function Queues({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
       <div className="cc-list-panel">
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Work queues list">
-            <thead><tr><th scope="col">Processing</th><th scope="col">Queue</th><th scope="col">Agent</th><th scope="col">Runner pool</th><th scope="col">Waiting</th>
+            <thead><tr><th scope="col">Status</th><th scope="col">Queue</th><th scope="col">Agent</th><th scope="col">Runner pool</th><th scope="col">Waiting</th>
               <th scope="col">In progress</th><th scope="col">Succeeded</th><th scope="col">Failed</th><th scope="col">Service level</th>
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>

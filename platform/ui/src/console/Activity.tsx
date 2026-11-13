@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AiCall, CrApi, CrUser, Run, RunEvent, Schedule } from "../api/cr";
-import { Button, Dialog, HelpButton, Select, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
-import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
+import { Button, Dialog, HelpButton, IconTile, Select, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
+import { RefreshButton, RowMenu, rowClick, when as whenLong, CloseView } from "./ListParts";
+/** A run's time, short enough for the list at 1366 px: "13 Nov, 08:49" (the year only when it is not this year); in full on hover. */
+function when(t?: string | null) {
+  if (!t) return "";
+  const d = new Date(t);
+  if (isNaN(d.getTime())) return whenLong(t);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) }) + ", " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+}
 import { repeats } from "./Schedules";
 import { logFields } from "../studio/flowEdit";
 import { SuspendedRuns } from "./SuspendedRuns";
@@ -42,7 +50,7 @@ function duration(ms?: number | null) {
   const s = Math.round(ms / 1000);
   return s < 60 ? s + " s" : s < 3600 ? Math.floor(s / 60) + " min " + (s % 60) + " s" : Math.floor(s / 3600) + " h " + Math.floor((s % 3600) / 60) + " min";
 }
-const startedBy = (r: Run) => (r.requested_by ?? "") + (r.run_as && r.run_as !== r.requested_by ? " as " + r.run_as : "");
+const startedBy = (r: Run) => r.requested_by ?? "";   // whose account it ran as is its own column, Run as user (round 2 item 6)
 type RunError = { code?: string; message?: string; stepId?: string; suggestedFix?: string };
 function parseError(e?: string | null): RunError | null {
   if (!e) return null;
@@ -56,12 +64,13 @@ const progressCols = (names: Names): Col[] => [
   { key: "status", label: "Status", cell: (r) => STATUS[runState(r)] ?? r.status },
   { key: "agent", label: "Agent", cell: (r) => name(r.bot_path) + (r.version ? " v" + r.version : "") },
   { key: "folder", label: "Folder", cell: (r) => folderOf(r.bot_path) },
-  { key: "progress", label: "Progress", cell: (r) => r.progress ? `Step ${Math.min(r.progress.finished + 1, r.progress.total || r.progress.finished + 1)}${r.progress.total ? " of " + r.progress.total : ""}${r.progress.action ? ": " + actionLabel(names, r.progress.action) : ""}` : r.status === "queued" ? "Waiting for the runner" : "" },
+  { key: "progress", label: "Current step", cell: (r) => r.progress ? `Step ${Math.min(r.progress.finished + 1, r.progress.total || r.progress.finished + 1)}${r.progress.total ? " of " + r.progress.total : ""}${r.progress.action ? ": " + actionLabel(names, r.progress.action) : ""}` : r.status === "queued" ? "Waiting for the runner" : "" },
   { key: "runner", label: "Runner", cell: (r) => r.device_name ?? r.device_id ?? "" },
   { key: "by", label: "Started by", cell: startedBy },
-  { key: "how", label: "How started", cell: (r) => howStarted(r.source) },
-  { key: "queued", label: "Queued", cell: (r) => when(r.created) },
-  { key: "started", label: "Started", cell: (r) => when(r.started) },
+  { key: "runas", label: "Run as user", cell: (r) => r.run_as ?? r.requested_by ?? "" },
+  { key: "how", label: "Trigger", cell: (r) => howStarted(r.source) },
+  { key: "queued", label: "Queue time", cell: (r) => when(r.created) },
+  { key: "started", label: "Start time", cell: (r) => when(r.started) },
 ];
 const COMPLETED_COLS: Col[] = [
   { key: "status", label: "Status", cell: (r) => STATUS[r.status] ?? r.status },
@@ -69,20 +78,18 @@ const COMPLETED_COLS: Col[] = [
   { key: "folder", label: "Folder", cell: (r) => folderOf(r.bot_path) },
   { key: "runner", label: "Runner", cell: (r) => r.device_name ?? r.device_id ?? "" },
   { key: "by", label: "Started by", cell: startedBy },
-  { key: "how", label: "How started", cell: (r) => howStarted(r.source) },
-  { key: "started", label: "Started", cell: (r) => when(r.started ?? r.created) },
-  { key: "ended", label: "Ended", cell: (r) => when(r.finished) },
-  { key: "duration", label: "Took", cell: (r) => duration(r.duration_ms) },
+  { key: "runas", label: "Run as user", cell: (r) => r.run_as ?? r.requested_by ?? "" },
+  { key: "how", label: "Trigger", cell: (r) => howStarted(r.source) },
+  { key: "started", label: "Start time", cell: (r) => when(r.started ?? r.created) },
+  { key: "ended", label: "End time", cell: (r) => when(r.finished) },
+  { key: "duration", label: "Duration", cell: (r) => duration(r.duration_ms) },
   { key: "steps", label: "Steps", cell: (r) => r.steps == null ? "" : String(r.steps) },
-  { key: "error", label: "Why it ended", cell: (r) => errorText(r.error) },
+  { key: "error", label: "Error message", cell: (r) => errorText(r.error) },
 ];
 const PERIODS: [string, string, number][] = [["24h", "Last 24 hours", 1], ["7d", "Last 7 days", 7], ["", "Last 90 days", 90], ["dates", "Chosen dates", 0]];
 const PAGE = 25;
 const folderOf = (path: string) => path.split("/").slice(0, -1).join("/");
 const PILL: Record<string, string> = { queued: "pending", running: "active", paused: "pending", stopping: "pending", success: "success", failed: "failed", stopped: "stopped", suspended: "pending" };
-const pad = (n: number) => String(n).padStart(2, "0");
-const dayOf = (t?: string | null) => { if (!t) return ""; const d = new Date(t); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
-const dayLabel = (t: string) => new Date(t).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 const DAY = 86_400_000;
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 function save(fileName: string, text: string, type: string) {
@@ -96,7 +103,8 @@ const linked = () => new URLSearchParams(location.hash.split("?")[1] ?? "");
 const linkedRun = () => linked().get("run");
 const linkedFilters = () => { const l = linked(); return Object.fromEntries(["status", "period", "q", "bot", "device"].filter((k) => l.get(k)).map((k) => [k, l.get(k)!])); };
 
-type Summary = { running: number; queued: number; failed: number; ended: number; succeeded: number; next: Schedule | null; schedulesOn: number | null };
+type Summary = { running: number; queued: number; failed: number; ended: number; succeeded: number; next: Schedule | null; schedulesOn: number | null;
+  suspended: number | null; completed: number };
 
 const HELP: HelpTopic = { title: "Agent Activity", about: "What is running now, what runs next on a schedule, and every run that has ended. "
   + "Click a run to open it beside the list.",
@@ -109,10 +117,10 @@ const HELP: HelpTopic = { title: "Agent Activity", about: "What is running now, 
       + "make or change them on the Schedules page." },
     { name: "Suspended", text: "Long-running agents that stopped to wait for a time, a task, a work item, another run or a callback; "
       + "their runner is free meanwhile. A new run carries on from the waiting step when the wait is over. Resume one now or stop it here." },
-    { name: "Completed", text: "Every run that ended in the chosen period, grouped by day, with why each ended. Select runs to run them again." },
+    { name: "Completed", text: "Every run that ended in the chosen period, newest first, with its error message. Select runs to run them again." },
     { name: "Period", text: "On Completed, choose how far back to look: "
       + "24 hours, 7 days, 90 days (the default) or Chosen dates, which asks for a From and To date." },
-    { name: "Status, Agent, Runner, How started", text: "Narrow the list to the runs you want; Clear filters shows every run again. "
+    { name: "Status, Agent, Runner, Trigger", text: "Narrow the list to the runs you want; Clear filters shows every run again. "
       + "The search box finds an agent, run id, user or error." },
     { name: "More filters", text: "Adds Started by, to find the runs one person started." },
     { name: "Columns", text: "Choose which columns the list shows; your choice is kept for next time." },
@@ -140,7 +148,7 @@ const HELP_RUN: HelpTopic = { title: "A run", about: "One run beside the list: h
 export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; onNotice: (t: string) => void }) {
   const [stored, setTabState] = usePersistent<Tab>("activity.tab", "progress");
   const tab: Tab = stored === "scheduled" && !user.permissions.includes("schedules.view") ? "progress" : stored;
-  const [hidden, setHidden] = usePersistent<Record<string, string[]>>("activity.hidden", { progress: ["folder"], completed: ["steps", "folder", "ended"] });   // one line at 1366 px; Columns shows them
+  const [hidden, setHidden] = usePersistent<Record<string, string[]>>("activity.hidden.v2", { progress: ["folder", "runas"], completed: ["steps", "folder", "runas"] });   // one line at 1366 px; Columns shows them
   const [f, setF] = useState<Record<string, string>>(linkedFilters);
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<{ runs: Run[]; total: number } | null>(null);
@@ -207,11 +215,13 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
   const loadSummary = useCallback(async () => {
     const since = new Date(Date.now() - DAY).toISOString();
     const n = (p: Record<string, string>) => api.runs({ ...p, limit: "1" }).then((r) => r.total, () => 0);
-    const [running, queued, failed, ended, succeeded, schedules] = await Promise.all([n({ filter: "active", status: "running" }), n({ filter: "active", status: "queued" }),
+    const [running, queued, failed, ended, succeeded, schedules, waits, completed] = await Promise.all([n({ filter: "active", status: "running" }), n({ filter: "active", status: "queued" }),
       n({ filter: "history", status: "failed", from: since }), n({ filter: "history", from: since }), n({ filter: "history", status: "success", from: since }),
-      can("schedules.view") ? api.schedules().catch(() => null) : Promise.resolve(null)]);
+      can("schedules.view") ? api.schedules().catch(() => null) : Promise.resolve(null),
+      api.runWaits().catch(() => null), n({ filter: "history", from: new Date(Date.now() - 90 * DAY).toISOString() })]);
     const on = (schedules ?? []).filter((s) => s.enabled && s.next_run).sort((a, b) => Date.parse(a.next_run!) - Date.parse(b.next_run!));
-    setSummary({ running, queued, failed, ended, succeeded, next: on[0] ?? null, schedulesOn: schedules ? schedules.filter((s) => s.enabled).length : null });
+    setSummary({ running, queued, failed, ended, succeeded, next: on[0] ?? null, schedulesOn: schedules ? schedules.filter((s) => s.enabled).length : null,
+      suspended: waits ? waits.filter((w) => w.status === "waiting").length : null, completed });
   }, [api]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadSummary(); const t = setInterval(loadSummary, 15000); return () => clearInterval(t); }, [loadSummary]);
 
@@ -245,7 +255,8 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     const base = location.hash.split("?")[0] || "#/activity";
     history.replaceState(null, "", id ? base + "?run=" + encodeURIComponent(id) : base);
   };
-  const counts: Record<Tab, number | null> = { progress: summary ? summary.running + summary.queued : null, scheduled: summary?.schedulesOn ?? null, suspended: null, completed: null };
+  const counts: Record<Tab, number | null> = { progress: summary ? summary.running + summary.queued : null, scheduled: summary?.schedulesOn ?? null, suspended: summary?.suspended ?? null,
+    completed: tab === "completed" && data ? data.total : summary?.completed ?? null };
   const tabs: [Tab, string][] = [["progress", "In progress"], ...(can("schedules.view") ? [["scheduled", "Scheduled"] as [Tab, string]] : []), ["suspended", "Suspended"], ["completed", "Completed"]];
 
   const filtered = Object.values(f).some(Boolean);
@@ -254,7 +265,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     ? ([["success", "completed"], ["failed", "failed"], ["stopped", "stopped"]] as const).map(([k, l]) => [runs.filter((r) => r.status === k).length, l] as const).filter(([n]) => n > 0) : [];
   const cell = (c: Col, r: Run) => {
     if (c.key === "status") { const st = runState(r); return <span className={"cc-pill is-" + (PILL[st] ?? "pending")}><span className="cc-pill-dot" />{STATUS[st] ?? r.status}</span>; }
-    if (c.key === "agent") return <><span className="cc-aico" aria-hidden="true">A</span><strong>{name(r.bot_path)}</strong>{r.version ? <span className="cc-none"> v{r.version}</span> : null}</>;
+    if (c.key === "agent") return <span className="cc-agent-cell"><IconTile name="bolt" color="#2f6fde" size={16} /><strong>{name(r.bot_path)}</strong>{r.version ? <span className="cc-none"> v{r.version}</span> : null}</span>;
     if (c.key === "error") { const e = parseError(r.error); return e ? <span className="cc-run-why" title={errorText(r.error)}>{errorText(r.error)}</span> : <span className="cc-none">–</span>; }
     const v = c.cell(r);
     return v || <span className="cc-none">–</span>;
@@ -271,15 +282,12 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
     ];
   };
   const rows: ReactNode[] = [];
-  runs.forEach((r, i) => {
-    const t = r.started ?? r.created;
-    if (tab === "completed" && t && (i === 0 || dayOf(t) !== dayOf(runs[i - 1].started ?? runs[i - 1].created)))
-      rows.push(<tr key={"d" + r.id} className="cc-au-day is-static"><td colSpan={cols.length + 2}>{dayLabel(t)}</td></tr>);
+  runs.forEach((r) => {
     rows.push(
       <tr key={r.id} className={(selected.includes(r.id) ? "is-selected" : "") + (details === r.id ? " is-open" : "")} onClick={rowClick(() => openRun(r.id))}>
         <td className="cc-check"><input type="checkbox" aria-label={"Select the run of " + name(r.bot_path)} checked={selected.includes(r.id)}
           onChange={(e) => setSelected(e.target.checked ? [...selected, r.id] : selected.filter((x) => x !== r.id))} /></td>
-        {cols.map((c) => <td key={c.key} className={c.key === "duration" || c.key === "steps" ? "cc-num" : c.key === "error" ? "cc-clip cc-clip-sm" : undefined}
+        {cols.map((c) => <td key={c.key} className={c.key === "duration" || c.key === "steps" ? "cc-num" : c.key === "error" ? "cc-clip cc-fill" : c.key === "agent" || c.key === "runner" ? "cc-clip cc-cap" : undefined}
           title={c.key === "error" ? errorText(r.error) || undefined : undefined}>{cell(c, r)}</td>)}
         <td className="cc-list-menu"><RowMenu label={"Actions for the run of " + name(r.bot_path)} items={rowMenu(r)} /></td>
       </tr>);
@@ -334,8 +342,8 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
         {(more || !!f.user || !!f.device || !!f.source || f.period === "dates") && <div className="cc-list-filters cc-au-more" role="group" aria-label="More filters">
           {runners.length > 0 && <span className={"cc-chip" + (f.device ? " is-on" : "")}><Select aria-label="Runner" value={f.device ?? ""} onChange={(e) => setFilter("device", e.target.value)}
             options={[{ value: "", label: "Runner: Any" }, ...runners.map((d) => ({ value: d.id, label: "Runner: " + d.name }))]} /></span>}
-          <span className={"cc-chip" + (f.source ? " is-on" : "")}><Select aria-label="How started" value={f.source ?? ""} onChange={(e) => setFilter("source", e.target.value)}
-            options={[{ value: "", label: "How started: Any" }, ...SOURCES.map(([v, l]) => ({ value: v, label: "How started: " + l }))]} /></span>
+          <span className={"cc-chip" + (f.source ? " is-on" : "")}><Select aria-label="Trigger" value={f.source ?? ""} onChange={(e) => setFilter("source", e.target.value)}
+            options={[{ value: "", label: "Trigger: Any" }, ...SOURCES.map(([v, l]) => ({ value: v, label: "Trigger: " + l }))]} /></span>
           <TextInput aria-label="Started by" placeholder="Started by (user name)" value={f.user ?? ""} onChange={(e) => setFilter("user", e.target.value)} />
           {tab === "completed" && f.period === "dates" && <>
             <label className="cc-date">From <TextInput type="date" aria-label="From" value={f.from ?? ""} onChange={(e) => setFilter("from", e.target.value)} /></label>
@@ -359,7 +367,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
               <thead><tr>
                 <th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={runs.length > 0 && chosen.length === runs.length}
                   onChange={(e) => setSelected(e.target.checked ? runs.map((r) => r.id) : [])} /></th>
-                {cols.map((c) => <th key={c.key} scope="col" className={c.key === "duration" || c.key === "steps" ? "cc-num" : undefined}>{c.label}</th>)}
+                {cols.map((c) => <th key={c.key} scope="col" className={c.key === "duration" || c.key === "steps" ? "cc-num" : c.key === "error" ? "cc-fill" : undefined}>{c.label}</th>)}
                 <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>
               </tr></thead>
               <tbody>

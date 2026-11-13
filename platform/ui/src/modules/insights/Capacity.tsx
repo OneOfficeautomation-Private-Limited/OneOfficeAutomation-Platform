@@ -43,7 +43,7 @@ const HELP: HelpTopic = { title: "Runner capacity", about: "How much of your run
 const HELP_RUNNERS: HelpTopic = { title: "Each runner", about: "Every runner's work in the period and how loaded it is now. "
   + "Click a runner to open it on Runner Machines.",
   items: [
-    { name: "State", text: "Online, Offline, Off, Out of service, or Busy (limit) when it is above the CPU or memory limit and takes no new work." },
+    { name: "Status", text: "Online, Offline, Off, Out of service, or Busy (limit) when it is above the CPU or memory limit and takes no new work." },
     { name: "Pools", text: "The runner pools the runner belongs to." },
     { name: "Runs, Busy", text: "How many runs it ran in the period and how long it was busy." },
     { name: "Time in use", text: "The share of its time spent running agents; 80% or more shows in red." },
@@ -114,7 +114,7 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
         <div className="cc-list-panel cc-cap-runners">
           <h2 className="cc-cap-title">Each runner<HelpButton topic={HELP_RUNNERS} /></h2>
           <div className="cc-list-scroll"><table className="cc-list-table" aria-label="Each runner">
-            <thead><tr>{["Runner", "State", "Pools"].map((h) => <th key={h} scope="col" className={h === "Pools" ? "cc-wide-only" : undefined}>{h}</th>)}{["Runs", "Succeeded", "Failed", "Busy"].map((h) => <th key={h} scope="col" className={"cc-num" + (h === "Busy" || h === "Succeeded" ? " cc-wide-only" : "")}>{h}</th>)}
+            <thead><tr>{["Runner", "Status", "Pools"].map((h) => <th key={h} scope="col" className={h === "Pools" ? "cc-wide-only" : undefined}>{h}</th>)}{["Runs", "Succeeded", "Failed", "Busy"].map((h) => <th key={h} scope="col" className={"cc-num" + (h === "Busy" || h === "Succeeded" ? " cc-wide-only" : "")}>{h}</th>)}
               <th scope="col">Time in use</th><th scope="col" className="cc-num cc-wide-only">Average wait</th><th scope="col">Last run</th><th scope="col">Most common error</th>
               {["CPU now", "Memory now"].map((h) => <th key={h} scope="col" className="cc-num cc-wide-only">{h}</th>)}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>

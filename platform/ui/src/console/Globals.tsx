@@ -92,7 +92,7 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
           <Button kind="danger" onClick={() => del(ask)}>Delete</Button><Button kind="plain" onClick={() => setAsk(null)}>Cancel</Button></div>}
         <div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Shared values list">
-          <thead><tr><th scope="col">Name in agents</th><th scope="col">Type</th><th scope="col">Value</th><th scope="col">People may change</th><th scope="col">Your value</th><th scope="col">Updated</th>
+          <thead><tr><th scope="col">Name in agents</th><th scope="col">Type</th><th scope="col">Value</th><th scope="col">People may change</th><th scope="col">Your value</th><th scope="col">Last modified</th>
             <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((g) => (

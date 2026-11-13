@@ -57,7 +57,7 @@ export function Apps({ api, user, onNotice }: { api: CrApi; user: CrUser; onNoti
           <Button kind="danger" onClick={() => remove(deleting)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Cancel</Button></div>}
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Apps list">
-            <thead><tr>{["App", "Description", "For", "Published by", "Changed"].map((h) => <th key={h} scope="col">{h}</th>)}
+            <thead><tr>{["App", "Description", "For", "Published by", "Last modified"].map((h) => <th key={h} scope="col">{h}</th>)}
               {maker && <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th>}</tr></thead>
             <tbody>
               {(list ?? []).map((a) => (

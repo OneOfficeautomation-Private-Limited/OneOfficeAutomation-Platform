@@ -92,7 +92,7 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
         <span className="cc-list-search"><TextInput type="search" aria-label="Search toolkits" placeholder="Search toolkits" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
-        <span className="cc-chip"><Select aria-label="State" value={f.state ?? ""} onChange={(e) => setF({ ...f, state: e.target.value })} options={[{ value: "", label: "On and off" }, { value: "on", label: "On" }, { value: "off", label: "Off" }]} /></span>
+        <span className="cc-chip"><Select aria-label="Status" value={f.state ?? ""} onChange={(e) => setF({ ...f, state: e.target.value })} options={[{ value: "", label: "Status: Any" }, { value: "on", label: "Status: On" }, { value: "off", label: "Status: Off" }]} /></span>
         <span className="cc-chip"><Select aria-label="Source" value={f.source ?? ""} onChange={(e) => setF({ ...f, source: e.target.value })} options={[{ value: "", label: "Built-in and your own" }, { value: "builtin", label: "Built-in" }, { value: "own", label: "Your own" }]} /></span>
         <label className="cc-chip-check"><input type="checkbox" checked={!!f.used} onChange={(e) => setF({ ...f, used: e.target.checked ? "1" : "" })} /> Used by agents</label>
         {Object.values(f).some(Boolean) && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
@@ -100,7 +100,7 @@ export function Toolkits({ api, user, onNotice }: { api: CrApi; user: CrUser; on
       </div>
       <div className="cc-list-panel"><div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Toolkits list">
-          <thead><tr><th scope="col">State</th><th scope="col">Toolkit</th><th scope="col">Versions</th><th scope="col">Actions</th><th scope="col">Used by</th><th scope="col">Publisher</th>
+          <thead><tr><th scope="col">Status</th><th scope="col">Toolkit</th><th scope="col">Versions</th><th scope="col">Actions</th><th scope="col">Used by</th><th scope="col">Published by</th>
             <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((t) => (
@@ -193,7 +193,7 @@ function ToolkitView({ api, t, canUpdate, onSwitch, onClose, onNotice }: { api: 
           <dt>Versions installed</dt><dd>{versionsOf(t)}</dd>
           <dt>Actions</dt><dd>{t.actions}{t.conditions ? " and " + t.conditions + " conditions" : ""}</dd>
           <dt>Publisher</dt><dd>{t.publisher ?? "–"}{t.custom ? " (your own toolkit)" : ""}</dd>
-          <dt>State</dt><dd>{t.enabled ? "On" : "Off"}{t.id === "core" ? " (always on)" : ""}</dd>
+          <dt>Status</dt><dd>{t.enabled ? "On" : "Off"}{t.id === "core" ? " (always on)" : ""}</dd>
         </dl>
       </div>}
     </div>
@@ -256,7 +256,7 @@ function CustomVersions({ api, onClose, onNotice }: { api: CrApi; onClose: () =>
         <Button kind="danger" onClick={() => api.deleteCustomToolkit(ask.id).then(() => { onNotice("Deleted " + ask.toolkit_id + " " + ask.version + "."); setAsk(null); read(); }, (e) => setError(message(e)))}>Delete</Button>
         <Button kind="plain" onClick={() => setAsk(null)}>Cancel</Button></div>}
       <table className="st-table" aria-label="Your toolkit versions">
-        <thead><tr><th scope="col">Toolkit</th><th scope="col">Version</th><th scope="col">Publisher</th><th scope="col">Uploaded</th><th scope="col">SHA-256</th><th scope="col"><span className="st-sr">Delete</span></th></tr></thead>
+        <thead><tr><th scope="col">Toolkit</th><th scope="col">Version</th><th scope="col">Published by</th><th scope="col">Uploaded</th><th scope="col">SHA-256</th><th scope="col"><span className="st-sr">Delete</span></th></tr></thead>
         <tbody>
           {(list ?? []).map((v) => <tr key={v.id}><td>{v.name || v.toolkit_id}</td><td>{v.version}</td><td>{v.publisher}</td><td>{when(v.uploaded)}{v.uploaded_by ? " by " + v.uploaded_by : ""}</td>
             <td className="ui-mono">{v.sha256.slice(0, 12)}</td>

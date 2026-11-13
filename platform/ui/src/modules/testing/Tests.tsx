@@ -362,7 +362,7 @@ function TestSetPage({ api, t, runners, pools, can, start, onClose, onFolder, on
       {tab === "runs" && <div className="cc-agent-steps">
         <div className="cc-agent-code">
           <table className="cc-list-table" aria-label="Runs">
-            <thead><tr><th scope="col">Started</th><th scope="col">Version</th><th scope="col">Score</th><th scope="col">Started by</th><th scope="col">Took</th></tr></thead>
+            <thead><tr><th scope="col">Start time</th><th scope="col">Version</th><th scope="col">Score</th><th scope="col">Started by</th><th scope="col">Duration</th></tr></thead>
             <tbody>{(history ?? []).map((x) => <tr key={x.id} className={runId === x.id ? "is-selected" : undefined} onClick={rowClick(() => { setRunId(x.id); setPick(null); })}>
               <td><strong>{when(x.started)}</strong></td><td>{x.version ? "v" + x.version : ""}</td><td><Score r={x} /></td>
               <td>{x.started_by ?? ""}</td><td>{took(x)}</td></tr>)}

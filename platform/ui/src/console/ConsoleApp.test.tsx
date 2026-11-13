@@ -573,11 +573,12 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Completed/ }));
     const done = await screen.findByRole("table", { name: "Completed runs" });
     expect(await within(done).findByText("EXCEL.NOT_FOUND: No such file")).toBeTruthy();   // why it ended, in the list
-    expect(within(done).getAllByRole("row").some((r) => r.classList.contains("cc-au-day"))).toBe(true);   // grouped by day
+    expect(within(done).getAllByRole("row").some((r) => r.classList.contains("cc-au-day"))).toBe(false);   // one plain list, no date rows (round 2 item 6)
+    expect(within(done).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["", "Status", "Agent", "Runner", "Started by", "Trigger", "Start time", "End time", "Duration", "Error message", "Actions"]);
     // one line per run at 1366 px: the agent with its version and a row menu; Folder and Ended start under Columns
     expect(within(done).queryByRole("columnheader", { name: "Folder" })).toBeNull();
-    expect(within(done).getByRole("columnheader", { name: "Why it ended" })).toBeTruthy();
-    expect(within(done).getAllByTitle("EXCEL.NOT_FOUND: No such file")[0].classList.contains("cc-clip-sm")).toBe(true);   // a long reason is cut; all of it on hover
+    expect(within(done).getByRole("columnheader", { name: "Error message" })).toBeTruthy();
+    expect(within(done).getAllByTitle("EXCEL.NOT_FOUND: No such file")[0].classList.contains("cc-fill")).toBe(true);   // a long reason is cut; all of it on hover
     const first = within(done).getAllByRole("row").find((r) => !r.classList.contains("cc-au-day") && r.querySelector("td"))!;
     expect(first.querySelector(".cc-list-sub")).toBeNull();
     fireEvent.keyDown(within(first).getByRole("button", { name: /^Actions for the run of / }), { key: "Enter" });
@@ -591,9 +592,9 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "failed" } });
     await waitFor(() => expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText(agentCell("Onboard v1"))).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
-    fireEvent.click(within(await screen.findByRole("dialog", { name: "Columns" })).getByLabelText("Took"));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "Columns" })).getByLabelText("Duration"));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText("Took")).toBeNull();
+    expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText("Duration")).toBeNull();
     const made: string[] = [];
     URL.createObjectURL = (() => { made.push("csv"); return "blob:x"; }) as typeof URL.createObjectURL;
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Export CSV" })); });
@@ -1560,7 +1561,7 @@ describe("rebuilt One CommandCenter console", () => {
     const d = await screen.findByRole("dialog", { name: "Audit record 12" });
     expect(within(d).getByText(/from 10\.0\.0\.5/)).toBeTruthy();
     // beside an open record the list keeps only time, who, what happened and result
-    expect(within(list).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Time", "Who", "What happened", "Result", "Actions"]);
+    expect(within(list).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Event time", "User", "What happened", "Result", "Actions"]);
     expect(within(within(d).getByRole("region", { name: "Details" })).getByText("bot_creator")).toBeTruthy();
     expect(screen.getByRole("table", { name: "Audit records" })).toBeTruthy();   // the list stays in view
     fireEvent.click(within(d).getByRole("button", { name: "Older ›" }));

@@ -104,7 +104,7 @@ export function Skills({ api, user, onNotice }: { api: CrApi; user: CrUser; onNo
         {ask && <AskDelete name={ask.name} onYes={() => del(ask)} onNo={() => setAsk(null)} />}
         <div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Skills list">
-          <thead><tr><th scope="col">Skill</th><th scope="col">Shared</th><th scope="col">Version</th><th scope="col">Updated</th>
+          <thead><tr><th scope="col">Skill</th><th scope="col">Shared</th><th scope="col">Version</th><th scope="col">Last modified</th>
             <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((s) => (

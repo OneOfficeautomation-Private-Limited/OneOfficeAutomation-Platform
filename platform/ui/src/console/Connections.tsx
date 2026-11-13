@@ -25,7 +25,7 @@ const HELP: HelpTopic = { title: "Connections", about: "A connector's address an
     { name: "Settings", text: "The values the connection keeps, such as the address." },
     { name: "Secrets from the vault", text: "Which vault credential each secret comes from. "
       + "Secrets are read from the vault when the agent runs, as the person it runs as." },
-    { name: "Updated", text: "When the connection was last saved, and by whom." },
+    { name: "Last modified", text: "When the connection was last saved, and by whom." },
     { name: "Actions (⋯)", text: "Edit the connection, copy its name to choose it on an agent step, or delete it. "
       + "Agent steps that use a deleted connection fail until another is chosen." },
   ] };
@@ -77,7 +77,7 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
           <Button kind="danger" onClick={() => del(ask)}>Delete</Button><Button kind="plain" onClick={() => setAsk(null)}>Cancel</Button></div>}
         <div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Connections list">
-          <thead><tr><th scope="col">Connection</th><th scope="col">Toolkit</th><th scope="col">Settings</th><th scope="col">Secrets from the vault</th><th scope="col">Updated</th>
+          <thead><tr><th scope="col">Connection</th><th scope="col">Toolkit</th><th scope="col">Settings</th><th scope="col">Secrets from the vault</th><th scope="col">Last modified</th>
             <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((c) => (

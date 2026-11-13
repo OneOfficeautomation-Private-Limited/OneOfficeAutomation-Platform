@@ -216,7 +216,7 @@ export function Overview({ api, user }: { api: CrApi; user: CrUser }) {
           {latest && <div className="ov-panel">
             <div className="ov-ph"><h2>Latest runs</h2><a href="#/activity?tab=completed" className="ov-more">Agent Activity ›</a></div>
             {latest.length ? <table className="ov-t" aria-label="Latest runs">
-              <thead><tr><th>Status</th><th>Agent</th><th>Runner</th><th>Started</th><th className="n">Took</th><th>Error</th></tr></thead>
+              <thead><tr><th>Status</th><th>Agent</th><th>Runner</th><th>Start time</th><th className="n">Duration</th><th>Error message</th></tr></thead>
               <tbody>{latest.map((r) => <tr key={r.id} className="is-open" title="Open this run in Agent Activity" onClick={rowClick(() => { location.hash = "#/activity?run=" + encodeURIComponent(r.id); })}>
                 <td><span className={"cc-pill is-" + (PILL[r.status] ?? "pending")}><span className="cc-pill-dot" />{STATUS[r.status] ?? r.status}</span></td>
                 <td><span className="cc-aico" aria-hidden="true">A</span><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{name(r.bot_path)}</a>{r.version ? " v" + r.version : ""}</td>

@@ -26,12 +26,12 @@ const HELP: HelpTopic = { title: "Agent APIs", about: "An agent behind its own a
     { name: "Create Agent API", text: "Choose a name, a live agent, where it runs and how long a caller waits for the result. "
       + "The token is shown once when you create it, with an example call. It needs the Manage Agent APIs permission." },
     { name: "Folders", text: "The folders of the agents behind the Agent APIs, as in Automation. Pick one to see only its Agent APIs." },
-    { name: "Runs on", text: "A runner, a runner pool, or One CommandCenter itself (serverless). "
+    { name: "Runner", text: "A runner, a runner pool, or One CommandCenter itself (serverless). "
       + "Serverless suits agents that only call web services and work on data; they run for at most 5 minutes unless an administrator allows longer (Settings, up to 60)." },
     { name: "Waits up to", text: "How long a caller waits for the run to finish. "
       + "When it takes longer, the caller gets 202 with the run id and asks again later." },
     { name: "Copy", text: "Copies the full address to call (with POST), to give to the system that calls it." },
-    { name: "State", text: "Show only the Agent APIs that are on, or off. Switch one on or off from its ⋯ menu or when you open it." },
+    { name: "Status", text: "Show only the Agent APIs that are on, or off. Switch one on or off from its ⋯ menu or when you open it." },
     { name: "Calls, Last call", text: "How many times the Agent API was called and when it was last used." },
     { name: "New token", text: "Makes a new token and shows it once; the old token stops working at once." },
     { name: "Actions (⋯)", text: "Open, copy the address, switch on or off, make a new token or delete. "
@@ -104,15 +104,15 @@ export function AgentApis({ api, user, onNotice }: { api: CrApi; user: CrUser; o
           <div className="cc-list-tools cc-pane-tools">
             <div className="cc-list-filters" role="group" aria-label="Filters">
               <span className="cc-list-search"><TextInput type="search" aria-label="Search Agent APIs" placeholder="Search Agent APIs" value={q} onChange={(e) => setQ(e.target.value)} /></span>
-              <span className={"cc-chip" + (state ? " is-on" : "")}><Select aria-label="State" value={state} onChange={(e) => setState(e.target.value)}
-                options={[{ value: "", label: "State: Any" }, { value: "on", label: "State: On" }, { value: "off", label: "State: Off" }]} /></span>
+              <span className={"cc-chip" + (state ? " is-on" : "")}><Select aria-label="Status" value={state} onChange={(e) => setState(e.target.value)}
+                options={[{ value: "", label: "Status: Any" }, { value: "on", label: "Status: On" }, { value: "off", label: "Status: Off" }]} /></span>
               {(q.trim() || state) && <Button kind="plain" onClick={() => { setQ(""); setState(""); }}>Clear filters</Button>}
             </div>
             <div className="cc-list-right" role="toolbar" aria-label="Agent APIs list tools"><RefreshButton onClick={load} /></div>
           </div>
           <div className="cc-list-scroll">
             <table className="cc-list-table" aria-label="Agent APIs list">
-              <thead><tr><th scope="col">State</th><th scope="col">Agent API</th><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col">Address</th><th scope="col">Runs on</th>
+              <thead><tr><th scope="col">Status</th><th scope="col">Agent API</th><th scope="col">Agent</th><th scope="col">Folder</th><th scope="col">Address</th><th scope="col">Runner</th>
                 <th scope="col" className="cc-num">Waits up to</th><th scope="col" className="cc-num">Calls</th><th scope="col">Last call</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>
                 {shown.map((t) => (

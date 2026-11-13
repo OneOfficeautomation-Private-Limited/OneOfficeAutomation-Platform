@@ -127,8 +127,8 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
       <div className="cc-list-panel">
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Triggers list">
-            <thead><tr><th scope="col">Health</th><th scope="col">Trigger</th><th scope="col">Event</th><th scope="col">Listens on</th><th scope="col">Agent</th>
-              <th scope="col">Details</th><th scope="col" className="cc-num">Fired</th><th scope="col">Last fired</th><th scope="col">Last problem</th>
+            <thead><tr><th scope="col">Status</th><th scope="col">Trigger</th><th scope="col">Event</th><th scope="col">Listens on</th><th scope="col">Agent</th>
+              <th scope="col">Details</th><th scope="col" className="cc-num">Times fired</th><th scope="col">Last fired</th><th scope="col">Last problem</th>
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {shown.map((t) => (

@@ -233,7 +233,7 @@ export function Repository({ api, user, onNotice, studio = false }: { api: CrApi
               <span className="cc-list-search"><TextInput type="search" aria-label="Search agents" placeholder={"Search in " + (folder ? folder.split("/").pop() : "Automation")} value={q} onChange={(e) => setQ(e.target.value)} /></span>
               <label className={"cc-chip-check" + (withSub ? " is-on" : "")}><input type="checkbox" checked={withSub} onChange={(e) => setWithSub(e.target.checked)} /> Include subfolders</label>
               <span className={"cc-chip" + (kind ? " is-on" : "")}><Select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "", label: "Type: Any" }, ...["Agent", "Workflow", "Form"].map((k) => ({ value: k, label: "Type: " + k + "s" }))]} /></span>
-              <span className={"cc-chip" + (show ? " is-on" : "")}><Select aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)} options={[{ value: "", label: "State: Any" }, { value: "live", label: "State: Live" }, { value: "notlive", label: "State: Not live yet" }, { value: "out", label: "State: Checked out" }]} /></span>
+              <span className={"cc-chip" + (show ? " is-on" : "")}><Select aria-label="Status" value={show} onChange={(e) => setShow(e.target.value)} options={[{ value: "", label: "Status: Any" }, { value: "live", label: "Status: Live" }, { value: "notlive", label: "Status: Not live yet" }, { value: "out", label: "Status: Checked out" }]} /></span>
               {filtered && <Button kind="plain" onClick={() => { setQ(""); setKind(""); setShow(""); }}>Clear filters</Button>}
             </div>
             <div className="cc-list-right" role="toolbar" aria-label="Agents list tools"><Button kind="plain" onClick={() => setChoosingCols(true)}>Columns</Button><RefreshButton onClick={load} /></div>
@@ -489,7 +489,7 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
         <dt>Toolkits</dt><dd>{deps.toolkits.length ? deps.toolkits.map((t) => <span key={t} className="cc-tag">{t}</span>) : "Built-in actions only"}</dd></dl> : <p className="cc-none" role="status">Loading…</p>)}
       {tab === "findings" && kind !== "File" && <AgentAnalysis api={api} path={a.path} />}
       {tab === "runs" && (runs.length > 0 ? <table className="st-table" aria-label="Recent runs">
-        <thead><tr><th scope="col">When</th><th scope="col">Version</th><th scope="col">Status</th><th scope="col">Runner</th><th scope="col">Started by</th></tr></thead><tbody>{runs.map((r) => <tr key={r.id}><td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{when(r.created)}</a></td><td>v{r.version}</td>
+        <thead><tr><th scope="col">Start time</th><th scope="col">Version</th><th scope="col">Status</th><th scope="col">Runner</th><th scope="col">Started by</th></tr></thead><tbody>{runs.map((r) => <tr key={r.id}><td><a href={"#/activity?run=" + encodeURIComponent(r.id)}>{when(r.created)}</a></td><td>v{r.version}</td>
           <td className={"cc-status is-" + r.status}>{r.status}</td><td>{r.device_name ?? ""}</td><td>{r.requested_by}</td></tr>)}</tbody></table> : <p className="cc-none">No runs yet.</p>)}
       {tab === "versions" && <>
       <div className="cc-bar"><span className="st-muted">Tick two versions to compare them.</span><Button kind="secondary" disabled={picks.length !== 2} onClick={compare}>Compare</Button></div>

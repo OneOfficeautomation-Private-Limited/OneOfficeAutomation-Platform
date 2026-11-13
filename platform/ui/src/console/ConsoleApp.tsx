@@ -171,7 +171,6 @@ function GroupTabs({ page, user, onPage, hrefFor }: { page: string; user: CrUser
   pages.sort((a, b) => group.pages.indexOf(a.id) - group.pages.indexOf(b.id));
   if (pages.length < 2) return null;
   return <nav className="cc-group-tabs" aria-label={group.label}>
-    <span className="cc-group-name">{group.label}</span>
     {pages.map((p) => LOCAL.has(p.id)
       ? <button key={p.id} type="button" className="cc-group-tab" aria-current={p.id === page ? "page" : undefined} onClick={() => onPage(p.id)}>{p.label}</button>
       : <a key={p.id} className="cc-group-tab" href={hrefFor(p.id)}>{p.label}</a>)}

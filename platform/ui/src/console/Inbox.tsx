@@ -29,7 +29,7 @@ const HELP: HelpTopic = { title: "Task inbox", about: "Work that workflows give 
     { name: "Overdue only, Taken by me", text: "On To do: show only tasks past their due time, or only the tasks you have taken." },
     { name: "Everyone's tasks", text: "Shows the tasks of every person and role, not only yours. It needs the Manage users and roles permission." },
     { name: "Comes from", text: "The workflow that gave the task and the reference of its request." },
-    { name: "State", text: "Waiting until someone takes the task, then Taken by that person, so two people do not work on the same task." },
+    { name: "Status", text: "Waiting until someone takes the task, then Taken by that person, so two people do not work on the same task." },
     { name: "Actions (⋯)", text: "Open the task, take it, or give it back so others can take it." },
   ] };
 const HELP_TASK: HelpTopic = { title: "A task", about: "One task beside the list: where it comes from, what to decide or fill in, and the actions open to you.",
@@ -105,8 +105,8 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
       <div className="cc-list-panel">
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label={tab === "open" ? "Tasks to do" : "Tasks done"}>
-            <thead><tr><th scope="col">Task</th><th scope="col">Comes from</th>{tab === "open" && <th scope="col">State</th>}<th scope="col">Assigned to</th>
-              {tab === "open" ? <><th scope="col">Due</th><th scope="col">Given</th></> : <><th scope="col">Outcome</th><th scope="col">Done by</th><th scope="col">Done</th></>}
+            <thead><tr><th scope="col">Task</th><th scope="col">Comes from</th>{tab === "open" && <th scope="col">Status</th>}<th scope="col">Assigned to</th>
+              {tab === "open" ? <><th scope="col">Due</th><th scope="col">Created</th></> : <><th scope="col">Outcome</th><th scope="col">Done by</th><th scope="col">Done</th></>}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {shown.map((t) => (

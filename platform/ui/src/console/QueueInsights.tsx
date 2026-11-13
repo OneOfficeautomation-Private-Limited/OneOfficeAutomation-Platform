@@ -42,7 +42,7 @@ const HELP: HelpTopic = { title: "Work queue insights",
   items: [
     { name: "Period", text: "The time the finished, completed and in-time figures cover: the last 24 hours, 7 days or 30 days. What waits now is always "
       + "shown as it is now." },
-    { name: "State", text: "Whether processing is on for the queue. When it is off, waiting items are not handed to runners; turn it on in Work queues." },
+    { name: "Status", text: "Whether processing is on for the queue. When it is off, waiting items are not handed to runners; turn it on in Work queues." },
     { name: "Overdue and At risk", text: "Items waiting longer than the queue's target time, and items waiting more than three quarters of it. They show a "
       + "dash when the queue has no target time." },
     { name: "Completed and In time", text: "Of the items finished in the period, the share that completed, and the share done within the target time." },
@@ -104,7 +104,7 @@ export function QueueInsights({ api, user , title, tabs }: { api: CrApi; user: C
         {tips.length > 0 && <ul className="cc-advice cc-pad-x cc-advice-list" aria-label="Advice">{tips.map((t) => <li key={t}>{t}</li>)}</ul>}
         <div className="cc-list-panel cc-cap-runners">
           <div className="cc-list-scroll"><table className="cc-list-table" aria-label="Queues">
-            <thead><tr><th scope="col" title="Processing on or off">State</th><th scope="col">Queue</th>
+            <thead><tr><th scope="col" title="Processing on or off">Status</th><th scope="col">Queue</th>
               {HEADS.map(([h, tip]) => <th key={h} scope="col" className="cc-num" title={tip}>{h}</th>)}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>{qs.map((q) => { const target = q.sla_minutes ? "Target time " + q.sla_minutes + " min" : "No target time";

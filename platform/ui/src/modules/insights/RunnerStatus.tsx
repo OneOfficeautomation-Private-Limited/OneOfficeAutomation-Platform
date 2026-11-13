@@ -11,7 +11,7 @@ import { time, trouble } from "./Overview";
  */
 const HELP: HelpTopic = { title: "Runner status", about: "How every runner is doing now: online or not, what it runs, and what needs a look.",
   items: [
-    { name: "State", text: "Online, Offline, Out of service (taken out for maintenance) or Switched off." },
+    { name: "Status", text: "Online, Offline, Out of service (taken out for maintenance) or Switched off." },
     { name: "Needs attention", text: "Why a runner needs a look: offline, out of service, over a limit or its OneRunner out of date." },
     { name: "Only those needing attention", text: "Shows just the runners with something to look at." },
     { name: "Runner Machines", text: "Where runners are added, changed, switched off and updated." },
@@ -51,7 +51,7 @@ export function RunnerStatus({ api }: { api: CrApi }) {
       {!runners && !error && <p className="cc-none" role="status">Loading…</p>}
       {runners && <div className="cc-list-panel"><div className="cc-list-scroll">
         <table className="cc-list-table" aria-label="Runners">
-          <thead><tr><th>Runner</th><th>State</th><th>Needs attention</th><th className="n">Running</th><th className="n">CPU</th><th className="n">Memory</th><th>OneRunner</th><th>Last seen</th></tr></thead>
+          <thead><tr><th>Runner</th><th>Status</th><th>Needs attention</th><th className="n">Running</th><th className="n">CPU</th><th className="n">Memory</th><th>OneRunner</th><th>Last seen</th></tr></thead>
           <tbody>{shown.map((d) => { const [label, pill] = STATE(d), why = trouble(d);
             return <tr key={d.id}>
               <td><a href="#/devices" title={d.hostname ?? undefined}>{d.nickname || d.name}</a></td>

@@ -216,7 +216,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
             <table className="cc-list-table" aria-label="Credentials list">
               <thead><tr><th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={shown.length > 0 && shown.every((r) => selected.includes(key(r)))}
                 onChange={(e) => setSelected(e.target.checked ? shown.map(key) : [])} /></th><th scope="col">Credential</th><th scope="col">Vault folder</th>
-                <th scope="col">Attributes</th><th scope="col">Each person's own</th><th scope="col">Owner</th><th scope="col">Expires</th><th scope="col">Updated</th>
+                <th scope="col">Attributes</th><th scope="col">Each person's own</th><th scope="col">Owner</th><th scope="col">Expires</th><th scope="col">Last modified</th>
                 <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
               <tbody>
                 {shown.map((r) => (
@@ -425,7 +425,7 @@ function CredentialPage({ api, folder, name, onClose, onChanged }: { api: CrApi;
       {tab === "attributes" && <>
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Attributes">
-            <thead><tr><th scope="col">Attribute</th><th scope="col">Value</th><th scope="col">Description</th><th scope="col">Masked</th><th scope="col">Password fields only</th><th scope="col">Updated</th></tr></thead>
+            <thead><tr><th scope="col">Attribute</th><th scope="col">Value</th><th scope="col">Description</th><th scope="col">Masked</th><th scope="col">Password fields only</th><th scope="col">Last modified</th></tr></thead>
             <tbody>
               {c.attributes.map((a) => {
                 const i = info[a.attribute];

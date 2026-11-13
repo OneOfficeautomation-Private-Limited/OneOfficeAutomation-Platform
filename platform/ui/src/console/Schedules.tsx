@@ -162,8 +162,8 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
       <div className="cc-list-tools">
         <div className="cc-list-filters" role="group" aria-label="Filters">
           <span className="cc-list-search"><TextInput type="search" aria-label="Search schedules" placeholder="Search schedules, agents, owners" value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value })} /></span>
-          <span className={"cc-chip" + (f.state ? " is-on" : "")}><Select aria-label="State" value={f.state ?? ""} onChange={(e) => setF({ ...f, state: e.target.value })}
-            options={[{ value: "", label: "State: Any" }, { value: "on", label: "State: Enabled" }, { value: "off", label: "State: Disabled" }]} /></span>
+          <span className={"cc-chip" + (f.state ? " is-on" : "")}><Select aria-label="Status" value={f.state ?? ""} onChange={(e) => setF({ ...f, state: e.target.value })}
+            options={[{ value: "", label: "Status: Any" }, { value: "on", label: "Status: Enabled" }, { value: "off", label: "Status: Disabled" }]} /></span>
           {agents.length > 1 && <span className={"cc-chip" + (f.agent ? " is-on" : "")}><Select aria-label="Agent" value={f.agent ?? ""} onChange={(e) => setF({ ...f, agent: e.target.value })}
             options={[{ value: "", label: "Agent: Any" }, ...agents.map((a) => ({ value: a, label: "Agent: " + agentName(a) }))]} /></span>}
           {filtered && <Button kind="plain" onClick={() => setF({})}>Clear filters</Button>}
@@ -189,7 +189,7 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
           <table className="cc-list-table" aria-label="Schedules list">
             <thead><tr><th scope="col" className="cc-check"><input type="checkbox" aria-label="Select all" checked={shown.length > 0 && shown.every((s) => selected.includes(s.id))}
               onChange={(e) => setSelected(e.target.checked ? shown.map((s) => s.id) : [])} /></th>
-              <th scope="col">State</th><th scope="col">Schedule</th><th scope="col">Agent</th><th scope="col">Runs on</th><th scope="col">Repeats</th>
+              <th scope="col">Status</th><th scope="col">Schedule</th><th scope="col">Agent</th><th scope="col">Runner</th><th scope="col">Repeats</th>
               <th scope="col">Next run</th><th scope="col">Last run</th><th scope="col">Owner</th><th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {shown.map((s) => (
@@ -427,7 +427,7 @@ function Calendars({ api, manage, onClose, onNotice }: { api: CrApi; manage: boo
         .then(() => { onNotice("Saved the calendar " + name.trim() + "."); setName(""); setDates(""); setWeekend(["SAT", "SUN"]); read(); }, (e) => setError(message(e)))}>Save calendar</Button> : null}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <table className="st-table" aria-label="Calendars">
-        <thead><tr><th scope="col">Calendar</th><th scope="col">Dates</th><th scope="col">Weekend</th><th scope="col">Updated</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
+        <thead><tr><th scope="col">Calendar</th><th scope="col">Dates</th><th scope="col">Weekend</th><th scope="col">Last modified</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
         <tbody>
           {(cals ?? []).map((c) => <tr key={c.name}><td>{c.name}</td><td>{c.dates.length} dates{c.dates.length ? " (next " + (c.dates.find((d) => d >= today) ?? "none") + ")" : ""}</td>
             <td>{weekendText(c.weekend)}</td>

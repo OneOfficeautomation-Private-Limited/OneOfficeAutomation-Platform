@@ -305,7 +305,7 @@ export function RepoFiles({ api, user, folder, onNotice }: { api: CrApi; user: C
     <p className="st-muted">Templates, workbooks and lists agents use. An agent lists the files it needs; runners receive them at the same path before the run. Uploading a file that is here adds a version.</p>
     {error && <p className="st-alert" role="alert">{error}</p>}
     {files && (here.length ? <table className="st-table" aria-label="Files">
-      <thead><tr><th scope="col">File</th><th scope="col">Size</th><th scope="col">Version</th><th scope="col">Updated</th><th scope="col"></th></tr></thead>
+      <thead><tr><th scope="col">File</th><th scope="col">Size</th><th scope="col">Version</th><th scope="col">Last modified</th><th scope="col"></th></tr></thead>
       <tbody>{here.map((f) => <tr key={f.path}><td className="ui-mono">{f.path.split("/").pop()}</td><td>{size(Number(f.size))}</td><td>v{f.version}</td>
         <td>{when(f.updated)}{f.updated_by ? " by " + f.updated_by : ""}</td>
         <td>{deleting === f.path

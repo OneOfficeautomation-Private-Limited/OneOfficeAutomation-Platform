@@ -108,7 +108,7 @@ export function EventSubscriptions({ api, onNotice }: { api: CrApi; onNotice: (t
           <Button kind="danger" onClick={() => remove(deleting)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Cancel</Button></div>}
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Event subscriptions list">
-            <thead><tr>{["State", "Name", "Receiver", "Events", "Last delivery", "Failures"].map((h) => <th key={h} scope="col">{h}</th>)}
+            <thead><tr>{["Status", "Name", "Receiver", "Events", "Last delivery", "Failures"].map((h) => <th key={h} scope="col">{h}</th>)}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {list.map((s) => (

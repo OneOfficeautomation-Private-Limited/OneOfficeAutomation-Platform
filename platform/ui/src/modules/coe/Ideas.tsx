@@ -86,7 +86,7 @@ export function Ideas({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
           <Button kind="danger" onClick={() => remove(deleting)}>Delete</Button><Button kind="plain" onClick={() => setDeleting(null)}>Cancel</Button></div>}
         <div className="cc-list-scroll">
           <table className="cc-list-table" aria-label="Automation ideas list">
-            <thead><tr>{["Idea", "Department", "Status", "Score", "Hours a year", "Saved (30 days)", "Votes", "Suggested"].map((h) => <th key={h} scope="col">{h}</th>)}
+            <thead><tr>{["Idea", "Department", "Status", "Score", "Hours a year", "Saved (30 days)", "Votes", "Created"].map((h) => <th key={h} scope="col">{h}</th>)}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {list.map((i) => (

@@ -100,7 +100,7 @@ export function Workflows({ api, user, onNotice }: { api: CrApi; user: CrUser; o
       <div className="cc-list-scroll">
         <table className="cc-list-table" aria-label={tab === "progress" ? "Workflow runs in progress" : "Finished workflow runs"}>
           <thead><tr><th scope="col">Status</th><th scope="col">Workflow</th><th scope="col">Reference</th><th scope="col">{tab === "progress" ? "Current stage" : "Last stage"}</th>
-            <th scope="col">Started by</th><th scope="col">Started</th><th scope="col">{tab === "progress" ? "Updated" : "Finished"}</th>{tab === "finished" && <th scope="col">Why it ended</th>}
+            <th scope="col">Started by</th><th scope="col">Start time</th><th scope="col">{tab === "progress" ? "Last modified" : "End time"}</th>{tab === "finished" && <th scope="col">Error message</th>}
             <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((r) => (
