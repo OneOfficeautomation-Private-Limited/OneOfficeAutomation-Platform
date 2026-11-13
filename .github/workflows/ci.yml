@@ -651,7 +651,9 @@ jobs:
           cache-dependency-path: platform/ui/package-lock.json
       - name: WiX Toolset 5
         shell: pwsh
-        run: dotnet tool install --global wix --version 5.0.2
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2
       - name: Build the MSI
         shell: pwsh
         run: ./scripts/build-msi.ps1

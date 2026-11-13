@@ -5,6 +5,9 @@
 # computer up from its properties (Install-OOA.ps1 -ConfigureOnly), for example:
 #   msiexec /i ooa-0.2.0.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720 [LISTEN_ADDRESS=0.0.0.0] [DATA_DIR=..]
 #   msiexec /i ooa-0.2.0.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 REGISTRATION_KEY=ooareg_... [RUNNER_NAME=..] [CA_FILE=..] [PROXY=..]
+#   ... ROLE=CommandCenter SERVICE=1 DB_SERVER=SQL01 DB_WINDOWS_AUTH=1 SERVICE_ACCOUNT=CORP\ooa-svc$     (SQL Server with Windows sign-in)
+# Double-clicked, it shows a guided install (scripts\msi-wizard.wxs, round 4 B1): the role, Express or Custom, the folder.
+# The UI needs the extension once: wix extension add -g WixToolset.UI.wixext/5.0.2
 # Without ROLE it only installs the files. Uninstalling removes the services first; data folders are kept.
 param(
     [string]$Wix = "wix",
@@ -51,7 +54,7 @@ Walk $Source "" "INSTALLFOLDER" 4
 $files = $n
 
 $ps = "[System64Folder]WindowsPowerShell\v1.0\powershell.exe"
-$configure = "&quot;$ps&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Install-OOA.ps1&quot; -ConfigureOnly -Silent -Role [ROLE] -ServiceFlag &quot;[SERVICE]&quot; -Port [PORT] -ListenAddress &quot;[LISTEN_ADDRESS]&quot; -DataDir &quot;[DATA_DIR]&quot; -Url &quot;[URL]&quot; -RegistrationKey &quot;[REGISTRATION_KEY]&quot; -RunnerName &quot;[RUNNER_NAME]&quot; -CaFile &quot;[CA_FILE]&quot; -Proxy &quot;[PROXY]&quot;"
+$configure = "&quot;$ps&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Install-OOA.ps1&quot; -ConfigureOnly -Silent -Role [ROLE] -ServiceFlag &quot;[SERVICE]&quot; -Port [PORT] -ListenAddress &quot;[LISTEN_ADDRESS]&quot; -DataDir &quot;[DATA_DIR]&quot; -Url &quot;[URL]&quot; -RegistrationKey &quot;[REGISTRATION_KEY]&quot; -RunnerName &quot;[RUNNER_NAME]&quot; -CaFile &quot;[CA_FILE]&quot; -Proxy &quot;[PROXY]&quot; -DbServer &quot;[DB_SERVER]&quot; -DbName &quot;[DB_NAME]&quot; -DbWindowsAuthFlag &quot;[DB_WINDOWS_AUTH]&quot; -ServiceAccount &quot;[SERVICE_ACCOUNT]&quot;"
 $unconfigure = "&quot;$ps&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Uninstall-OOA.ps1&quot; -Silent -KeepFiles"
 
 $wxs = @"
@@ -72,6 +75,12 @@ $wxs = @"
     <Property Id="RUNNER_NAME" Secure="yes" />
     <Property Id="CA_FILE" Secure="yes" />
     <Property Id="PROXY" Secure="yes" />
+    <!-- round 4 B1: the guided install (scripts\msi-wizard.wxs); silent installs may set these too -->
+    <Property Id="DB_SERVER" Secure="yes" />
+    <Property Id="DB_NAME" Value="ooa_command_center" Secure="yes" />
+    <Property Id="DB_WINDOWS_AUTH" Secure="yes" />
+    <Property Id="SERVICE_ACCOUNT" Secure="yes" />
+    <UIRef Id="OoaWizard" />
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="ONEOFFICEAUTOMATION">
 $($tree.ToString())      </Directory>
@@ -106,6 +115,6 @@ $($components.ToString())    </ComponentGroup>
 $wxsFile = Join-Path $work "ooa.wxs"
 [System.IO.File]::WriteAllText($wxsFile, $wxs, (New-Object System.Text.UTF8Encoding $false))
 Write-Host "Building $Out from $files files ..."
-& $Wix build -arch x64 -o $Out $wxsFile
+& $Wix build -arch x64 -ext WixToolset.UI.wixext -o $Out $wxsFile (Join-Path $PSScriptRoot "msi-wizard.wxs")
 if ($LASTEXITCODE -ne 0) { throw "wix build failed" }
 Write-Host "Built $Out ($([math]::Round((Get-Item $Out).Length / 1MB)) MB)"

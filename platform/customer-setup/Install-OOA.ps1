@@ -68,6 +68,11 @@ param(
     [string]$DbPasswordEnv = "",
     [string]$DbSetupPasswordEnv = "",
     [switch]$DbTrustCertificate,
+    # round 4 B1 (the MSI's wizard): SQL Server with Windows sign-in (no passwords), and the account the service runs as
+    [switch]$DbWindowsAuth,
+    [string]$DbWindowsAuthFlag = "",
+    [string]$ServiceAccount = "",
+    [string]$ServiceAccountPasswordEnv = "",
     [switch]$SkipCheck,
     [switch]$DocFlow,
     [int]$DocFlowPort = 8085,
@@ -81,6 +86,7 @@ param(
     [string]$ServiceFlag = ""
 )
 if ($ServiceFlag -in @("1", "yes", "true")) { $Service = [switch]::Present }
+if ($DbWindowsAuthFlag -in @("1", "yes", "true")) { $DbWindowsAuth = [switch]::Present }
 $ErrorActionPreference = "Stop"
 $log = Join-Path $env:TEMP "ooa-install.log"
 $source = $PSScriptRoot
@@ -124,7 +130,7 @@ if ($Role -eq "Runner") {
 if ($Role -eq "CommandCenter" -and -not $ConfigureOnly -and -not $DbServer -and -not $Silent) {
     $DbServer = Ask "SQL Server for One CommandCenter's data (host or host\instance; empty = built-in evaluation database)" ""
 }
-if ($Role -eq "CommandCenter" -and $DbServer) {
+if ($Role -eq "CommandCenter" -and $DbServer -and -not $DbWindowsAuth) {
     # passwords travel in environment variables only, never on a command line or in the log
     if (-not $DbPasswordEnv) {
         if ($Silent) { Fail 1 "-DbServer needs -DbPasswordEnv and -DbSetupPasswordEnv (environment variables holding the passwords)." }
@@ -344,7 +350,15 @@ if ($Role -eq "CommandCenter") {
         if ((Ooa (@("check", "--port", "$Port") + $dataArgs)) -ne 0) { Fail 4 "The prerequisite check found a problem (see $log). Fix it, or run again with -SkipCheck." }
     }
     # the database (I4): SQL Server set up here, or an existing one upgraded after an update (I7)
-    if ($DbServer) {
+    if ($DbServer -and $DbWindowsAuth) {
+        # Windows sign-in: the service account signs in to SQL Server; the schema is made as the account running setup
+        $a = @("db", "configure", "--engine", "sqlserver", "--host", $DbServer, "--database", $DbName, "--windows-auth") + $dataArgs
+        if ($ServiceAccount -match '\\') { $a += @("--windows-login", $ServiceAccount) }
+        if ($DbTrustCertificate) { $a += "--trust-any-certificate" }
+        if ((Ooa $a) -ne 0) { Fail 2 "The database settings could not be written (see $log)." }
+        if ((Ooa (@("db", "init") + $dataArgs)) -ne 0) { Fail 2 "The database could not be created on $DbServer with Windows sign-in (see $log). Ask the DBA to run the script from: bin\ooa.bat db script, and to give the service account data rights." }
+        Log "One CommandCenter keeps its data in $DbName on $DbServer (Windows sign-in)."
+    } elseif ($DbServer) {
         $a = @("db", "configure", "--engine", "sqlserver", "--host", $DbServer, "--database", $DbName, "--user", $DbUser, "--setup-user", $DbSetupUser) + $dataArgs
         if ($DbTrustCertificate) { $a += "--trust-any-certificate" }
         if ((Ooa $a) -ne 0) { Fail 2 "The database settings could not be written (see $log)." }
@@ -361,6 +375,8 @@ if ($Role -eq "CommandCenter") {
     } elseif ($Service) {
         if (-not $ListenAddress) { $ListenAddress = "0.0.0.0" }
         $a = @("service", "install", "--mode", "server", "--port", "$Port", "--host", $ListenAddress)
+        # a group managed service account (DOMAIN\name$) or a built-in one needs no password; another account takes -ServiceAccountPasswordEnv
+        if ($ServiceAccount) { $a += @("--account", $ServiceAccount); if ($ServiceAccountPasswordEnv) { $a += @("--password-env", $ServiceAccountPasswordEnv) } }
         if ($DataDir) { $a += @("--data", $DataDir) }
         if ($NoStart) { $a += "--no-start" }
         if ((Ooa $a) -ne 0) { Fail 2 "The Windows service could not be installed (see $log)." }

@@ -162,6 +162,26 @@ What it does, after One CommandCenter is installed:
 If any step fails, One CommandCenter stays installed and works without Document Automation. The script exits with
 code 5. Run setup again with `-DocFlow` to retry.
 
+## 4a. MSI: the guided install (Express and Custom)
+
+Double-clicking `ooa-<version>.msi` (added 14 Nov 2026) shows a guided install, as AA's installer does:
+
+1. **What is this computer for?** One CommandCenter, a Runner, or Files only (set the computer up later).
+2. One CommandCenter: **Express** (a Windows service on port 8720 with the built-in evaluation database) or
+   **Custom**: the port, the listen address, the data folder, the service and the account it runs as (empty: Local
+   System; or a group managed service account `DOMAIN
+ame$`, which needs no password), and the database: built-in,
+   or **SQL Server with Windows sign-in** (the service account signs in; the schema is made as the account running
+   setup, or by the DBA from `bin\ooa.bat db script`).
+3. Runner: One CommandCenter's address, the registration key (hidden as you type), the runner's name, a certificate
+   file, the proxy (`system`, `none`, `windows` or `http://host:port`) and whether it runs as a service.
+4. The install folder, Ready, and Finish with the next steps.
+
+The guided install never asks for passwords: a SQL Server account with a password, a service account with a
+password, and the HTTPS certificate's password are set afterwards (`Install.cmd -DbServer ...` or `bin\ooa.bat db
+set-password` and `db init`; `bin\ooa.bat tls`), so they never reach a command line. A silent install
+(`msiexec /qn` with properties, section 5) shows none of it and works as before.
+
 ## 5. MSI: all properties
 
 ```
@@ -181,7 +201,12 @@ msiexec /i ooa-<version>.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 RE
 | `REGISTRATION_KEY` | - | Runner: the one-time key (a hidden property, kept out of the MSI log) |
 | `RUNNER_NAME` | Computer name | Runner name |
 | `CA_FILE` | - | Certificate to trust |
-| `PROXY` | `system` | `system`, `none` or `http://host:port` |
+| `PROXY` | `system` | `system`, `none`, `windows` (Windows sign-in to the proxy) or `http://host:port` |
+| `DB_SERVER` | None | SQL Server for One CommandCenter, with `DB_WINDOWS_AUTH=1` (Windows sign-in; added 14 Nov 2026) |
+| `DB_NAME` | `ooa_command_center` | The database |
+| `DB_WINDOWS_AUTH` | None | `1`: sign in to SQL Server as the service account |
+| `SERVICE_ACCOUNT` | Local System | The account the One CommandCenter service runs as: a group managed service account (`DOMAIN
+ame$`) or a built-in account |
 
 Notes:
 

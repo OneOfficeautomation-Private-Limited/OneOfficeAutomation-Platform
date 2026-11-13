@@ -1,0 +1,198 @@
+<!--
+  The MSI's guided install (14 Nov 2026, round 4 item B1), as AA's Express and Custom installer: Welcome, then what
+  this computer is (One CommandCenter, a runner, or the files only); for One CommandCenter Express (a service on port
+  8720 with the built-in evaluation database) or Custom (port, listen address, data folder, the service and its account,
+  and the database: built-in, or SQL Server with Windows sign-in); for a runner its address, one-time key, name,
+  certificate, proxy and service; then the folder, Ready and Finish. A silent install (msiexec /qn with properties) skips
+  all of it and works as before.
+
+  Never asked here: passwords. A SQL Server account with a password, a service account with a password and the HTTPS
+  certificate's password would reach the setup step on its command line, which the install rules do not allow; the
+  Finish page says how to set those afterwards (Install.cmd, ooa db, ooa tls).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Fragment>
+    <Property Id="ROLE_UI" Value="CommandCenter" />
+    <Property Id="MODE_UI" Value="Express" />
+    <Property Id="DB_KIND" Value="builtin" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="Next steps: open One CommandCenter at https://this-computer:8720 (set up HTTPS first with bin\ooa.bat tls). A SQL Server account with a password: run Install.cmd -DbServer ... or bin\ooa.bat db set-password, then db init. Runners: Runner Machines &gt; Register a runner, or Download the runner installer." />
+
+    <UI Id="OoaWizard">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Segoe UI" Size="9" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Segoe UI" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Segoe UI" Size="9" Bold="yes" />
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="InstallDir" />
+
+      <DialogRef Id="BrowseDlg" />
+      <DialogRef Id="DiskCostDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+
+      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath_$(sys.BUILDARCHSHORT)" Order="3" Condition="NOT WIXUI_DONTVALIDATEPATH" />
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4" Condition="NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID&lt;&gt;&quot;1&quot;" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="RoleDlg" Condition="NOT Installed" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="Installed AND PATCH" />
+
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="RoleDlg" Order="1" Condition="ROLE_UI=&quot;Files&quot;" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="ModeDlg" Order="2" Condition="ROLE_UI=&quot;CommandCenter&quot; AND MODE_UI=&quot;Express&quot;" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="CommandCenterDlg" Order="3" Condition="ROLE_UI=&quot;CommandCenter&quot; AND MODE_UI=&quot;Custom&quot;" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="RunnerDlg" Order="4" Condition="ROLE_UI=&quot;Runner&quot;" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="WixUIValidatePath_$(sys.BUILDARCHSHORT)" Order="2" Condition="NOT WIXUI_DONTVALIDATEPATH" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="3" Condition="NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID&lt;&gt;&quot;1&quot;" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="4" Condition="WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1" />
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2" />
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="1" Condition="NOT Installed" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed AND NOT PATCH" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" Condition="Installed AND PATCH" />
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
+
+      <!-- What this computer is -->
+      <Dialog Id="RoleDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="260" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}What is this computer for?" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose one; you can install the other role on another computer." />
+        <Control Id="Roles" Type="RadioButtonGroup" X="25" Y="58" Width="330" Height="120" Property="ROLE_UI">
+          <RadioButtonGroup Property="ROLE_UI">
+            <RadioButton Value="CommandCenter" X="0" Y="0" Width="330" Height="16" Text="One CommandCenter: the server people sign in to (with OneAgentStudio)" />
+            <RadioButton Value="Runner" X="0" Y="40" Width="330" Height="16" Text="Runner: runs agents for a One CommandCenter on another computer" />
+            <RadioButton Value="Files" X="0" Y="80" Width="330" Height="16" Text="Files only: set the computer up later" />
+          </RadioButtonGroup>
+        </Control>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="WelcomeDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Property="ROLE" Value="[ROLE_UI]" Order="1" Condition="ROLE_UI&lt;&gt;&quot;Files&quot;" />
+          <Publish Property="ROLE" Value="{}" Order="2" Condition="ROLE_UI=&quot;Files&quot;" />
+          <Publish Event="NewDialog" Value="ModeDlg" Order="3" Condition="ROLE_UI=&quot;CommandCenter&quot;" />
+          <Publish Event="NewDialog" Value="RunnerDlg" Order="4" Condition="ROLE_UI=&quot;Runner&quot;" />
+          <Publish Event="NewDialog" Value="InstallDirDlg" Order="5" Condition="ROLE_UI=&quot;Files&quot;" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <!-- Express or Custom -->
+      <Dialog Id="ModeDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="260" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Express or Custom" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Express suits a first install; Custom is for production." />
+        <Control Id="Modes" Type="RadioButtonGroup" X="25" Y="58" Width="330" Height="140" Property="MODE_UI">
+          <RadioButtonGroup Property="MODE_UI">
+            <RadioButton Value="Express" X="0" Y="0" Width="330" Height="16" Text="Express: a Windows service on port 8720 with the built-in evaluation database" />
+            <RadioButton Value="Custom" X="0" Y="50" Width="330" Height="16" Text="Custom: choose the port, data folder, service account and SQL Server" />
+          </RadioButtonGroup>
+        </Control>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="RoleDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Property="SERVICE" Value="1" Order="1" Condition="MODE_UI=&quot;Express&quot;" />
+          <Publish Property="DB_SERVER" Value="{}" Order="2" Condition="MODE_UI=&quot;Express&quot;" />
+          <Publish Event="NewDialog" Value="InstallDirDlg" Order="3" Condition="MODE_UI=&quot;Express&quot;" />
+          <Publish Event="NewDialog" Value="CommandCenterDlg" Order="4" Condition="MODE_UI=&quot;Custom&quot;" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <!-- One CommandCenter, Custom -->
+      <Dialog Id="CommandCenterDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="260" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}One CommandCenter" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="300" Height="15" Transparent="yes" NoPrefix="yes" Text="Where it listens, where its data goes, and how it runs." />
+        <Control Id="PortLabel" Type="Text" X="20" Y="52" Width="90" Height="12" Text="Port:" />
+        <Control Id="Port" Type="Edit" X="115" Y="50" Width="60" Height="15" Property="PORT" Integer="yes" />
+        <Control Id="ListenLabel" Type="Text" X="185" Y="52" Width="55" Height="12" Text="Listen on:" />
+        <Control Id="Listen" Type="Edit" X="240" Y="50" Width="115" Height="15" Property="LISTEN_ADDRESS" />
+        <Control Id="DataLabel" Type="Text" X="20" Y="72" Width="90" Height="12" Text="Data folder:" />
+        <Control Id="Data" Type="Edit" X="115" Y="70" Width="240" Height="15" Property="DATA_DIR" />
+        <Control Id="Service" Type="CheckBox" X="20" Y="92" Width="200" Height="15" Property="SERVICE" CheckBoxValue="1" Text="Run as a Windows service, starting with Windows" />
+        <Control Id="AccountLabel" Type="Text" X="20" Y="112" Width="90" Height="12" Text="Service account:" />
+        <Control Id="Account" Type="Edit" X="115" Y="110" Width="240" Height="15" Property="SERVICE_ACCOUNT" />
+        <Control Id="AccountHint" Type="Text" X="115" Y="126" Width="240" Height="12" Text="Empty: Local System. Or a gMSA (DOMAIN\name$), which needs no password." />
+        <Control Id="DbKind" Type="RadioButtonGroup" X="20" Y="144" Width="335" Height="32" Property="DB_KIND">
+          <RadioButtonGroup Property="DB_KIND">
+            <RadioButton Value="builtin" X="0" Y="0" Width="335" Height="14" Text="Built-in evaluation database (one computer; no licence can be installed on it)" />
+            <RadioButton Value="windows" X="0" Y="16" Width="335" Height="14" Text="SQL Server, signing in as the service account (Windows sign-in)" />
+          </RadioButtonGroup>
+        </Control>
+        <Control Id="DbServerLabel" Type="Text" X="35" Y="184" Width="75" Height="12" Text="SQL Server:" />
+        <Control Id="DbServer" Type="Edit" X="115" Y="182" Width="115" Height="15" Property="DB_SERVER" DisableCondition="DB_KIND=&quot;builtin&quot;" EnableCondition="DB_KIND=&quot;windows&quot;" />
+        <Control Id="DbNameLabel" Type="Text" X="235" Y="184" Width="45" Height="12" Text="Database:" />
+        <Control Id="DbName" Type="Edit" X="280" Y="182" Width="75" Height="15" Property="DB_NAME" DisableCondition="DB_KIND=&quot;builtin&quot;" EnableCondition="DB_KIND=&quot;windows&quot;" />
+        <Control Id="DbHint" Type="Text" X="35" Y="200" Width="320" Height="24" Text="A SQL Server account with a password: choose the built-in database here and set SQL Server afterwards (see the last page)." />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="ModeDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" DisableCondition="DB_KIND=&quot;windows&quot; AND NOT DB_SERVER" EnableCondition="DB_KIND=&quot;builtin&quot; OR DB_SERVER">
+          <Publish Property="DB_WINDOWS_AUTH" Value="1" Order="1" Condition="DB_KIND=&quot;windows&quot;" />
+          <Publish Property="DB_WINDOWS_AUTH" Value="{}" Order="2" Condition="DB_KIND=&quot;builtin&quot;" />
+          <Publish Property="DB_SERVER" Value="{}" Order="3" Condition="DB_KIND=&quot;builtin&quot;" />
+          <Publish Event="NewDialog" Value="InstallDirDlg" Order="4" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <!-- Runner -->
+      <Dialog Id="RunnerDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="260" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Runner" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="320" Height="15" Transparent="yes" NoPrefix="yes" Text="The One CommandCenter it works for, and a key from Runner Machines &gt; Register a runner." />
+        <Control Id="UrlLabel" Type="Text" X="20" Y="54" Width="95" Height="12" Text="One CommandCenter:" />
+        <Control Id="Url" Type="Edit" X="120" Y="52" Width="235" Height="15" Property="URL" />
+        <Control Id="KeyLabel" Type="Text" X="20" Y="74" Width="95" Height="12" Text="Registration key:" />
+        <Control Id="Key" Type="Edit" X="120" Y="72" Width="235" Height="15" Property="REGISTRATION_KEY" Password="yes" />
+        <Control Id="NameLabel" Type="Text" X="20" Y="94" Width="95" Height="12" Text="Runner name:" />
+        <Control Id="Name" Type="Edit" X="120" Y="92" Width="235" Height="15" Property="RUNNER_NAME" />
+        <Control Id="CaLabel" Type="Text" X="20" Y="114" Width="95" Height="12" Text="Certificate file:" />
+        <Control Id="Ca" Type="Edit" X="120" Y="112" Width="235" Height="15" Property="CA_FILE" />
+        <Control Id="ProxyLabel" Type="Text" X="20" Y="134" Width="95" Height="12" Text="Proxy:" />
+        <Control Id="Proxy" Type="Edit" X="120" Y="132" Width="235" Height="15" Property="PROXY" />
+        <Control Id="ProxyHint" Type="Text" X="120" Y="148" Width="235" Height="24" Text="system (default), none, windows (a proxy that wants Windows sign-in) or http://host:port." />
+        <Control Id="Service" Type="CheckBox" X="20" Y="178" Width="330" Height="15" Property="RUNNER_SERVICE" CheckBoxValue="1" Text="As a Windows service (agents without a screen); otherwise it starts when a user signs in" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="RoleDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" DisableCondition="NOT URL OR NOT REGISTRATION_KEY" EnableCondition="URL AND REGISTRATION_KEY">
+          <Publish Property="SERVICE" Value="1" Order="1" Condition="RUNNER_SERVICE" />
+          <Publish Property="SERVICE" Value="{}" Order="2" Condition="NOT RUNNER_SERVICE" />
+          <Publish Event="NewDialog" Value="InstallDirDlg" Order="3" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+    </UI>
+
+    <UIRef Id="WixUI_Common" />
+  </Fragment>
+</Wix>
