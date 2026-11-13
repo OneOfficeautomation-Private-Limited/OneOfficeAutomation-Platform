@@ -11,6 +11,7 @@ export type CrUser = { id: string; username: string; display_name: string; role:
 /** This One CommandCenter's name and colour (Settings > General). */
 export type Environment = { label: string; colour: string };
 /** Signing in: the person, or (two-step sign-in) a token to send with the code. */
+export type ApiKey = { id: string; name: string; created?: string; expires?: string | null; last_used?: string | null };
 export type SignIn = { user?: CrUser; token?: string; mfa_required?: boolean; mfa_token?: string };
 /** The Home page's figures (GET dashboard). */
 export type Dashboard = {
@@ -553,7 +554,15 @@ export class CrApi {
     return this.call<{ requests: ProductionRequest[]; approval_on: boolean }>("GET", "repo/production-requests" + (status ? "?status=" + status : ""));
   }
   async decideRequest(id: string, how: "approve" | "reject" | "withdraw", note: string) { await this.call("POST", "repo/production-requests/" + encodeURIComponent(id) + "/" + how, { note }); }
-  startRun(b: { bot_path: string; device_id?: string; pool_id?: string; inputs: Record<string, unknown> }) { return this.call<{ run_id: string }>("POST", "runs", b); }
+  startRun(b: { bot_path: string; device_id?: string; pool_id?: string; inputs: Record<string, unknown>; mode?: string; priority?: number; callback_url?: string | null }) { return this.call<{ run_id: string }>("POST", "runs", b); }
+  /** One run per run-as user, each on that user's default runner, as that user (13 Nov 2026: from the classic console). */
+  startRunsAs(b: { bot_path: string; run_as_users: string[]; inputs: Record<string, unknown>; mode?: string; priority?: number; callback_url?: string | null }) {
+    return this.call<{ started: number; runs: { run_as: string; run_id?: string; error?: { message: string } }[] }>("POST", "runs", b);
+  }
+  /** The person's own API keys (shown once when made), as the classic console's Your API keys. */
+  async apiKeys() { return (await this.call<{ keys: ApiKey[] }>("GET", "apikeys")).keys; }
+  createApiKey(name: string, days: number) { return this.call<{ name?: string; key: string }>("POST", "apikeys", { name, days }); }
+  async revokeApiKey(id: string) { await this.call("DELETE", "apikeys/" + encodeURIComponent(id)); }
   // ---- Agent Templates: ready-made agents to install, share to the region, or load from a signed catalogue file ----
   templates() { return this.call<{ templates: AgentTemplate[]; categories: string[]; can_share?: boolean; can_arrange?: boolean; problem?: string | null }>("GET", "templates"); }
   /** The template folders (nested with /) and the folder of each template, by "source:id" ("" is the top). Administrators. */

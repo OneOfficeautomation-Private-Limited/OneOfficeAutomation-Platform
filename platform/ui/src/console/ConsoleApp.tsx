@@ -44,7 +44,6 @@ const pageOf = (hash: string) => {
   return LOCAL.has(id) ? id : "home";
 };
 /** Today's console, which this one is served beside (at <base>/next/). */
-const TODAY = "../";
 
 /**
  * The rebuilt One CommandCenter console (C0, docs/architecture/12-ui-redesign.md): sign-in, the menu by task shared with
@@ -98,7 +97,8 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
     }, 15_000);
     return () => { kinds.forEach((k) => removeEventListener(k, seen)); clearInterval(timer); };
   }, [api, idle]);
-  const [changing, setChanging] = useState(false);   // changing one's password before it expires
+  const [changing, setChanging] = useState(false);   // changing one's password (before it expires, or from Your account)
+  const [twoStep, setTwoStep] = useState(false);   // turning on two-step sign-in from Your account
 
   if (user === undefined) return <div className="cc-loading" role="status">Loading…</div>;
   if (user === null) return <SignIn api={api} onIn={(u) => { setIdleOut(0); setUser(u); }} note={idleOut ? "Signed out after " + idleOut + " minutes without activity." : null} />;
@@ -106,13 +106,14 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   if (user.must_change) return <ChangePassword api={api} onDone={setUser} />;
   if (changing) return <ChangePassword api={api} onDone={(u) => { setChanging(false); setUser(u); setNotice("Your password is changed."); }} onCancel={() => setChanging(false)} />;
   if (user.mfa_setup_required) return <TwoStepSetup api={api} onDone={setUser} />;
+  if (twoStep) return <TwoStepSetup api={api} onDone={(u) => { setTwoStep(false); setUser(u); setNotice("Two-step sign-in is on."); }} />;
 
   const signOut = async () => { try { await api.logout(); } catch { /* already signed out */ } setUser(null); setPage("home"); };
-  const hrefFor = (id: string) => LOCAL.has(id) ? "#/" + id : TODAY + "?page=" + id;
+  const hrefFor = (id: string) => "#/" + id;   // every page is the console's own (the classic console is gone, 13 Nov 2026)
 
   return (
     <div className="st-app cc-app">
-      <TopBar api={api} user={user} page={page} classicHref={TODAY + "?classic"} onPage={setPage} onSignOut={signOut} onShortcuts={() => setShowKeys(true)} />
+      <TopBar api={api} user={user} page={page} onPage={setPage} onSignOut={signOut} onShortcuts={() => setShowKeys(true)} onChangePassword={() => setChanging(true)} onTwoStep={() => setTwoStep(true)} />
       {showKeys && <ShortcutsDialog app="console" onClose={() => setShowKeys(false)} />}
       {user.announcement && <div className="st-notice" role="status"><span>{user.announcement}</span></div>}
       {user.license_banner && <div className="st-alert" role="alert"><span>{user.license_banner}</span></div>}

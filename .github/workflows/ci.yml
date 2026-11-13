@@ -610,15 +610,16 @@ jobs:
           ./gradlew :cli:installDist --console=plain
           npm install --prefix "$RUNNER_TEMP/node" jsdom@24 >/dev/null
           echo "NODE_PATH=$RUNNER_TEMP/node/node_modules" >> "$GITHUB_ENV"
-      - name: Console UI test
+      - name: The console answers, and the old classic addresses go to it
         run: |
           OOA=cli/build/install/ooa/bin/ooa
           nohup "$OOA" control-room --port 8763 --data "$RUNNER_TEMP/cr" > "$RUNNER_TEMP/cr.log" 2>&1 &
           for i in $(seq 1 60); do grep -q "one-time password" "$RUNNER_TEMP/cr.log" && break; sleep 2; done
           PW=$(grep -o "one-time password  [^ ]*" "$RUNNER_TEMP/cr.log" | awk '{print $3}')
           test -n "$PW" || { cat "$RUNNER_TEMP/cr.log"; exit 1; }
-          cd control-room/src/test/ui
-          CONSOLE_DIR=../../main/resources/console CR_URL=http://localhost:8763 CR_ADMIN_PASSWORD="$PW" node console.ui.test.js
+          curl -sf http://localhost:8763/next/ | grep -q 'id="root"'
+          test "$(curl -s -o /dev/null -w '%{redirect_url}' 'http://localhost:8763/?page=users')" = "http://localhost:8763/next/#/users"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8763/cr.js)" = "404"
       - name: Studio serves its page
         run: |
           OOA=cli/build/install/ooa/bin/ooa

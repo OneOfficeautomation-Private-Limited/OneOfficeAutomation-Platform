@@ -3,7 +3,7 @@ import { UI_MODULES, withModules } from "../modules/registry";
 
 /**
  * One CommandCenter menu (V6.1), shared by Studio and the console so the two never differ: Home, then five sections
- * by task. Page ids are the console's (`/next/#/<id>` opens one; `/?page=<id>` is the classic console); `perm` is the permission a page
+ * by task. Page ids are the console's (`/next/#/<id>` opens one); `perm` is the permission a page
  * needs (several joined by "|": any of them; "team_lead" means the person leads a team), as today's console checks.
  */
 export type MenuPage = { id: string; label: string; perm?: string };

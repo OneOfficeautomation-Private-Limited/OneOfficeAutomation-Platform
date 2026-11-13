@@ -188,7 +188,10 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       variables: [{ name: "vendor", type: "String", direction: "input", required: true, description: "Who sent it" }, { name: "total", type: "Number", direction: "output" }] } });
     if (route === "repo/dependencies") return ok({ path: "Finance/Invoice intake.flow.json", agents: [{ bot_id: "pdf-1", path: "Shared/Read PDF.flow.json", found: true }], called_by: [], toolkits: ["ooa.excel"] });
     if (route === "repo/production") return ok({ production_request: { id: "q2" } });
-    if (route === "runs" && init.method === "POST") return ok({ run_id: "r9", version: 3 });
+    if (route === "runs" && init.method === "POST") return body?.run_as_users ? ok({ started: 1, runs: [{ run_as: "admin", run_id: "r10" }] }) : ok({ run_id: "r9", version: 3 });
+    if (route === "apikeys" && (init.method ?? "GET") === "GET") return ok({ keys: [{ id: "k1", name: "ERP sync", created: "2026-11-01T08:00:00Z", expires: null, last_used: null }] });
+    if (route === "apikeys" && init.method === "POST") return ok({ name: body.name, key: "ooa_k_shown_once" });
+    if (route.startsWith("apikeys/") && init.method === "DELETE") return ok({});
     if (/^repo\/(permissions|recover|delete|move|copy|labels|undo-checkout|folders|folders\/rename)$/.test(route) || /^repo\/production-requests\/q\d\/\w+$/.test(route)) return ok({ ok: true, path: "Finance", agents: 0 });
     if (route === "devices" && init.method === "PATCH") return ok({ updated: (body.ids as string[]).length, changes: 1 });
     if (route === "devices") return ok({ devices: [
@@ -469,7 +472,24 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
     expect(await screen.findByRole("button", { name: "Help: Home" })).toBeTruthy();   // Home has the i too
     fireEvent.keyDown(screen.getByRole("button", { name: "Help" }), { key: "Enter" });
-    expect(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Classic console/ })).toBeTruthy();   // today's console, until it is retired
+    expect(within(await screen.findByRole("menu")).queryByRole("menuitem", { name: /^Classic console/ })).toBeNull();   // one console: the classic one was removed (13 Nov 2026)
+  });
+
+  it("keeps the person's own API keys, password and two-step sign-in in Your account (moved from the classic console, 13 Nov 2026)", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    const account = await screen.findByRole("button", { name: /^Account: / });
+    fireEvent.keyDown(account, { key: "Enter" });
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent?.split(/(?=[A-Z][a-z]+ [a-z])/)[0])).toBeTruthy();
+    expect(within(menu).getByRole("menuitem", { name: /^Change password/ })).toBeTruthy();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /^Your API keys/ }));
+    const keys = await screen.findByRole("dialog", { name: "Your API keys" });
+    expect(await within(keys).findByText("ERP sync")).toBeTruthy();
+    fireEvent.change(within(keys).getByLabelText("Name"), { target: { value: "Nightly" } });
+    await act(async () => { fireEvent.click(within(keys).getByRole("button", { name: "Create key" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "apikeys", body: { name: "Nightly", days: 90 } }));
+    expect(within(keys).getByText("ooa_k_shown_once")).toBeTruthy();   // shown once
   });
 
   it("shows only the pages a person may open, and signs out", async () => {
@@ -2306,7 +2326,18 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.change(await within(run).findByLabelText(/^vendor/), { target: { value: "Acme" } });
     await waitFor(() => expect((within(run).getByLabelText("Run on") as HTMLSelectElement).value).toBe("d:d1"));
     await act(async () => { fireEvent.click(within(run).getByRole("button", { name: "Run" })); });
-    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "runs", body: { bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", inputs: { vendor: "Acme" } } }));
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "runs", body: { bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", inputs: { vendor: "Acme" }, mode: "unattended", priority: 0, callback_url: null } }));
+    // 13 Nov 2026 (item 8, from the classic console): run-as users, run mode, priority and a result callback
+    if (!screen.queryByRole("dialog", { name: "Invoice intake" })) fireEvent.click(within(await screen.findByRole("table", { name: "Agents list" })).getByText("Invoice intake"));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "Invoice intake" })).getByRole("button", { name: "Run" }));
+    const run2 = await screen.findByRole("dialog", { name: "Run Invoice intake" });
+    fireEvent.change(await within(run2).findByLabelText(/^vendor/), { target: { value: "Acme" } });
+    fireEvent.change(within(run2).getByLabelText("Run on"), { target: { value: "users" } });
+    fireEvent.click(await within(run2).findByRole("checkbox", { name: /admin/ }));
+    fireEvent.change(within(run2).getByLabelText("Priority on the runner"), { target: { value: "5" } });
+    fireEvent.change(within(run2).getByLabelText("Callback URL"), { target: { value: "https://example.com/done" } });
+    await act(async () => { fireEvent.click(within(run2).getByRole("button", { name: "Run" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "runs", body: { bot_path: "Finance/Invoice intake.flow.json", run_as_users: ["admin"], inputs: { vendor: "Acme" }, mode: "unattended", priority: 5, callback_url: "https://example.com/done" } }));
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Manage" }), { key: "Enter" });
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Production approvals (1 waiting)" }));

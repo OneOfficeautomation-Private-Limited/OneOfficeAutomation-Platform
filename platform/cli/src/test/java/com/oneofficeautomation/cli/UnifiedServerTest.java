@@ -64,7 +64,7 @@ class UnifiedServerTest {
                 assertEquals(200, head.status(), "HEAD " + p);
                 assertEquals("", head.body(), "HEAD " + p + " has no body");
             }
-            assertTrue(call(base, "GET", "/ooa-tokens.css", null, null, null).body().contains("--surface-canvas"));
+            assertEquals(404, call(base, "GET", "/ooa-tokens.css", null, null, null).status(), "the classic console's design files were removed (13 Nov 2026)");
             assertEquals("/", call(base, "GET", "/studio/api/info", null, null, null).json().get("controlRoom"));
             assertEquals("/studio/", call(base, "GET", "/api/health", null, null, null).json().get("studio"), "Control Room links to Studio for browsers on this computer");
             assertTrue(call(base, "GET", "/next/", null, null, null).body().contains("One CommandCenter"));

@@ -87,13 +87,19 @@ class LongPollTest {
         pool.shutdownNow();
     }
 
-    /** The bare address opens the new console; the classic one stays at /?classic and its pages at /?page=<id>. */
+    /** The bare address opens the console; the classic console is gone, its addresses go to the same page (13 Nov 2026). */
     @Test void theNewConsoleIsTheDefault() throws Exception {
         String root = base.substring(0, base.length() - "api/".length());
         HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(root)).build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(302, r.statusCode());
         assertEquals("/next/", r.headers().firstValue("Location").orElse(""));
-        for (String classic : List.of("?classic", "?page=users"))
-            assertNotEquals(302, http.send(HttpRequest.newBuilder(URI.create(root + classic)).build(), HttpResponse.BodyHandlers.ofString()).statusCode(), classic);
+        Map<String, String> to = Map.of("?classic", "/next/", "?page=users", "/next/#/users", "?page=../x", "/next/");
+        for (var e : to.entrySet()) {
+            HttpResponse<String> c = http.send(HttpRequest.newBuilder(URI.create(root + e.getKey())).build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(302, c.statusCode(), e.getKey());
+            assertEquals(e.getValue(), c.headers().firstValue("Location").orElse(""), e.getKey());
+        }
+        assertEquals(404, http.send(HttpRequest.newBuilder(URI.create(root + "cr.js")).build(), HttpResponse.BodyHandlers.ofString()).statusCode(), "the classic console's script is gone");
+        assertEquals(200, http.send(HttpRequest.newBuilder(URI.create(root + "logo-full.png")).build(), HttpResponse.BodyHandlers.ofString()).statusCode(), "the sign-in page's logo stays");
     }
 }

@@ -547,6 +547,9 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
   const [runners, setRunners] = useState<Runner[]>([]);
   const [pools, setPools] = useState<RunnerPool[]>([]);
   const [where, setWhere] = useState("");
+  const [people, setPeople] = useState<{ username: string; device_id?: string | null; device_name?: string | null }[] | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [opts, setOpts] = useState({ more: false, mode: "unattended", priority: "0", callback: "" });
   const [vars, setVars] = useState<FlowVariable[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -566,22 +569,48 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
           : ["List", "Dictionary", "Table", "Record", "Any"].includes(v.type ?? "") ? JSON.parse(t) : t;
       }
     } catch { setError("An input meant as JSON is not valid JSON."); return; }
-    api.startRun({ bot_path: a.path, ...(where.startsWith("p:") ? { pool_id: where.slice(2) } : { device_id: where.slice(2) }), inputs })
+    const more = { mode: opts.mode, priority: Number(opts.priority), callback_url: opts.callback.trim() || null };
+    if (where === "users") {
+      if (!picked.length) { setError("Tick at least one run-as user."); return; }
+      api.startRunsAs({ bot_path: a.path, run_as_users: picked, inputs, ...more }).then((r) => {
+        const bad = r.runs.filter((x) => x.error);
+        onDone("Started " + r.started + " of " + r.runs.length + " runs of " + agentName(a.path) + (bad.length ? ": " + bad.map((x) => x.run_as + " (" + x.error!.message + ")").join("; ") : "") + ". Follow them in Agent Activity.");
+      }, (e) => setError(message(e)));
+      return;
+    }
+    api.startRun({ bot_path: a.path, ...(where.startsWith("p:") ? { pool_id: where.slice(2) } : { device_id: where.slice(2) }), inputs, ...more })
       .then((r) => onDone("Started " + agentName(a.path) + " (run " + r.run_id + "): follow it in Agent Activity."), (e) => setError(message(e)));
   };
+  useEffect(() => { if (where === "users" && people === null) api.defaultRunners().then(setPeople, (e) => { setPeople([]); reportMinor("the run-as users", e); }); }, [where]);   // eslint-disable-line react-hooks/exhaustive-deps
   const missing = vars.some((v) => v.required && !(values[v.name] ?? "").trim());
   return (
     <Dialog open title={"Run " + agentName(a.path)} width={620} onClose={onClose} footer={<><Button kind="plain" onClick={onClose}>Cancel</Button>
-      <Button kind="primary" disabled={!where || missing} onClick={run}>Run</Button></>}>
+      <Button kind="primary" disabled={!where || missing || (where === "users" && !picked.length)} onClick={run}>Run</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <p className="cc-list-hint">Runs the live version, v{a.production_version}.</p>
       <Field label="Run on">{(id) => <Select id={id} value={where} onChange={(e) => setWhere(e.target.value)} options={[...runners.filter((r) => r.enabled).map((r) => ({ value: "d:" + r.id, label: r.name + " (" + r.status + ")" })),
-        ...pools.map((p) => ({ value: "p:" + p.id, label: "Pool " + p.name + " (least busy runner)" }))]} />}</Field>
+        ...pools.map((p) => ({ value: "p:" + p.id, label: "Pool " + p.name + " (least busy runner)" })),
+        { value: "users", label: "Run-as users (each on their default runner)" }]} />}</Field>
+      {where === "users" && <fieldset className="cc-run-as"><legend>Run-as users</legend>
+        {people === null ? <p className="st-muted">Loading users…</p> : !people.length ? <p className="st-muted">No run-as users.</p>
+          : people.map((p) => <label key={p.username} className="cc-check"><input type="checkbox" disabled={!p.device_id} checked={picked.includes(p.username)}
+              onChange={(e) => setPicked(e.target.checked ? [...picked, p.username] : picked.filter((x) => x !== p.username))} />
+            <strong>{p.username}</strong> <span className="st-muted">{p.device_id ? "on " + (p.device_name || p.device_id) : "no default runner"}</span></label>)}
+      </fieldset>}
       {vars.map((v) => <Field key={v.name} label={v.name + (v.required ? " *" : "") + " (" + v.type + ")"} hint={v.description}>{(id) => v.type === "Boolean"
         ? <Select id={id} value={values[v.name] ?? ""} onChange={(e) => setValues({ ...values, [v.name]: e.target.value })} options={[{ value: "", label: "(not set)" }, { value: "true", label: "True" }, { value: "false", label: "False" }]} />
         : <TextInput id={id} type={v.type === "Number" ? "number" : "text"} value={values[v.name] ?? ""} placeholder={v.type === "Credential" ? "vault folder/credential/attribute" : v.default !== undefined ? "Default " + JSON.stringify(v.default) : ""}
           onChange={(e) => setValues({ ...values, [v.name]: e.target.value })} />}</Field>)}
       {!vars.length && <p className="st-muted">This agent has no inputs.</p>}
+      <details className="cc-run-more" open={opts.more} onToggle={(e) => setOpts({ ...opts, more: (e.target as HTMLDetailsElement).open })}>
+        <summary>Run mode, priority and result callback (optional)</summary>
+        <Field label="Run mode">{(id) => <Select id={id} value={opts.mode} onChange={(e) => setOpts({ ...opts, mode: e.target.value })}
+          options={[{ value: "unattended", label: "Unattended (nobody at the runner)" }, { value: "attended", label: "Attended (someone is at the runner)" }, { value: "headless", label: "Headless (no desktop)" }]} />}</Field>
+        <Field label="Priority on the runner">{(id) => <Select id={id} value={opts.priority} onChange={(e) => setOpts({ ...opts, priority: e.target.value })}
+          options={[{ value: "-5", label: "Low" }, { value: "0", label: "Normal" }, { value: "5", label: "High" }, { value: "9", label: "Urgent" }]} />}</Field>
+        <Field label="Callback URL" hint="Gets the result as JSON when the run ends.">{(id) => <TextInput id={id} type="url" value={opts.callback} placeholder="https://example.com/hooks/agent-finished"
+          onChange={(e) => setOpts({ ...opts, callback: e.target.value })} />}</Field>
+      </details>
     </Dialog>
   );
 }

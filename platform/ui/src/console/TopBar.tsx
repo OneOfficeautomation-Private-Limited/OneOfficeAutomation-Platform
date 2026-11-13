@@ -3,11 +3,11 @@ import type { CrApi, CrUser, Environment } from "../api/cr";
 import { BrandMark, Icon, is, keyOf, Menu } from "../components";
 import { canSee, MENU_SECTIONS } from "../shell/menu";
 import { PhoneNotificationsDialog } from "./PhoneNotifications";
+import { ApiKeysDialog } from "./ApiKeys";
 
 /**
  * The console's top bar (design plan, step 1: the skeleton): the product mark and name (where you are moved above the page title in Console A), one
- * search for pages and agents (Ctrl K; a run id opens that run), the open alerts, help (with the classic console until it
- * is retired) and the account menu. As UiPath's header keeps the current location and help, and AA's breadcrumbs lead
+ * search for pages and agents (Ctrl K; a run id opens that run), the open alerts, help and the account menu. As UiPath's header keeps the current location and help, and AA's breadcrumbs lead
  * back to the parent.
  */
 const sectionName = (label: string) => label === "AI" ? "AI" : label.charAt(0) + label.slice(1).toLowerCase();
@@ -24,11 +24,12 @@ export function Breadcrumb({ user, page, onPage }: { user: CrUser; page: string;
   </nav>;
 }
 
-export function TopBar({ api, user, classicHref, onPage, onSignOut, onShortcuts }: { api: CrApi; user: CrUser; page: string; classicHref: string;
+export function TopBar({ api, user, onPage, onSignOut, onShortcuts, onChangePassword, onTwoStep }: { api: CrApi; user: CrUser; page: string; onChangePassword: () => void; onTwoStep: () => void;
   onPage: (id: string) => void; onSignOut: () => void; onShortcuts: () => void }) {
   const can = (p: string) => user.permissions.includes(p);
   const [alerts, setAlerts] = useState<number | null>(null);
   const [phone, setPhone] = useState(false);
+  const [keys, setKeys] = useState(false);
   useEffect(() => {
     if (!can("analytics.view")) return;
     const load = () => api.alerts({ status: "open", limit: "1" }).then((r) => setAlerts(r.open), () => {});
@@ -42,14 +43,19 @@ export function TopBar({ api, user, classicHref, onPage, onSignOut, onShortcuts 
       <div className="st-top-actions">
         {alerts != null && <a className="st-top-icon cc-bell" href="#/alerts" aria-label={"Open alerts: " + alerts} title="Open alerts">
           <Icon name="bell" size={16} />{alerts > 0 && <span className="cc-badge">{alerts}</span>}</a>}
-        <Menu label="Help" align="end" items={[{ key: "keys", label: "Keyboard shortcuts", description: "Every key, and single-key shortcuts on or off", shortcut: keyOf("app.shortcuts"), onSelect: onShortcuts }, { key: "classic", label: "Classic console", description: "Today's console, until it is retired", onSelect: () => { location.href = classicHref; } }]}
+        <Menu label="Help" align="end" items={[{ key: "keys", label: "Keyboard shortcuts", description: "Every key, and single-key shortcuts on or off", shortcut: keyOf("app.shortcuts"), onSelect: onShortcuts }]}
           trigger={<button type="button" className="st-top-icon" aria-label="Help" title="Help"><Icon name="help" size={16} /></button>} />
         <Menu label="Your account" align="end" title={user.display_name + " · " + (user.roles?.length ? user.roles.join(", ") : user.role)}
           items={[{ key: "phone", label: "Phone notifications", description: "New tasks on your phone, with Approve and Reject", onSelect: () => setPhone(true) },
-            { key: "out", label: "Sign out", onSelect: onSignOut }]} trigger={<button type="button" className="st-top-icon cc-user" aria-label={"Account: " + user.display_name} title={user.display_name}>
+            // moved from the classic console on 13 Nov 2026 (improvement list item 8)
+            { key: "keys", label: "Your API keys", description: "Let other systems call One CommandCenter as you", onSelect: () => setKeys(true) },
+            { key: "password", label: "Change password", onSelect: onChangePassword },
+            ...(!user.mfa_enabled ? [{ key: "mfa", label: "Turn on two-step sign-in", description: "A code from an authenticator app at each sign-in", onSelect: onTwoStep }] : []),
+            { key: "out", label: "Sign out", separatorBefore: true, onSelect: onSignOut }]} trigger={<button type="button" className="st-top-icon cc-user" aria-label={"Account: " + user.display_name} title={user.display_name}>
           <Icon name="person" size={16} /></button>} />
       </div>
       {phone && <PhoneNotificationsDialog api={api} onClose={() => setPhone(false)} />}
+      {keys && <ApiKeysDialog api={api} onClose={() => setKeys(false)} />}
     </header>
   );
 }

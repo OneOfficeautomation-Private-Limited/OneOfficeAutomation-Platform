@@ -189,9 +189,9 @@ public final class ControlRoomServer {
             else if (path.equals("/metrics")) metrics(ex);
             else if (path.equals("/scim/v2") || path.startsWith("/scim/v2/")) scim(ex, path.substring(Math.min(path.length(), 9)));
             else if (path.equals("/next")) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
-            // The new console is the default (31 Oct 2026): the bare address opens it. The classic console stays at
-            // /?classic (and /?page=<id> for its pages the new one links to) until it is retired.
-            else if (path.equals("/") && ex.getRequestURI().getRawQuery() == null) { ex.getResponseHeaders().set("Location", "/next/"); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
+            // One console (improvement list 13 Nov 2026, item 8: the classic console is removed): the bare address opens
+            // it, and the classic console's addresses (/?classic, /?page=<id>) go to the same page in it.
+            else if (path.equals("/")) { ex.getResponseHeaders().set("Location", consoleAddress(ex.getRequestURI().getRawQuery())); securityHeaders(ex); writeBody(ex, 302, new byte[0]); }
             else if (path.startsWith("/next/")) nextConsole(ex, path.substring(6));
             else if (path.startsWith("/embed/")) embedPage(ex, path.substring(7));
             else if (path.equals("/documents") || path.startsWith("/documents/")) documentsPage(ex, path);
@@ -1212,13 +1212,19 @@ public final class ControlRoomServer {
         }
     }
 
+    /** Where a classic console address goes in the console: /?page=users to /next/#/users, anything else to /next/. */
+    static String consoleAddress(String rawQuery) {
+        if (rawQuery != null)
+            for (String part : rawQuery.split("&"))
+                if (part.startsWith("page=") && part.substring(5).matches("[a-z][a-z0-9-]{0,40}")) return "/next/#/" + part.substring(5);
+        return "/next/";
+    }
+
+    /** The product's images (the sign-in page's logo, the icons); the classic console's pages are gone (13 Nov 2026). */
     private void serveStatic(HttpExchange ex, String path) throws IOException {
-        String name = path.equals("/") ? "index.html" : path.substring(1);
-        if (!name.matches("^[A-Za-z0-9_.-]+$")) { sendJson(ex, 404, Map.of("error", "not found")); return; }
-        // The shared design system (ooa-tokens.css, ooa-components.css) and the interface languages (ooa-i18n.js and its
-        // catalogs) live in /ooa-ui/; One AgentStudio serves the same files.
-        String folder = name.startsWith("ooa-") && name.matches(".*\\.(css|js|json)$") ? "/ooa-ui/" : "/console/";
-        try (InputStream in = ControlRoomServer.class.getResourceAsStream(folder + name)) {
+        String name = path.substring(1);
+        if (!name.matches("^[A-Za-z0-9_.-]+\\.(png|ico|svg)$")) { sendJson(ex, 404, Map.of("error", "not found")); return; }
+        try (InputStream in = ControlRoomServer.class.getResourceAsStream("/console/" + name)) {
             if (in == null) { sendJson(ex, 404, Map.of("error", "not found")); return; }
             byte[] b = in.readAllBytes();
             securityHeaders(ex);
