@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { CrApi, CrFailure, type CrUser, type Environment } from "../api/cr";
-import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, Notice, ShortcutsDialog, TextInput, usePersistent, MinorNotices, PageRetry } from "../components";
+import { Button, Field, HelpPanel, HelpProvider, Icon, inTextField, is, Notice, ShortcutsDialog, TextInput, usePersistent, MinorNotices, PageRetry, useFullTextOnHover } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { canSee, groupOf, MENU_GROUPS, MENU_SECTIONS } from "../shell/menu";
 import { MODULE_PAGES } from "../modules/pages";
@@ -59,6 +59,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); };
   useEffect(() => { const on = () => setPageState(pageOf(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const [notice, setNotice] = useState<string | null>(null);
+  useFullTextOnHover();   // cut-off text shows in full on hover (13 Nov 2026, item 11)
   const [reloads, setReloads] = useState(0);   // Retry on a page that could not load mounts it again (E2b)
   const [showKeys, setShowKeys] = useState(false);   // ? or Help > Keyboard shortcuts
   useEffect(() => {

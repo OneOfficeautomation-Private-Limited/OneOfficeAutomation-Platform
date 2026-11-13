@@ -114,8 +114,8 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
         <div className="cc-list-panel cc-cap-runners">
           <h2 className="cc-cap-title">Each runner<HelpButton topic={HELP_RUNNERS} /></h2>
           <div className="cc-list-scroll"><table className="cc-list-table" aria-label="Each runner">
-            <thead><tr>{["Runner", "State", "Pools"].map((h) => <th key={h} scope="col">{h}</th>)}{["Runs", "Succeeded", "Failed", "Busy"].map((h) => <th key={h} scope="col" className={"cc-num" + (h === "Busy" ? " cc-wide-only" : "")}>{h}</th>)}
-              <th scope="col">Time in use</th><th scope="col" className="cc-num">Average wait</th><th scope="col">Last run</th><th scope="col">Most common error</th>
+            <thead><tr>{["Runner", "State", "Pools"].map((h) => <th key={h} scope="col" className={h === "Pools" ? "cc-wide-only" : undefined}>{h}</th>)}{["Runs", "Succeeded", "Failed", "Busy"].map((h) => <th key={h} scope="col" className={"cc-num" + (h === "Busy" || h === "Succeeded" ? " cc-wide-only" : "")}>{h}</th>)}
+              <th scope="col">Time in use</th><th scope="col" className="cc-num cc-wide-only">Average wait</th><th scope="col">Last run</th><th scope="col">Most common error</th>
               {["CPU now", "Memory now"].map((h) => <th key={h} scope="col" className="cc-num cc-wide-only">{h}</th>)}
               <th scope="col" className="cc-list-menu"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>{c.runners.map((r) => { const d = device(r.device_id); const nm = d ? d.nickname || d.name : r.name ? r.name + " (removed)" : "Removed runner"; const inPools = pools.filter((p) => p.devices.includes(r.device_id)).map((p) => p.name).join(", ");
@@ -123,10 +123,10 @@ export function Capacity({ api, user , title, tabs }: { api: CrApi; user: CrUser
               return <tr key={r.device_id} className={d ? undefined : "is-static"} title={d ? "Open the runner on Runner Machines" : undefined} onClick={rowClick(() => { if (d) open(); })}>
               <td title={d ? undefined : r.device_id}>{nm}</td>
               <td><span className={"cc-pill is-" + pillOf(d)}><span className="cc-pill-dot" />{stateOf(d)}</span></td>
-              <td className="cc-clip" title={inPools || undefined}>{inPools}</td>
-              <td className="cc-num">{r.runs}</td><td className="cc-num">{r.success ?? ""}</td><td className={"cc-num" + (r.failed ? " cc-err" : "")}>{r.failed ?? ""}</td><td className="cc-num cc-wide-only">{hours(r.busy_ms)}</td>
+              <td className="cc-clip cc-wide-only" title={inPools || undefined}>{inPools}</td>
+              <td className="cc-num">{r.runs}</td><td className="cc-num cc-wide-only">{r.success ?? ""}</td><td className={"cc-num" + (r.failed ? " cc-err" : "")}>{r.failed ?? ""}</td><td className="cc-num cc-wide-only">{hours(r.busy_ms)}</td>
               <td className={r.use >= 80 ? "cc-err" : undefined}><span className="cc-use"><progress max={100} value={Math.min(100, r.use)} aria-label={"Time in use of " + nm} /> {r.use}%</span></td>
-              <td className="cc-num">{dur(r.avg_wait_ms)}</td>
+              <td className="cc-num cc-wide-only">{dur(r.avg_wait_ms)}</td>
               <td>{when(r.last_run)}</td>
               <td className="ui-mono cc-clip cc-clip-sm" title={r.top_error ?? undefined}>{r.top_error ?? ""}</td>
               <td className="cc-num cc-wide-only">{d?.cpu_pct != null ? Math.round(d.cpu_pct) + "%" : ""}</td><td className="cc-num cc-wide-only">{d?.mem_pct != null ? Math.round(d.mem_pct) + "%" : ""}</td>

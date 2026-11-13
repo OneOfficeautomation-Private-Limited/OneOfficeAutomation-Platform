@@ -14,7 +14,8 @@ import { RefreshButton, RowMenu, rowClick, CloseView } from "./ListParts";
  * (Newer / Older, details by name, the run's other records, one-click searches, what seals it).
  * Review round 2 (1 Nov 2026): fits at 1366 px (who, what happened and the object cut to one width, in full on hover),
  * only time, who, what happened and result beside an open record, the Who filter kept narrow, and Hide checkpoints moved
- * under More filters (the pager still says when they are hidden), so the toolbar takes two lines.
+ * under More filters (the pager still says when they are hidden). Since 13 Nov 2026 (improvement list item 11) Who and
+ * Result are under More filters too, so the filters fit one line; a filter that is set keeps its row open.
  */
 type Col = { key: string; label: string; cell: (a: AuditRecord) => string };
 
@@ -246,11 +247,7 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
           <span className="cc-list-search"><TextInput type="search" aria-label="Search the audit trail" placeholder="Search everything" value={f.q ?? ""} onChange={(e) => setFilter("q", e.target.value)} /></span>
           <span className={"cc-chip" + (f.area ? " is-on" : "")}><Select aria-label="Area" value={f.area ?? ""} onChange={(e) => setFilter("area", e.target.value)}
             options={[{ value: "", label: "Area: Any" }, ...AREAS.map(([value, label]) => ({ value, label: "Area: " + label }))]} /></span>
-          <span className={"cc-chip" + (f.actor ? " is-on" : "")}><Select aria-label="Who" value={f.actor ?? ""} onChange={(e) => setFilter("actor", e.target.value)}
-            options={[{ value: "", label: "Who: Anyone" }, ...[...new Set([...actors, ...(f.actor ? [f.actor] : [])])].map((a) => ({ value: a, label: "Who: " + (a === "system" ? "System" : cut(a)) }))]} /></span>
-          <span className={"cc-chip" + (f.result ? " is-on" : "")}><Select aria-label="Result" value={f.result ?? ""} onChange={(e) => setFilter("result", e.target.value)}
-            options={[{ value: "", label: "Result: Any" }, ...RESULTS.map(([value, label]) => ({ value, label: "Result: " + label }))]} /></span>
-          <Button kind="plain" aria-expanded={more} onClick={() => setMore(!more)}>{more ? "Fewer filters" : "More filters"}</Button>
+          <Button kind="plain" aria-expanded={more || !!f.actor || !!f.result} onClick={() => setMore(!more)}>{more ? "Fewer filters" : "More filters"}</Button>
           {(f.object_type || f.object_id) && <span className="cc-tag">Object: {[f.object_type, f.object_id].filter(Boolean).join(" ")}</span>}
           {f.around && <span className="cc-tag">Within 5 minutes of {new Date(f.around).toLocaleString()}</span>}
           {filtered && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
@@ -261,7 +258,11 @@ export function Audit({ api, onNotice }: { api: CrApi; onNotice: (t: string) => 
           <RefreshButton onClick={load} />
         </div>
       </div>
-      {more && <div className="cc-list-filters cc-au-more" role="group" aria-label="More filters">
+      {(more || !!f.actor || !!f.result) && <div className="cc-list-filters cc-au-more" role="group" aria-label="More filters">
+        <span className={"cc-chip" + (f.actor ? " is-on" : "")}><Select aria-label="Who" value={f.actor ?? ""} onChange={(e) => setFilter("actor", e.target.value)}
+          options={[{ value: "", label: "Who: Anyone" }, ...[...new Set([...actors, ...(f.actor ? [f.actor] : [])])].map((a) => ({ value: a, label: "Who: " + (a === "system" ? "System" : cut(a)) }))]} /></span>
+        <span className={"cc-chip" + (f.result ? " is-on" : "")}><Select aria-label="Result" value={f.result ?? ""} onChange={(e) => setFilter("result", e.target.value)}
+          options={[{ value: "", label: "Result: Any" }, ...RESULTS.map(([value, label]) => ({ value, label: "Result: " + label }))]} /></span>
         <TextInput aria-label="Action" placeholder="Action, e.g. user.create" value={f.action ?? ""} onChange={(e) => setFilter("action", e.target.value)} />
         <TextInput aria-label="Object type" placeholder="Object type, e.g. run" value={f.object_type ?? ""} onChange={(e) => setFilter("object_type", e.target.value)} />
         <TextInput aria-label="Object id" placeholder="Object id" value={f.object_id ?? ""} onChange={(e) => setFilter("object_id", e.target.value)} />

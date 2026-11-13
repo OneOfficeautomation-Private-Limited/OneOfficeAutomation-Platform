@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
-import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, reportMinor, MinorNotices } from "../components";
+import { BrandMark, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
 import { Automation, find as findNode } from "./Automation";
 import { CheckInDialog, CopyToPrivate, PublicRepository, type CheckInDep, type RepoRequest } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
@@ -58,6 +58,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [active, setActive] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useFullTextOnHover();   // cut-off text shows in full on hover (13 Nov 2026, item 11)
   const [newFolderIn, setNewFolderIn] = useState<string | null>(null);
   const [closing, setClosing] = useState<string | null>(null);   // a tab with unsaved changes being closed
   const [search, setSearch] = useState("");

@@ -1515,6 +1515,7 @@ describe("rebuilt One CommandCenter console", () => {
     expect(within(list).getByText("Signed in")).toBeTruthy();
     expect(within(list).getAllByRole("row").some((r) => /^(Today|Yesterday) · |^\w{3},? \w/.test(r.textContent ?? ""))).toBe(true);   // a day heading, whatever today is
     expect(calls.some((c) => c.route.startsWith("audit?") && c.route.includes("from=") && c.route.includes("checkpoints=hide"))).toBe(true);   // the last 24 hours
+    fireEvent.click(screen.getByRole("button", { name: "More filters" }));   // 13 Nov 2026: Who and Result are under More filters
     fireEvent.change(screen.getByLabelText("Result"), { target: { value: "failed" } });
     await waitFor(() => expect(within(list).queryByText("user.create")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));

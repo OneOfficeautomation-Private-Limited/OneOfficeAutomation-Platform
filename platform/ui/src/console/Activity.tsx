@@ -322,11 +322,7 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
               options={[{ value: "", label: "Status: Any" }, ...(tab === "progress" ? [["queued", "Queued"], ["running", "Running"]] : [["success", "Completed"], ["failed", "Failed"], ["stopped", "Stopped"]]).map(([v, l]) => ({ value: v, label: "Status: " + l }))]} /></span>
             {agents.length > 0 && <span className={"cc-chip" + (f.bot ? " is-on" : "")}><Select aria-label="Agent" value={f.bot ?? ""} onChange={(e) => setFilter("bot", e.target.value)}
               options={[{ value: "", label: "Agent: Any" }, ...agents.map((p) => ({ value: p, label: "Agent: " + name(p) }))]} /></span>}
-            {runners.length > 0 && <span className={"cc-chip" + (f.device ? " is-on" : "")}><Select aria-label="Runner" value={f.device ?? ""} onChange={(e) => setFilter("device", e.target.value)}
-              options={[{ value: "", label: "Runner: Any" }, ...runners.map((d) => ({ value: d.id, label: "Runner: " + d.name }))]} /></span>}
-            <span className={"cc-chip" + (f.source ? " is-on" : "")}><Select aria-label="How started" value={f.source ?? ""} onChange={(e) => setFilter("source", e.target.value)}
-              options={[{ value: "", label: "How started: Any" }, ...SOURCES.map(([v, l]) => ({ value: v, label: "How started: " + l }))]} /></span>
-            <Button kind="plain" aria-expanded={more || !!f.user || f.period === "dates"} onClick={() => setMore(!more)}>{more ? "Fewer filters" : "More filters"}</Button>
+            <Button kind="plain" aria-expanded={more || !!f.user || !!f.device || !!f.source || f.period === "dates"} onClick={() => setMore(!more)}>{more ? "Fewer filters" : "More filters"}</Button>
             {filtered && <Button kind="plain" onClick={() => { setF({}); setOffset(0); }}>Clear filters</Button>}
           </div>
           <div className="cc-list-right" role="toolbar" aria-label="Runs list tools">
@@ -335,7 +331,11 @@ export function Activity({ api, user, onNotice }: { api: CrApi; user: CrUser; on
             <RefreshButton onClick={() => { load(); loadSummary(); }} />
           </div>
         </div>
-        {(more || !!f.user || f.period === "dates") && <div className="cc-list-filters cc-au-more" role="group" aria-label="More filters">
+        {(more || !!f.user || !!f.device || !!f.source || f.period === "dates") && <div className="cc-list-filters cc-au-more" role="group" aria-label="More filters">
+          {runners.length > 0 && <span className={"cc-chip" + (f.device ? " is-on" : "")}><Select aria-label="Runner" value={f.device ?? ""} onChange={(e) => setFilter("device", e.target.value)}
+            options={[{ value: "", label: "Runner: Any" }, ...runners.map((d) => ({ value: d.id, label: "Runner: " + d.name }))]} /></span>}
+          <span className={"cc-chip" + (f.source ? " is-on" : "")}><Select aria-label="How started" value={f.source ?? ""} onChange={(e) => setFilter("source", e.target.value)}
+            options={[{ value: "", label: "How started: Any" }, ...SOURCES.map(([v, l]) => ({ value: v, label: "How started: " + l }))]} /></span>
           <TextInput aria-label="Started by" placeholder="Started by (user name)" value={f.user ?? ""} onChange={(e) => setFilter("user", e.target.value)} />
           {tab === "completed" && f.period === "dates" && <>
             <label className="cc-date">From <TextInput type="date" aria-label="From" value={f.from ?? ""} onChange={(e) => setFilter("from", e.target.value)} /></label>

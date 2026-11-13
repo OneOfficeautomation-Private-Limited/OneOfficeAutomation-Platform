@@ -863,3 +863,16 @@ a.ov-tab { text-decoration: none; }
 .cc-app .cc-sum strong { font-size: 14px; line-height: 1; }
 .cc-app .cc-sum strong.cc-sum-text { font-size: 12.5px; }
 .cc-app .cc-sum span { font-size: 12px; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+
+/* ---- Improvement list 13 Nov 2026, item 11: every table fits the screen ----
+   Headings on one line; a cell's text stays on one line and is cut with "…" (the whole text on hover); numbers and
+   short codes never wrap; a bar chart's labels get room and are cut rather than running into their bars. */
+.cc-app .cc-main table th { white-space: nowrap; }
+.cc-app .cc-main table th:not(.cc-col-th) { overflow: hidden; text-overflow: ellipsis; }   /* a resizable heading keeps its grip, which reaches past its edge */
+.cc-app .cc-main table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
+.cc-app .cc-main table td.cc-list-sub, .cc-app .cc-main table td .cc-list-sub, .cc-app .cc-main table td.is-wrap { white-space: normal; }
+.cc-app .cc-main table td:has(> input, > select, > textarea, > .ui-input) { overflow: visible; }
+.cc-app .cc-main .cc-err { overflow: hidden; text-overflow: ellipsis; }
+.cc-app .cc-hbars li { grid-template-columns: minmax(90px, 40%) 1fr auto; }
+.cc-app .cc-hbar-label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.cc-app .cc-list-filters { flex-wrap: wrap; row-gap: 6px; }

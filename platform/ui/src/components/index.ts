@@ -16,3 +16,4 @@ export { SHORTCUTS, inTextField, is, keyOf, shortcutsFor, singleKeysOn, withKey,
 export { ShortcutsDialog } from "./ShortcutsDialog";
 export { MinorNotices, reportMinor } from "./MinorNotices";
 export { PageError, PageRetry } from "./PageError";
+export { useFullTextOnHover } from "./useFullTextOnHover";
