@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SampleApi, estimate } from "./api";
 import { App, parseRoute } from "./App";
+import { FORMATS } from "./formats";
 
 beforeEach(() => { location.hash = ""; });
 afterEach(() => { cleanup(); localStorage.clear(); });
@@ -634,6 +635,57 @@ describe("Document Automation", () => {
       expect(t.fields.at(-1)).toMatchObject({ key: "po_number", label: "PO number", aliases: ["Purchase order", "PO No"], required: true });
       expect(t.fields[0].learned).toEqual([]);
     });
+  });
+
+  it("offers common formats for a field's format check, says what each accepts, and keeps an own pattern", async () => {
+    const api = start(); await go("#/types");
+    const fields = await screen.findByRole("region", { name: "Fields to read" });
+    fireEvent.click(within(fields).getByRole("button", { name: "Add field" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add field" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Due date" } });
+    const check = within(dialog).getByLabelText(/^Format check/) as HTMLSelectElement;
+    expect(Array.from(check.options).map((o) => o.text)).toEqual(["No check", ...FORMATS.map((f) => f.label), "Own pattern…"]);
+    expect(within(dialog).getByText("Any value is accepted.")).toBeTruthy();
+    expect(within(dialog).queryByLabelText(/^Own pattern/)).toBeNull();     // no hand-typed pattern unless asked for
+    fireEvent.change(check, { target: { value: "date-dmy" } });
+    expect(within(dialog).getByText(/^Accepts: Day, month and year with slashes/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(within(fields).getByText("Date dd/mm/yyyy")).toBeTruthy();         // the table names the format
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(async () => {
+      const t = (await api.docTypes()).find((x) => x.id === "supplier-invoice")!;
+      expect(t.fields.at(-1)).toMatchObject({ key: "due_date", regex: "^(?:0[1-9]|[12]\\d|3[01])/(?:0[1-9]|1[0-2])/\\d{4}$" });
+    });
+    // a pattern not in the list opens as an own pattern, in its text box
+    const row = within(fields).getByText("invoice_number").closest("tr")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    const edit = await screen.findByRole("dialog", { name: "Edit field" });
+    expect((within(edit).getByLabelText(/^Format check/) as HTMLSelectElement).value).toBe("own");
+    const own = within(edit).getByLabelText(/^Own pattern/) as HTMLInputElement;
+    expect(own.value).toBe("INV-\\d{4}-\\d+");
+    fireEvent.change(own, { target: { value: "(" } });
+    expect(within(edit).getByText("This is not a valid pattern.")).toBeTruthy();
+    expect((within(edit).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(edit).getByLabelText(/^Format check/), { target: { value: "" } });
+    expect(within(edit).queryByLabelText(/^Own pattern/)).toBeNull();
+    expect((within(edit).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("has common format patterns that accept their examples and refuse near misses", () => {
+    const ok: Record<string, string[]> = {
+      digits: ["004512"], amount: ["1,250.00", "99.50", "-12.30", "1250.00"], "date-iso": ["2026-11-14"], "date-dmy": ["14/11/2026"],
+      email: ["name@example.com"], phone: ["+966 11 234 5678", "(022) 555-0101"], iban: ["SA0380000000608010167519", "SA03 8000 0000 6080 1016 7519"],
+      "ksa-vat": ["300012345600003"], gstin: ["29ABCDE1234F1Z5"], pan: ["ABCDE1234F"], "us-ein": ["12-3456789"], "invoice-number": ["INV-2026-0187", "PO1234"],
+    };
+    const bad: Record<string, string[]> = {
+      digits: ["12a"], amount: ["12.5", "1,25.00"], "date-iso": ["2026-13-01"], "date-dmy": ["2026-11-14"], email: ["name@"], phone: ["12"],
+      iban: ["sa03"], "ksa-vat": ["300012345600004"], gstin: ["29ABCDE1234F1A5"], pan: ["ABCD1234F"], "us-ein": ["123456789"], "invoice-number": ["2026-0187"],
+    };
+    for (const f of FORMATS) {
+      const re = new RegExp(f.pattern);
+      for (const v of ok[f.id]) expect(re.test(v), `${f.id} accepts ${v}`).toBe(true);
+      for (const v of bad[f.id]) expect(re.test(v), `${f.id} refuses ${v}`).toBe(false);
+    }
   });
 
   it("teaches a new document type from samples, checked before it is saved", async () => {

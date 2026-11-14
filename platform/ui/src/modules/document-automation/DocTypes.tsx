@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
 import type { DocFlowApi, DocType, DocTypeField, FieldType } from "./api";
+import { FORMATS, formatOf } from "./formats";
 import { LanguagePicker } from "./languages";
 import { Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError, useLoad } from "./ui";
 
@@ -8,6 +9,8 @@ const TYPES: FieldType[] = ["Text", "Date", "Amount", "Number", "Choice", "Table
 const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 const keyOf = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").replace(/^(\d)/, "f_$1") || "field";
 const same = (a: DocType, b: DocType) => JSON.stringify(a) === JSON.stringify(b);
+/** The format check's "Own pattern…" choice: the pattern is typed by hand. */
+const OWN = "own";
 
 /** Document types: what is read from each kind of document and how it is checked; learned labels come from reviews. */
 export function DocTypes({ api }: { api: DocFlowApi }) {
@@ -126,7 +129,7 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
                 <tr key={f.key}>
                   <td><b>{f.label}</b><div className="df-small ui-mono">{f.key}</div></td>
                   <td className="df-muted">{[...new Set([f.label, ...f.aliases])].join(", ")}</td><td>{f.type}</td><td>{f.required ? "Required" : "Optional"}</td>
-                  <td className="ui-mono">{f.regex || "—"}</td>
+                  {formatOf(f.regex) ? <td title={f.regex}>{formatOf(f.regex)!.label}</td> : <td className="ui-mono">{f.regex || "—"}</td>}
                   <td className="df-muted">{f.learned.length ? f.learned.map((l) => (
                     <span key={l} className="df-learned">"{l}"<button type="button" className="df-link" aria-label={`Forget "${l}"`}
                       onClick={() => set({ fields: t.fields.map((x) => x.key === f.key ? { ...x, learned: x.learned.filter((y) => y !== l) } : x) })}>×</button></span>)) : "—"}</td>
@@ -160,6 +163,13 @@ function FieldDialog({ value, taken, onClose, onSave }: { value: DocTypeField | 
   const [aliases, setAliases] = useState(f.aliases.join(", "));
   const key = value ? f.key : keyOf(f.label);
   const clash = !value && taken.includes(key);
+  // the format check: one of the common formats, or an own pattern (any pattern not in the list opens as one)
+  const [format, setFormat] = useState(() => (f.regex ? formatOf(f.regex)?.id ?? OWN : ""));
+  const known = FORMATS.find((x) => x.id === format);
+  const chooseFormat = (id: string) => {
+    setFormat(id);
+    if (id !== OWN) setF({ ...f, regex: FORMATS.find((x) => x.id === id)?.pattern ?? "" });
+  };
   let badRegex = false;
   try { if (f.regex) new RegExp(f.regex); } catch { badRegex = true; }
   return (
@@ -173,9 +183,15 @@ function FieldDialog({ value, taken, onClose, onSave }: { value: DocTypeField | 
       <Field label="Other labels on the page" hint="Comma separated, e.g. Invoice No, Bill No, رقم الفاتورة">
         {(id) => <TextInput id={id} value={aliases} onChange={(e) => setAliases(e.target.value)} />}
       </Field>
-      <Field label="Format check (optional)" hint={badRegex ? "This is not a valid pattern." : "A pattern the value must match, e.g. 3\\d{13}3 for a KSA VAT number."}>
-        {(id) => <TextInput id={id} mono value={f.regex} onChange={(e) => setF({ ...f, regex: e.target.value })} />}
+      <Field label="Format check (optional)" hint={format === OWN ? undefined : known ? "Accepts: " + known.accepts : "Any value is accepted."}>
+        {(id) => <Select id={id} value={format} onChange={(e) => chooseFormat(e.target.value)}
+          options={[{ value: "", label: "No check" }, ...FORMATS.map((x) => ({ value: x.id, label: x.label })), { value: OWN, label: "Own pattern…" }]} />}
       </Field>
+      {format === OWN && (
+        <Field label="Own pattern" hint={badRegex ? "This is not a valid pattern." : "A regular expression the whole value must match, such as ^[A-Z]{3}\\d{6}$ for 3 capital letters and 6 digits."}>
+          {(id) => <TextInput id={id} mono value={f.regex} onChange={(e) => setF({ ...f, regex: e.target.value })} />}
+        </Field>
+      )}
       <label style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={f.required} onChange={(e) => setF({ ...f, required: e.target.checked })} />Required: a document without it goes to review</label>
     </Dialog>
   );
