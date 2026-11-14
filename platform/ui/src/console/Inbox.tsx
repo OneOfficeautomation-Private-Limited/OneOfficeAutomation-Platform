@@ -21,6 +21,19 @@ const TILE: Record<string, [string, string]> = { approval: ["A", "#1d6b38"], for
 const OUTCOME: Record<string, string> = { submitted: "Submitted", approved: "Approved", rejected: "Rejected", done: "Read", expired: "Expired", cancelled: "Cancelled" };
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
+/** What a permission lets people do, for "Given to everyone who may ..." (others show the permission's name). */
+const PERMISSION_TASK: Record<string, string> = { "docs.review": "review documents", "docs.manage": "change Document Automation", "runs.start": "start agents" };
+
+/** Who a task is given to, in words: user:NAME, role:ROLE, role:* and perm:PERMISSION, comma separated. */
+export function assigneeText(assignee: string | null | undefined): string {
+  const parts = String(assignee ?? "").split(",").map((a) => a.trim()).filter(Boolean);
+  if (!parts.length) return "Nobody yet";
+  return parts.map((a) => a === "role:*" ? "Everyone"
+    : a.startsWith("role:") ? "Role " + a.slice(5)
+    : a.startsWith("perm:") ? "Everyone who may " + (PERMISSION_TASK[a.slice(5)] ?? "use " + a.slice(5))
+    : a.startsWith("user:") ? a.slice(5) : a).join(", ");
+}
+
 const HELP: HelpTopic = { title: "Task inbox", about: "Work that workflows give you or your role: forms to fill in, approvals and notices. "
   + "Click a task to open it beside the list; the list refreshes every 30 seconds.",
   items: [
@@ -61,7 +74,7 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
 
   const shown = useMemo(() => {
     const text = (f.q ?? "").trim().toLowerCase();
-    return (tasks ?? []).filter((t) => (!text || (t.title + " " + (t.description ?? "") + " " + (t.assignee ?? "") + " " + (t.workflow ?? "") + " " + (t.reference ?? "")).toLowerCase().includes(text))
+    return (tasks ?? []).filter((t) => (!text || (t.title + " " + (t.description ?? "") + " " + (t.assignee ?? "") + " " + assigneeText(t.assignee) + " " + (t.workflow ?? "") + " " + (t.reference ?? "")).toLowerCase().includes(text))
       && (!f.kind || t.kind === f.kind) && (!f.overdue || t.overdue) && (!f.mine || t.claimed_by === user.username));
   }, [tasks, f, user.username]);
 
@@ -115,7 +128,7 @@ export function Inbox({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
                   <td title={t.description ?? undefined}>{tile(t.kind)}<strong>{t.title}</strong><span className="st-sr"> ({KIND[t.kind] ?? t.kind})</span></td>
                   <td>{comesFrom(t) || <span className="cc-none">–</span>}</td>
                   {tab === "open" && <td>{t.claimed_by ? <span className="cc-pill is-active"><span className="cc-pill-dot" />Taken by {t.claimed_by === user.username ? "you" : t.claimed_by}</span> : <span className="cc-pill is-stopped">Waiting</span>}</td>}
-                  <td>{t.assignee}</td>
+                  <td title={t.assignee ?? undefined}>{assigneeText(t.assignee)}</td>
                   {tab === "open" ? <><td>{t.overdue && <span className="cc-pill is-failed"><span className="cc-pill-dot" />Overdue</span>} {t.due ? when(t.due) : <span className="cc-none">–</span>}</td><td>{when(t.created)}</td></>
                     : <><td>{OUTCOME[t.outcome ?? ""] ?? t.outcome ?? t.status}</td><td>{t.completed_by ?? ""}</td><td>{when(t.completed)}</td></>}
                   <td className="cc-list-menu"><RowMenu label={"Actions for " + t.title} items={rowMenu(t)} /></td>
@@ -166,7 +179,7 @@ function TaskDialog({ api, task: t, onClose, onDone }: { api: CrApi; task: Human
         {t.stages && t.stages.length > 1 && <StageBar stages={t.stages} current={t.stage ?? null} done={!!t.completed} />}
         {error && <p className="st-alert" role="alert">{error}</p>}
         <p className="cc-task-from">{KIND[t.kind] ?? t.kind}{t.workflow_run_id ? <>, from the workflow run <span className="ui-mono">{t.workflow_run_id}</span></> : null}.
-          Given to {t.assignee}{t.created ? " on " + when(t.created) : ""}; {t.claimed_by ? "taken by " + t.claimed_by : "nobody has taken it yet"}.
+          Given to {assigneeText(t.assignee).replace(/^(Everyone|Role) /, (m) => m.toLowerCase())}{t.created ? " on " + when(t.created) : ""}; {t.claimed_by ? "taken by " + t.claimed_by : "nobody has taken it yet"}.
           {t.due && <> Due {when(t.due)}{t.overdue ? " (overdue)" : ""}.</>}
           {t.completed && <> Done {when(t.completed)}{t.completed_by ? " by " + t.completed_by : ""}{t.outcome ? " · " + (OUTCOME[t.outcome] ?? t.outcome) : ""}.</>}</p>
         {t.description && <p>{t.description}</p>}

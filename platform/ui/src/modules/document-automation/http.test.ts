@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { HttpDocFlowApi } from "./http";
+import { HttpDocFlowApi, lastDays, pageReaders } from "./http";
+import { stagesOf } from "./api";
 
 /** The real client against a fake DocFlow (through the Command Center's /api/docflow/). */
 type Call = { method: string; url: string; body?: BodyInit | null; headers: Record<string, string> };
@@ -282,6 +283,44 @@ describe("HttpDocFlowApi", () => {
     await api.saveOfferedLanguages(["en", "ar", "bn"]);
     expect(calls[1].method).toBe("PUT");
     expect(JSON.parse(String(calls[1].body))).toEqual({ values: { DOCAUTO_OFFERED_LANGUAGES: "en,ar,bn" } });
+  });
+
+  it("shows the last 14 days on the dashboard, days without documents as zero", async () => {
+    const { api } = fake({ "/df/overview": { totals: stats, review: 2, overdue: 0, deliveryFailures: 0 }, "/costs": { prices: {}, claudeModel: "", cloudOptIn: false }, "/usage": [] });
+    const days = (await api.overview()).days;
+    expect(days).toHaveLength(14);
+    expect(days[13]).toEqual({ label: today.slice(8), straight: 3, reviewed: 1 });
+    expect(days.slice(0, 13).every((d) => d.straight === 0 && d.reviewed === 0)).toBe(true);
+    const d = lastDays([{ day: "2026-03-01", total: 2, stp: 1, human: 1, failed: 0 }], "2026-03-02", 3);
+    expect(d.map((x) => x.day)).toEqual(["2026-02-28", "2026-03-01", "2026-03-02"]);   // across a month end
+    expect(d[1].total).toBe(2);
+  });
+
+  it("counts only the engines that read pages on the dashboard, not the field readers", async () => {
+    const usage = [{ k: "tesseract", calls: 1, pages: 1, credits: 0 }, { k: "builtin-rules", calls: 39, pages: 140, credits: 0 }, { k: "pdf-text", calls: 1, pages: 139, credits: 0 }];
+    const providers = [{ id: "tesseract", kind: "ocr" }, { id: "builtin-rules", kind: "extraction" }, { id: "pdf-text", kind: "ocr" }];
+    const { api } = fake({ "/df/overview": { totals: stats, review: 0, overdue: 0, deliveryFailures: 0 }, "/costs": { prices: {}, claudeModel: "", cloudOptIn: false },
+      "/usage": usage, "/providers": { providers } });
+    expect((await api.overview()).readBy).toEqual([{ label: "Tesseract", share: 0.7 }, { label: "PDF text layer", share: 99.3 }]);
+    // without the provider list, the known field readers are still left out
+    expect(pageReaders(usage, []).map((u) => u.k)).toEqual(["tesseract", "pdf-text"]);
+  });
+
+  it("counts a process that recognises every type (One Inbox) as using each document type", async () => {
+    const inbox = { ...flow, id: "smart-inbox", name: "One Inbox", isInbox: true, docTypes: [] };
+    const types = [{ id: "invoice", name: "Invoice", description: "", category: "", languages: ["en"], keywords: [], fields: [], checks: [], learning: { enabled: true, aliases: {} }, version: 1, createdAt: "" },
+      { id: "receipt", name: "Receipt", description: "", category: "", languages: ["en"], keywords: [], fields: [], checks: [], learning: { enabled: true, aliases: {} }, version: 1, createdAt: "" }];
+    const { api } = fake({ "/df/doctypes": types, "/df/library": [{ id: "invoice" }, { id: "receipt" }], "/df/flows": [flow, inbox] });
+    const [invoice, receipt] = await api.docTypes();
+    expect(invoice).toMatchObject({ usedBy: ["AP invoices", "One Inbox"], meta: "Built in · 2 processes" });
+    expect(receipt).toMatchObject({ usedBy: ["One Inbox"], meta: "Built in · 1 process" });   // not "not used"
+  });
+
+  it("says a process that recognises every type reads each document type's fields, not 'Fields of Any'", () => {
+    const settings = { classifyMode: "auto", split: true, extraction: "auto", fieldConfidence: 0.85, slaHours: 24, inputFolder: "", pollSeconds: 30 } as never;
+    const stage = (docType: string) => stagesOf({ settings, deliveries: [], checks: [], docType }, (id) => id).find((x) => x.name === "Data extraction")!.summary;
+    expect(stage("Any")).toBe("Fields of each document type; default engine");
+    expect(stage("Invoice")).toBe("Fields of Invoice; default engine");
   });
 
   it("tells the dashboard whether cloud opt-in is on", async () => {

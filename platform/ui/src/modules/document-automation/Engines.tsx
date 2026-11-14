@@ -44,7 +44,7 @@ export function Engines({ api, onOptIn, section, option }: { api: DocFlowApi; on
           <a key={s.id} href={"#/engines/" + s.id} aria-current={s.id === current ? "page" : undefined}>{s.label}</a>
         ))}
       </nav>
-      {current === "routing" && <RoutingSection routing={routing} cloudEngines={cloudEngines} saved={saved} claude={data.claude}
+      {current === "routing" && <RoutingSection routing={routing} cloudEngines={cloudEngines} engines={data.options.flatMap((o) => o.engines)} saved={saved} claude={data.claude}
         onChange={(r) => { setSaved(false); setRouting(r); }} onSave={() => save(routing)} />}
       {current === "catalog" && <EngineCatalog api={api} options={data.options} optionId={optionId} optIn={routing.cloudOptIn}
         onOption={(id) => { location.hash = "#/engines/catalog/" + id; }} />}

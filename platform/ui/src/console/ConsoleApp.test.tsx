@@ -1840,6 +1840,8 @@ describe("rebuilt One CommandCenter console", () => {
     const k1 = within(list).getByText("Approve invoice 42").closest("tr")!;
     expect(within(k1).getByText("Invoice approval · INV-42")).toBeTruthy();   // where it comes from
     expect(within(k1).getByText("Waiting")).toBeTruthy();
+    expect(within(k1).getByText("Role admin")).toBeTruthy();   // who it is given to, in words (not role:admin)
+    expect(within(within(list).getByText("Vendor details").closest("tr")!).getByText("admin")).toBeTruthy();   // user:admin
     fireEvent.keyDown(within(within(list).getByText("Vendor details").closest("tr")!).getByRole("button", { name: "Actions for Vendor details" }), { key: "Enter" });
     await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Take it" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "tasks/k2/claim" }));

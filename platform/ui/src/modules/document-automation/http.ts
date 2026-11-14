@@ -72,6 +72,25 @@ interface DfCosts {
 
 /* ------------------------------------------------------------------ helpers */
 
+/** Engines that read fields, not pages: their usage counts the pages they were given, not pages they read. */
+const EXTRACTORS = new Set(["builtin-rules", "claude", "llm-cloud", "llm-local"]);
+
+/** The usage rows of engines that read pages (OCR and the PDF text layer), by DocFlow's provider kinds when known. */
+export function pageReaders<U extends { k: string; pages: number | null }>(usage: U[], providers: { id: string; kind: string }[]): U[] {
+  const kind = new Map(providers.map((p) => [p.id, p.kind]));
+  return usage.filter((u) => (u.pages ?? 0) > 0 && (kind.has(u.k) ? kind.get(u.k) === "ocr" : !EXTRACTORS.has(u.k)));
+}
+
+/** The last n days up to today (YYYY-MM-DD keys, oldest first); days without documents count zero. */
+export function lastDays<D extends { day: string; total: number; stp: number; human: number; failed: number }>(daily: D[], todayKey: string, n = 14) {
+  const by = new Map(daily.map((d) => [d.day, d]));
+  const end = new Date(todayKey + "T00:00:00Z").getTime();
+  return Array.from({ length: n }, (_, i) => {
+    const day = new Date(end - (n - 1 - i) * 86_400_000).toISOString().slice(0, 10);
+    return by.get(day) ?? { day, total: 0, stp: 0, human: 0, failed: 0 };
+  });
+}
+
 const ENGINE_NAMES: Record<string, string> = {
   tesseract: "Tesseract", paddleocr: "PaddleOCR", "pdf-text": "PDF text layer", "builtin-rules": "Rules extractor", "azure-di": "Azure Document Intelligence",
   "google-docai": "Google Document AI", "aws-textract": "AWS Textract", abbyy: "ABBYY", claude: "Claude (Anthropic)", "llm-cloud": "Cloud AI API", "llm-local": "Self-hosted model",
@@ -116,7 +135,8 @@ const dfFieldType = (t: DocTypeField["type"]) => Object.keys(FIELD_TYPES).find((
 
 /** A DocFlow document type as the screens show it. */
 function docTypeOf(t: DfDocType, builtIn: Set<string | undefined>, flows: DfFlow[]): DocType {
-  const usedBy = flows.filter((fl) => fl.docTypes.includes(t.id)).map((fl) => fl.name);
+  // a process with no types of its own (One Inbox) recognises every type, so it uses each of them
+  const usedBy = flows.filter((fl) => fl.isInbox || !fl.docTypes.length || fl.docTypes.includes(t.id)).map((fl) => fl.name);
   const origin = builtIn.has(t.id) ? "built-in" as const : "made-here" as const;
   return {
     id: t.id, name: t.name, origin, usedBy, keywords: t.keywords, languages: t.languages,
@@ -177,15 +197,16 @@ export class HttpDocFlowApi implements DocFlowApi {
   }
 
   async overview(): Promise<Overview> {
-    const [o, costs, usage] = await Promise.all([
+    const [o, costs, usage, prov] = await Promise.all([
       this.call<{ totals: Stats; review: number; overdue: number; deliveryFailures: number; pagesThisMonth?: number; creditsThisMonth?: number }>("GET", "/df/overview"),
       this.call<DfCosts>("GET", "/costs"),
       this.call<{ k: string; pages: number | null; credits: number | null }[]>("GET", "/usage?groupBy=provider_id").catch(() => []),
+      this.call<{ providers: DfProvider[] }>("GET", "/providers").catch(() => ({ providers: [] as DfProvider[] })),
     ]);
     const t = o.totals;
     const todayKey = new Date().toISOString().slice(0, 10);
     const today = t.daily.find((d) => d.day === todayKey);
-    const ocr = usage.filter((u) => (u.pages ?? 0) > 0);
+    const ocr = pageReaders(usage, prov.providers);
     const pages = ocr.reduce((n, u) => n + (u.pages ?? 0), 0);
     const alerts: Overview["alerts"] = [];
     if (o.overdue) alerts.push({ level: "bad", title: "Review overdue", text: `${o.overdue} document${o.overdue > 1 ? "s" : ""} passed the review target`, to: "#/inbox" });
@@ -196,9 +217,10 @@ export class HttpDocFlowApi implements DocFlowApi {
       cloudOptIn: costs.cloudOptIn,
       today: today?.total ?? 0, straightThrough: pct(t.stpRate) ?? 0, waiting: o.review, overdue: o.overdue, failed: t.byStatus.failed ?? 0,
       pagesThisMonth: o.pagesThisMonth ?? t.pages, cloudCost: Math.round((o.creditsThisMonth ?? t.credits ?? 0) * 100) / 100,
-      days: t.daily.map((d) => ({ label: d.day.slice(8), straight: d.stp, reviewed: d.human })),
+      days: lastDays(t.daily, todayKey).map((d) => ({ label: d.day.slice(8), straight: d.stp, reviewed: d.human })),
       alerts,
-      readBy: ocr.map((u) => ({ label: ENGINE_NAMES[u.k] ?? u.k, share: pages ? Math.round(100 * (u.pages ?? 0) / pages) : 0 })),
+      // exact shares (one decimal) so the bar adds up; the dashboard writes a share under 1% as "<1%"
+      readBy: ocr.map((u) => ({ label: ENGINE_NAMES[u.k] ?? u.k, share: pages ? Math.round(1000 * (u.pages ?? 0) / pages) / 10 : 0 })),
     };
   }
 

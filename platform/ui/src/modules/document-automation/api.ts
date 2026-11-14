@@ -163,7 +163,8 @@ export function stagesOf(d: Pick<ProcessDesign, "settings" | "deliveries" | "che
   return [
     { name: "Document ingestion", summary: `Sources: ${sources}${s.inputFolder ? `; ${s.inputFolder} every ${s.pollSeconds} s` : ""}`, done: true },
     { name: "Document classification", summary: s.classifyMode === "auto" ? `Recognised automatically${s.split ? "; batches are split" : ""}` : `Type: ${d.docType || "not chosen"}${s.split ? "; batches are split" : ""}`, done: !!d.docType },
-    { name: "Data extraction", summary: `Fields of ${d.docType || "each type"}; ${s.extraction === "auto" ? "default engine" : engineName(s.extraction)}`, done: true },
+    // a process that recognises every type (One Inbox: docType "Any") reads each document's own type's fields
+    { name: "Data extraction", summary: `Fields of ${!d.docType || d.docType === "Any" ? "each document type" : d.docType}; ${s.extraction === "auto" ? "default engine" : engineName(s.extraction)}`, done: true },
     { name: "Validation", summary: d.checks.length ? `${on} of ${d.checks.length} checks on` : "No checks yet", done: d.checks.length > 0 },
     { name: "Human review", summary: `Under ${Math.round(s.fieldConfidence * 100)}% confidence; to the Task inbox, ${s.slaHours} h target${thresholds(s)}`, done: true },
     { name: "Export & integration", summary: d.deliveries.length ? d.deliveries.map((x) => x.name || x.type).join(", ") : "Not set: Excel, folder, webhook or a bot", done: d.deliveries.length > 0 },

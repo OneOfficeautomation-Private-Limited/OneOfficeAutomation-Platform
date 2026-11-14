@@ -80,12 +80,15 @@ export function Dashboard({ api }: { api: DocFlowApi }) {
           {o.readBy.map((r, i) => [
             <span key={r.label + "s"} className="df-swatch" style={{ background: READ_BY[i % READ_BY.length], border: i === 3 ? "1px solid var(--ui-field)" : 0 }} />,
             <span key={r.label}>{r.label}</span>,
-            <b key={r.label + "v"} className="df-num">{r.share}%</b>])}
+            <b key={r.label + "v"} className="df-num">{shareText(r.share)}</b>])}
         </div>
       </Card>
     </div>
   </>);
 }
+
+/** A share of the pages: under 1% (but some) reads "<1%", not a misleading 0%. */
+export function shareText(share: number) { return share > 0 && share < 1 ? "<1%" : Math.round(share) + "%"; }
 
 function Card({ label, span, children }: { label: string; span?: boolean; children: ReactNode }) {
   return <section className={`df-card df-pad${span ? " df-span2" : ""}`} aria-label={label} style={{ display: "flex", flexDirection: "column", gap: 10 }}>{children}</section>;

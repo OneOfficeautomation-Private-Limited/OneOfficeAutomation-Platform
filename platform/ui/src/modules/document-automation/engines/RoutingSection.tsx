@@ -12,20 +12,25 @@ const retryOptions = (saved: number) => [
 ];
 
 /** How a page is routed (the strategy plan): free local engines first, paid cloud engines only for weak pages. */
-export function RoutingSection({ routing, cloudEngines, saved, onChange, onSave, claude }:
-  { routing: Routing; cloudEngines: Engine[]; saved: boolean; onChange: (r: Routing) => void; onSave: () => void; claude?: ClaudeModels }) {
+export function RoutingSection({ routing, cloudEngines, engines = [], saved, onChange, onSave, claude }:
+  { routing: Routing; cloudEngines: Engine[]; engines?: Engine[]; saved: boolean; onChange: (r: Routing) => void; onSave: () => void; claude?: ClaudeModels }) {
   const pct = Math.round(routing.retryBelow * 100);
   const cloud = cloudEngines.find((e) => e.id === routing.cloudEngine);
+  // each engine's real state from DocFlow; the built-in ones it does not list (PDF text, Rules) are always there
+  const ready = (id: string) => (engines.find((e) => e.id === id)?.status ?? "ready") === "ready";
+  const chip = (id: string, label: string) => ready(id) ? <Chip tone="ok">{label} · Ready</Chip> : <Chip tone="warn">{label} · Not set up</Chip>;
+  const retry = routing.localRetry ? engines.find((e) => e.id === routing.localRetry)?.name ?? (routing.localRetry === "paddleocr" ? "PaddleOCR" : routing.localRetry) : "";
+  const retryOn = !!routing.localRetry && ready(routing.localRetry);
   const steps = [
-    { n: "1 · ALWAYS", title: "Text layer", text: "Digital PDFs: read directly, no OCR", chip: <Chip tone="ok">PDF text · Ready</Chip>, color: "#4b5565" },
-    { n: "2 · LOCAL", title: "Read every page", text: "On this server, free", chip: <Chip tone="ok">Tesseract · Ready</Chip>, color: "#2f6fde" },
-    { n: routing.localRetry ? "3 · LOCAL" : "3 · SKIPPED", title: `Retry pages under ${pct}%`, text: "The better read wins",
-      chip: routing.localRetry ? <Chip tone="ok">PaddleOCR · Ready</Chip> : <Chip tone="mute">Off</Chip>, color: "#2f6fde", off: !routing.localRetry },
+    { n: "1 · ALWAYS", title: "Text layer", text: "Digital PDFs: read directly, no OCR", chip: chip("pdf-text", "PDF text"), color: "#4b5565" },
+    { n: "2 · LOCAL", title: "Read every page", text: "On this server, free", chip: chip("tesseract", "Tesseract"), color: "#2f6fde" },
+    { n: retryOn ? "3 · LOCAL" : "3 · SKIPPED", title: `Retry pages under ${pct}%`, text: routing.localRetry && !retryOn ? `${retry} is not installed on DocFlow's server, so weak pages are not retried` : "The better read wins",
+      chip: routing.localRetry ? chip(routing.localRetry, retry) : <Chip tone="mute">Off</Chip>, color: "#2f6fde", off: !retryOn },
     { n: routing.cloudOptIn && routing.cloudEngine ? "4 · CLOUD" : "4 · CLOUD · SKIPPED", title: "Still weak: cloud OCR", text: "Costs per page",
       chip: !routing.cloudOptIn ? <Chip tone="mute">Needs cloud opt-in</Chip> : cloud
         ? <Chip tone={cloud.status === "ready" ? "ok" : "warn"}>{cloud.name.split(" ")[0]} · {cloud.status === "ready" ? "Ready" : "not set up"}</Chip> : <Chip tone="mute">No engine chosen</Chip>,
       color: "#8b6ae8", off: !routing.cloudOptIn || !routing.cloudEngine },
-    { n: "5 · LOCAL", title: "Read the fields", text: "Rules from the document type", chip: <Chip tone="ok">Rules · Ready</Chip>, color: "#2f6fde" },
+    { n: "5 · LOCAL", title: "Read the fields", text: "Rules from the document type", chip: chip("builtin-rules", "Rules"), color: "#2f6fde" },
     { n: "6 · ALWAYS", title: "Checks and review", text: `Under ${pct}% or a failed check`, chip: <a className="df-chip df-info" href="#/inbox">Inbox</a>, color: "#4b5565" },
   ];
   return (
