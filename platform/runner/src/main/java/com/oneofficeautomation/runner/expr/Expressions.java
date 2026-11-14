@@ -362,9 +362,12 @@ public final class Expressions {
      * type (a Number stays a Number).
      */
     private static final Pattern REF = Pattern.compile("^\\$" + PATH + "\\$?$");
-    /** In text, ${expression} or $path$ is replaced by the value as text; a $ without a closing $ stays as it is. */
-    private static final Pattern INTERP = Pattern.compile("\\$\\{([^}]*)\\}|\\$(" + PATH + ")\\$");
-    private static final Pattern DELIMITED = Pattern.compile("\\$(" + PATH + ")\\$");
+    /**
+     * In text, ${expression} or $path$ is replaced by the value as text; a $ without a closing $ stays as it is, and
+     * so does $F$1 (a closing $ followed by a digit): that is a spreadsheet's fixed cell reference, as in =B2*$F$1.
+     */
+    private static final Pattern INTERP = Pattern.compile("\\$\\{([^}]*)\\}|\\$(" + PATH + ")\\$(?![0-9])");
+    private static final Pattern DELIMITED = Pattern.compile("\\$(" + PATH + ")\\$(?![0-9])");
 
     /** An expression with every $path$ written $path, the form the parser reads. */
     public static String plain(String src) {

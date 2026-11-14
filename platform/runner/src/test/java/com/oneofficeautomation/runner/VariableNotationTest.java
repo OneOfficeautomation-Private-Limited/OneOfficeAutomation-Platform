@@ -37,6 +37,13 @@ class VariableNotationTest {
         assertEquals("Total $count", resolve("Total $count"));   // as before 14 Nov: only $count$ or ${count} is replaced in text
     }
 
+    @Test void spreadsheetCellReferencesStayAsTyped() {
+        assertEquals("B2*$F$1", resolve("B2*$F$1"));
+        assertEquals("=SUM($A$1:$B$20)", resolve("=SUM($A$1:$B$20)"));
+        assertEquals(Set.of(), Expressions.references("=SUM($F$2:$F$5)"));
+        assertEquals("3 at $F$1", resolve("$count$ at $F$1"));
+    }
+
     @Test void calculationsReadBothForms() {
         assertEquals(0, new BigDecimal("10").compareTo((BigDecimal) Expressions.evaluate("$price$ * $qty$", VARS::get)));
         assertEquals(0, new BigDecimal("10").compareTo((BigDecimal) Expressions.evaluate("$price * $qty$", VARS::get)));
