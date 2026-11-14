@@ -117,7 +117,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
         <a className="ui-icon-btn" href={"#/process/" + encodeURIComponent(design.id)} aria-label="Back to the process"><Icon name="chevronLeft" size={14} stroke={2.4} /></a>
         <h2 style={{ fontSize: 18 }}>{design.name}</h2>
         <Chip tone={live ? "ok" : "mute"}>{live ? "Live · version " + design.version : "Draft · version " + design.version}</Chip>
-        <span className="df-muted">{folderLabel(design.folder)}{design.folder ? " · " : ""}{design.docType}</span>
+        <span className="df-muted">{folderLabel(design.folder)}{design.folder ? " · " : ""}{design.docType === "Any" ? "Every document type" : design.docType}</span>
         <span className="df-grow" />
         {dirty && <span className="df-text-warn" role="status">{live ? "Unsaved changes: new documents use them once saved" : "Unsaved changes"}</span>}
         <Button disabled={!dirty || busy} onClick={saveDraft}>{!dirty ? "Saved" : live ? "Save changes" : "Save draft"}</Button>
