@@ -610,15 +610,17 @@ describe("new Studio", () => {
     expect(toggle().getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("gives every step on the canvas its command's Docs and Video, beside its menu and in it", async () => {
+  it("keeps a command's Docs and Video in Details only, not on the step or in its menu (14 Nov defects r3)", async () => {
     render(<App api={fakeServer().api} />);
     const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
     const row = stepButton(steps, "Open workbook").closest("li")!;
-    expect(within(row).getByRole("link", { name: /^Docs for / }).getAttribute("href")).toMatch(/commands\/ooa\/excel\/open$/);
+    expect(within(row).queryByRole("link", { name: /^Docs for / })).toBeNull();
+    expect(screen.getByRole("link", { name: /^Docs for Open workbook/ }).getAttribute("href")).toMatch(/commands\/ooa\/excel\/open$/);   // in Details
     fireEvent.contextMenu(stepButton(steps, "Open workbook"));
     const menu = await screen.findByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: /^Docs for this command/ })).toBeTruthy();
-    expect(within(menu).getByRole("menuitem", { name: /^Video for this command/ })).toBeTruthy();
+    expect(within(menu).queryByRole("menuitem", { name: /^Docs for this command/ })).toBeNull();
+    expect(within(menu).getByRole("menuitem", { name: /^Shared clipboard/ })).toBeTruthy();
   });
 
   it("sets a breakpoint from the line number, offers Run from here on the chosen step, and adds a step after one", async () => {
@@ -1264,7 +1266,8 @@ describe("new Studio", () => {
     fireEvent.contextMenu(stepButton(steps, "Loop"));
     const menu = await screen.findByRole("menu");
     const names = within(menu).getAllByRole("menuitem").map((i) => i.getAttribute("aria-label"));
-    expect(names).toEqual(expect.arrayContaining(["Cut", "Copy", "Paste after, 1 step copied", "Duplicate", "Disable step, Kept in the agent, but skipped when it runs", "Delete", "Add note", "Fold"]));
+    expect(names).toEqual(expect.arrayContaining(["Cut", "Copy", "Paste after, 1 step copied", "Duplicate", "Disable step, Kept in the agent, but skipped when it runs", "Delete", "Rename, Shown on the step", "Shared clipboard, Copy and paste between agents and OneAgentStudio windows", "Fold"]));
+    expect(names).not.toContain("Add note");   // Rename does the same
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Cut" }));   // the loop goes with both steps in it
     expect(stepNames(steps)).toEqual(["Open workbook"]);
     // the loop (with its step) is now on the clipboard; paste it at the start

@@ -40,7 +40,7 @@ import { AA_NAMES } from "./aaNames";
 import { FORMER_NAMES } from "./formerNames";
 import { MailSwitchDialog } from "./MailSwitchDialog";
 import { HelpLinks } from "../shell/HelpLinks";
-import { commandKey, helpLinks } from "../shell/helpCatalogue";
+import { commandKey } from "../shell/helpCatalogue";
 
 /**
  * Actions kept so older agents still run, but no longer offered in the library (usage review item 26): Open file is
@@ -152,7 +152,7 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
                   onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}
                   {(() => { const own = a.name.toLowerCase().includes(q); const aa = !own ? aaMatch(p.id + "/" + a.id, q) : undefined; const was = !own && !aa ? formerMatch(p.id + "/" + a.id, q) : undefined;
                     return aa ? <span className="st-aa-name">AA: {aa}</span> : was ? <span className="st-aa-name">Formerly: {was}</span> : null; })()}</button>
-                  <HelpLinks k={commandKey(p.id + "." + a.id)} compact label={a.name} /></li>
+                </li>
               ))}</ul>}
             </li>
           );
@@ -585,8 +585,10 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     ];
     if (clipboard) items.push({ key: "paste", label: "Paste after", description: clipboard.steps.length + (clipboard.steps.length === 1 ? " step" : " steps") + " copied", shortcut: keyOf("steps.paste"), onSelect: () => act.paste() });
     items.push(
-      { key: "share", label: "Copy to shared clipboard", description: "Paste in any agent, in any OneAgentStudio window", separatorBefore: true, onSelect: act.share },
-      { key: "from-shared", label: "Paste from shared clipboard", onSelect: act.fromShared },
+      // 14 Nov defects r3, item 2: the shared clipboard in one submenu, so the menu fits the screen
+      { key: "shared", label: "Shared clipboard", description: "Copy and paste between agents and OneAgentStudio windows", separatorBefore: true, items: [
+        { key: "share", label: "Copy to shared clipboard", description: "Paste in any agent, in any OneAgentStudio window", onSelect: act.share },
+        { key: "from-shared", label: "Paste from shared clipboard", onSelect: act.fromShared }] },
       { key: "rename", label: "Rename", description: "Shown on the step", shortcut: keyOf("steps.rename"), onSelect: act.note },
       { key: "duplicate", label: "Duplicate", shortcut: keyOf("steps.duplicate"), separatorBefore: true, onSelect: act.duplicate },
       { key: "disable", label: (allOff ? "Enable " : "Disable ") + (chosen.length > 1 ? "steps" : "step"),
@@ -594,20 +596,13 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
       { key: "delete", label: "Delete", shortcut: keyOf("steps.delete"), onSelect: act.remove },
       { key: "up", label: "Move up", shortcut: keyOf("steps.up"), separatorBefore: true, onSelect: act.up },
       { key: "down", label: "Move down", shortcut: keyOf("steps.down"), onSelect: act.down },
-      { key: "note", label: step.note ? "Edit note" : "Add note", separatorBefore: true, onSelect: act.note },
-      { key: "breakpoint", label: breakpoints.includes(step.id) ? "Remove breakpoint" : "Breakpoint", shortcut: keyOf("run.breakpoint"), onSelect: () => chosen.forEach(onToggleBreakpoint) },
+      { key: "breakpoint", label: breakpoints.includes(step.id) ? "Remove breakpoint" : "Breakpoint", separatorBefore: true, shortcut: keyOf("run.breakpoint"), onSelect: () => chosen.forEach(onToggleBreakpoint) },
     );
     if (step.action === "core/run_bot" && step.args?.automation && chosen.length === 1)
       items.push({ key: "child", label: "Open the agent it runs", description: agentName(step.args.automation), separatorBefore: true, onSelect: () => onOpenChild(step.id) });
     const target = step.action === "core/run_subflow" ? String(step.args?.subflow ?? "") : "";
     if (target && whole.subflows?.some((s) => s.name === target) && chosen.length === 1)
       items.push({ key: "subflow", label: "Open the subflow it runs", description: target, separatorBefore: true, onSelect: () => { setShown(target); onSelect([]); } });
-    // item I: the command's documentation and video from the step's menu
-    const help = chosen.length === 1 ? helpLinks(commandKey(step.action)) : {};
-    if (help.doc) items.push({ key: "docs", label: "Docs for this command", description: describeAction(step.action, packages).name, separatorBefore: true,
-      onSelect: () => window.open(help.doc, "_blank", "noopener,noreferrer") });
-    if (help.video) items.push({ key: "video", label: "Video for this command", separatorBefore: !help.doc,
-      onSelect: () => window.open(help.video, "_blank", "noopener,noreferrer") });
     // run part of the agent: the skipped steps' variables keep the values the last run here had at this step
     // a disabled step (or one in a disabled block) does not run: Run from here starts at the next enabled step (item 25)
     const off = disabledState(flow.steps, step.id) ?? null;
@@ -664,17 +659,16 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
           {r.step.continueOnError && <span className="st-badge is-info" title="Logs its error and goes on (If this step fails)">Continues on error</span>}
           {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
         </button>
-        <button type="button" className="st-add-here" aria-label={"Add a step after line " + r.n} title="Add a step after this one: pick it in Actions"
-          onClick={() => { selectOne(r.step.id); window.dispatchEvent(new Event(ADD_STEP_EVENT)); }}><Icon name="plus" size={12} stroke={2.6} /><span>Add step</span></button>
         <span className="st-step-tools">
-          {/* item I (14 Nov 2026): the command's Docs and Video on the canvas too, shown on the chosen step or on hover */}
+          {/* 14 Nov defects r3: Run from here and Add step with the step's own tools; Docs and Video only in Details */}
           {isSel && chosen.length === 1 && !running && !inHandler(flow, r.step.id) &&
             <button type="button" className="st-run-here" onClick={() => onRunFrom(r.step.id, false, false, undefined)}
               title="Run the agent from this step: earlier steps are skipped and their values come from the last run"><Icon name="play" size={12} />Run from here</button>}
-          <HelpLinks k={commandKey(r.step.action)} compact label={info.name} />
+          <button type="button" className="st-add-here" aria-label={"Add a step after line " + r.n} title="Add a step after this one: pick it in Actions"
+            onClick={() => { selectOne(r.step.id); window.dispatchEvent(new Event(ADD_STEP_EVENT)); }}><Icon name="plus" size={12} stroke={2.6} /><span>Add step</span></button>
           {hasParts && <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"}
             aria-expanded={!r.folded} onClick={() => act.fold([r.step.id], !r.folded)}><Icon name={r.folded ? "chevronRight" : "chevronDown"} size={14} stroke={2.4} /></button>}
-          <Menu label={"Line " + r.n + " menu"} items={menuItems(r.step)} open={menuFor === r.step.id}
+          <Menu compact label={"Line " + r.n + " menu"} items={menuItems(r.step)} open={menuFor === r.step.id}
             onOpenChange={(o) => { if (o && !isSel) selectOne(r.step.id); setMenuFor(o ? r.step.id : null); }}
             trigger={<button type="button" className="ui-icon-btn" aria-label={"Line " + r.n + " actions"} title="Step menu (right-click)"><Icon name="more" size={16} stroke={3} /></button>} />
         </span>
@@ -703,8 +697,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             {clipboard && <button type="button" className="st-tool" aria-label="Paste" title={withKey("Paste", "steps.paste")} onClick={() => act.paste()}><Icon name="paste" size={16} /></button>}
             {chosen.length > 0 && <>
               <button type="button" className="st-tool" aria-label="Delete" title={withKey("Delete", "steps.delete")} onClick={act.remove}><Icon name="trash" size={16} /></button>
-              <button type="button" className="st-tool st-tool-word" title={withKey("Duplicate", "steps.duplicate")} onClick={act.duplicate}><Icon name="duplicate" size={16} /><span>Duplicate</span></button>
-              <button type="button" className="st-tool st-tool-word" title={withKey(allOff ? "Enable (it runs again)" : "Disable (kept, but skipped when the agent runs)", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /><span>{allOff ? "Enable" : "Disable"}</span></button>
+              <button type="button" className="st-tool st-tool-word" aria-label="Duplicate" title={withKey("Duplicate", "steps.duplicate")} onClick={act.duplicate}><Icon name="duplicate" size={16} /><span>Duplicate</span></button>
+              <button type="button" className="st-tool st-tool-word" aria-label={allOff ? "Enable" : "Disable"} title={withKey(allOff ? "Enable (it runs again)" : "Disable (kept, but skipped when the agent runs)", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /><span>{allOff ? "Enable" : "Disable"}</span></button>
             </>}
             <Menu label="More step actions" align="start" items={[
               ...(chosen.length ? [
@@ -742,16 +736,16 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             </div>
             {/* Editor X (improvement list 13 Nov 2026, item 5): Assistant, Record and Capture as one squared tool group */}
             <span className="st-tool-group" role="group" aria-label="Build steps">
-            <button type="button" className="st-tool-text is-ai" title="Assistant: build steps from a description, or explain this agent" onClick={() => setAssistant("build")}><Icon name="spark" size={13} />Assistant</button>
+            <button type="button" className="st-tool-text is-ai" title="Assistant: build steps from a description, or explain this agent" aria-label="Assistant" onClick={() => setAssistant("build")}><Icon name="spark" size={13} /><span className="st-tool-label">Assistant</span></button>
             {recording
               ? <span className="st-tool-busy" role="status"><span className="st-rec-dot" aria-hidden="true" />Recording…</span>
-              : <button type="button" className="st-tool-text is-rec" title={withKey("Record actions in a web browser or a Windows application", "steps.record")} onClick={record}><span className="st-rec-dot" aria-hidden="true" />Record</button>}
+              : <button type="button" className="st-tool-text is-rec" title={withKey("Record actions in a web browser or a Windows application", "steps.record")} aria-label="Record" onClick={record}><span className="st-rec-dot" aria-hidden="true" /><span className="st-tool-label">Record</span></button>}
             {capturing
               ? <span className="st-tool-busy" role="status">Capturing…</span>
               : <Menu label="Capture" align="start" items={[
                   { key: "web", label: "Capture a web element", description: "Click it in a browser; adds an action for it", onSelect: () => captureStep(false) },
                   { key: "desktop", label: "Capture a desktop control", description: "Hover it in a Windows application and press Ctrl+Shift+C", onSelect: () => captureStep(true) },
-                ]} trigger={<button type="button" className="st-tool-text is-cap" title="Capture a web element or a desktop control"><Icon name="target" size={13} />Capture</button>} />}
+                ]} trigger={<button type="button" className="st-tool-text is-cap" title="Capture a web element or a desktop control" aria-label="Capture"><Icon name="target" size={13} /><span className="st-tool-label">Capture</span></button>} />}
             </span>
             <button type="button" className="ui-icon-btn st-full-btn" aria-pressed={full} onClick={() => toggleFull()}
               aria-label={full ? "Exit full screen" : "Full screen"} title={full ? "Exit full screen (Esc)" : "Full screen: only the canvas"}>
@@ -817,7 +811,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             </>}
           </ol>}
           <div className="st-steps-foot-row">
-            <p className="st-steps-meta st-steps-foot" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</p>
+            <p className="st-steps-meta st-steps-foot" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} {ids.length === 1 ? "step" : "steps"}{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</p>
             {/* item 16: subflows are found here too, not only in the More menu */}
             {!whole.subflows?.length && <button type="button" className="st-link" onClick={() => setSubDialog({})}
               title="A named list of steps that Run subflow steps run, to reuse a part of this agent">Add a subflow</button>}

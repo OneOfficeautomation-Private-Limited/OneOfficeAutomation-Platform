@@ -193,3 +193,10 @@ body.ui-resizing * { cursor: inherit !important; }
 /* 14 Nov usability round, item 12: tree arrows and menus at least 24 px to click */
 .ui-tree-caret { width: 24px; height: 24px; align-items: center; cursor: pointer; flex: none; }
 .ui-tree-more { width: 24px; height: 24px; }
+/* 14 Nov defects r3, item 2: compact menus (one line per entry, descriptions on hover) and submenus */
+.ui-menu.is-compact { min-width: 240px; padding: 4px; max-height: calc(100vh - 24px); overflow: auto; }
+.ui-menu.is-compact .ui-menu-item { padding: 3px 8px; min-height: 26px; gap: 8px; font-size: 12.5px; }
+.ui-menu.is-compact .ui-menu-text strong { font-weight: 500; }
+.ui-menu.is-compact .ui-menu-sep { margin: 3px 0; }
+.ui-menu-sub[data-state="open"] { background: var(--ui-selected); }
+.ui-menu-arrow { margin-left: auto; color: var(--ui-text-2); font-size: 11px; }
