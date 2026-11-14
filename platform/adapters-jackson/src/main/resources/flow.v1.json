@@ -81,7 +81,8 @@
     "ui": {
       "type": "object",
       "description": "Studio layout (canvas positions keyed by step id). Kept apart from logic so diffs and AI generation stay clean. Ignored by the Runner."
-    }
+    },
+    "files": {"type": "array", "items": {"type": "string"}, "description": "Files kept in One CommandCenter that go to the runner with the agent, at the same path."}
   },
   "allOf": [
     {
@@ -134,6 +135,7 @@
         "action": {"type": "string", "pattern": "^[a-z][a-z0-9_.]*/[a-z][a-z0-9_]*$", "description": "Command address package/action, e.g. ooa.excel/get_cell or core/if."},
         "description": {"type": "string"},
         "disabled": {"type": "boolean", "default": false, "description": "Disabled steps are skipped."},
+        "note": {"type": "string", "description": "A name or note shown on the step in the editor (Rename, Shown on the step); it does not change what the step does."},
         "args": {"type": "object", "description": "Action inputs, validated against the package manifest. Values may be literals, $references, '${expr}' interpolations or {\"expr\": \"...\"} objects."},
         "out": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Map of action output name to variable name."},
         "children": {"$ref": "#/$defs/stepList", "description": "Body of a container step (if/loop/try/step/parallel)."},

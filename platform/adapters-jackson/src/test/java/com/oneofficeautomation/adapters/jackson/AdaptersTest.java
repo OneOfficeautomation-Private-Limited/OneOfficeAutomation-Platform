@@ -48,6 +48,15 @@ class AdaptersTest {
     }
 
     @SuppressWarnings("unchecked")
+    // 14 Nov 2026: what Studio writes is valid: a step's name (note) and the One CommandCenter files the agent takes along
+    @Test void schemaTakesAStepsNameAndTheAgentsFiles() {
+        var v = new NetworkntFlowSchemaValidator();
+        Map<String, Object> step = Map.of("id", "s1", "action", "core/log", "args", Map.of("message", "hi"), "note", "Say hello");
+        assertEquals(List.of(), v.validate(Map.of("kind", "TaskBot", "id", "x", "name", "X", "steps", List.of(step), "files", List.of("data/rates.csv"))));
+        assertFalse(v.validate(Map.of("kind", "TaskBot", "id", "x", "name", "X", "steps", List.of(Map.of("id", "s1", "action", "core/log", "note", 5)))).isEmpty(),
+                "a note is text");
+    }
+
     @Test void everyExampleFlowValidates() throws Exception {
         FlowValidator v = new FlowValidator(FirstPartyPackages.registry(), new NetworkntFlowSchemaValidator());
         List<Path> flows;
