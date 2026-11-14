@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import type { FlowStep } from "../api/client";
-import { AgentInputs, Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
+import { AgentInputs, agentFilesBrowse, filesOf, Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
@@ -554,6 +554,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
   const [picked, setPicked] = useState<string[]>([]);
   const [opts, setOpts] = useState({ more: false, mode: "unattended", priority: "0", callback: "" });
   const [vars, setVars] = useState<FlowVariable[]>([]);
+  const [files, setFiles] = useState<string[]>([]);   // pickers (14 Nov 2026): the agent's files, for Browse… on File inputs
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [bad, setBad] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -562,7 +563,8 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
     Promise.all([api.devices().catch(() => []), api.pools().catch(() => [])]).then(([d, p]) => {
       setRunners(d); setPools(p); const first = d.find((r) => r.enabled && r.status === "online") ?? d.find((r) => r.enabled); setWhere(first ? "d:" + first.id : p[0] ? "p:" + p[0].id : "");
     });
-    api.agentFlow(a.path, "production").then((r) => setVars((r.flow.variables ?? []).filter((v) => v.direction === "input" || v.direction === "in_out")), (e) => reportMinor("the agent's inputs", e));
+    api.agentFlow(a.path, "production").then((r) => { setVars((r.flow.variables ?? []).filter((v) => v.direction === "input" || v.direction === "in_out")); setFiles(filesOf(r.flow)); },
+      (e) => reportMinor("the agent's inputs", e));
   }, [api, a.path]);
   const run = () => {
     const inputs = values;
@@ -594,7 +596,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
               onChange={(e) => setPicked(e.target.checked ? [...picked, p.username] : picked.filter((x) => x !== p.username))} />
             <strong>{p.username}</strong> <span className="st-muted">{p.device_id ? "on " + (p.device_name || p.device_id) : "no default runner"}</span></label>)}
       </fieldset>}
-      <AgentInputs inputs={vars} value={values} onChange={setValues} credentials={vault} onJsonError={setBad} />
+      <AgentInputs inputs={vars} value={values} onChange={setValues} credentials={vault} onJsonError={setBad} browse={agentFilesBrowse(files)} />
       <details className="cc-run-more" open={opts.more} onToggle={(e) => setOpts({ ...opts, more: (e.target as HTMLDetailsElement).open })}>
         <summary>Run mode, priority and result callback (optional)</summary>
         <Field label="Run mode">{(id) => <Select id={id} value={opts.mode} onChange={(e) => setOpts({ ...opts, mode: e.target.value })}

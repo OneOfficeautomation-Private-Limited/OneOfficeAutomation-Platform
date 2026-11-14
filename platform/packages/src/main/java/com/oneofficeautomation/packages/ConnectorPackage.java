@@ -33,7 +33,7 @@ public final class ConnectorPackage {
     @Output(name = "operations", type = OoaType.NUMBER, description = "Number of operations imported.")
     @Output(name = "path", type = OoaType.STRING, description = "Workspace path of the connector definition.")
     public Map<String, Object> importConnector(ActionContext ctx,
-            @Input(name = "spec_file", type = OoaType.STRING, required = false, description = "Path of the API description file.") String specFile,
+            @Input(name = "spec_file", type = OoaType.FILE, required = false, description = "Path of the API description file.") String specFile,
             @Input(name = "spec_text", type = OoaType.STRING, required = false, description = "The API description itself, when there is no file.") String specText,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "Connector name; derived from the API title when empty.") String name,
             @Input(name = "server", type = OoaType.STRING, required = false, description = "Base URL to use instead of the first server in the file.") String server,
@@ -118,7 +118,7 @@ public final class ConnectorPackage {
             @Input(name = "body", required = false, description = "Request body: a dictionary or list for JSON, fields for forms (file fields take a file path), or a file path for binary uploads.") Object body,
             @Input(name = "credential", type = OoaType.CREDENTIAL, required = false, description = "Secret for the API: API key, password, bearer token, OAuth client secret or AWS secret key. May also be a JSON object with the fields of 'auth'.") Object credential,
             @Input(name = "auth", type = OoaType.DICTIONARY, required = false, description = "Non-secret auth settings: scheme, username, client_id, scope, access_key_id, session_token, region, service.") Map<String, Object> auth,
-            @Input(name = "output_file", type = OoaType.STRING, required = false, description = "Save the response body to this file (streamed; for downloads and binary responses).") String outputFile,
+            @Input(name = "output_file", type = OoaType.FILE, required = false, description = "Save the response body to this file (streamed; for downloads and binary responses).") String outputFile,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = "Server to call instead of the connector's server.") String baseUrl,
             @Input(name = "headers", type = OoaType.DICTIONARY, required = false, description = "Extra request headers.") Map<String, Object> headers,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "Response timeout.") int timeout,

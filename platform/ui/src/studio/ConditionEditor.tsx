@@ -1,11 +1,11 @@
 import { errorText, runErrorText } from "../api/client";
 import { useEffect, useRef, useState } from "react";
 import type { ActionManifest, FieldSpec, PackageManifest } from "../api/client";
-import { Button, Select, TextInput } from "../components";
+import { Button, PathRow, Select, TextInput } from "../components";
 import { parseLoose, showValue } from "./flowEdit";
 import { OPS, conditionText } from "./toolkits";
 import { CommitInput } from "./ValueSources";
-import { WindowField, isWindowTitle } from "./FieldKinds";
+import { PathBrowse, WindowField, isFolderField, isWindowTitle } from "./FieldKinds";
 import { hasReadState, readState, readStateArgs, READ_STATES, type ReadState } from "./mailFields";
 import { useVars } from "./VariablesPanel";
 
@@ -161,6 +161,14 @@ export function SpecFields({ args, spec, keyPrefix, onChange }: { args: Record<s
           return <div key={name} className="st-cond-field"><span>{label}</span>
             <WindowField id={"cond-" + keyPrefix + "-" + name} name={name} value={cur} fallback={s.default !== undefined ? "Default: " + showValue(s.default) : ""}
               onCommit={(v) => put(name, v)} /></div>;
+        // pickers (14 Nov 2026): a file or folder field has Browse… on its right, as in a command's fields
+        if (s["x-ooa-type"] === "File")
+          return <div key={name} className="st-cond-field"><span>{label}</span><PathRow>
+            <CommitInput key={node.condition + name + showValue(cur)} label={label} initial={cur === undefined ? "" : showValue(cur)} want="File"
+              placeholder={s.default !== undefined ? "Default: " + showValue(s.default) : isFolderField(keyPrefix, name) ? "C:\\Folder or $folder$" : "C:\\Folder\\file.xlsx or $file$"}
+              onCommit={(t) => put(name, t === "" ? undefined : t)} />
+            <PathBrowse folder={isFolderField(keyPrefix, name)} repo={false} start={typeof cur === "string" && !cur.trim().startsWith("$") ? cur : ""}
+              onPick={(p) => put(name, p)} /></PathRow></div>;
         return <label key={name} className="st-cond-field"><span>{label}</span>
           <CommitInput key={node.condition + name + showValue(cur)} label={label} initial={cur === undefined ? "" : showValue(cur)} want={(s["x-ooa-type"] as string) ?? "Any"}
             placeholder={s.default !== undefined ? "Default: " + showValue(s.default) : s.description?.slice(0, 40)}

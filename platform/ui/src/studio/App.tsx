@@ -22,6 +22,7 @@ import { CompanyName, TopBrand } from "../shell/TopBrand";
 import { loadHelpConfig } from "../shell/helpCatalogue";
 import { HelpLinks } from "../shell/HelpLinks";
 import { upgradeRefs } from "./variables";
+import { PathBrowse, isFolderField } from "./FieldKinds";
 
 /**
  * One open agent: the flow being edited, the last saved copy (to know about unsaved changes), undo and redo
@@ -620,7 +621,7 @@ export function App({ api: given }: { api?: StudioApi }) {
 
       {asking && (() => {
         const tab = tabs.find((t) => t.path === asking.path);
-        return tab?.kind === "agent" ? <RunDialog name={tab.name} debug={asking.debug} inputs={inputsOf(tab.flow)} credentials={vaultList} onClose={() => setAsking(null)}
+        return tab?.kind === "agent" ? <RunDialog api={api} name={tab.name} debug={asking.debug} inputs={inputsOf(tab.flow)} credentials={vaultList} onClose={() => setAsking(null)}
           onRun={(values) => { setAsking(null); go(tab.path, values, asking.debug, asking.from); }} /> : null;
       })()}
 
@@ -690,8 +691,8 @@ function NewFolderDialog({ parent, onClose, onCreate }: { parent: string | null;
  * and Tables get their own editors and a Credential is chosen from the connected vault (usability round, 14 Nov 2026).
  * Empty means "use the default".
  */
-function RunDialog({ name, debug, inputs, credentials, onRun, onClose }:
-  { name: string; debug: boolean; inputs: Flow["variables"] & object; credentials: () => Promise<VaultRef[]>; onRun: (values: Record<string, unknown>) => void; onClose: () => void }) {
+function RunDialog({ api, name, debug, inputs, credentials, onRun, onClose }:
+  { api: StudioApi; name: string; debug: boolean; inputs: Flow["variables"] & object; credentials: () => Promise<VaultRef[]>; onRun: (values: Record<string, unknown>) => void; onClose: () => void }) {
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [bad, setBad] = useState<string | null>(null);
   const run = () => { if (!bad) onRun(values); };
@@ -701,7 +702,8 @@ function RunDialog({ name, debug, inputs, credentials, onRun, onClose }:
         <Button kind={debug ? "debug" : "run"} icon={debug ? "bug" : "play"} disabled={!!bad} onClick={run}>{debug ? "Debug" : "Run"}</Button></>}>
       <form className="st-form" onSubmit={(e) => { e.preventDefault(); run(); }}>
         <p className="st-muted">The agent runs on this computer, as it is in the editor (saved or not).</p>
-        <AgentInputs inputs={inputs} value={values} onChange={setValues} credentials={credentials} onJsonError={setBad} />
+        <AgentInputs inputs={inputs} value={values} onChange={setValues} credentials={credentials} onJsonError={setBad}
+          browse={(input, current, use) => <PathBrowse api={api} folder={isFolderField("", input.name)} repo={false} start={current.trim().startsWith("$") ? "" : current} onPick={(p) => use(p)} />} />
         <button type="submit" hidden />
       </form>
     </Dialog>

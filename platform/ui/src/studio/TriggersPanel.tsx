@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { type StudioApi, type Trigger, errorText } from "../api/client";
-import { Button, Field, Icon, Menu, Select, TextInput } from "../components";
+import { Button, Field, Icon, Menu, PathRow, Select, TextInput } from "../components";
+import { PathBrowse } from "./FieldKinds";
 
 const KINDS = [
   { value: "schedule", label: "On a schedule" },
@@ -80,7 +81,8 @@ export function TriggersPanel({ api, path, kind: asked }: { api: StudioApi; path
           <Field label="Or daily at" layout="beside" hint="Use a time such as 08:30 instead of minutes.">{(id) => <TextInput id={id} type="time" value={daily} onChange={(e) => setDaily(e.target.value)} />}</Field>
         </>}
         {kind === "file" && <>
-          <Field label="Folder" layout="beside">{(id) => <TextInput id={id} value={folder} placeholder="C:\\Inbox or a workspace folder" onChange={(e) => setFolder(e.target.value)} />}</Field>
+          <Field label="Folder" layout="beside">{(id) => <PathRow><TextInput id={id} value={folder} placeholder="C:\\Inbox or a workspace folder" onChange={(e) => setFolder(e.target.value)} />
+            <PathBrowse api={api} folder repo={false} start={folder} onPick={(p) => setFolder(p)} /></PathRow>}</Field>
           <Field label="Files" layout="beside">{(id) => <TextInput id={id} value={pattern} placeholder="*.pdf" onChange={(e) => setPattern(e.target.value)} />}</Field>
         </>}
         {error && <p role="alert" className="st-error">{error}</p>}

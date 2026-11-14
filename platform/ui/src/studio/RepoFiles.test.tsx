@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Flow } from "../api/client";
 import { FileField } from "./FieldKinds";
@@ -28,7 +28,8 @@ describe("files kept in One CommandCenter (command review F1)", () => {
     render(<VarsContext.Provider value={ctxFor(state)}>
       <FileField id="p" name="path" value={undefined} fallback="" folder={false} onCommit={() => {}} apply={(t, f) => setArg(f, "s1", "path", t)} />
     </VarsContext.Provider>);
-    fireEvent.click(screen.getByRole("button", { name: "A file kept in One CommandCenter…" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Browse…" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^One CommandCenter/ }));
     fireEvent.click(await screen.findByRole("option", { name: /Templates\/invoice\.xlsx/ }));
     expect(state.flow.steps[0].args).toEqual({ path: "Templates/invoice.xlsx" });
     expect(state.flow.files).toEqual(["Templates/invoice.xlsx"]);

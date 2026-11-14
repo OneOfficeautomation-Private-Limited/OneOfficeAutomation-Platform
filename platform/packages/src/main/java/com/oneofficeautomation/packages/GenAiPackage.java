@@ -247,7 +247,7 @@ public final class GenAiPackage {
     @Output(name = "files", type = OoaType.LIST, description = "Every picture's file.")
     public Map<String, Object> generateImage(ActionContext ctx,
             @Input(name = "prompt", type = OoaType.STRING, description = "What the picture shows, its style and colours.") String prompt,
-            @Input(name = "output_folder", type = OoaType.STRING, required = false, defaultValue = "\"generated-images\"", description = "Folder for the pictures (created when missing).") String folder,
+            @Input(name = "output_folder", type = OoaType.FILE, required = false, defaultValue = "\"generated-images\"", description = "Folder for the pictures (created when missing).") String folder,
             @Input(name = "file_name", type = OoaType.STRING, required = false, defaultValue = "\"picture\"", description = "File name start; pictures are numbered: picture_1.png, picture_2.png.") String fileName,
             @Input(name = "number_of_images", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "How many pictures, 1 to 4.") int n,
             @Input(name = "size", type = OoaType.STRING, required = false, defaultValue = "\"1024x1024\"", example = "1792x1024", description = "Width x height in pixels; providers that work with aspect ratios use the nearest one.") String size,

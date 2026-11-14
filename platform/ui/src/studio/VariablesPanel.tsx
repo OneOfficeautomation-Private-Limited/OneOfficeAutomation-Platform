@@ -2,7 +2,8 @@ import { errorText } from "../api/client";
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { AgentSummary, Builtins, Flow, FlowVariable, PackageManifest, StudioApi } from "../api/client";
-import { Button, Dialog, Field, Icon, Menu, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, Icon, Menu, PathRow, Select, TextArea, TextInput } from "../components";
+import { PathBrowse } from "./FieldKinds";
 import { parseLoose, showValue } from "./flowEdit";
 import { plainValue } from "./toolkits";
 import {
@@ -152,10 +153,21 @@ function ValueEditor({ type, value, onChange, options }: { type: string; value: 
     onChange={(o) => onChange(Object.keys(o).length ? o : undefined)} />;
   if (type === "Table" || type === "Any") return <TextArea aria-label="Default value" rows={3} defaultValue={value === undefined ? "" : JSON.stringify(value, null, 2)}
     placeholder={type === "Table" ? '{"columns": ["Name"], "rows": [["Ada"]]}' : "Text, a number, true/false or JSON"} onChange={(e) => onChange(parseLoose(e.target.value))} />;
+  if (type === "File") return <FileDefault value={value === undefined ? "" : showValue(value)} onChange={onChange} />;
   if (type === "Credential") return <p className="st-muted">A credential never has a default: whoever runs the agent maps it to the vault.</p>;
   return <TextInput aria-label="Default value" defaultValue={value === undefined ? "" : showValue(value)}
     placeholder={type === "File" ? "data/orders.csv or C:\\Folder\\file.xlsx" : type === "Window" ? "Window title, e.g. *Notepad" : ""}
     onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} />;
+}
+
+/** A File variable's default (pickers, 14 Nov 2026): typed, or chosen with Browse… on this computer. */
+function FileDefault({ value, onChange }: { value: string; onChange: (v: unknown) => void }) {
+  const [text, setText] = useState(value);
+  const set = (t: string) => { setText(t); onChange(t === "" ? undefined : t); };
+  return <PathRow>
+    <TextInput aria-label="Default value" value={text} placeholder={"data/orders.csv or C:\\Folder\\file.xlsx"} onChange={(e) => set(e.target.value)} />
+    <PathBrowse folder={false} repo={false} start={text.trim().startsWith("$") ? "" : text} onPick={(p) => set(p)} />
+  </PathRow>;
 }
 
 /** A length of time typed as people write it (2h 15m, 01:30:00); kept as ISO 8601 (PT2H15M), which the runner reads. */

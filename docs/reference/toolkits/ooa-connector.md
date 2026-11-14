@@ -26,7 +26,7 @@ Call an operation of a custom connector. Checks required parameters, encodes pat
 | Body | `body` | Any | No |  | Main | Request body: a dictionary or list for JSON, fields for forms (file fields take a file path), or a file path for binary uploads. |
 | Credential | `credential` | Credential (vault) | No |  | Main | Secret for the API: API key, password, bearer token, OAuth client secret or AWS secret key. May also be a JSON object with the fields of 'auth'. |
 | Sign-in settings | `auth` | Dictionary | No |  | Main | Non-secret auth settings: scheme, username, client_id, scope, access_key_id, session_token, region, service. |
-| Output file | `output_file` | Text | No |  | More options | Save the response body to this file (streamed; for downloads and binary responses). |
+| Output file | `output_file` | File path | No |  | More options | Save the response body to this file (streamed; for downloads and binary responses). |
 | Endpoint address | `base_url` | Text | No |  | More options | Server to call instead of the connector's server. |
 | Headers | `headers` | Dictionary | No |  | More options | Extra request headers. |
 | Timeout (seconds) | `timeout_seconds` | Number | No | `60` | More options | Response timeout. |
@@ -76,7 +76,7 @@ Create or replace a custom connector from an OpenAPI 3.x or Swagger 2.0 document
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Spec file | `spec_file` | Text | No |  | Main; choice API description = A file | Path of the API description file. |
+| Spec file | `spec_file` | File path | No |  | Main; choice API description = A file | Path of the API description file. |
 | Spec text | `spec_text` | Text | No |  | Main; choice API description = Pasted text | The API description itself, when there is no file. |
 | Name | `name` | Text | No |  | Main | Connector name; derived from the API title when empty. |
 | Server | `server` | Text | No |  | More options | Base URL to use instead of the first server in the file. |

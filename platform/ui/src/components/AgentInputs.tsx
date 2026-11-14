@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { BrowseButton, PathRow } from "./BrowseButton";
 import { Button } from "./Button";
 import { Field, Select, TextArea, TextInput } from "./Field";
 import "./pickers.css";
@@ -40,7 +41,22 @@ export function vaultRefsFrom(api: { vaultFolders: () => Promise<{ name: string;
   return () => api.vaultFolders().then((fs) => fs.flatMap((f) => f.credentials.map((c) => ({ locker: f.name, name: c.name, attribute: c.attribute }))));
 }
 
-export function AgentInputs({ inputs, value, onChange, refs, credentials, onJsonError, empty = "This agent has no inputs.", label = "Inputs" }: {
+/**
+ * Browse… for a File input (pickers, 14 Nov 2026): where the place runs decides what can be browsed. OneAgentStudio
+ * runs the agent on its own computer, so it browses that computer; One CommandCenter runs it on a runner, so it offers
+ * the files the runner gets with the agent.
+ */
+export type BrowseFile = (input: InputSpec, current: string, use: (path: string) => void) => ReactNode;
+
+/** An agent's files from One CommandCenter (its flow's files), as read from the repository. */
+export const filesOf = (flow: Record<string, unknown>) => Array.isArray(flow.files) ? flow.files.filter((f): f is string => typeof f === "string") : [];
+
+/** Browse… listing the agent's files from One CommandCenter (they reach the runner at the same path). */
+export const agentFilesBrowse = (files: string[] | undefined): BrowseFile | undefined => !files?.length ? undefined : (input, _current, use) =>
+  <BrowseButton list title="Files the runner gets with the agent" label={"Browse for " + input.name}
+    sources={files.map((f) => ({ key: f, label: f, onSelect: () => use(f) }))} />;
+
+export function AgentInputs({ inputs, value, onChange, refs, credentials, onJsonError, browse, empty = "This agent has no inputs.", label = "Inputs" }: {
   /** The agent's inputs; null when not known (then free name and value rows). */
   inputs: InputSpec[] | null;
   value: Obj; onChange: (next: Obj) => void;
@@ -50,6 +66,8 @@ export function AgentInputs({ inputs, value, onChange, refs, credentials, onJson
   credentials?: (() => Promise<VaultRef[]>) | null;
   /** Told when the JSON text is not valid (null when it is again), so a dialog can hold its Save. */
   onJsonError?: (error: string | null) => void;
+  /** Browse… beside File inputs; none: the path is typed. */
+  browse?: BrowseFile;
   empty?: string; label?: string;
 }) {
   const [json, setJson] = useState<string | null>(null);
@@ -91,7 +109,7 @@ export function AgentInputs({ inputs, value, onChange, refs, credentials, onJson
       </> : inputs === null
         ? <PairRows key={round} value={value} onChange={onChange} refs={refs} />
         : <>
-          {inputs.map((i) => <InputField key={i.name + ":" + round} spec={i} value={value[i.name]} refs={refs} vault={vault} onChange={(v) => put(i.name, v)} />)}
+          {inputs.map((i) => <InputField key={i.name + ":" + round} spec={i} value={value[i.name]} refs={refs} vault={vault} browse={browse} onChange={(v) => put(i.name, v)} />)}
           {!inputs.length && <p className="ui-field-hint">{empty}</p>}
           {others.length > 0 && <p className="ui-field-hint">Also set, but not an input of this agent: {others.map((k) =>
             <span key={k} className="ui-inputs-other">{k} <Button kind="plain" aria-label={"Remove " + k} onClick={() => put(k, undefined)}>Remove</Button></span>)}</p>}
@@ -101,7 +119,8 @@ export function AgentInputs({ inputs, value, onChange, refs, credentials, onJson
 }
 
 /** One input: the field for its type, or (where references are allowed) a reference instead of a fixed value. */
-function InputField({ spec, value, refs, vault, onChange }: { spec: InputSpec; value: unknown; refs?: string; vault: VaultRef[] | null | undefined; onChange: (v: unknown) => void }) {
+function InputField({ spec, value, refs, vault, browse, onChange }: { spec: InputSpec; value: unknown; refs?: string; vault: VaultRef[] | null | undefined; browse?: BrowseFile;
+  onChange: (v: unknown) => void }) {
   const t = spec.type ?? "String";
   const plain = t === "String" || t === "Any";
   const [byRef, setByRef] = useState(!!refs && !plain && typeof value === "string" && value !== "" && !(t === "DateTime" || t === "Date" || t === "Time"));
@@ -115,7 +134,10 @@ function InputField({ spec, value, refs, vault, onChange }: { spec: InputSpec; v
     {byRef || plain ? (spec.enum?.length && !byRef
       ? <EnumSelect id={id} spec={spec} value={value} onChange={onChange} />
       : <TextInput id={id} value={show(value)} placeholder={byRef ? refs : ph} onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} />)
-      : <TypedValue id={id} spec={spec} value={value} placeholder={ph} vault={vault} onChange={onChange} />}
+      : t === "File" && browse
+        ? <PathRow><TextInput id={id} value={show(value)} placeholder={ph} onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} />
+            {browse(spec, show(value), (p) => onChange(p))}</PathRow>
+        : <TypedValue id={id} spec={spec} value={value} placeholder={ph} vault={vault} onChange={onChange} />}
   </div>}</Field>;
 }
 

@@ -132,7 +132,13 @@ describe("fields by kind (items 3 to 9)", () => {
 
   it("Browse… chooses a file on this computer (item 4)", async () => {
     const { onArg, fake } = setup();
-    fireEvent.click(screen.getAllByRole("button", { name: "Browse…" })[0]);
+    // pickers (14 Nov 2026): a file field's Browse… asks where first (this computer or One CommandCenter), as AA
+    const browse = screen.getAllByRole("button", { name: "Browse…" })[0];
+    expect(browse.closest(".ui-path-row")).not.toBeNull();
+    fireEvent.keyDown(browse, { key: "Enter" });
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getAllByRole("menuitem").map((m) => m.textContent)).toEqual([expect.stringMatching(/^This computer/), expect.stringMatching(/^One CommandCenter/)]);
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /^This computer/ }));
     const dialog = await screen.findByRole("dialog", { name: "Choose a file" });
     fireEvent.click(await within(dialog).findByRole("option", { name: "Home" }));
     fireEvent.click(await within(dialog).findByRole("option", { name: "orders.xlsx" }));

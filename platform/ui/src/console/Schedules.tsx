@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type CrApi, type CrUser, type FlowVariable, type HolidayCalendar, type Runner, type RunnerPool, type Schedule, type SchedulePreview } from "../api/cr";
-import { AgentInputs, Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
+import { AgentInputs, agentFilesBrowse, filesOf, Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
@@ -260,12 +260,14 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
     tz: from?.time_zone ?? (defaultTz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"), cal: from?.holiday_calendar ?? "", missed: from?.missed_runs ?? "once", overlap: from?.overlap ?? "allow" });
   const [inputs, setInputs] = useState<Record<string, unknown>>(() => startInputs(from?.inputs));
   const [vars, setVars] = useState<FlowVariable[] | null>(null);
+  const [files, setFiles] = useState<string[]>([]);   // pickers (14 Nov 2026): the agent's files, for Browse… on File inputs
   const [bad, setBad] = useState<string | null>(null);
   const vault = useMemo(() => vaultRefsFrom(api), [api]);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {   // the chosen agent's inputs, one field each (usability round, 14 Nov 2026)
     setVars(null);
-    if (v.bot) api.agentFlow(v.bot, "production").then((r) => setVars((r.flow.variables ?? []).filter((x) => x.direction === "input" || x.direction === "in_out")),
+    setFiles([]);
+    if (v.bot) api.agentFlow(v.bot, "production").then((r) => { setVars((r.flow.variables ?? []).filter((x) => x.direction === "input" || x.direction === "in_out")); setFiles(filesOf(r.flow)); },
       (e) => { setVars(null); reportMinor("the agent's inputs", e); });
   }, [api, v.bot]);
   useEffect(() => {
@@ -329,7 +331,7 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
       </div>
       <NextRuns api={api} timing={timing} />
       <RuleFields missed={v.missed} overlap={v.overlap} onMissed={(x) => setV((o) => ({ ...o, missed: x }))} onOverlap={(x) => setV((o) => ({ ...o, overlap: x }))} />
-      <AgentInputs label="Inputs of the agent" inputs={vars} value={inputs} onChange={setInputs} credentials={vault} onJsonError={setBad} />
+      <AgentInputs label="Inputs of the agent" inputs={vars} value={inputs} onChange={setInputs} credentials={vault} onJsonError={setBad} browse={agentFilesBrowse(files)} />
     </Dialog>
   );
 }

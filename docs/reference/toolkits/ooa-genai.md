@@ -241,7 +241,7 @@ Draw pictures from a description and save them as PNG files (OpenAI, Azure OpenA
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Prompt | `prompt` | Text | Yes |  | Main | What the picture shows, its style and colours. |
-| Output folder | `output_folder` | Text | No | `generated-images` | Main | Folder for the pictures (created when missing). |
+| Output folder | `output_folder` | File path | No | `generated-images` | Main | Folder for the pictures (created when missing). |
 | Number of images | `number_of_images` | Number | No | `1` | Main | How many pictures, 1 to 4. |
 | Connection | `connection` | Text | No |  | Main; choice Model to use = A saved connection | Name of a Model Connection (provider, model and key managed in one place). Leave empty to set them on this action. |
 | Provider | `provider` | Text | No | `openai` | Main; choice Model to use = Set up here | Who runs the model: OpenAI, Azure OpenAI, Anthropic, OpenAI-compatible (LiteLLM, vLLM, Ollama), Hugging Face (its router or your own TGI server), AWS SageMaker (a model on an Amazon SageMaker endpoint), AWS Bedrock or Google Vertex AI (Gemini). One of: `openai`, `azure_openai`, `anthropic`, `openai_compatible`, `huggingface`, `aws_bedrock_sagemaker`, `aws_bedrock`, `google_vertex` |

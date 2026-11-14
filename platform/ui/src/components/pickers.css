@@ -29,3 +29,8 @@
 .ui-vault { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .ui-vault .ui-field-hint { grid-column: 1 / -1; }
 .ui-sr { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Pickers (14 Nov 2026): a path field with Browse… on its right, as AA's file and folder fields */
+.ui-path-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ui-path-row > :first-child { flex: 1; min-width: 0; }
+.ui-path-row > .ui-browse, .ui-path-row > button { flex: none; white-space: nowrap; }

@@ -1,7 +1,7 @@
 import { errorText } from "../api/client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Flow, FsEntry, FsListing, OpenWindow, VaultCredentialRef } from "../api/client";
-import { Button, Dialog, Icon, IconButton, Select, TextInput } from "../components";
+import type { Flow, FsEntry, FsListing, OpenWindow, StudioApi, VaultCredentialRef } from "../api/client";
+import { BrowseButton, Button, Dialog, Icon, IconButton, PathRow, Select, TextInput, type BrowseSource } from "../components";
 import { showValue } from "./flowEdit";
 import { RepoFileBrowser, withRepoFile } from "./RepoFiles";
 import { CommitInput } from "./ValueSources";
@@ -89,46 +89,63 @@ export function CollectionField({ id, name, type, value, onCommit, apply }: Fiel
 // ------------------------------------------------------------------ files and folders
 
 /**
- * A path typed in (with the variable list), chosen with Browse… on this computer, or (files) one kept in One CommandCenter
- * (F1, as AA's Control Room file): that one is also added to the agent's files, so the runner gets it before the run.
+ * A path typed in (with the variable list), or chosen with Browse… on its right, as AA's file fields (pickers, 14 Nov
+ * 2026): on this computer, or (files) one kept in One CommandCenter (F1, as AA's Control Room file), which is also added
+ * to the agent's files, so the runner gets it before the run.
  */
 export function FileField({ id, name, value, fallback, onCommit, apply, folder }: FieldProps & { folder: boolean }) {
   const vars = useVars();
-  const [browsing, setBrowsing] = useState(false);
-  const [fromRepo, setFromRepo] = useState(false);
   const text = typeof value === "string" ? value : value === undefined ? "" : showValue(value);
   const inRepo = !!vars?.flow.files?.includes(text);
-  // the path gets the field's whole width; where it comes from is chosen just below it, in words (as AA's file sources)
   return <div className="st-file-field">
-    <CommitInput key={"f" + text} id={id} initial={text} placeholder={fallback || (folder ? "C:\\Folder or $folder$" : "C:\\Folder\\file.xlsx or $file$")} want="File"
-      nameHint={name} onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
-    <div className="st-file-sources">
-      <button type="button" className="st-link" aria-label="Browse…" title="Choose on this computer" onClick={() => setBrowsing(true)}><Icon name="folder" size={13} /> Browse this computer</button>
-      {!folder && vars && <button type="button" className="st-link" aria-label="A file kept in One CommandCenter…" title="The runner gets it with the agent" onClick={() => setFromRepo(true)}>
-        <Icon name="globe" size={13} /> From One CommandCenter</button>}
-    </div>
+    <PathRow>
+      <CommitInput key={"f" + text} id={id} initial={text} placeholder={fallback || (folder ? "C:\\Folder or $folder$" : "C:\\Folder\\file.xlsx or $file$")} want="File"
+        nameHint={name} onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
+      <PathBrowse folder={folder} start={isVarText(text) ? "" : text} onPick={(p, fromRepo) => {
+        if (fromRepo && vars && apply) vars.edit(withRepoFile(apply(p, vars.flow), p)); else onCommit(p);
+      }} />
+    </PathRow>
     {inRepo && <div className="ui-field-hint">A file from One CommandCenter: the runner gets it with the agent.</div>}
-    {browsing && <FileBrowser folder={folder} start={isVarText(text) ? "" : text}
-      onPick={(p) => { setBrowsing(false); onCommit(p); }} onClose={() => setBrowsing(false)} />}
-    {fromRepo && <RepoFileBrowser onClose={() => setFromRepo(false)} onPick={(p) => {
-      setFromRepo(false);
-      if (vars && apply) vars.edit(withRepoFile(apply(p, vars.flow), p)); else onCommit(p);
-    }} />}
   </div>;
+}
+
+/**
+ * Whether a File field takes a folder (Browse… then chooses a folder): its name ends in folder, directory or dir, or
+ * it belongs to a Folder command (address: the command, condition or loop type, e.g. ooa.folder/exists).
+ */
+export const isFolderField = (address: string, name: string) =>
+  /(^|_)(folder|directory|dir)$/.test(name) || (address.includes("ooa.folder/") && name !== "shortcut");
+
+/**
+ * Browse… for a path (pickers, 14 Nov 2026): This computer (OneAgentStudio runs here) and, for a file in an agent being
+ * edited, One CommandCenter. The caller decides what a chosen path does; fromRepo says it came from One CommandCenter.
+ */
+export function PathBrowse({ folder, start, onPick, api, repo = true }:
+  { folder: boolean; start: string; onPick: (path: string, fromRepo: boolean) => void; api?: StudioApi; repo?: boolean }) {
+  const vars = useVars();
+  const [open, setOpen] = useState<"here" | "repo" | null>(null);
+  const sources: BrowseSource[] = [{ key: "here", label: "This computer", description: folder ? "A folder on this computer" : "A file on this computer", onSelect: () => setOpen("here") }];
+  if (!folder && repo && vars) sources.push({ key: "repo", label: "One CommandCenter", description: "A file kept there: the runner gets it with the agent", onSelect: () => setOpen("repo") });
+  return <>
+    <BrowseButton sources={sources} />
+    {open === "here" && <FileBrowser api={api} folder={folder} start={start} onPick={(p) => { setOpen(null); onPick(p, false); }} onClose={() => setOpen(null)} />}
+    {open === "repo" && <RepoFileBrowser onClose={() => setOpen(null)} onPick={(p) => { setOpen(null); onPick(p, true); }} />}
+  </>;
 }
 
 /**
  * Browse this computer's folders (OneAgentStudio runs here): drives, the home folder and the workspace first; a file
  * is chosen with a click, a folder with "Use this folder".
  */
-export function FileBrowser({ folder, start, onPick, onClose }: { folder: boolean; start: string; onPick: (path: string) => void; onClose: () => void }) {
+export function FileBrowser({ folder, start, onPick, onClose, api: given }: { folder: boolean; start: string; onPick: (path: string) => void; onClose: () => void; api?: StudioApi }) {
   const vars = useVars();
+  const api = given ?? vars?.api;
   const [at, setAt] = useState<FsListing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const go = (path: string) => {
-    if (!vars) return;
+    if (!api) return;
     setError(null);
-    vars.api.fsList(path).then(setAt, (e) => setError(errorText(e)));
+    api.fsList(path).then(setAt, (e) => setError(errorText(e)));
   };
   useEffect(() => { go(start ? start.replace(/[\\/][^\\/]*\.[^\\/]+$/, "") : ""); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const entries: FsEntry[] = at?.entries ?? [];

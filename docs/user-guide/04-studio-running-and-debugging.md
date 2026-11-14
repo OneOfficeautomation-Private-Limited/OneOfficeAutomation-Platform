@@ -46,6 +46,9 @@ suggestion. Problems that are not about one step show `[bot]` or a path.
    - A variable with allowed values shows a drop-down.
    - A **Credential** input takes a vault reference, `folder/credential/attribute`, never the secret itself.
    - Lists, dictionaries and tables have their own editors.
+   - A **File** input has **Browse…** on its right to choose the file on this computer. In One CommandCenter (Run and
+     schedules), **Browse…** lists the files the agent takes with it, since the agent runs on a runner; any other
+     path is typed as the runner sees it.
 3. Click **Run agent** in the dock, or **Run** in the top bar.
 
 **What you see:**

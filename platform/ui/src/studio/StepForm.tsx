@@ -15,7 +15,7 @@ import {
 } from "./stepKinds";
 import { AssignmentsEditor, AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
-import { BoolField, CollectionField, CredentialField, DateField, FileField, MODEL_STEPS, ModelConnectionField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
+import { BoolField, CollectionField, CredentialField, DateField, FileField, isFolderField, MODEL_STEPS, ModelConnectionField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
 import { pickerFor } from "./Pickers";
 import { hasReadState, readState, readStateArgs, READ_STATES, type ReadState } from "./mailFields";
 
@@ -363,8 +363,6 @@ function ThrowCode({ value, onCommit }: { value: string; onCommit: (v: string | 
   </>}</Field>;
 }
 
-/** File fields that take a folder (Browse… then chooses a folder). */
-const FOLDER_FIELD = /(^|_)(folder|directory|dir)$/;
 const isNumber = (spec?: FieldSpec) => spec?.["x-ooa-type"] === "Number" || spec?.type === "number";
 /** A Number field as typed: a number, a variable, or anything else as a calculation ({expr}), so "$n - 1" needs no JSON. */
 function parseValue(text: string, spec?: FieldSpec): unknown {
@@ -376,7 +374,6 @@ const showNumber = (v: unknown) => v && typeof v === "object" && typeof (v as { 
 
 function InputField({ action, name, label, spec, required, value, onCommit, apply }:
   { action: string; name: string; label: string; spec: FieldSpec; required: boolean; value: unknown; onCommit: (v: unknown) => void; apply: (text: string, flow: Flow) => Flow }) {
-  const folderAction = action.startsWith("ooa.folder/") && name !== "shortcut";
   const fallback = spec.default !== undefined ? "Default: " + showValue(spec.default) : required ? "" : "Not set";
   const info = helpText(spec, required) || undefined;
   return (
@@ -403,7 +400,7 @@ function InputField({ action, name, label, spec, required, value, onCommit, appl
       if (name === "alternatives" && action.startsWith("ooa.window/") && ooaType === "Dictionary") return <WindowAlternativesField {...kind} />;
       if (ooaType === "List" || ooaType === "Dictionary" || ooaType === "Table") return <CollectionField {...kind} type={ooaType} />;
       if (ooaType === "Credential") return <CredentialField {...kind} />;
-      if (ooaType === "File") return <FileField {...kind} folder={FOLDER_FIELD.test(name) || folderAction} />;
+      if (ooaType === "File") return <FileField {...kind} folder={isFolderField(action, name)} />;
       if (isWindowTitle(action, name, spec) && (ooaType === "String" || ooaType === undefined)) return <WindowField {...kind} />;
       if (name === "connection" && MODEL_STEPS.test(action) && (ooaType === "String" || ooaType === undefined)) return <ModelConnectionField {...kind} />;
       const text = isNumber(spec) ? showNumber(value) : showValue(value);
