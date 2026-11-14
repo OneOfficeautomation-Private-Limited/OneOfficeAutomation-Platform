@@ -41,7 +41,8 @@ The console is available in English, Deutsch, Français, Español and 日本語 
 
 ## 2. Home
 
-Home shows, for the person signed in: agents in the repository, runners online of the total, runs running and queued,
+Home shows its figures in two strips of equal cells, **Runs · last 24 hours** and **Platform**, red only when
+something is wrong; each figure opens the page behind it. It shows, for the person signed in: agents in the repository, runners online of the total, runs running and queued,
 schedules, runs per day (counted in the viewer's time zone), the most-run agents, recent failures, work items waiting,
 open tasks, their recently used agents and recent runs, and hours saved over 30 days (minutes saved per successful run,
 [document 08](08-repository-versions-and-templates.md)).
@@ -133,7 +134,8 @@ the most common errors on runners.
 ### Runner capacity
 
 **Runner capacity** (now Operations > Runners; `analytics.view`, new console) shows, for the last 24 hours to 90 days: the share of the switched-on
-runners' time in use; busy hours and what they equal in full-time people (40 hours a week); runs waiting for a runner
+runners' time in use (at most 100% for a runner: only runs still going count up to now, and a run lost with its runner
+ends at the runner's last report); busy hours and what they equal in full-time people (40 hours a week); runs waiting for a runner
 now; how long runs waited to start (average and 95%); each runner with its state, pools, runs, busy time, share of the
 period, average wait and current CPU and memory; the share of runner time in use per weekday and hour (in the viewer's
 time zone); and busy hours per day. When runners are in use 80% of the time or more, or 95% of runs wait 10 minutes or

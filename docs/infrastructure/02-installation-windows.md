@@ -158,6 +158,9 @@ What it does, after One CommandCenter is installed:
    The token is encrypted with the vault key. Settings > Document Automation still overrides this file.
 4. Registers the scheduled task **OOA DocFlow**. With `-Service` it runs as the system account at Windows start;
    otherwise it runs at the user's sign-in. It runs `windows\start.ps1`, and the task starts it straight away.
+   One CommandCenter also starts DocFlow itself when nothing answers at its address, and stops it when it stops
+   (**Settings > Document Automation > Start with One CommandCenter**; [Document Automation](../DOCUMENT_AUTOMATION.md),
+   section 1.1).
 
 If any step fails, One CommandCenter stays installed and works without Document Automation. The script exits with
 code 5. Run setup again with `-DocFlow` to retry.

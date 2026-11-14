@@ -27,6 +27,25 @@ AI assistant ── /api/mcp (documents_ tools) ────────┘   <�
    service token as a vault reference (`docflow/service/token`). Restart nothing: it applies at once.
 5. Open **AI > Document Automation**. A "not reachable" or "refused the token" message names what to fix.
 
+### 1.1 DocFlow starts with One CommandCenter
+
+When DocFlow is installed on the same server, you do not start it yourself. One CommandCenter (`ooa server` or
+`ooa control-room`) looks for it (`OOA_DOCFLOW_HOME`, the `home` line of `ooa-docflow.properties`, the installer's
+`DocFlow` folder next to the program, or `C:\OOA\oneoffice-docauto`) and then:
+
+- when no address is set yet, records DocFlow's address and token (the token encrypted);
+- when nothing answers at that address, starts DocFlow in the background (its own `windows\start.ps1`, hidden), with
+  its log in `<data>\logs\docflow.log`; when DocFlow stops on its own before it ever answered (its database can be
+  slow the first time), starts it again, at most twice;
+- stops DocFlow, with its web server and database, when One CommandCenter stops.
+
+It does not do this in the SaaS service, nor when **Settings > Document Automation > DocFlow address** points at
+another server. To switch it off, clear **Settings > Document Automation > Start with One CommandCenter** (on by
+default) or set `OOA_DOCFLOW_AUTOSTART=false`; then start DocFlow yourself.
+
+**AI > Document Automation > Overview** shows ten columns at a time: **Activity** (the default) or **Set-up**, chosen
+with the switch above the table, so it fits the screen without scrolling sideways.
+
 In the **SaaS** service the region's operator sets `OOA_DOCFLOW_URL` and `OOA_DOCFLOW_TOKEN` for the region's Command
 Centers (tenants cannot point it elsewhere), and DocFlow's `DOCAUTO_PLATFORM_URL` may contain `{tenant}`, replaced by
 the tenant's address name.
@@ -165,7 +184,7 @@ after installing.
 
 | You see | Do |
 | --- | --- |
-| "The Document Automation service is not reachable" | Start DocFlow; check Settings > Document Automation (address). |
+| "The Document Automation service is not reachable" | Check that **Start with One CommandCenter** is on (Settings > Document Automation) and read `<data>\logs\docflow.log`, or start DocFlow yourself; check the address there too. |
 | "…refused the Command Center's token" | Put the same token in DocFlow (`DOCAUTO_API_TOKEN`) and in the vault credential. |
 | A Start-a-bot delivery fails with "DOCAUTO_PLATFORM_URL is not set" | Set it in DocFlow's `config/local.env` and restart DocFlow. |
 | Email inbox: "The mail server … is not known" / "does not answer" | Check the server name and port (993 for IMAP over TLS). |

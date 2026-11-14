@@ -10,7 +10,7 @@ items in your workspace, upload files, and work faster with keyboard shortcuts.
 
 1. [What OneAgentStudio is](#1-what-one-agent-studio-is)
 2. [Open OneAgentStudio](#2-open-one-agent-studio)
-3. [The Automation home](#3-the-automation-home)
+3. [The Agents page](#3-the-agents-page)
 4. [The screen when an agent is open](#4-the-screen-when-an-agent-is-open)
 5. [Create agents, folders and other items](#5-create-agents-folders-and-other-items)
 6. [Save, close, rename, copy, move and delete](#6-save-close-rename-copy-move-and-delete)
@@ -59,9 +59,9 @@ the editor; the browser tab then shows the item's name. Close the item to come b
 
 The first time Studio starts with an empty workspace, it copies in the sample agents so you have something to look at.
 
-## 3. The Automation home
+## 3. The Agents page
 
-The home page is **Automation** (in the menu on the left: **Build > Agents**). As in One CommandCenter, it has two
+The home page is **Agents** (**Build > Agents** in the menu on the left). As in One CommandCenter, it has two
 tabs:
 
 | Tab | What it holds |
@@ -69,14 +69,14 @@ tabs:
 | **Public** (left) | One CommandCenter's agent repository, shared with your team: the agents checked in, with their versions. Here you **Check out** an agent to change it. It needs a sign-in to One CommandCenter (when Studio runs on the same server, your browser's sign-in is used). |
 | **Private** (right) | Your own workspace on this computer (My Workspace): agents, workflows, forms, scripts and files, in folders. Only you see it until you check an item in. |
 
-The **Private** tab is for people who build agents. One CommandCenter's **Automation** page has the same two tabs; its
+The **Private** tab is for people who build agents. One CommandCenter's **Agents** page has the same two tabs; its
 **Private** tab opens this page, and its **Create > New agent** opens **Create > Agent** here.
 
 On the **Private** tab:
 
 | Part | What it does |
 | --- | --- |
-| Folders (left) | Pick a folder to see what is in it. The **⋮** at the top of the pane, or a right-click on a folder, has **New folder**, **Rename**, **Upload**, **Download as zip** and more. |
+| Folders (left) | The folder tree, with **Agents** at the top. Click a folder to list what is in it and to open its sub-folders. Folders show only in the tree, not as rows of the list. The **⋮** at the top of the pane, or a right-click on a folder, has **New folder**, **Rename**, **Upload**, **Download as zip** and more. |
 | **Create ▾** | Makes a new item in the folder you picked: **Agent**, **AI agent**, **Workflow**, **Form**, **Document type**, **Prompt Skill**, **API agent**, **Python script** or **PowerShell script** (section 5). |
 | **Type** | Shows only one kind of item, such as Agents or Folders. **Type: Any** shows everything. |
 | **Columns** | Chooses the columns: **Type**, **Status**, **Platform**, **Version**, **Label**, **Code analysis**, **Size**, **Last modified** and **Modified by**. The ones from the repository show while you are signed in to One CommandCenter. |
@@ -84,15 +84,19 @@ On the **Private** tab:
 | **Status** | **New** (not in the repository yet), **Checked out** (yours to change; **Checked out · edited** once you changed it), **Checked in** (the same as in the repository), **Edited, not checked out** (check it out on the **Public** tab first; your changes are kept). |
 | **⋮** on a row | Everything you can do with that item, including **Check in**, **Undo check-out** and **Revert edits**. Right-click a row for the same menu. Click a row (or press Enter on it) to open the item. |
 
+The **Public** tab is laid out the same way: the same folder tree with **Agents** at the top, the number of items
+first in its tools, and a **Version** column. Only the actions differ: **Check out**, **Versions** and **Live** on
+**Public**; **New folder**, **Create** and the row menu on **Private**.
+
 The **i** after the page title explains each part.
 
-To come back to the home page at any time, click the **house** button in the top bar (Automation home) or the word
-**Automation** in the breadcrumb. If the open item has unsaved changes, Studio asks **Save changes?** with **Save**,
+To come back to the home page at any time, click the **house** button in the top bar or the word **Agents** in the
+breadcrumb. If the open item has unsaved changes, Studio asks **Save changes?** with **Save**,
 **Don't save** and **Cancel**.
 
 ## 4. The screen when an agent is open
 
-Open an agent (click it on the **Automation** page). The top bar now says **OneAgentStudio**, and the screen has
+Open an agent (click it on the **Agents** page). The top bar now says **OneAgentStudio**, and the screen has
 these parts:
 
 ```
@@ -112,10 +116,11 @@ these parts:
 | Breadcrumb | **Folder › agent name**. When you opened this agent from a parent agent, it shows the way back (see [Child agents](09-child-agents.md)). A **Run by** note lists agents that run this one. |
 | **Unsaved** | Appears when you have changes that are not saved. |
 | **Search items in the workspace** | Finds agents and other items (Ctrl+K). |
-| **Save** | Saves the agent (Ctrl+S) and checks it; problems show on the **Problems** tab. |
-| **Run** and **Debug** | Run the agent on this computer, or run it and stop at breakpoints (see [Running and debugging](04-studio-running-and-debugging.md)). |
+| **Save** | Saves the agent (Ctrl+S) and checks it; problems show on the **Problems** tab. The one filled (main) button of the bar. |
+| **Run** and **Debug** | Run the agent on this computer, or run it and stop at breakpoints (see [Running and debugging](04-studio-running-and-debugging.md)). White buttons with a small coloured icon; in the Run and Debug dialogs they are the filled main button. |
+| **Stop run** | Takes the place of **Run** and **Debug** while a run goes, in red; stops the run. |
 | **Check in** | Checks the agent in to One CommandCenter (see [Publishing](15-publishing-to-command-center.md)). |
-| **Close** | Closes the agent and returns to the **Automation** page; asks to save changes first. |
+| **Close** | Closes the agent and returns to the **Agents** page; asks to save changes first. |
 
 ### 4.2 The left side
 
@@ -135,8 +140,8 @@ computer. A Citizen Developer seat cannot check in agents that use scripts or co
 
 The steps toolbar has **Undo** and **Redo**, the **⋯** menu (**Select all**, **Find in this agent**, **Find and
 replace…** (Ctrl+H), fold and unfold, **Check the agent**, **Saved connections…** and **Custom connectors…**), **List** and
-**Flow**, the **Assistant** (build steps from a description, or explain the agent), **Record**, **Capture** and **Full
-screen**.
+**Flow**, the **Assistant** (build steps from a description, or explain the agent), **Record** and **Capture** (these three
+sit together as one group of icon buttons), and **Full screen**.
 
 - **List** shows the steps as numbered lines, one under another, between **START** and **END**. Blocks (If, Loop, Try,
   Step) have their sections indented below them, labelled **Then**, **Else**, **Repeat**, **Try**, **Catch all
@@ -175,19 +180,24 @@ The **Dock** list moves the dock: **Bottom**, **Right**, **Floating** (drag it b
 
 ### 5.1 Create an agent
 
-1. On the **Automation** page (**Private** tab), pick the folder where the agent should go (or none, for the top of
+1. On the **Agents** page (**Private** tab), pick the folder where the agent should go (or none, for the top of
    the workspace).
-2. Press **Create ▾** and choose **Agent**. The **New agent** dialog opens.
-3. Type a **Name**. In **Start from**, keep **Blank agent** or choose a blueprint (type to search).
-4. **Folder** shows where the agent will go. To put it somewhere else, press **Change** and choose another folder from
-   the list (type to search; **Workspace** is the top). You do not have to close the dialog.
-5. Press **Create and edit**.
+2. Press **Create ▾** and choose **Agent**. The **New agent** dialog opens, in two parts.
+3. On the right, **Start from** is **Blank** (an empty agent) or **Template** (a ready-made agent). With **Template**,
+   the left part lists the templates as a table: **Name**, **Category** (the toolkit it mostly uses) and **Steps**.
+   Click a heading to sort by it, type in **Search … templates**, or choose a **Category** (each with its count).
+   Click a template to choose it; its description shows under the table.
+4. Type a **Name**.
+5. **Save in** shows the folder tree, with **Agents** at the top, and under it the path the agent will get. Click
+   another folder to put it there.
+6. Press **Create and edit** (**Cancel** or Esc closes the dialog).
 
 **What you see:** the toast "Agent created", the new agent in the tree, and an empty canvas with the text "This agent
 has no steps yet. Drag an action here from Actions, click an action, or press Record." The side panel switches to
 **Actions**.
 
-The **Create ▾** menu also offers (each opens the same kind of dialog, with **Change** for the folder):
+The **Create ▾** menu also offers (each opens the same dialog, with **Save in** for the folder; the template part
+shows only for items that have templates):
 
 | Entry | Use it for |
 | --- | --- |
@@ -199,8 +209,8 @@ The **Create ▾** menu also offers (each opens the same kind of dialog, with **
 | **API agent** | An agent that runs on the server with no desktop. |
 | **Python script**, **PowerShell script** | A script file that agents call with the Scripts toolkit. |
 
-A blueprint (a ready-made pattern such as Loop through a CSV file or Agent with error handling) is chosen in the
-**New agent** dialog's **Start from**.
+A blueprint (a ready-made pattern such as Loop through a CSV file or Agent with error handling) is a template: choose
+**Template** in the **New agent** dialog's **Start from** and pick it from the list.
 
 Blueprints for common agent shapes:
 

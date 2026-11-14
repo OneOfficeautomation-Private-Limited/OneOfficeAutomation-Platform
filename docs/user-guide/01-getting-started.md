@@ -135,10 +135,11 @@ that folder is used instead, so an upgrade never starts empty. Back this folder 
    stricter later). Press **Change password**.
 4. You land on **Home**.
 
-What you see on Home: tiles for **Running now**, **Waiting to start**, **Succeeded (24 h)**, **Failed (24 h)**,
-**Success rate (24 h)**, **Average run time**, **Runners online**, **Agents in the agent repository**,
-**Active schedules**, **Work items waiting**, **Hours saved (30 days)** and **Tasks waiting for you**. Click a tile to
-open the page behind it. Below are **Runs in the last 7 days**, **Recent failures**, **Most used agents (7 days)**,
+What you see on Home: two strips of figures. **Runs · last 24 hours** has **Running now**, **Waiting to start**,
+**Succeeded**, **Failed**, **Success rate** and **Average run time**; **Platform** has **Runners online**,
+**Agents (Public)**, **Active schedules**, **Work items waiting**, **Hours saved (30 days)** and **Tasks waiting for
+you**. A figure turns red only when something is wrong (for example failed runs, or no runner online). Click a figure
+to open the page behind it. Below are **Runs in the last 7 days**, **Recent failures**, **Most used agents (7 days)**,
 **Runners** and **Recent runs**, and, once you have worked a little, **Pick up where you left off**.
 
 ### People who were given an account
@@ -212,6 +213,9 @@ what you may open differs. **Private** works for people who build agents (who ma
 runs beside One CommandCenter on the same computer. The top bar names no product, except **OneAgentStudio** in the
 editor, when an agent or other item is open.
 
+Tables fit the window, down to a 1366 px wide screen, without scrolling sideways. Text too long for its cell ends in
+"…"; point at it to see all of it. The same goes for headings and chart labels.
+
 Every page has an **i** after its title: it opens a help panel that explains each part of the page. After it comes one
 line saying what the page does, then **Docs** (the documentation, in a new tab) and **Video** (how to use it, played
 beside the page). Dialogs, Settings sections and each agent command have the same two links, and an error with a code
@@ -264,9 +268,9 @@ You will build an agent that takes a name and writes a greeting to the run log, 
 ### 6.1 Build it in OneAgentStudio
 
 1. In One CommandCenter, open **Build > Agents** and click its **Private** tab (it is there for people who may
-   check agents in). Your own workspace opens, on the **Private** tab of the **Automation** page.
-2. Press **Create ▾** and choose **Agent**. In the **New agent** dialog type the name `Hello` and press **Create and
-   edit**. The agent opens in OneAgentStudio's editor. (On the **Public** tab, **Create ▾ > New agent** does steps 1
+   check agents in). Your own workspace opens, on the **Private** tab of the **Agents** page.
+2. Press **Create ▾** and choose **Agent**. In the **New agent** dialog keep **Start from** on **Blank**, type the name `Hello` and press
+   **Create and edit**. The agent opens in OneAgentStudio's editor. (On the **Public** tab, **Create ▾ > New agent** does steps 1
    and 2 at once.)
 3. In the **Details** panel on the right, open the **Variables** tab and press **New**. Name the variable `name`, keep
    **Type** String, tick **Use as input** and press **Create variable**. Add a second one, `greeting`, type String,

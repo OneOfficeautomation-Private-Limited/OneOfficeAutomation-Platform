@@ -97,10 +97,10 @@ Filters (above the table):
 - a search box (**Search agent, run id, user or error**);
 - **Period**: Last 24 hours, Last 7 days, Last 90 days (the default) or Chosen dates;
 - **Status**: Completed, Failed, Stopped;
-- **Agent**, **Runner**;
-- **Trigger**: Run now, Schedule, Trigger, Work queue, API, Run again, AI assistant (MCP);
-- **More filters**: **Started by (user name)** and, for Chosen dates, **From** and **To** (whole days in your time
-  zone);
+- **Agent**;
+- **More filters** opens a second row: **Runner**, **Trigger** (Run now, Schedule, Trigger, Work queue, API, Run
+  again, AI assistant (MCP)), **Started by (user name)** and, for Chosen dates, **From** and **To** (whole days in
+  your time zone). The row stays open while one of them is set;
 - **Clear filters**, **Columns**, and **Export CSV** (every run that matches the filters; with runs ticked, **Export
   selected**).
 
@@ -709,10 +709,11 @@ and, for numbers, the range and the average). Only agents you may see are counte
 for a runner:
 
 - runners **Online now** and **Offline now**, and the **Schedules on** with the next one to run;
-- the share of runner time in use, busy hours (also as full-time people working 40 hours a week), runs waiting for a
+- the share of runner time in use (never above 100% for a runner), busy hours (also as full-time people working 40 hours a week), runs waiting for a
   runner now, and how long runs waited to start;
 - each runner with its state, pools, succeeded and failed runs, last run, most common error, busy time, average wait and
-  its CPU and memory now;
+  its CPU and memory now (on a laptop screen the table shows seven columns; **Pools**, **Succeeded**, **Busy**,
+  **Average wait**, **CPU** and **Memory** appear on screens wider than 1440 px);
 - the most common errors on runners, a grid of when runners are busy, and busy hours per day.
 
 When runners are busy 80% of the time or more, or runs wait 10 minutes or longer, the page suggests adding a runner or
