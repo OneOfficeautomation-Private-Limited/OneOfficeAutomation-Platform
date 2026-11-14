@@ -136,6 +136,9 @@ class EventSubscriptionsTest {
         runToEnd("Ev/Hello.flow.json", "success");
         assertEquals(1, waitFor(x -> x.path().equals("/flaky"), 1).size(), "delivered at the third attempt");
         assertEquals(3, calls.get("/flaky").get());
+        // the receiver has the event a moment before the result is written: wait for the write (it raced, 14 Nov 2026)
+        long written = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < written && db.one("SELECT last_status FROM event_subscriptions WHERE id = ?", id).get("last_status") == null) Thread.sleep(25);
         Map<String, Object> r = db.one("SELECT last_status, failures FROM event_subscriptions WHERE id = ?", id);
         assertEquals("200", r.get("last_status"));
         assertEquals(0, ((Number) r.get("failures")).intValue());
