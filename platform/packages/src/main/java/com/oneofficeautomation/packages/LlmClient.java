@@ -504,11 +504,16 @@ final class LlmClient {
         catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_JSON", "The model did not return valid JSON", "Retry, lower the temperature or use a stronger model.", true); }
     }
 
+    /** A placeholder in a prompt: $name$ (as Studio writes variables) or the older ${name}; both are filled the same way. */
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}|\\$([A-Za-z_][A-Za-z0-9_]*)\\$");
+
+    /** The template with each placeholder replaced by its value as text; one without a value becomes empty. */
     static String interpolate(String template, Map<String, Object> values) {
-        Matcher m = Pattern.compile("\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}").matcher(template);
+        Matcher m = PLACEHOLDER.matcher(template);
         StringBuilder sb = new StringBuilder();
         while (m.find()) {
-            Object v = values == null ? null : values.get(m.group(1));
+            String name = m.group(1) != null ? m.group(1) : m.group(2);
+            Object v = values == null ? null : values.get(name);
             if (v instanceof SecureString) throw new ActionException(P + ".SECRET_IN_PROMPT", "A Credential cannot be put into a prompt", "Pass non-secret values only.");
             m.appendReplacement(sb, Matcher.quoteReplacement(v == null ? "" : Values.text(Values.toJsonable(v))));
         }

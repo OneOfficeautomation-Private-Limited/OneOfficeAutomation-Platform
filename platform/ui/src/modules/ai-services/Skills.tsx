@@ -9,13 +9,15 @@ import { PageIntro } from "../../shell/PageIntro";
 /**
  * AI > Prompt Skills, built as AA's AI Skills (checked against AA's docs and UiPath's prompt and agent governance, 31 Oct
  * 2026): reviewed prompt templates agents run with the Prompt Skills toolkit. Private until shared; every save is a new
- * version with a comment. A skill opens with its instructions, prompt (${name} for inputs, found by themselves), answer
+ * version with a comment. A skill opens with its instructions, prompt ($name$ for inputs, found by themselves), answer
  * kind, temperature, connection and its versions. Templates give a starting point.
  * Review round 2 (1 Nov 2026): one line per skill (its description on hover), a menu per skill (Open, Copy the name,
  * Delete asked first), and a skill opening as its own page (Prompt; Versions), as AA's skill editor.
  */
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
-const found = (prompt: string) => [...new Set((prompt.match(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g) ?? []).map((x) => x.slice(2, -1)))];
+/** The input names a prompt uses: $name$, as Studio writes variables, or the older ${name} (both are filled when the skill runs). */
+export const found = (prompt: string) =>
+  [...new Set([...prompt.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)\$/g)].map((m) => m[1] ?? m[2]))];
 
 /** The bar that asks before a skill and its versions are deleted. */
 function AskDelete({ name, onYes, onNo }: { name: string; onYes: () => void; onNo: () => void }) {
@@ -44,8 +46,8 @@ const HELP_SKILL: HelpTopic = { title: "Prompt Skill",
     { name: "Name", text: "Letters, digits, _ . and -, up to 80 long. Agents call the skill by this name, so it cannot change once the skill is made." },
     { name: "Model connection", text: "The model connection the skill uses. Leave it empty to use the default of the run." },
     { name: "Instructions for the model (system)", text: "Standing guidance for the model, such as its role, tone or rules, sent before the prompt." },
-    { name: "Prompt", text: "What the model is asked. Write ${name} where a value the agent passes in should go; those names are added to the inputs by "
-      + "themselves." },
+    { name: "Prompt", text: "What the model is asked. Write $name$ where a value the agent passes in should go, such as $text$; those names are added "
+      + "to the inputs by themselves. Prompts written with ${name} still work." },
     { name: "Answer and Temperature", text: "Whether the model answers in plain text or JSON, and how varied its answers are, from 0 (steady) to 2 "
       + "(varied)." },
     { name: "Inputs", text: "The values the agent passes in, one per line, written as name - description." },
@@ -190,7 +192,7 @@ function SkillPage({ api, name, user, onClose, onSaved, onDeleted }: { api: CrAp
         </div>
         <Field label="Description">{(id) => <TextInput id={id} value={v.description} disabled={!editable} onChange={set("description")} />}</Field>
         <Field label="Instructions for the model (system)">{(id) => <TextArea id={id} rows={3} value={v.system} disabled={!editable} onChange={set("system")} />}</Field>
-        <Field label="Prompt (use ${name} for the values the agent passes in)">{(id) => <TextArea id={id} rows={6} value={v.prompt} disabled={!editable} onChange={set("prompt")} />}</Field>
+        <Field label="Prompt (write $name$ for each value the agent passes in)">{(id) => <TextArea id={id} rows={6} value={v.prompt} disabled={!editable} onChange={set("prompt")} />}</Field>
         {uses.length > 0 && <p className="st-muted">The prompt uses: {uses.join(", ")}.</p>}
         <div className="cc-grid2">
           <Field label="Answer">{(id) => <Select id={id} value={v.output} disabled={!editable} onChange={set("output")} options={[{ value: "text", label: "Text" }, { value: "json", label: "JSON" }]} />}</Field>
@@ -201,7 +203,7 @@ function SkillPage({ api, name, user, onClose, onSaved, onDeleted }: { api: CrAp
           <Field label="Ground answers in documents: knowledge index (e.g. knowledge/policies.json)">{(id) => <TextInput id={id} value={v.kIndex} disabled={!editable} placeholder="Empty: no documents" onChange={set("kIndex")} />}</Field>
           <Field label="Passages given to the model">{(id) => <TextInput id={id} type="number" min={1} max={20} value={v.kTop} disabled={!editable || !v.kIndex.trim()} onChange={set("kTop")} />}</Field>
         </div>
-        {v.kIndex.trim() && <Field label="Search the index for (empty: the prompt; ${name} allowed)">{(id) => <TextInput id={id} value={v.kQuery} disabled={!editable} onChange={set("kQuery")} />}</Field>}
+        {v.kIndex.trim() && <Field label="Search the index for (empty: the prompt; $name$ allowed)">{(id) => <TextInput id={id} value={v.kQuery} disabled={!editable} onChange={set("kQuery")} />}</Field>}
         <label className="st-check-line"><input type="checkbox" checked={v.shared} disabled={!editable} onChange={(e) => setV({ ...v, shared: e.target.checked })} /> Shared: every agent may use it</label>
         {can("skills.all") && <label className="st-check-line"><input type="checkbox" checked={v.template} onChange={(e) => setV({ ...v, template: e.target.checked })} /> Template: offered as a starting point</label>}
         {editable && <Field label="What changed (optional)">{(id) => <TextInput id={id} value={v.comment} onChange={set("comment")} />}</Field>}

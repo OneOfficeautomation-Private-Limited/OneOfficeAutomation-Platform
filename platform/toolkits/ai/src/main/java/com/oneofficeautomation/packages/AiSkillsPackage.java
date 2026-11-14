@@ -9,11 +9,11 @@ import java.util.stream.Stream;
 
 /**
  * AI Skills: reusable, reviewed prompt templates stored as JSON in the workspace's ai-skills folder, e.g.
- * ai-skills/summarise_complaint.json = {"description": "...", "system": "...", "prompt": "Summarise: ${text}",
+ * ai-skills/summarise_complaint.json = {"description": "...", "system": "...", "prompt": "Summarise: $text$",
  * "provider": "openai", "model": "gpt-4o-mini", "output": "text" | "json", "temperature": 0}. Providers: openai, azure_openai, anthropic,
  * openai_compatible, huggingface, aws_bedrock_sagemaker or aws_bedrock (add "region"), google_vertex. Keys never go in skill files.
  * A skill can be grounded in the company's documents: "knowledge": {"index": "knowledge/policies.json", "top_k": 4,
- * "query": "${question}"} gives the model the best passages of a Knowledge Q&A index with the prompt, and files given
+ * "query": "$question$"} gives the model the best passages of a Knowledge Q&A index with the prompt, and files given
  * to the run (Word, PDF, text, ...) go with the prompt as documents; the answer cites the passages it used.
  */
 @OoaPackage(id = "ooa.ai_skills", name = "Prompt Skills", version = "1.0.0", description = "Run saved, reusable prompt templates (Prompt Skills) with your values.")
@@ -60,7 +60,7 @@ public final class AiSkillsPackage {
     @Output(name = "sources", type = OoaType.LIST, description = "The knowledge passages given to the model (n, source, passage, score, text); empty without a knowledge index.")
     public Map<String, Object> run(ActionContext ctx,
             @Input(name = "skill", type = OoaType.STRING, example = "summarise_complaint", description = "Skill name (file name in ai-skills without .json).") String name,
-            @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Values for the skill's ${...} placeholders.") Map<String, Object> values,
+            @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Values for the skill's placeholders, written $name$ in its prompt.") Map<String, Object> values,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = "Model Connection to use instead of the skill's own provider and model.") String connection,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,
             @Input(name = "model", type = OoaType.STRING, required = false, description = "Override the skill's model.") String model,
