@@ -233,6 +233,11 @@ export interface TestSet {
 export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
 
 export interface DocFlowApi {
+  /**
+   * The tenant the next requests are for, when one person may see several (an operator, or the sample data). The real
+   * client has none: the Command Center takes the tenant from the address the person signed in at.
+   */
+  setTenant?(tenant: string): void;
   overview(): Promise<Overview>;
   processes(): Promise<ProcessSummary[]>;
   /** Every process with its set-up and activity, in one go (the Overview table). */
@@ -534,6 +539,9 @@ export class SampleApi implements DocFlowApi {
   private documentsData = copy(DOCUMENTS);
   private routing: Routing = { cloudOptIn: false, retryBelow: 0.85, localRetry: "paddleocr", cloudEngine: "" };
   readonly reviews: { documentId: string; fields: ReviewValues; decision: string }[] = [];
+  /** The tenant chosen at the top; the sample data is the same for every tenant. */
+  tenant = "";
+  setTenant(tenant: string) { this.tenant = tenant; }
   private claude: ClaudeModels = { model: "claude-haiku-5-5", escalationModel: "claude-sonnet-5-5" };
 
   async overview() { return { ...copy(OVERVIEW), cloudOptIn: this.routing.cloudOptIn }; }

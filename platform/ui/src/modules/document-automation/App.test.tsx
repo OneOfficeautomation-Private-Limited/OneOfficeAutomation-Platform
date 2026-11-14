@@ -24,6 +24,26 @@ describe("Document Automation", () => {
     expect(screen.getByText("Local-only: nothing leaves this server")).toBeTruthy();
   });
 
+  it("shows the tenant; with several, the one chosen is used for the next requests and kept", async () => {
+    const api = new SampleApi();
+    const { unmount } = render(<App api={api} tenants={["Acme Trading Co.", "Beta Foods"]} />);
+    const pick = screen.getByRole("combobox", { name: "Tenant" }) as HTMLSelectElement;
+    expect(pick.value).toBe("Acme Trading Co.");
+    expect(api.tenant).toBe("Acme Trading Co.");
+    await act(async () => { fireEvent.change(pick, { target: { value: "Beta Foods" } }); });
+    expect((screen.getByRole("combobox", { name: "Tenant" }) as HTMLSelectElement).value).toBe("Beta Foods");
+    expect(api.tenant).toBe("Beta Foods");
+    unmount();
+    const again = new SampleApi();
+    render(<App api={again} tenants={["Acme Trading Co.", "Beta Foods"]} />);     // the next visit opens on the tenant chosen
+    expect((screen.getByRole("combobox", { name: "Tenant" }) as HTMLSelectElement).value).toBe("Beta Foods");
+    expect(again.tenant).toBe("Beta Foods");
+    cleanup();
+    render(<App api={new SampleApi()} tenants={["Gamma Ltd"]} />);                 // one tenant: named, nothing to choose
+    expect(screen.getByText("Tenant: Gamma Ltd")).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: "Tenant" })).toBeNull();
+  });
+
   it("opens the libraries from a small menu, which then names the one open", async () => {
     start();
     const libraries = within(screen.getByRole("group", { name: "Libraries" })).getByRole("button");
