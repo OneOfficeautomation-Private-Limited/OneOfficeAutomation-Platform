@@ -26,6 +26,15 @@ class VariableNotationTest {
         assertEquals("y", resolve("$order.lines[1]$"));
     }
 
+    @Test void anEarlierReferenceWithAVariableIndexIsStillRead() {
+        // as before 14 Nov: an [index] may hold a variable (the refund example's $policy.reason_rates[$reason])
+        Map<String, Object> vars = Map.of("rates", Map.of("damaged", new BigDecimal("1.0")), "reason", "damaged", "lines", List.of("x", "y"), "i", new BigDecimal("1"));
+        assertEquals(0, BigDecimal.ONE.compareTo((BigDecimal) Expressions.resolve("$rates[$reason]", vars::get)));
+        assertEquals("y", Expressions.resolve("$lines[$i]", vars::get));
+        assertEquals("y", Expressions.resolve("$lines[$i$]", vars::get));
+        assertEquals(Set.of("rates", "reason"), Expressions.references("$rates[$reason]"));
+    }
+
     @Test void dollarNameDollarInsideTextIsReplaced() {
         assertEquals("Total 3 for Acme", resolve("Total $count$ for $customer$"));
         assertEquals("Order A-7", resolve("Order $order.id$"));
