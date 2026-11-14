@@ -58,7 +58,10 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   const [user, setUser] = useState<CrUser | null | undefined>(undefined);   // undefined: still asking
   const [page, setPageState] = useState(() => pageOf(location.hash));
   useEffect(() => { if (user) loadHelpConfig(); }, [user]);   // where Docs and Video point (round 3, item 6)
-  const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); };
+  // 14 Nov 2026: a click in the menu always opens the page fresh, at its list, even when it is the page already open
+  // with an agent, a run or a person shown (it used to stay on that view, which felt stuck)
+  const [visit, setVisit] = useState(0);
+  const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); setVisit((n) => n + 1); };
   useEffect(() => { const on = () => setPageState(pageOf(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const [notice, setNotice] = useState<string | null>(null);
   useFullTextOnHover();   // cut-off text shows in full on hover (13 Nov 2026, item 11)
@@ -131,7 +134,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
         <main className="st-main cc-main" onKeyDown={listKeys}>
           <Breadcrumb user={user} page={page} onPage={setPage} />
           <GroupTabs page={page} user={user} onPage={setPage} hrefFor={hrefFor} />
-          <PageRetry.Provider value={() => setReloads((n) => n + 1)}><Fragment key={page + ":" + reloads}>
+          <PageRetry.Provider value={() => setReloads((n) => n + 1)}><Fragment key={page + ":" + reloads + ":" + visit}>
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
           {MODULE_PAGES[page]?.({ api, user, onNotice: setNotice, setPage, studio })}
           {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}

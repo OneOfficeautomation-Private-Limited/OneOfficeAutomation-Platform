@@ -12,6 +12,15 @@ const start = (api = new SampleApi()) => { render(<App api={api} />); return api
 const table = (name: string) => screen.findByRole("region", { name });
 
 describe("Document Automation", () => {
+  it("opens every other page from its menu as a link, Build > Agents too (14 Nov 2026: Agents did nothing here)", async () => {
+    start();
+    const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });
+    fireEvent.click(within(menu).getByRole("button", { name: /^(Unfold )?Build$/ }));
+    const agents = await within(menu).findByRole("link", { name: "Agents" });
+    expect(agents.getAttribute("href")).toBe("/next/#/automation");
+    expect(within(menu).queryAllByRole("button").map((b) => b.textContent?.trim())).not.toContain("Agents");   // no button that waits for Studio
+  });
+
   it("sits under AI in the Command Center menu: Overview, Inbox and Processes, then the Libraries", async () => {
     start();
     const menu = await screen.findByRole("navigation", { name: "One CommandCenter" });

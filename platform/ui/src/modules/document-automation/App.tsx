@@ -108,7 +108,7 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
         </div>
       </header>
       <div className="st-body">
-        <CommandMenu view={null} onView={() => undefined} controlRoom={controlRoom} currentPage={reviewing ? "inbox" : "documents"} />
+        <CommandMenu view={null} controlRoom={controlRoom} currentPage={reviewing ? "inbox" : "documents"} />
         <main className="df-main">
           {!reviewing && (
             <div className="df-head">

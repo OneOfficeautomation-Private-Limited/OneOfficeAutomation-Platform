@@ -1013,6 +1013,18 @@ describe("rebuilt One CommandCenter console", () => {
     expect(await screen.findByRole("table", { name: "Agents that record values" })).toBeTruthy();
   });
 
+  it("opens a page fresh from the menu, even the page already open with a detail view on it (14 Nov 2026)", async () => {
+    render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
+    await go("Users");
+    fireEvent.click(await screen.findByText("admin", { selector: "td *, td" }));
+    const close = await screen.findByRole("button", { name: /Close/ });
+    expect(close).toBeTruthy();                                                  // the person's view is open
+    const menu = screen.getByRole("navigation", { name: "One CommandCenter" });
+    fireEvent.click(within(menu).getByRole("button", { name: "Users" }));       // the page already open
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Close/ })).toBeNull());
+    expect(screen.getByRole("table")).toBeTruthy();                             // back at the list
+  });
+
   it("prints a dashboard, e-mails it on a schedule, and names it in the address", async () => {
     const { api, calls } = fakeServer({ signedIn: admin });
     render(<ConsoleApp api={api} />);
