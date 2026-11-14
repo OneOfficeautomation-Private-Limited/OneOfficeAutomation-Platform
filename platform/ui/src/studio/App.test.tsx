@@ -540,7 +540,7 @@ describe("new Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "New" }));
     let dialog = await screen.findByRole("dialog", { name: "New variable" });
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "2nd" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Create variable" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Create (variable|and use)$/ }));
     expect(within(dialog).getByRole("alert").textContent).toMatch(/starts with a letter/);
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "$codes" } });
     fireEvent.change(within(dialog).getByLabelText("Type"), { target: { value: "List" } });
@@ -550,7 +550,7 @@ describe("new Studio", () => {
     fireEvent.change(within(dialog).getByLabelText("Item 2"), { target: { value: "42" } });
     fireEvent.click(within(dialog).getByLabelText(/Use as input/));
     fireEvent.click(within(dialog).getByLabelText(/Use as output/));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Create variable" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Create (variable|and use)$/ }));
     const group = await screen.findByRole("region", { name: "Inputs and outputs" });
     expect(within(group).getByText("$codes")).toBeTruthy();
     expect(within(group).getByText(/= A1, 42/)).toBeTruthy();
@@ -574,22 +574,39 @@ describe("new Studio", () => {
     render(<App api={api} />);
     const steps = await openIntake();
     fireEvent.click(stepButton(steps, "Write to log"));
-    fireEvent.click(await screen.findByRole("button", { name: "Insert a variable" }));
-    const picker = screen.getByRole("dialog", { name: "Insert a variable" });
+    fireEvent.click(await screen.findByRole("button", { name: "Insert a value" }));
+    const picker = screen.getByRole("dialog", { name: "Insert a value" });
     expect(within(picker).getByText("$workbook")).toBeTruthy();
     expect(within(picker).getByText("$sys.today")).toBeTruthy();
     fireEvent.click(within(picker).getByText("$workbook"));
     let saved = await saveAndGet(created);
     expect(saved.steps[1].children[0].args.message).toMatch(/\$workbook/);
     // + New variable from the picker makes it and puts it in the field, as one change
-    fireEvent.click(screen.getByRole("button", { name: "Insert a variable" }));
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Insert a variable" })).getByRole("button", { name: /New variable/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Insert a value" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Insert a value" })).getByRole("button", { name: /New variable/ }));
     const dialog = await screen.findByRole("dialog", { name: "New variable" });
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "note" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Create variable" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Create (variable|and use)$/ }));
     saved = await saveAndGet(created);
     expect(saved.variables.map((v: any) => v.name)).toContain("note");
     expect(saved.steps[1].children[0].args.message).toMatch(/\$note/);
+  });
+
+  it("opens a step's Properties on a click and folds Details on a second click of the same step, as AA's editor", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    const toggle = () => screen.getByRole("button", { name: /^(Show|Hide) details$/ });
+    fireEvent.click(toggle());                                   // start with Details folded away
+    expect(toggle().getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(stepButton(steps, "Open workbook"));         // a new step: chosen, and its Properties open
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("tab", { name: "Properties" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(stepButton(steps, "Open workbook"));         // the same step again: Details folds
+    expect(toggle().getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(stepButton(steps, "Open workbook"));         // and opens again
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(stepButton(steps, "Write to log"));          // another step: Details stays open on its Properties
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
   });
 
   it("keeps a Number result only in Number variables, or in a new one named after the result", async () => {
@@ -604,7 +621,7 @@ describe("new Studio", () => {
     const dialog = await screen.findByRole("dialog", { name: "New variable" });
     expect((within(dialog).getByLabelText("Name") as HTMLInputElement).value).toBe("count");
     expect((within(dialog).getByLabelText("Type") as HTMLSelectElement).value).toBe("Number");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Create variable" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Create (variable|and use)$/ }));
     const saved = await saveAndGet(created);
     expect(saved.steps[1]).toMatchObject({ action: "ooa.excel/count_rows", out: { count: "count" } });
     expect(saved.variables).toContainEqual({ name: "count", type: "Number" });
@@ -624,7 +641,7 @@ describe("new Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog", { name: "New variable" });
     expect((within(dialog).getByLabelText("Type") as HTMLSelectElement).value).toBe("Credential");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Create variable" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Create (variable|and use)$/ }));
     const saved = await saveAndGet(created);
     expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/type_text", args: { text: "$password" } });
     expect(saved.variables).toContainEqual({ name: "password", type: "Credential", direction: "input", description: "From the vault: map it to a credential when running." });
@@ -641,7 +658,7 @@ describe("new Studio", () => {
     fireEvent.change(input, { target: { value: "1001" } });
     fireEvent.blur(input);
     fireEvent.change(screen.getByLabelText("Variable for status"), { target: { value: "\u0000new" } });
-    fireEvent.click(within(await screen.findByRole("dialog", { name: "New variable" })).getByRole("button", { name: "Create variable" }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "New variable" })).getByRole("button", { name: /^Create (variable|and use)$/ }));
     const saved = await saveAndGet(created);
     expect(saved.steps[1]).toMatchObject({ action: "core/run_bot", args: { automation: "lookup_order", inputs: { order_id: 1001 }, output_map: { status: "status" } } });
   });

@@ -43,9 +43,9 @@ export function CommitInput({ id, initial, placeholder, mono, onCommit, want, ap
   return (
     <div className="st-var-field">
       {input}
-      <button type="button" className="st-x-btn" aria-label="Insert a variable" title={withKey("Insert a variable", "fields.variable")} aria-expanded={!!picking}
+      <button type="button" className="st-x-btn" aria-label="Insert a value" title={withKey("Insert a value", "fields.variable")} aria-expanded={!!picking}
         onMouseDown={(e) => e.preventDefault()} onClick={() => { typedAt.current = null; setPicking(picking ? null : (ref.current ?? undefined)?.getBoundingClientRect() ?? null); }}>{"{x}"}</button>
-      {picking && <VarPicker want={want} nameHint={nameHint} anchor={picking} typed={typedAt.current !== null}
+      {picking && <VarPicker want={want} nameHint={nameHint} anchor={picking} typed={typedAt.current !== null} previewOf={withRef}
         onClose={() => { setPicking(null); typedAt.current = null; ref.current?.focus(); }}
         onPick={(r) => { setPicking(null); onCommit(withRef(r)); typedAt.current = null; }}
         onNew={apply && ((r, flow) => apply(withRef(r), flow))} />}

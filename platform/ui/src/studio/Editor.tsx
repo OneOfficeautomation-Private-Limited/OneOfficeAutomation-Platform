@@ -252,6 +252,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const [rightTab, setRightTab] = useState("properties");
   useEffect(() => { if (askTrigger) { setRightTab("triggers"); setRightHidden(false); } }, [askTrigger]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [rightHidden, setRightHidden] = usePersistent("panel.details.hidden", false);
+  // the step the last plain click chose (item B): a second click on it folds Details
+  const lastClicked = useRef<string | null>(null);
   const [rightWidth, setRightWidth] = usePanelSize("details");
   // the output panel: at the bottom, on the right or floating (moved by its grip), or minimised to a bar
   const [outAt, setOutAt] = usePersistent<"bottom" | "right" | "float">("output.at", "bottom");
@@ -446,7 +448,17 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const click = (e: MouseEvent, id: string) => {
     if (e.ctrlKey || e.metaKey) { onSelect(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected.filter((x) => !x.startsWith("@")), id]); setAnchor(id); setCursor(id); }
     else if (e.shiftKey && (anchor ?? chosen[0])) extendTo(id);
-    else selectOne(id);
+    else openOrFold(id);
+  };
+  /**
+   * A plain click on a step (14 Nov 2026, item B, as AA's editor): a step not yet chosen is chosen and its Properties
+   * open in Details; a click on the step already chosen folds Details away, and the next click opens it again.
+   */
+  const openOrFold = (id: string) => {
+    // only a second click folds: a step chosen some other way (opening the agent, the keyboard, a search) opens on the first
+    if (lastClicked.current === id && selected.length === 1 && selected[0] === id) { if (rightHidden) setRightTab("properties"); setRightHidden(!rightHidden); return; }
+    lastClicked.current = id;
+    selectOne(id); setRightTab("properties"); setRightHidden(false);
   };
   const extendTo = (id: string) => {
     const from = anchor && ids.includes(anchor) ? anchor : chosen[0] ?? id;
@@ -721,7 +733,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             <Button kind="plain" onClick={() => setNoRename(true)}>Not now</Button>
           </div>}
           {view === "flow" ? <FlowDiagram flow={flow} packages={packages} selected={selected} running={at}
-            onSelect={(id) => { selectOne(id); setRightTab("properties"); }} onInsert={onInsert}
+            onSelect={(id) => openOrFold(id)} onInsert={onInsert}
             onMove={(moving, targetId, where) => onEdit(moveManyTo(flow, moving, targetId, where), moving)} /> :
           <ol className="st-step-list" ref={list}>
             <li>

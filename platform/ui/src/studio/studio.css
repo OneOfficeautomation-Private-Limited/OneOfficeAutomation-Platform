@@ -945,3 +945,34 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-action-row > .st-help-links { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); opacity: 0; background: var(--ui-bg); padding-left: 4px; }
 .st-action-row:hover > .st-help-links, .st-action-row:focus-within > .st-help-links { opacity: 1; }
 .st-prop-head .st-help-links { margin-top: 2px; }
+
+/* Tool bar rows (14 Nov 2026, item A, as AA's editor bar): every control is --ui-bar-h high and sits on the row's
+   centre line; List and Flow are plain text tabs with an underline, not a boxed switch. tools/check-alignment.js
+   measures this on every page. */
+.st-edit-bar { align-items: center; }
+.st-edit-bar > * { align-self: center; }
+.st-edit-bar .st-tool { width: var(--ui-bar-h); height: var(--ui-bar-h); }
+.st-edit-bar .st-tool-group { height: var(--ui-bar-h); }
+.st-edit-bar .st-full-btn { width: var(--ui-bar-h); height: var(--ui-bar-h); top: calc((var(--ui-bar) - var(--ui-bar-h)) / 2); }
+.st-edit-bar .st-view-seg { height: var(--ui-bar-h); border: 0; border-radius: 0; overflow: visible; align-items: stretch; gap: 2px; }
+.st-edit-bar .st-view-seg .st-seg-btn { height: var(--ui-bar-h); padding: 0 10px; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+  background: transparent; color: var(--ui-text-2); font-weight: 400; }
+.st-edit-bar .st-view-seg .st-seg-btn:hover { color: var(--ui-text); background: var(--ui-row-hover); }
+.st-edit-bar .st-view-seg .st-seg-btn[aria-checked="true"] { border-bottom-color: var(--ui-accent); color: var(--ui-accent-text); font-weight: 600; background: transparent; }
+.st-edit-bar .st-view-seg .st-seg-btn:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.st-subflow-bar > * { align-self: center; }
+.st-items-tools .ui-select, .st-items-tools select, .st-items-tools .ui-btn, .st-items-tools .ui-icon-btn,
+.st-items-bar .ui-btn, .st-items-bar .ui-icon-btn, .st-items-bar .ui-select { height: var(--ui-bar-h); }
+.st-items-tools .ui-icon-btn, .st-items-bar .ui-icon-btn { width: var(--ui-bar-h); }
+.st-var-field > .st-x-btn { height: auto; align-self: stretch; }
+/* Insert a value (14 Nov 2026, item C): a title bar, the field as it will read, then the list with each value's type */
+.st-vp { width: min(380px, 92vw); }
+.st-vp-top { display: flex; align-items: center; justify-content: space-between; margin: -2px 0 6px; }
+.st-vp-top strong { font-size: 13px; }
+.st-vp-top .st-x-btn { width: var(--ui-bar-h); height: var(--ui-bar-h); display: inline-flex; align-items: center; justify-content: center; }
+.st-vp-preview { display: flex; align-items: center; gap: 8px; min-height: 30px; margin-bottom: 6px; padding: 4px 8px; border-radius: var(--ui-radius); background: var(--ui-soft); }
+.st-vp-preview-label { flex: none; color: var(--ui-text-2); font-size: 11.5px; font-weight: 600; }
+.st-vp-preview code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ui-text); }
+.st-vp-list { max-height: 300px; }
+.st-vp-ref { flex: none; }
+.st-vp-type { flex: none; color: var(--ui-text-2); font-size: 11.5px; }

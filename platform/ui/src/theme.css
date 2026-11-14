@@ -53,6 +53,7 @@
   --ui-row: 34px;
   --ui-step: 36px;             /* a step line */
   --ui-bar: 40px;              /* panel and tab bars */
+  --ui-bar-h: 28px;            /* every control inside a tool bar row: one height, one centre line */
   --ui-radius: 6px;
   --ui-focus: 0 0 0 2px var(--ui-bg), 0 0 0 4px var(--ui-accent);
   color-scheme: light;

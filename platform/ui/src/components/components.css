@@ -115,6 +115,8 @@
 .ui-tab-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--ui-border); flex: none; }
 .ui-tab-row > .ui-tab-list { flex: 1; min-width: 0; border-bottom: 0; }
 .ui-tab-actions { display: flex; align-items: center; gap: 6px; padding: 0 8px; }
+.ui-tab-actions > .ui-btn, .ui-tab-actions > .ui-icon-btn, .ui-tab-actions > select, .ui-tab-actions > .ui-select { height: var(--ui-bar-h); }
+.ui-tab-actions > .ui-icon-btn { width: var(--ui-bar-h); }
 
 /* Splitter: a panel edge to drag (or focus and use the arrow keys); the line shows on hover and focus */
 .ui-splitter { flex: none; position: relative; z-index: 5; background: transparent; touch-action: none; }

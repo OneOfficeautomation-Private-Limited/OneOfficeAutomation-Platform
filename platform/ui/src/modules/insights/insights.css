@@ -120,7 +120,7 @@ body.cc-printing .cc-top, body.cc-printing nav, body.cc-printing .cc-list-head, 
 .ov-card-m { font-size: 12.5px; color: var(--ui-text-2); }
 .ov-card-go { margin-top: 2px; font-size: 12.5px; font-weight: 600; color: var(--ui-accent-text); }
 /* option B step 2: the console's sizes for Insights' own controls; its small tiles keep their 12 px signs */
-.cc-app .cc-main .ov-icon-btn { width: 32px; height: 32px; }
+.cc-app .cc-main .ov-icon-btn { width: var(--ui-h); height: var(--ui-h); }
 .cc-app .cc-main .ov-icon-btn > svg { width: 18px; height: 18px; }
 .cc-app .cc-main .ov-ic svg { width: 12px; height: 12px; }
 /* a shorter cut for a long reason (moved from console.css on 13 Nov 2026: only Insights uses it now) */

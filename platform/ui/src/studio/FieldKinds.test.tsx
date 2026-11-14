@@ -43,21 +43,38 @@ describe("typing $ in a field (item 2)", () => {
     const { onArg } = setup();
     const box = screen.getByLabelText("Text") as HTMLInputElement;
     fireEvent.input(box, { target: { value: "Total $" } });
-    const list = screen.getByRole("dialog", { name: "Insert a variable" });
+    const list = screen.getByRole("dialog", { name: "Insert a value" });
     fireEvent.click(within(list).getByRole("option", { name: /\$count/ }));
     expect(onArg).toHaveBeenCalledWith("text", "Total $count");
+  });
+
+  it("opens Insert a value with F2: a preview of the field, your variables first, system values with what they hold", () => {
+    const { onArg } = setup({ text: "Hello " });
+    const box = screen.getByLabelText("Text") as HTMLInputElement;
+    box.setSelectionRange(6, 6);
+    fireEvent.keyDown(box, { key: "F2" });
+    const panel = screen.getByRole("dialog", { name: "Insert a value" });
+    expect(within(panel).getByLabelText("Preview").textContent).toContain("Hello ");
+    const heads = [...panel.querySelectorAll(".st-vp-head")].map((h) => h.textContent);
+    expect(heads.slice(0, 2)).toEqual(["Your variables", "System values"]);
+    const date = within(panel).getByRole("option", { name: /\$sys\.date/ });
+    expect(date.textContent).toContain("Today's date");
+    fireEvent.mouseEnter(date);
+    expect(within(panel).getByLabelText("Preview").textContent).toContain("Hello $sys.date");
+    fireEvent.click(date);
+    expect(onArg).toHaveBeenCalledWith("text", "Hello $sys.date");
   });
 
   it("does not open for a $ inside a word or a price", () => {
     setup();
     fireEvent.input(screen.getByLabelText("Text"), { target: { value: "US$" } });
-    expect(screen.queryByRole("dialog", { name: "Insert a variable" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Insert a value" })).toBeNull();
   });
 
   it("shows only the Shared Global values after $@", () => {
     const { onArg } = setup();
     fireEvent.input(screen.getByLabelText("Text"), { target: { value: "$" } });
-    const list = screen.getByRole("dialog", { name: "Insert a variable" });
+    const list = screen.getByRole("dialog", { name: "Insert a value" });
     fireEvent.change(within(list).getByLabelText("Find a variable"), { target: { value: "@" } });
     const shown = within(list).getAllByRole("option").map((o) => o.textContent);
     expect(shown.every((t) => t?.includes("$global."))).toBe(true);

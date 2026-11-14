@@ -6,7 +6,7 @@ import { Button, Dialog, Field, Icon, Menu, Select, TextArea, TextInput } from "
 import { parseLoose, showValue } from "./flowEdit";
 import { plainValue } from "./toolkits";
 import {
-  compatible, directionOf, GROUPS, guessType, isInput, isOutput, parseTime, parseTimeSpan, saveVariable, TYPE_STYLE, TYPES, uniqueName, usageCount, type Direction,
+  compatible, directionOf, GROUPS, guessType, isInput, isOutput, parseTime, parseTimeSpan, saveVariable, SYS_HELP, TYPE_STYLE, TYPES, uniqueName, usageCount, type Direction,
 } from "./variables";
 
 /**
@@ -46,15 +46,20 @@ const preview = (v: unknown) => plainValue(v, 42);   // lists joined, calculatio
 const usedAs = (v: FlowVariable) => GROUPS.find((g) => g.dir === (v.direction ?? "local"))?.label ?? "";
 
 /**
- * Pick a variable to put in a field: the agent's variables of the field's type first (text takes any), then the
- * platform's $sys values and the shared $global values; the rest one click away; or make a new one of that type.
+ * Insert a value (14 Nov 2026, item C, as AA's Insert a value): a preview of the field with the value in it, then the
+ * agent's own variables of the field's type first (text takes any), then the platform's system values with what each
+ * holds, then the shared $global values; the rest one click away; or make a new variable of that type. A click (or
+ * Enter) puts the value in the field.
  */
-export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor, typed: fromDollar }:
+export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor, typed: fromDollar, previewOf }:
   { want?: string; onPick: (ref: string) => void; onNew?: (ref: string, flow: Flow) => Flow; onClose: () => void; nameHint?: string; anchor?: DOMRect;
     /** Opened by typing $ in the field: the next keys go on narrowing the list, and @ first shows the Shared Global values only. */
-    typed?: boolean }) {
+    typed?: boolean;
+    /** The field's text with a value put in (the preview); without it the value alone is shown. */
+    previewOf?: (ref: string) => string }) {
   const ctx = useVars();
   const [query, setQ] = useState("");
+  const [shown, setShown] = useState<string | null>(null);
   // "@" first (typing $@ in a field): the Shared Global values only
   const globalsOnly = query.startsWith("@");
   const q = globalsOnly ? query.slice(1) : query;
@@ -87,23 +92,30 @@ export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor, type
     else if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT" && items[0]) { e.preventDefault(); items[0].click(); }
   };
   const item = (ref: string, type: string, note: string) => (
-    <button key={ref} type="button" role="option" aria-selected="false" className="st-vp-item" onClick={() => onPick(ref)}>
-      <TypeBadge type={type} /><span className="ui-mono">{ref}</span>{note && <span className="st-vp-note">{note}</span>}
+    <button key={ref} type="button" role="option" aria-selected="false" className="st-vp-item" onClick={() => onPick(ref)}
+      onMouseEnter={() => setShown(ref)} onFocus={() => setShown(ref)}>
+      <TypeBadge type={type} /><span className="st-vp-ref ui-mono">{ref}</span><span className="st-vp-type">{type}</span>
+      {note && <span className="st-vp-note">{note}</span>}
     </button>
   );
+  const previewText = shown ? (previewOf ? previewOf(shown) : shown) : previewOf ? previewOf("") : "";
   // above the page, next to the field, so a scrolling panel does not cut it off
-  const W = 340, H = 360;
+  const W = 380, H = 420;
   const at = anchor ? { left: Math.max(8, Math.min(anchor.left, window.innerWidth - W - 8)),
     top: anchor.bottom + H + 8 > window.innerHeight ? Math.max(8, anchor.top - H - 4) : anchor.bottom + 4 } : undefined;
   return createPortal(
-    <div className="st-vp" role="dialog" aria-label="Insert a variable" ref={box} onKeyDown={keys} style={at}>
+    <div className="st-vp" role="dialog" aria-label="Insert a value" ref={box} onKeyDown={keys} style={at}>
+      <div className="st-vp-top"><strong>Insert a value</strong>
+        <button type="button" className="st-x-btn" aria-label="Close" onClick={onClose}><Icon name="close" size={12} stroke={2.4} /></button></div>
+      <div className="st-vp-preview" aria-label="Preview"><span className="st-vp-preview-label">Preview</span>
+        <code className="ui-mono">{previewText || "(empty)"}</code></div>
       <TextInput type="search" aria-label="Find a variable" placeholder={fromDollar ? "Type to narrow; @ for Shared Global values" : "Find a variable (@ for Shared Global values)"}
         value={query} onChange={(e) => setQ(e.target.value)} />
       <div className="st-vp-list" role="listbox" aria-label="Variables">
-        {good.length > 0 && <div className="st-vp-head">{typed && typed !== "String" && !all ? typed + " variables" : "Agent variables"}</div>}
+        {good.length > 0 && <div className="st-vp-head">{typed && typed !== "String" && !all ? "Your " + typed + " variables" : "Your variables"}</div>}
         {good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? usedAs(v).toLowerCase() : ""))}
-        {sys.length > 0 && <div className="st-vp-head">System</div>}
-        {sys.map(([k, val]) => item("$sys." + k, guessType(val), preview(val)))}
+        {sys.length > 0 && <div className="st-vp-head">System values</div>}
+        {sys.map(([k, val]) => item("$sys." + k, guessType(val), SYS_HELP[k] ?? preview(val)))}
         {glob.length > 0 && <div className="st-vp-head">Shared Global values</div>}
         {glob.map(([k, val]) => item("$global." + k, guessType(val), preview(val)))}
         {!good.length && !sys.length && !glob.length && <p className="st-vp-empty">{globalsOnly ? "No Shared Global values match (they are managed in One CommandCenter)."
@@ -217,7 +229,7 @@ export function VariableDialog({ flow, existing, preset, onSave, onClose }:
   return (
     <Dialog open onClose={onClose} title={existing ? "Variable $" + existing.name : "New variable"} width={620}
       footer={<><Button kind="secondary" onClick={onClose}>Cancel</Button><span className="st-bar-fill" />
-        <Button kind="primary" onClick={save}>{existing ? "Save changes" : "Create variable"}</Button></>}>
+        <Button kind="primary" onClick={save}>{existing ? "Save changes" : preset?.then ? "Create and use" : "Create variable"}</Button></>}>
       <form className="st-form" onSubmit={(e) => { e.preventDefault(); save(); }}>
         <Field label="Name" hint={"Use it in any field as $" + (v.name || "name") + (existing && uses ? `. Renaming updates its ${uses} use${uses > 1 ? "s" : ""} in this agent.` : ".")}>{(id) =>
           <TextInput id={id} mono value={v.name} spellCheck={false} onChange={(e) => put({ name: e.target.value.replace(/^\$/, "") })} />}</Field>

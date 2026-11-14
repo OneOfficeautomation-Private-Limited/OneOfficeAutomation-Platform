@@ -203,3 +203,17 @@ export function lastValues(events: RunEvent[] | undefined): Map<string, unknown>
   for (const e of events ?? []) if (e.type === "variable.set" && e.data && typeof e.data.name === "string") last.set(e.data.name, e.data.value);
   return last;
 }
+
+/** What each system value holds, in one line, for the Insert a value list (14 Nov 2026, item C, as AA's predefined values). */
+export const SYS_HELP: Record<string, string> = {
+  date: "Today's date (yyyy-mm-dd)", time: "The time now (hh:mm:ss)", now: "The date and time now", today: "Today at midnight",
+  year: "This year", month: "This month (1 to 12)", day: "Today's day of the month", weekday: "Today's day of the week",
+  hour: "The hour now (0 to 23)", minute: "The minute now", second: "The second now", millisecond: "The millisecond now",
+  day_of_year: "Today's day of the year (1 to 366)", timestamp: "Milliseconds since 1 January 1970 (UTC)",
+  os: "The operating system's name", os_version: "The operating system's version", processors: "The number of processors",
+  cpu_usage: "Processor use now, in percent", total_ram_mb: "Memory of this computer, in MB", ram_usage_mb: "Memory in use now, in MB",
+  user: "The Windows user the agent runs as", user_domain: "That user's domain", machine: "This computer's name",
+  home_folder: "That user's home folder", temp_folder: "The folder for temporary files", file_separator: "The character between folder names",
+  workspace: "The workspace folder the agent runs in", run_id: "This run's id", bot_id: "This agent's id", bot_name: "This agent's name",
+  principal: "Who started the run", newline: "A line break", tab: "A tab character", empty: "An empty text",
+};
