@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, FlowVariable, ProductionRequest, RepoAgent, RepoFolder, RepoVersion, Run, Runner, RunnerPool } from "../api/cr";
 import type { FlowStep } from "../api/client";
-import { Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic, reportMinor, PageError } from "../components";
+import { AgentInputs, Button, Dialog, Field, HelpButton, Icon, IconTile, Menu, Select, TextInput, usePersistent, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize } from "../studio/toolkits";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTools";
@@ -554,8 +554,10 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
   const [picked, setPicked] = useState<string[]>([]);
   const [opts, setOpts] = useState({ more: false, mode: "unattended", priority: "0", callback: "" });
   const [vars, setVars] = useState<FlowVariable[]>([]);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [bad, setBad] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const vault = useMemo(() => vaultRefsFrom(api), [api]);
   useEffect(() => {
     Promise.all([api.devices().catch(() => []), api.pools().catch(() => [])]).then(([d, p]) => {
       setRunners(d); setPools(p); const first = d.find((r) => r.enabled && r.status === "online") ?? d.find((r) => r.enabled); setWhere(first ? "d:" + first.id : p[0] ? "p:" + p[0].id : "");
@@ -563,15 +565,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
     api.agentFlow(a.path, "production").then((r) => setVars((r.flow.variables ?? []).filter((v) => v.direction === "input" || v.direction === "in_out")), (e) => reportMinor("the agent's inputs", e));
   }, [api, a.path]);
   const run = () => {
-    const inputs: Record<string, unknown> = {};
-    try {
-      for (const v of vars) {
-        const t = (values[v.name] ?? "").trim();
-        if (!t) continue;
-        inputs[v.name] = v.type === "Credential" ? { $credential: t } : v.type === "Boolean" ? t === "true" : v.type === "Number" ? Number(t)
-          : ["List", "Dictionary", "Table", "Record", "Any"].includes(v.type ?? "") ? JSON.parse(t) : t;
-      }
-    } catch { setError("An input meant as JSON is not valid JSON."); return; }
+    const inputs = values;
     const more = { mode: opts.mode, priority: Number(opts.priority), callback_url: opts.callback.trim() || null };
     if (where === "users") {
       if (!picked.length) { setError("Tick at least one run-as user."); return; }
@@ -585,7 +579,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
       .then((r) => onDone("Started " + agentName(a.path) + " (run " + r.run_id + "): follow it in Agent Activity."), (e) => setError(message(e)));
   };
   useEffect(() => { if (where === "users" && people === null) api.defaultRunners().then(setPeople, (e) => { setPeople([]); reportMinor("the run-as users", e); }); }, [where]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const missing = vars.some((v) => v.required && !(values[v.name] ?? "").trim());
+  const missing = missingInputs(vars, values).length > 0 || !!bad;
   return (
     <Dialog open title={"Run " + agentName(a.path)} width={620} onClose={onClose} help={<HelpLinks k="dialog:run" label="Run" />} footer={<><Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!where || missing || (where === "users" && !picked.length)} onClick={run}>Run</Button></>}>
@@ -600,11 +594,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
               onChange={(e) => setPicked(e.target.checked ? [...picked, p.username] : picked.filter((x) => x !== p.username))} />
             <strong>{p.username}</strong> <span className="st-muted">{p.device_id ? "on " + (p.device_name || p.device_id) : "no default runner"}</span></label>)}
       </fieldset>}
-      {vars.map((v) => <Field key={v.name} label={v.name + (v.required ? " *" : "") + " (" + v.type + ")"} hint={v.description}>{(id) => v.type === "Boolean"
-        ? <Select id={id} value={values[v.name] ?? ""} onChange={(e) => setValues({ ...values, [v.name]: e.target.value })} options={[{ value: "", label: "(not set)" }, { value: "true", label: "True" }, { value: "false", label: "False" }]} />
-        : <TextInput id={id} type={v.type === "Number" ? "number" : "text"} value={values[v.name] ?? ""} placeholder={v.type === "Credential" ? "vault folder/credential/attribute" : v.default !== undefined ? "Default " + JSON.stringify(v.default) : ""}
-          onChange={(e) => setValues({ ...values, [v.name]: e.target.value })} />}</Field>)}
-      {!vars.length && <p className="st-muted">This agent has no inputs.</p>}
+      <AgentInputs inputs={vars} value={values} onChange={setValues} credentials={vault} onJsonError={setBad} />
       <details className="cc-run-more" open={opts.more} onToggle={(e) => setOpts({ ...opts, more: (e.target as HTMLDetailsElement).open })}>
         <summary>Run mode, priority and result callback (optional)</summary>
         <Field label="Run mode">{(id) => <Select id={id} value={opts.mode} onChange={(e) => setOpts({ ...opts, mode: e.target.value })}

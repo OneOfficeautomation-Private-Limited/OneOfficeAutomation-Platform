@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CredentialExpiry, CrApi, CrUser, VaultCredential, VaultFolder, VaultRequest, VaultStatus } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../components";
+import { Button, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, Select, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
@@ -490,6 +490,7 @@ function CredentialPage({ api, folder, name, onClose, onChanged }: { api: CrApi;
 /** A vault folder's own page: its credentials, its members by place (AA's owners, managers, participants, consumers), and its company vault link. */
 function FolderPage({ api, folder: l, onClose, onOpen, onChanged }: { api: CrApi; folder: VaultFolder; onClose: () => void; onOpen: (name: string) => void; onChanged: (t: string, close: boolean) => void }) {
   const [tab, setTab] = useState<"credentials" | "members" | "external">("credentials");
+  const who = useCallback(() => principalDirectory(api), [api]);
   const [m, setM] = useState({ owners: list(l.owners).join(", "), managers: l.managers.join(", "), participants: l.participants.join(", "), consumers: list(l.consumers).join(", ") });
   const e0 = l.external ?? { provider: "hashicorp" };
   const [provider, setProvider] = useState(e0.provider);
@@ -533,11 +534,11 @@ function FolderPage({ api, folder: l, onClose, onOpen, onChanged }: { api: CrApi
         </table>
       </div>}
       {tab === "members" && <div className="cc-agent-tab">
-        <Field label="Owners (user names): everything, members included">{(id) => <TextInput id={id} value={m.owners} disabled={!l.can_manage} onChange={(e) => setM({ ...m, owners: e.target.value })} />}</Field>
-        <Field label="Managers: add, change and delete every credential">{(id) => <TextInput id={id} value={m.managers} disabled={!l.can_manage} placeholder="user:carl, team:finance-admins" onChange={(e) => setM({ ...m, managers: e.target.value })} />}</Field>
-        <Field label="Participants: see the folder, add credentials and change their own">{(id) => <TextInput id={id} value={m.participants} disabled={!l.can_manage} placeholder="team:finance" onChange={(e) => setM({ ...m, participants: e.target.value })} />}</Field>
-        <Field label="Consumers: their agents may use the credentials">{(id) => <TextInput id={id} value={m.consumers} disabled={!l.can_manage} placeholder="role:bot_runner, team:finance" onChange={(e) => setM({ ...m, consumers: e.target.value })} />}</Field>
-        <p className="st-muted">Managers, participants and consumers can be people (user:jane), roles (role:bot_runner) or teams (team:finance).</p>
+        <Field label="Owners: everything, members included">{(id) => <PrincipalPicker id={id} label="Owners" kinds={["user"]} bareUsers source={who} value={m.owners} disabled={!l.can_manage} onChange={(x) => setM({ ...m, owners: x })} />}</Field>
+        <Field label="Managers: add, change and delete every credential">{(id) => <PrincipalPicker id={id} label="Managers" source={who} value={m.managers} disabled={!l.can_manage} onChange={(x) => setM({ ...m, managers: x })} />}</Field>
+        <Field label="Participants: see the folder, add credentials and change their own">{(id) => <PrincipalPicker id={id} label="Participants" source={who} value={m.participants} disabled={!l.can_manage} onChange={(x) => setM({ ...m, participants: x })} />}</Field>
+        <Field label="Consumers: their agents may use the credentials">{(id) => <PrincipalPicker id={id} label="Consumers" source={who} value={m.consumers} disabled={!l.can_manage} onChange={(x) => setM({ ...m, consumers: x })} />}</Field>
+        <p className="st-muted">Managers, participants and consumers can be people, teams or roles.</p>
       </div>}
       {tab === "external" && l.can_manage && <div className="cc-agent-tab">
         <p className="st-muted">Keep the secrets in your company vault: agents still ask this folder, so members and the Audit Trail work as before, and the value is read live from there as credential/attribute.</p>
@@ -568,6 +569,7 @@ function CreateFolder({ api, onClose, onCreated }: { api: CrApi; onClose: () => 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [consumers, setConsumers] = useState("");
+  const who = useCallback(() => principalDirectory(api), [api]);
   const [error, setError] = useState<string | null>(null);
   return (
     <Dialog open title="Create vault folder" width={520} onClose={onClose} footer={<>
@@ -576,7 +578,7 @@ function CreateFolder({ api, onClose, onCreated }: { api: CrApi; onClose: () => 
       {error && <PageError text={error} />}
       <Field label="Name">{(id) => <TextInput id={id} value={name} placeholder="finance" onChange={(e) => setName(e.target.value)} />}</Field>
       <Field label="Description">{(id) => <TextInput id={id} value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
-      <Field label="Consumers: their agents may use it (role:NAME, team:NAME, user:NAME)">{(id) => <TextInput id={id} value={consumers} placeholder="role:bot_runner, team:finance" onChange={(e) => setConsumers(e.target.value)} />}</Field>
+      <Field label="Consumers: their agents may use it">{(id) => <PrincipalPicker id={id} label="Consumers" source={who} value={consumers} onChange={setConsumers} />}</Field>
     </Dialog>
   );
 }

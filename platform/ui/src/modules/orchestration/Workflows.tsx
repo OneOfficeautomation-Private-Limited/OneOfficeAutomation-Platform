@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, TaskFormField } from "../../api/cr";
 import type { WorkflowRun } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
+import { AgentInputs, Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "../../console/ListParts";
 import { FormField } from "../../console/Inbox";
 import { PageIntro } from "../../shell/PageIntro";
@@ -132,7 +132,8 @@ function StartWorkflow({ api, onClose, onStarted }: { api: CrApi; onClose: () =>
   const [path, setPath] = useState("");
   const [fields, setFields] = useState<TaskFormField[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
-  const [json, setJson] = useState("");
+  const [data0, setData0] = useState<Record<string, unknown>>({});
+  const [bad, setBad] = useState<string | null>(null);
   const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { api.liveWorkflows().then((b) => { setFlows(b.map((x) => x.path)); setPath(b[0]?.path ?? ""); }, (e) => setError(message(e))); }, [api]);
@@ -141,20 +142,20 @@ function StartWorkflow({ api, onClose, onStarted }: { api: CrApi; onClose: () =>
     if (path) api.workflowForm(path).then((f) => setFields((f.form?.fields ?? []).filter((x) => x.id && x.type !== "heading" && x.type !== "paragraph")), (e) => reportMinor("the workflow's form", e));
   }, [api, path]);
   const start = () => {
-    let data: Record<string, unknown> = answers;
-    if (!fields.length && json.trim()) { try { data = JSON.parse(json); } catch { setError("The data is not JSON."); return; } }
+    if (!fields.length && bad) { setError(bad); return; }
+    const data: Record<string, unknown> = fields.length ? answers : data0;
     const missing = fields.filter((x) => x.required && (answers[x.id] === undefined || answers[x.id] === "")).map((x) => x.label ?? x.id);
     if (missing.length) { setError("Fill in: " + missing.join(", ")); return; }
     api.startWorkflow(path, data, reference.trim() || null).then((r) => onStarted("Started " + flowName(path) + (r.reference ? " (" + r.reference + ")" : "") + ".", r.id), (e) => setError(message(e)));
   };
   return (
     <Dialog open title="Start a workflow" width={620} onClose={onClose} footer={<>
-      <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!path} onClick={start}>Start</Button></>}>
+      <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!path || (!fields.length && !!bad)} onClick={start}>Start</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {flows && !flows.length ? <p className="st-muted">No workflow is live yet. In OneAgentStudio create a Workflow, check it in and put it in production.</p> : <>
         <Field label="Workflow (its live version)">{(id) => <Select id={id} value={path} onChange={(e) => setPath(e.target.value)} options={(flows ?? []).map((p) => ({ value: p, label: flowName(p) }))} />}</Field>
         {fields.length ? <div className="cc-taskform" role="group" aria-label="Start form">{fields.map((x) => <FormField key={x.id} field={x} value={answers[x.id]} disabled={false} onChange={(v) => setAnswers({ ...answers, [x.id]: v })} />)}</div>
-          : <Field label="Starting data (JSON, optional)">{(id) => <TextArea id={id} rows={4} value={json} placeholder='{"amount": 1200, "vendor": "Acme"}' onChange={(e) => setJson(e.target.value)} />}</Field>}
+          : <AgentInputs label="Starting data (optional)" inputs={null} value={data0} onChange={setData0} onJsonError={setBad} />}
         <Field label="Reference (to find this request again)">{(id) => <TextInput id={id} value={reference} placeholder="PO-2026-0042" onChange={(e) => setReference(e.target.value)} />}</Field>
         <p className="st-muted">Stages use this data as $name. Agent steps run as you on any online runner; people's steps and approvals go to the Task inbox.</p>
       </>}

@@ -34,7 +34,6 @@ export function principalDirectory(api: ApiLike): Promise<PrincipalDirectory> {
 }
 
 const KIND_WORD: Record<PrincipalKind, string> = { user: "User", team: "Team", role: "Role" };
-const KIND_GROUP: Record<PrincipalKind, string> = { user: "People", team: "Teams", role: "Roles" };
 
 /** The comma-separated text as tokens. */
 export const principalTokens = (value: string) => value.split(",").map((x) => x.trim()).filter(Boolean);
@@ -133,14 +132,14 @@ export function PrincipalPicker({ id, value, onChange, kinds = ["user", "team", 
       {typing && <div className="ui-search-select">
         <div className="ui-search-select-field">
           <Icon name="search" size={14} />
-          <input id={id} ref={input} role="combobox" aria-label={label} aria-expanded={shown} aria-controls={listId} aria-autocomplete="list"
+          <input id={id} ref={input} role="combobox" aria-label={id ? undefined : label} aria-expanded={shown} aria-controls={listId} aria-autocomplete="list"
             aria-activedescendant={shown && options[active] ? listId + "-" + active : undefined}
             value={query} autoComplete="off" placeholder={placeholder ?? (dir === undefined ? "Loading the lists…" : "Search for a " + kindText + (emails ? ", or type an e-mail address" : ""))}
             onFocus={() => setOpen(true)} onClick={() => setOpen(true)} onBlur={() => setOpen(false)} onKeyDown={onKey}
             onChange={(e) => { setQuery(e.target.value); setActive(0); setOpen(true); }} />
         </div>
         {shown && <ul id={listId} role="listbox" aria-label={label + ": choices"} className="ui-search-select-list">
-          {options.map((o, i) => <li key={o.token} id={listId + "-" + i} role="option" aria-selected={i === active} className={i === active ? "is-active" : ""}
+          {options.map((o, i) => <li key={o.token} id={listId + "-" + i} role="option" aria-selected={i === active} aria-label={o.label + (o.description ? ", " + o.description : "")} className={i === active ? "is-active" : ""}
             onMouseDown={(e) => { e.preventDefault(); pick(o); }} onMouseEnter={() => setActive(i)}>
             <strong>{o.label}</strong>{o.description && <span>{o.description}</span>}</li>)}
           {!options.length && <li className="ui-search-select-none" role="presentation">Nothing matches “{query}”.</li>}

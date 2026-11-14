@@ -1,0 +1,31 @@
+/* Usability round (14 Nov 2026): the people, teams and roles picker and the agent inputs form. Colours are theme
+   tokens whose contrast tools/check-contrast.mjs checks (chip text --ui-pill-text on --ui-selected: 6.6:1). Every
+   button is at least 24 px. */
+.ui-who { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ui-who-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ui-who-chip { display: inline-flex; align-items: center; gap: 2px; min-height: 28px; padding: 0 2px 0 10px; border-radius: 14px;
+  background: var(--ui-selected); color: var(--ui-pill-text); font-weight: 600; }
+.ui-who-remove { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: 12px;
+  background: transparent; color: var(--ui-pill-text); cursor: pointer; }
+.ui-who-remove:hover { background: var(--ui-bg); }
+.ui-who-remove:focus-visible, .ui-who-change:focus-visible { outline: none; box-shadow: var(--ui-focus); }
+.ui-who-change { min-height: 28px; padding: 0 8px; border: 0; background: transparent; color: var(--ui-accent-text); cursor: pointer; text-decoration: underline; }
+.ui-who.is-off .ui-who-chip { padding-right: 10px; }
+
+.ui-inputs { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ui-inputs-bar { display: flex; align-items: center; gap: 8px; }
+.ui-inputs-title { flex: 1; font-weight: 600; color: var(--ui-text); }
+.ui-inputs-error { margin: 0; color: var(--ui-error-text); }
+.ui-inputs-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ui-inputs-how { max-width: 200px; }
+.ui-inputs-other { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; }
+.ui-rows { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 0; }
+.ui-rows-line { display: flex; align-items: center; gap: 6px; width: 100%; }
+.ui-rows-n { min-width: 20px; color: var(--ui-text-2); text-align: right; }
+.ui-table-edit { max-width: 100%; overflow-x: auto; }
+.ui-table-edit table { border-collapse: collapse; }
+.ui-table-edit th, .ui-table-edit td { padding: 2px 4px; vertical-align: top; text-align: left; font-weight: normal; }
+.ui-table-edit th .ui-input, .ui-table-edit td .ui-input { min-width: 110px; }
+.ui-vault { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.ui-vault .ui-field-hint { grid-column: 1 / -1; }
+.ui-sr { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

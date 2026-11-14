@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { CrApi, CrUser } from "../../api/cr";
 import type { CustomDashboard, DashMail, DashWidget, WidgetData } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
+import { Button, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
 import { RefreshButton, RowMenu } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 
@@ -211,6 +211,7 @@ function DashboardEditor({ api, d, copy, kpis, agents, onClose, onSaved }: { api
   const [json, setJson] = useState<string | null>(null);
   const [widget, setWidget] = useState<{ i: number | null; w: DashWidget } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const who = useCallback(() => principalDirectory(api), [api]);
   const ready = readyMade(kpis);
   const move = (i: number, by: number) => { const n = [...widgets]; const [x] = n.splice(i, 1); n.splice(i + by, 0, x); setWidgets(n); };
   const save = () => {
@@ -228,7 +229,7 @@ function DashboardEditor({ api, d, copy, kpis, agents, onClose, onSaved }: { api
         options={[{ value: "", label: "Nothing: add widgets myself" }, ...ready.map((r) => ({ value: r.id, label: r.name }))]} />}</Field>}
       <div className="cc-grid2">
         <Field label="Name">{(id) => <TextInput id={id} value={v.name} maxLength={120} onChange={(e) => setV({ ...v, name: e.target.value })} />}</Field>
-        <Field label="Share with" hint="role:NAME, team:NAME, user:NAME or * for everyone; empty keeps it yours">{(id) => <TextInput id={id} value={v.shared} placeholder="role:viewer, team:finance" onChange={(e) => setV({ ...v, shared: e.target.value })} />}</Field>
+        <Field label="Share with" hint="Nobody chosen keeps it yours">{(id) => <PrincipalPicker id={id} label="Share with" everyone="*" source={who} value={v.shared} onChange={(x) => setV({ ...v, shared: x })} />}</Field>
       </div>
       <Field label="Description">{(id) => <TextInput id={id} value={v.description} maxLength={1000} onChange={(e) => setV({ ...v, description: e.target.value })} />}</Field>
       <div className="cc-card-head cc-gap"><h3 className="cc-log-title">Widgets</h3>
@@ -261,6 +262,7 @@ function MailDialog({ api, user, d, onClose, onNotice }: { api: CrApi; user: CrU
   const [x, setX] = useState({ recipients: "", every: "week", weekday: "MON", at_time: "08:00", time_zone: user.default_time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
   const [error, setError] = useState<string | null>(null);
   const design = user.permissions.includes("insights.design");
+  const who = useCallback(() => principalDirectory(api), [api]);
   const load = useCallback(() => api.dashboardMail(d.id).then(setList, (e) => setError(message(e))), [api, d.id]);
   useEffect(() => { load(); }, [load]);
   const add = () => api.addDashboardMail(d.id, { recipients: x.recipients, every: x.every, at_time: x.at_time, time_zone: x.time_zone.trim(), ...(x.every === "week" ? { weekday: x.weekday } : {}) })
@@ -282,8 +284,8 @@ function MailDialog({ api, user, d, onClose, onNotice }: { api: CrApi; user: CrU
       </table>}
       {design && <>
         <h3 className="cc-dlg-h">E-mail it</h3>
-        <Field label="To" hint="user:NAME, role:NAME or e-mail addresses, separated by commas. They get the figures you see.">{(id) =>
-          <TextInput id={id} value={x.recipients} placeholder="role:finance, cfo@example.com" onChange={(e) => setX({ ...x, recipients: e.target.value })} />}</Field>
+        <Field label="To" hint="People, roles or e-mail addresses. They get the figures you see.">{(id) =>
+          <PrincipalPicker id={id} label="To" kinds={["user", "role"]} emails source={who} value={x.recipients} onChange={(r) => setX({ ...x, recipients: r })} />}</Field>
         <div className="cc-grid2">
           <Field label="How often">{(id) => <Select id={id} value={x.every} onChange={(e) => setX({ ...x, every: e.target.value })}
             options={[{ value: "day", label: "Each day" }, { value: "week", label: "Each week" }, { value: "month", label: "Each month (the 1st)" }]} />}</Field>

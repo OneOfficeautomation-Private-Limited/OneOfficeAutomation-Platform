@@ -1,8 +1,8 @@
 import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CrApi, CrUser } from "../../api/cr";
+import type { CrApi, CrUser, FlowVariable } from "../../api/cr";
 import type { AppComponent, AppDefinition, AppEmbed, AppInfo } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../../components";
+import { AgentInputs, Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError, vaultRefsFrom } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 
@@ -229,7 +229,7 @@ function AppDesigner({ api, app, onClose, onSaved }: { api: CrApi; app: AppInfo 
               <Button kind="plain" aria-label={"Move " + c.id + " up"} disabled={i === 0} onClick={() => move(i, -1)}>↑</Button>
               <Button kind="plain" aria-label={"Move " + c.id + " down"} disabled={i === page.components.length - 1} onClick={() => move(i, 1)}>↓</Button>
               <Button kind="plain" aria-label={"Remove " + c.id} onClick={() => setPageComps(page.components.filter((_, j) => j !== i))}>Remove</Button></div>
-            <ComponentEditor c={c} pages={def.pages.map((p) => p.id)} onChange={(x) => setComp(i, x)} />
+            <ComponentEditor api={api} c={c} pages={def.pages.map((p) => p.id)} onChange={(x) => setComp(i, x)} />
           </li>
         ))}
       </ol>
@@ -248,7 +248,27 @@ function JsonField({ label, value, onChange, hint }: { label: string; value: unk
     onChange={(e) => { setText(e.target.value); try { onChange(JSON.parse(e.target.value)); setBad(false); } catch { setBad(true); } }} />}</Field>;
 }
 
-function ComponentEditor({ c, pages, onChange }: { c: AppComponent; pages: string[]; onChange: (c: AppComponent) => void }) {
+/** The agent a button runs: chosen from the live agents (a typed path when the list cannot be read). */
+function AgentChoice({ api, value, onChange }: { api: CrApi; value: string; onChange: (v: string) => void }) {
+  const [list, setList] = useState<string[] | null>(null);
+  useEffect(() => { api.liveAgents().then((b) => setList(b.map((x) => x.path)), () => setList(null)); }, [api]);
+  return <Field label="Agent">{(id) => list && list.length
+    ? <Select id={id} value={value} onChange={(e) => onChange(e.target.value)} options={[{ value: "", label: "Choose an agent" },
+        ...[...list, ...(value && !list.includes(value) ? [value] : [])].map((p) => ({ value: p, label: p.replace(/\.flow\.json$/, "").split("/").pop()!, group: p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : undefined }))]} />
+    : <TextInput id={id} value={value} placeholder="Finance/Refund.flow.json" onChange={(e) => onChange(e.target.value)} />}</Field>;
+}
+
+/** A button's agent inputs: one field per input of the chosen agent; values may name the app's fields as {field}. */
+function ButtonInputs({ api, agent, value, onChange }: { api: CrApi; agent: string; value: unknown; onChange: (v: Record<string, unknown>) => void }) {
+  const [vars, setVars] = useState<FlowVariable[] | null>(null);
+  useEffect(() => {
+    if (agent) api.agentFlow(agent, "production").then((r) => setVars((r.flow.variables ?? []).filter((v) => v.direction === "input" || v.direction === "in_out")), () => setVars(null));
+  }, [api, agent]);
+  return <AgentInputs label="Inputs of the agent" inputs={vars} refs="{field}" value={(value && typeof value === "object" && !Array.isArray(value) ? value : {}) as Record<string, unknown>}
+    onChange={onChange} credentials={vaultRefsFrom(api)} />;
+}
+
+function ComponentEditor({ api, c, pages, onChange }: { api: CrApi; c: AppComponent; pages: string[]; onChange: (c: AppComponent) => void }) {
   const t = (k: keyof AppComponent, label: string, hint?: string) => <Field label={label} hint={hint}>{(id) =>
     <TextInput id={id} value={String(c[k] ?? "")} onChange={(e) => onChange({ ...c, [k]: e.target.value })} />}</Field>;
   switch (c.kind) {
@@ -277,10 +297,11 @@ function ComponentEditor({ c, pages, onChange }: { c: AppComponent; pages: strin
           {a.kind !== "go_page" && <Field label="Message when done" hint="May use {field}">{(id) => <TextInput id={id} value={a.success ?? ""} onChange={(e) => setA({ success: e.target.value })} />}</Field>}
         </div>
         {a.kind === "run_agent" && <div className="cc-grid2">
-          <Field label="Agent">{(id) => <TextInput id={id} value={a.agent ?? ""} placeholder="Finance/Refund.flow.json" onChange={(e) => setA({ agent: e.target.value })} />}</Field>
+          <AgentChoice api={api} value={a.agent ?? ""} onChange={(x) => setA({ agent: x })} />
           <Field label="Runner pool id" hint="Or a runner id below">{(id) => <TextInput id={id} value={a.pool ?? ""} onChange={(e) => setA({ pool: e.target.value })} />}</Field>
           <Field label="Runner id">{(id) => <TextInput id={id} value={a.runner ?? ""} onChange={(e) => setA({ runner: e.target.value })} />}</Field>
-          <JsonField label="Inputs" hint='Agent input to value, such as {"customer": "{customer}"}' value={a.inputs} onChange={(x) => setA({ inputs: x })} /></div>}
+          </div>}
+        {a.kind === "run_agent" && <ButtonInputs key={a.agent ?? ""} api={api} agent={a.agent ?? ""} value={a.inputs} onChange={(x) => setA({ inputs: x })} />}
         {a.kind === "create_record" && <div className="cc-grid2">
           <Field label="Entity">{(id) => <TextInput id={id} value={a.entity ?? ""} onChange={(e) => setA({ entity: e.target.value })} />}</Field>
           <JsonField label="Values" hint='Field to value, such as {"name": "{customer}"}' value={a.values} onChange={(x) => setA({ values: x })} /></div>}

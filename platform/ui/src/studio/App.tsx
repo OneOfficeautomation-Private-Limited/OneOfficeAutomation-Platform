@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
-import { Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
+import { AgentInputs, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, type VaultRef, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
 import { Automation, find as findNode } from "./Automation";
 import { CheckInDialog, CopyToPrivate, PublicRepository, type CheckInDep, type RepoRequest } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
@@ -10,7 +10,7 @@ import { ObjectRepositoryEditor } from "./ObjectRepository";
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView, type StepsClipboard } from "./Editor";
-import { addStep, insertAt, locateAny, newStep, parseLoose, stateLists, swapSubflow, type Part, type Place } from "./flowEdit";
+import { addStep, insertAt, locateAny, newStep, stateLists, swapSubflow, type Part, type Place } from "./flowEdit";
 import { isFinished, type LiveRun } from "./RunPanel";
 import { aiAgentTemplate, isAiAgent } from "./aiAgent";
 import { AiAgentEditor } from "./AiAgentEditor";
@@ -21,7 +21,7 @@ import { oneStep, runOnce } from "./runOnce";
 import { CompanyName, TopBrand } from "../shell/TopBrand";
 import { loadHelpConfig } from "../shell/helpCatalogue";
 import { HelpLinks } from "../shell/HelpLinks";
-import { upgradeRefs, varRef } from "./variables";
+import { upgradeRefs } from "./variables";
 
 /**
  * One open agent: the flow being edited, the last saved copy (to know about unsaved changes), undo and redo
@@ -57,6 +57,7 @@ function agentsTab(): "public" | "private" {
 export function App({ api: given }: { api?: StudioApi }) {
   // one client for the life of the page: a new one on every render would reload the data in a loop
   const [api] = useState(() => given ?? new StudioApi());
+  const vaultList = useCallback(() => api.crCredentials().then((r) => r.connected ? r.credentials : Promise.reject(new Error("not connected"))), [api]);   // typed when not connected
   const [info, setInfo] = useState<StudioInfo | null>(null);
   useEffect(() => { loadHelpConfig(); }, []);   // where Docs and Video point (round 3, item 6); Studio on its own keeps the built-in addresses
   const [tree, setTree] = useState<WorkspaceNode | null>(null);
@@ -619,7 +620,7 @@ export function App({ api: given }: { api?: StudioApi }) {
 
       {asking && (() => {
         const tab = tabs.find((t) => t.path === asking.path);
-        return tab?.kind === "agent" ? <RunDialog name={tab.name} debug={asking.debug} inputs={inputsOf(tab.flow)} onClose={() => setAsking(null)}
+        return tab?.kind === "agent" ? <RunDialog name={tab.name} debug={asking.debug} inputs={inputsOf(tab.flow)} credentials={vaultList} onClose={() => setAsking(null)}
           onRun={(values) => { setAsking(null); go(tab.path, values, asking.debug, asking.from); }} /> : null;
       })()}
 
@@ -684,26 +685,23 @@ function NewFolderDialog({ parent, onClose, onCreate }: { parent: string | null;
   );
 }
 
-/** The agent's inputs for one run: each with its type, description and default. Empty means "use the default". */
-function RunDialog({ name, debug, inputs, onRun, onClose }:
-  { name: string; debug: boolean; inputs: Flow["variables"] & object; onRun: (values: Record<string, unknown>) => void; onClose: () => void }) {
-  const [values, setValues] = useState<Record<string, string>>({});
-  const run = () => {
-    const out: Record<string, unknown> = {};
-    for (const v of inputs) { const x = parseLoose(values[v.name] ?? ""); if (x !== undefined) out[v.name] = x; }
-    onRun(out);
-  };
+/**
+ * The agent's inputs for one run: one field each with its type word, description and default; Lists, Dictionaries
+ * and Tables get their own editors and a Credential is chosen from the connected vault (usability round, 14 Nov 2026).
+ * Empty means "use the default".
+ */
+function RunDialog({ name, debug, inputs, credentials, onRun, onClose }:
+  { name: string; debug: boolean; inputs: Flow["variables"] & object; credentials: () => Promise<VaultRef[]>; onRun: (values: Record<string, unknown>) => void; onClose: () => void }) {
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [bad, setBad] = useState<string | null>(null);
+  const run = () => { if (!bad) onRun(values); };
   return (
-    <Dialog open onClose={onClose} title={(debug ? "Debug " : "Run ") + name} width={520}
+    <Dialog open onClose={onClose} title={(debug ? "Debug " : "Run ") + name} width={620}
       footer={<><Button kind="secondary" onClick={onClose}>Cancel</Button>
-        <Button kind={debug ? "debug" : "run"} icon={debug ? "bug" : "play"} onClick={run}>{debug ? "Debug" : "Run"}</Button></>}>
+        <Button kind={debug ? "debug" : "run"} icon={debug ? "bug" : "play"} disabled={!!bad} onClick={run}>{debug ? "Debug" : "Run"}</Button></>}>
       <form className="st-form" onSubmit={(e) => { e.preventDefault(); run(); }}>
         <p className="st-muted">The agent runs on this computer, as it is in the editor (saved or not).</p>
-        {inputs.map((v) => (
-          <Field key={v.name} label={varRef(v.name) + " (" + v.type + ")"} hint={v.description}>{(id) =>
-            <TextInput id={id} value={values[v.name] ?? ""} placeholder={v.default !== undefined ? "Default: " + String(v.default) : ""}
-              onChange={(e) => setValues({ ...values, [v.name]: e.target.value })} />}</Field>
-        ))}
+        <AgentInputs inputs={inputs} value={values} onChange={setValues} credentials={credentials} onJsonError={setBad} />
         <button type="submit" hidden />
       </form>
     </Dialog>
@@ -718,6 +716,7 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
   { tab: ItemTab; tree: WorkspaceNode | null; onChange: (text: string) => void; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
     api: StudioApi; packages: PackageManifest[]; onSave: () => Promise<boolean>; onExtraction: () => void; onCopyStep: (step: Omit<FlowStep, "id">, label: string) => void }) {
   const [scriptRun, setScriptRun] = useState<{ busy: boolean; status?: string; output?: string; error?: string; exit?: unknown } | null>(null);
+  const loadAgents = useCallback(() => api.agents(), [api]);
   let data: Record<string, unknown> | null = null;
   if (tab.itemType !== "script") { try { data = JSON.parse(tab.text); } catch { data = null; } }
   const set = (d: Record<string, unknown>) => onChange(JSON.stringify(d, null, 2));
@@ -758,7 +757,7 @@ function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, 
               {scriptRun.error && <pre className="st-error">{scriptRun.error}</pre>}
             </section>}</>
         : tab.itemType === "form" ? <FormEditor data={data} onChange={set} />
-        : tab.itemType === "process" ? <WorkflowEditor data={data} onChange={set} tree={tree} />
+        : tab.itemType === "process" ? <WorkflowEditor data={data} onChange={set} tree={tree} agents={loadAgents} />
         : tab.itemType === "document" ? <DocumentEditor data={data} onChange={set} />
         : tab.itemType === "objects" ? <ObjectRepositoryEditor data={data} onChange={set} />
         : <SkillEditor data={data} onChange={set} name={tab.path.split("/").pop()!.replace(/\.json$/i, "")} />}

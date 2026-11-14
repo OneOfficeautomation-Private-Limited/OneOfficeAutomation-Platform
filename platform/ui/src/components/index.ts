@@ -17,3 +17,5 @@ export { ShortcutsDialog } from "./ShortcutsDialog";
 export { MinorNotices, reportMinor } from "./MinorNotices";
 export { PageError, PageRetry } from "./PageError";
 export { useFullTextOnHover } from "./useFullTextOnHover";
+export { PrincipalPicker, principalDirectory, principalLabel, principalTokens, type PrincipalDirectory, type PrincipalKind } from "./PrincipalPicker";
+export { AgentInputs, ListValue, PairRows, TableValue, TypedValue, VaultPicker, missingInputs, parseCsv, typeWord, vaultRefsFrom, looseValue, type InputSpec, type VaultRef } from "./AgentInputs";

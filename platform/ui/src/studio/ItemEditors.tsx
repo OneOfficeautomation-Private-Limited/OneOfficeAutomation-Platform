@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from "react";
-import type { WorkspaceNode } from "../api/client";
-import { Button, Field, Icon, IconTile, keyOf, Select, TextInput, type IconName } from "../components";
+import { useEffect, useState, type ReactNode } from "react";
+import type { AgentSummary, WorkspaceNode } from "../api/client";
+import { AgentInputs, Button, Field, Icon, IconTile, keyOf, PrincipalPicker, Select, TextInput, type IconName } from "../components";
 
 /**
  * Editors for the items other than agents: forms, workflows, document types, Prompt Skills and scripts. Each works on
@@ -169,8 +169,15 @@ const STAGES: Record<string, { label: string; icon: IconName; color: string }> =
 
 const everything = (n: WorkspaceNode): WorkspaceNode[] => (n.children ?? []).flatMap((c) => [c, ...everything(c)]);
 
-export function WorkflowEditor({ data, onChange, tree }: { data: Obj; onChange: Change<Obj>; tree: WorkspaceNode | null }) {
+/**
+ * Usability round (14 Nov 2026): an agent stage's inputs are one field per input of the chosen agent (values may be
+ * $form.field$), and Assign to, Approver and To pick users and roles; OneAgentStudio has no list of people, so names
+ * are typed and marked as a user or a role. The stage file keeps the same inputs object and "role:NAME, user:NAME" text.
+ */
+export function WorkflowEditor({ data, onChange, tree, agents: loadAgents }: { data: Obj; onChange: Change<Obj>; tree: WorkspaceNode | null; agents?: () => Promise<AgentSummary[]> }) {
   const stages = (Array.isArray(data.stages) ? data.stages : []) as Obj[];
+  const [agents, setAgents] = useState<AgentSummary[] | null>(null);
+  useEffect(() => { if (loadAgents) loadAgents().then(setAgents, () => setAgents(null)); }, [loadAgents]);
   const items = tree ? everything(tree) : [];
   const pick = (type: string, none: string) => [{ value: "", label: none }, ...items.filter((x) => x.type === type).map((x) => ({ value: x.path, label: x.path }))];
   const nameOf = (id: unknown) => id === "end" ? "End" : str(stages.find((s) => s.id === id)?.name) || "the next stage";
@@ -201,17 +208,16 @@ export function WorkflowEditor({ data, onChange, tree }: { data: Obj; onChange: 
           <TextField label="Name" value={str(s.name)} onCommit={(v) => put("name", v)} />
           {t === "bot" && <>
             {sel("Agent", "bot", pick("bot", "Choose an agent"))}
-            <TextField label="Inputs (JSON)" mono multiline value={s.inputs ? JSON.stringify(s.inputs, null, 2) : ""} placeholder='For example: {"order_id": "$form.order_id$"}'
-              onCommit={(v) => { try { const o = v.trim() ? JSON.parse(v) : undefined; if (o === undefined || (typeof o === "object" && !Array.isArray(o))) put("inputs", o); } catch { /* not JSON: kept as it was */ } }}
-              hint="A JSON object of the agent's inputs; values can use $form.field$." />
+            <StageInputs key={str(s.id) + ":" + str(s.bot)} value={(s.inputs && typeof s.inputs === "object" && !Array.isArray(s.inputs) ? s.inputs : {}) as Obj}
+              inputs={stageInputs(agents, str(s.bot))} onCommit={(o) => put("inputs", Object.keys(o).length ? o : undefined)} />
           </>}
           {t === "form" && <>
             {sel("Form", "form", pick("form", "Choose a form"))}
-            <TextField label="Assign to" value={str(s.assignee)} placeholder="role:bot_runner or user:jane" onCommit={(v) => put("assignee", v)} />
+            <WhoField label="Assign to" value={str(s.assignee)} onCommit={(v) => put("assignee", v)} />
             <TextField label="Due within (hours)" type="number" value={str(s.due_hours)} onCommit={(v) => put("due_hours", v === "" ? undefined : Number(v))} />
           </>}
           {t === "approval" && <>
-            <TextField label="Approver" value={str(s.assignee)} placeholder="role:admin or user:fin.lead" onCommit={(v) => put("assignee", v)} />
+            <WhoField label="Approver" value={str(s.assignee)} onCommit={(v) => put("assignee", v)} />
             <TextField label="Due within (hours)" type="number" value={str(s.due_hours)} onCommit={(v) => put("due_hours", v === "" ? undefined : Number(v))} />
             {sel("If rejected", "on_reject", [{ value: "end", label: "End the workflow" }, { value: "continue", label: "Continue anyway" },
               ...stages.filter((x) => x !== s).map((x) => ({ value: str(x.id), label: "Go to " + (str(x.name) || str(x.id)) }))], str(s.on_reject) || "end")}
@@ -222,7 +228,7 @@ export function WorkflowEditor({ data, onChange, tree }: { data: Obj; onChange: 
             {sel("If false, go to", "if_false", targets(s))}
           </>}
           {t === "notify" && <>
-            <TextField label="To" value={str(s.to)} placeholder="user:jane, role:admin or an email address" onCommit={(v) => put("to", v)} />
+            <WhoField label="To" emails value={str(s.to)} onCommit={(v) => put("to", v)} />
             <TextField label="E-mail subject" value={str(s.subject)} placeholder="Order ${order} approved" onCommit={(v) => put("subject", v)} hint="For e-mail addresses." />
             <TextField label="Message" multiline value={str(s.message)} onCommit={(v) => put("message", v)} />
           </>}
@@ -230,6 +236,29 @@ export function WorkflowEditor({ data, onChange, tree }: { data: Obj; onChange: 
         </>;
       }} />
   );
+}
+
+/** The chosen agent's inputs (and in-out values), or null when the agent's list is not known. */
+function stageInputs(agents: AgentSummary[] | null, bot: string) {
+  const a = agents?.find((x) => x.path === bot);
+  return a ? a.variables.filter((v) => v.direction === "input" || v.direction === "in_out") : null;
+}
+
+/** Users and roles a task goes to (several allowed), typed as a name marked as a user or a role. */
+function WhoField({ label, value, onCommit, emails }: { label: string; value: string; onCommit: (v: string) => void; emails?: boolean }) {
+  return <Field label={label}>{(id) => <PrincipalPicker id={id} label={label} kinds={["user", "role"]} emails={emails} value={value} onChange={onCommit} />}</Field>;
+}
+
+/** An agent stage's inputs: kept while they are edited, handed up when focus leaves them (one undo step). */
+function StageInputs({ value, inputs, onCommit }: { value: Obj; inputs: ReturnType<typeof stageInputs>; onCommit: (o: Obj) => void }) {
+  const [draft, setDraft] = useState(value);
+  const [bad, setBad] = useState<string | null>(null);
+  const commit = () => { if (!bad && JSON.stringify(draft) !== JSON.stringify(value)) onCommit(draft); };
+  return <div onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commit(); }}>
+    <AgentInputs label="Inputs of the agent" inputs={inputs} value={draft} onChange={setDraft} refs="$form.field$" onJsonError={setBad}
+      empty="The chosen agent has no inputs." />
+    {inputs === null && <p className="st-muted">Choose an agent from this workspace to see its inputs; until then, give names and values.</p>}
+  </div>;
 }
 
 // ---------------------------------------------------------------- document types and Prompt Skills

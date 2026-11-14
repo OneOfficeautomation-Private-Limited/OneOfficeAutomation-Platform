@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { type CrApi, type CrUser, type HolidayCalendar, type Runner, type RunnerPool, type Schedule, type SchedulePreview } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
+import { type CrApi, type CrUser, type FlowVariable, type HolidayCalendar, type Runner, type RunnerPool, type Schedule, type SchedulePreview } from "../api/cr";
+import { AgentInputs, Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError, missingInputs, vaultRefsFrom } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
@@ -241,6 +241,12 @@ function RuleFields({ missed, overlap, onMissed, onOverlap }: { missed: string; 
   </div>;
 }
 
+/** A copied schedule's inputs as an object (older ones kept them as JSON text). */
+function startInputs(x: unknown): Record<string, unknown> {
+  if (typeof x === "string") { try { x = JSON.parse(x); } catch { return {}; } }
+  return x && typeof x === "object" && !Array.isArray(x) ? x as Record<string, unknown> : {};
+}
+
 /** Create schedule in AA's order: name and agent, run-as, where it runs, then when (with a time zone and holiday calendar). */
 function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated }: { api: CrApi; from?: Schedule; defaultTz?: string; runners: Runner[]; pools: RunnerPool[];
   onClose: () => void; onCreated: (t: string) => void }) {
@@ -251,9 +257,17 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
     where: from ? (from.pool_id ? "pool" : from.device_id ? "runner" : "default") : "runner", device: from?.device_id ?? "", pool: from?.pool_id ?? "",
     kind: from?.kind ?? "daily", every: String(from?.every_minutes ?? 60), at: from?.at_time ?? "08:30", days: (from?.days ?? "MON,TUE,WED,THU,FRI").split(",").filter(Boolean),
     monthly: parseMonthly(from?.kind === "monthly" ? from.rule : null), cron: from?.kind === "cron" ? from.rule ?? "" : "0 9 * * MON-FRI",
-    tz: from?.time_zone ?? (defaultTz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"), cal: from?.holiday_calendar ?? "", missed: from?.missed_runs ?? "once", overlap: from?.overlap ?? "allow",
-    inputs: from?.inputs ? (typeof from.inputs === "string" ? from.inputs : JSON.stringify(from.inputs)) : "" });
+    tz: from?.time_zone ?? (defaultTz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"), cal: from?.holiday_calendar ?? "", missed: from?.missed_runs ?? "once", overlap: from?.overlap ?? "allow" });
+  const [inputs, setInputs] = useState<Record<string, unknown>>(() => startInputs(from?.inputs));
+  const [vars, setVars] = useState<FlowVariable[] | null>(null);
+  const [bad, setBad] = useState<string | null>(null);
+  const vault = useMemo(() => vaultRefsFrom(api), [api]);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {   // the chosen agent's inputs, one field each (usability round, 14 Nov 2026)
+    setVars(null);
+    if (v.bot) api.agentFlow(v.bot, "production").then((r) => setVars((r.flow.variables ?? []).filter((x) => x.direction === "input" || x.direction === "in_out")),
+      (e) => { setVars(null); reportMinor("the agent's inputs", e); });
+  }, [api, v.bot]);
   useEffect(() => {
     api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); if (!v.bot && b.length) setV((o) => ({ ...o, bot: o.bot || b[0].path })); }, (e) => reportMinor("the list of agents", e));
     api.defaultRunners().then(setPeople, (e) => reportMinor("the default runners", e));
@@ -273,13 +287,12 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
     return t;
   }, [v.kind, v.tz, v.cal, v.every, v.at, v.days, v.monthly, v.cron]);
   const create = async () => {
-    let inputs: unknown = {};
-    if (v.inputs.trim()) { try { inputs = JSON.parse(v.inputs); } catch { setError("Inputs are not JSON."); return; } }
+    if (bad) { setError(bad); return; }
     const b: Record<string, unknown> = { name: v.name.trim() || "Schedule", bot_path: v.bot, run_as: v.runAs || null, ...timing,
       missed_runs: v.missed, overlap: v.overlap, inputs, device_id: v.where === "runner" ? v.device : null, pool_id: v.where === "pool" ? v.pool : null };
     try { const r = await api.createSchedule(b); onCreated("Created " + b.name + "." + (r.next_run ? " Next run " + when(r.next_run) + "." : "")); } catch (e) { setError(message(e)); }
   };
-  const ok = v.bot && (v.where !== "runner" || v.device) && (v.where !== "pool" || v.pool) && (v.where !== "default" || v.runAs) && (v.kind !== "weekly" || v.days.length > 0)
+  const ok = !bad && !missingInputs(vars, inputs).length && v.bot && (v.where !== "runner" || v.device) && (v.where !== "pool" || v.pool) && (v.where !== "default" || v.runAs) && (v.kind !== "weekly" || v.days.length > 0)
     && (v.kind !== "monthly" || v.monthly.mode === "weekday" || v.monthly.days.length > 0) && (v.kind !== "cron" || v.cron.trim() !== "");
   return (
     <Dialog open title={from ? "Copy of " + from.name : "Create schedule"} width={680} onClose={onClose} help={<HelpLinks k="dialog:schedule" label="Schedules" />} footer={<>
@@ -316,7 +329,7 @@ function NewSchedule({ api, from, defaultTz, runners, pools, onClose, onCreated 
       </div>
       <NextRuns api={api} timing={timing} />
       <RuleFields missed={v.missed} overlap={v.overlap} onMissed={(x) => setV((o) => ({ ...o, missed: x }))} onOverlap={(x) => setV((o) => ({ ...o, overlap: x }))} />
-      <Field label="Inputs (JSON, optional)">{(id) => <TextArea id={id} rows={2} value={v.inputs} placeholder="{}" onChange={set("inputs")} />}</Field>
+      <AgentInputs label="Inputs of the agent" inputs={vars} value={inputs} onChange={setInputs} credentials={vault} onJsonError={setBad} />
     </Dialog>
   );
 }

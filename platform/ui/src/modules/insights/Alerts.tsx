@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useState } from "react";
 import type { Alert, AlertKind, CrApi, CrUser } from "../../api/cr";
 import type { AlertRule } from "./consoleApi";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, PageError } from "../../components";
+import { Button, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, Select, TextInput, type HelpTopic, PageError } from "../../components";
 import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { PageIntro } from "../../shell/PageIntro";
 
@@ -218,6 +218,7 @@ function RuleDialog({ api, rule, choices, onClose, onSaved }: { api: CrApi; rule
     window: rule?.window_minutes != null ? String(rule.window_minutes) : "", people: (rule?.notify_to ?? ["role:admin"]).filter((t) => !t.includes("@")).join(", "),
     mail: (rule?.notify_to ?? []).filter((t) => t.includes("@")).join(", "), webhook: rule?.webhook_url ?? "", severity: rule?.severity ?? "warning" });
   const [error, setError] = useState<string | null>(null);
+  const who = useCallback(() => principalDirectory(api), [api]);
   const k = KINDS[v.kind];
   const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
   const save = () => api.saveAlertRule(rule?.id ?? null, { name: v.name.trim(), kind: v.kind, scope: v.scope || null, severity: v.severity, enabled: rule?.enabled ?? true,
@@ -240,7 +241,7 @@ function RuleDialog({ api, rule, choices, onClose, onSaved }: { api: CrApi; rule
           options={[{ value: "warning", label: "Warning" }, { value: "critical", label: "Critical" }]} />}</Field>
       </div>
       <h3 className="cc-log-title">Tell</h3>
-      <Field label="People, in their task inbox" hint="role:NAME or user:NAME, separated by commas">{(id) => <TextInput id={id} value={v.people} placeholder="role:admin, user:asha" onChange={(e) => setV({ ...v, people: e.target.value })} />}</Field>
+      <Field label="People, in their task inbox">{(id) => <PrincipalPicker id={id} label="People" kinds={["user", "role"]} source={who} value={v.people} onChange={(x) => setV({ ...v, people: x })} />}</Field>
       <Field label="E-mail addresses" hint="Sent through Administration > Settings > E-mail">{(id) => <TextInput id={id} value={v.mail} placeholder="ops@example.com" onChange={(e) => setV({ ...v, mail: e.target.value })} />}</Field>
       <Field label="Webhook address" hint="Each alert is posted as JSON (Teams, Slack or your incident tool)">{(id) => <TextInput id={id} type="url" value={v.webhook} placeholder="https://" onChange={(e) => setV({ ...v, webhook: e.target.value })} />}</Field>
     </Dialog>

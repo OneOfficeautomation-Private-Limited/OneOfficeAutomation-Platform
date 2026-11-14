@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, ItemModel, RunnerPool, WorkItem, WorkQueue } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
+import { Button, Dialog, Field, HelpButton, PrincipalPicker, principalDirectory, principalLabel, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when, CloseView } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
 
@@ -459,6 +459,7 @@ function AddItems({ api, queue: x, onClose, onAdded }: { api: CrApi; queue: Work
 function Members({ api, queue: x, onClose, onSaved }: { api: CrApi; queue: WorkQueue & { members: { principal: string; member_role: string }[] }; onClose: () => void; onSaved: () => void }) {
   const [rows, setRows] = useState(x.members.map((m) => ({ principal: m.principal, role: m.member_role })));
   const [who, setWho] = useState("");
+  const directory = useCallback(() => principalDirectory(api), [api]);
   const [role, setRole] = useState("participant");
   const [error, setError] = useState<string | null>(null);
   const ROLES: [string, string][] = [["owner", "Owner (manages the queue)"], ["participant", "Participant (adds and changes items)"], ["consumer", "Consumer (processes the items)"]];
@@ -466,14 +467,14 @@ function Members({ api, queue: x, onClose, onSaved }: { api: CrApi; queue: WorkQ
     <Dialog open title={"Members of " + x.name} width={560} onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" onClick={() => api.setQueueMembers(x.id, rows).then(onSaved, (e) => setError(message(e)))}>Save members</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
-      <p className="cc-list-hint">With members, only they can use the queue. Keep yourself as an owner. Members can be user:NAME, role:NAME or team:NAME.</p>
+      <p className="cc-list-hint">With members, only they can use the queue. Keep yourself as an owner. Members can be people, teams or roles.</p>
       <table className="st-table" aria-label="Queue members"><tbody>
-        {rows.map((r, i) => <tr key={r.principal + r.role}><td>{r.principal}</td><td>{ROLES.find(([k]) => k === r.role)?.[1] ?? r.role}</td>
+        {rows.map((r, i) => <tr key={r.principal + r.role}><td>{principalLabel(r.principal)}</td><td>{ROLES.find(([k]) => k === r.role)?.[1] ?? r.role}</td>
           <td><Button kind="plain" onClick={() => setRows(rows.filter((_, j) => j !== i))}>Remove</Button></td></tr>)}
         {!rows.length && <tr><td className="st-muted">No members: everyone whose role allows it can use this queue.</td></tr>}
       </tbody></table>
       <span className="cc-inline">
-        <TextInput aria-label="Member" placeholder="user:jane or role:bot_runner" value={who} onChange={(e) => setWho(e.target.value)} />
+        <PrincipalPicker label="Member" single source={directory} value={who} onChange={setWho} />
         <Select aria-label="Member as" value={role} onChange={(e) => setRole(e.target.value)} options={ROLES.map(([value, label]) => ({ value, label }))} />
         <Button kind="secondary" disabled={!who.trim()} onClick={() => { if (!rows.some((r) => r.principal === who.trim() && r.role === role)) setRows([...rows, { principal: who.trim(), role }]); setWho(""); }}>Add</Button>
       </span>

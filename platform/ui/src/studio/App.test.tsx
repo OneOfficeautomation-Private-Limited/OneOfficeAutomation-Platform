@@ -346,6 +346,7 @@ describe("new Studio", () => {
     // with no step selected, Properties has the agent's own id and description (AA's bot properties)
     fireEvent.keyDown(steps, { key: "Escape" });
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Properties" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Change the id…" }));   // under Advanced, changed only on purpose
     const id = await screen.findByLabelText("Agent id") as HTMLInputElement;
     fireEvent.change(id, { target: { value: "bad id!" } });
     expect(screen.getByRole("alert").textContent).toContain("letters, digits");
@@ -885,7 +886,7 @@ describe("new Studio", () => {
     await openIntake();
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
     const dialog = await screen.findByRole("dialog", { name: "Run Invoice intake" });
-    fireEvent.change(within(dialog).getByLabelText("$workbook$ (File)"), { target: { value: "C:/in.xlsx" } });
+    fireEvent.change(within(dialog).getByLabelText(/^workbook/), { target: { value: "C:/in.xlsx" } });
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Run" })); });
     expect(runs[0].inputs).toEqual({ workbook: "C:/in.xlsx" });
     expect(runs[0].flow.steps.map((x: any) => x.id)).toEqual(["open", "loop"]);   // the flow as it is in the editor
@@ -1311,11 +1312,12 @@ describe("new Studio", () => {
     expect(within(steps).getByRole("button", { name: "Finally (always)", pressed: true })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Write to log" }));   // goes into Finally
     fireEvent.click(within(steps).getByRole("button", { name: "Catch (any error)" }));
-    fireEvent.change(screen.getByLabelText("Errors it catches"), { target: { value: "FILE.NOT_FOUND, BUSINESS.ERROR" } });
-    fireEvent.blur(screen.getByLabelText("Errors it catches"));
-    expect(within(steps).getByRole("button", { name: "Catch FILE.NOT_FOUND, BUSINESS.ERROR" })).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("A file or folder not found"));       // a common error, ticked
+    fireEvent.change(screen.getByLabelText("Other error codes"), { target: { value: "BUSINESS.ERROR" } });
+    fireEvent.blur(screen.getByLabelText("Other error codes"));
+    expect(within(steps).getByRole("button", { name: "Catch FILE_NOT_FOUND, BUSINESS.ERROR" })).toBeTruthy();
     // item 19: AA's Catch fields in AA's order, each variable field a choice of variables with + New variable
-    const labels = ["Errors it catches", "On error, continue with the next step", "Keep the error message in", "Keep the line number in", "Keep the whole error in",
+    const labels = ["Anything not found", "On error, continue with the next step", "Keep the error message in", "Keep the line number in", "Keep the whole error in",
       "Take a screenshot when it catches an error", "Raise the error again after these steps"];
     const at = labels.map((l) => screen.getByLabelText(new RegExp("^" + l)));
     for (let i = 1; i < at.length; i++) expect(at[i - 1].compareDocumentPosition(at[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -1329,7 +1331,7 @@ describe("new Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(created.some((c: any) => c.saved?.ui?.collapsed?.length === 1)).toBe(true));
     const saved = (created.filter((c: any) => c.saved).pop() as any).saved;
-    expect(saved.steps[0]).toMatchObject({ action: "core/try", catch: [{ codes: ["FILE.NOT_FOUND", "BUSINESS.ERROR"], continueOnError: true, rethrow: true, children: [] }], finally: [{ action: "core/log" }] });
+    expect(saved.steps[0]).toMatchObject({ action: "core/try", catch: [{ codes: ["FILE_NOT_FOUND", "BUSINESS.ERROR"], continueOnError: true, rethrow: true, children: [] }], finally: [{ action: "core/log" }] });
     fireEvent.keyDown(within(steps).getByRole("button", { name: "More" }), { key: "Enter" });
     fireEvent.click(await screen.findByRole("menuitem", { name: "Unfold all" }));
     expect(within(steps).getByRole("button", { name: "Finally (always)" })).toBeTruthy();

@@ -406,6 +406,14 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
  * Opens a page as a person does (option B): the menu entry of its group, then its tab when it is not the group's first
  * page; a page in no group is an entry of its own.
  */
+/** Chooses someone in a people, teams and roles picker: types to search, then clicks the choice. */
+async function pickWho(scope: HTMLElement, label: string | RegExp, text: string, choice: string) {
+  const box = within(scope).getByLabelText(label);
+  fireEvent.focus(box);
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.mouseDown(await within(scope).findByRole("option", { name: choice }));
+}
+
 async function go(name: string) {
   const nav = await screen.findByRole("navigation", { name: "One CommandCenter" });
   const page = MENU_SECTIONS.flatMap((s) => s.pages).find((p) => p.label === name);
@@ -1019,10 +1027,10 @@ describe("rebuilt One CommandCenter console", () => {
     const rows = within(await within(d).findByRole("table", { name: "E-mail schedules" })).getAllByRole("row");
     expect(rows[1].textContent).toContain("Each Monday at 08:00 (UTC)");
     expect(rows[1].textContent).toContain("Failed: E-mail is not set up");
-    fireEvent.change(within(d).getByLabelText("To"), { target: { value: "user:asha" } });
+    await pickWho(d, "To", "asha", "User: admin, Asha Admin");   // found by the display name
     fireEvent.change(within(d).getByLabelText("How often"), { target: { value: "day" } });
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Add the e-mail" })); });
-    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "dashboards/db1/mail", body: expect.objectContaining({ recipients: "user:asha", every: "day", at_time: "08:00" }) }));
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "dashboards/db1/mail", body: expect.objectContaining({ recipients: "user:admin", every: "day", at_time: "08:00" }) }));
     location.hash = "";
   });
 
@@ -1600,7 +1608,8 @@ describe("rebuilt One CommandCenter console", () => {
     const f = await screen.findByRole("dialog", { name: "Vault folder finance" });
     expect(within(within(f).getByRole("table", { name: "Credentials in the folder" })).getByText("erp")).toBeTruthy();
     fireEvent.click(within(f).getByRole("tab", { name: "Members" }));
-    fireEvent.change(within(f).getByLabelText(/^Managers/), { target: { value: "user:vic" } });
+    expect(within(within(f).getByRole("list", { name: "Participants: chosen" })).getByText("Team: finance")).toBeTruthy();
+    await pickWho(f, /^Managers/, "vic", "User: vic, Vic Viewer");
     await act(async () => { fireEvent.click(within(f).getByRole("button", { name: "Save members" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "lockers/finance/members",
       body: { owners: "admin", managers: "user:vic", participants: "team:finance", consumers: "role:bot_runner" } }));
@@ -1867,9 +1876,10 @@ describe("rebuilt One CommandCenter console", () => {
     const c = await screen.findByRole("dialog", { name: "Copy of Nightly invoices" });
     fireEvent.change(within(c).getByLabelText("Repeat"), { target: { value: "weekly" } });
     fireEvent.click(within(c).getByLabelText("Fri"));
+    fireEvent.change(await within(c).findByLabelText(/^vendor/), { target: { value: "Acme" } });   // a required input of the agent, as its own field
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create schedule" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "schedules", body: expect.objectContaining({
-      name: "Nightly invoices (copy)", bot_path: "Finance/Invoice intake.flow.json", kind: "weekly", at_time: "02:00", days: "MON,TUE,WED,THU", device_id: "d1", pool_id: null, holiday_calendar: "India 2026" }) }));
+      name: "Nightly invoices (copy)", bot_path: "Finance/Invoice intake.flow.json", inputs: { vendor: "Acme" }, kind: "weekly", at_time: "02:00", days: "MON,TUE,WED,THU", device_id: "d1", pool_id: null, holiday_calendar: "India 2026" }) }));
   });
 
   it("makes monthly and cron schedules (G35): days of the month or an ordinal weekday, every N months, a cron expression, and the next runs shown", async () => {
@@ -1882,6 +1892,7 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create schedule" }));
     const c = await screen.findByRole("dialog", { name: "Create schedule" });
     fireEvent.change(within(c).getByLabelText("Name"), { target: { value: "First Monday" } });
+    fireEvent.change(await within(c).findByLabelText(/^vendor/), { target: { value: "Acme" } });
     fireEvent.change(within(c).getByLabelText("Runner"), { target: { value: "d1" } });
     fireEvent.change(within(c).getByLabelText("Repeat"), { target: { value: "monthly" } });
     // days of the month: 1 is chosen; add 15 and the last day, run on the last day when a month is shorter
@@ -1907,6 +1918,7 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create schedule" }));
     const k = await screen.findByRole("dialog", { name: "Create schedule" });
     fireEvent.change(within(k).getByLabelText("Runner"), { target: { value: "d1" } });
+    fireEvent.change(await within(k).findByLabelText(/^vendor/), { target: { value: "Acme" } });
     fireEvent.change(within(k).getByLabelText("Repeat"), { target: { value: "cron" } });
     expect((within(k).getByLabelText("Cron expression") as HTMLInputElement).value).toBe("0 9 * * MON-FRI");
     fireEvent.change(within(k).getByLabelText("Cron expression"), { target: { value: "61 * * * *" } });
