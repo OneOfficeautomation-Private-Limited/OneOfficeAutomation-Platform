@@ -23,7 +23,7 @@ const name = (path: string) => path.split("/").pop()!.replace(/\.(flow|process)\
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const csvCell = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 const titleOf = (w: DashWidget) => w.title || (w.source === "runs" ? METRICS.find(([m]) => m === (w.metric ?? "runs"))?.[1] ?? "Runs" : (AGGS.find(([a]) => a === (w.agg ?? "sum"))?.[1] ?? "") + " of " + w.kpi);
-const HELP: HelpTopic = { title: "Dashboards", about: "Business figures your agents record (outputs marked KPI in OneAgentStudio) and figures about the "
+const HELP: HelpTopic = { title: "Dashboards", about: "Business figures your agents record (outputs marked Business figure in OneAgentStudio) and figures about the "
   + "runs, on dashboards you keep to yourself or share. The figures refresh every minute.",
   items: [
     { name: "New dashboard", text: "Start from nothing or from a ready-made dashboard (Operations at a glance, Value, or one over a business figure), "
@@ -31,10 +31,10 @@ const HELP: HelpTopic = { title: "Dashboards", about: "Business figures your age
     { name: "Dashboard", text: "Pick the dashboard to show: your own and those shared with you. Beside it you see whose it is and who it is shared with." },
     { name: "Share with", text: "In the editor: role:NAME, team:NAME, user:NAME or * for everyone, separated by commas. "
       + "Empty keeps the dashboard to yourself." },
-    { name: "Add a widget", text: "Choose how it shows (a number, bars, a line, a table or a pie), where the figure comes from (the runs or a KPI), "
+    { name: "Add a widget", text: "Choose how it shows (a number, bars, a line, a table or a pie), where the figure comes from (the runs or a business figure), "
       + "an agent, what to split by and how many days to look at." },
     { name: "Figure", text: "For the runs: how many ran, the success rate, failed runs, the average run time or the hours saved." },
-    { name: "Work out", text: "For a KPI: the total, average, count, smallest, largest or latest value it recorded." },
+    { name: "Work out", text: "For a business figure: the total, average, count, smallest, largest or latest value it recorded." },
     { name: "Edit as JSON", text: "Shows the widgets as JSON, to copy or change many at once. Back to the form checks the JSON first." },
     { name: "CSV", text: "On each widget: saves its figures as a CSV file." },
     { name: "Actions (⋯)", text: "Edit or delete a dashboard you may change, or Copy as mine to make your own copy of any dashboard you can see." },
@@ -81,7 +81,7 @@ export function Dashboards({ api, user, onNotice , title, tabs }: { api: CrApi; 
     setCurrent((c) => { const want = pick ?? c; return l.some((d) => d.id === want) ? want! : l[0]?.id ?? null; });
   }, (e) => setError(message(e))), [api]);
   // the dashboard named in the address (#/business?tab=dashboards&dashboard=ID) opens first, so a link to it works
-  useEffect(() => { load(new URLSearchParams(location.hash.split("?")[1] ?? "").get("dashboard") ?? undefined); api.dashboardKpis().then(setKpis, (e) => reportMinor("the KPIs", e)); if (user.permissions.includes("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path)), (e) => reportMinor("the list of agents", e)); }, [load]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(new URLSearchParams(location.hash.split("?")[1] ?? "").get("dashboard") ?? undefined); api.dashboardKpis().then(setKpis, (e) => reportMinor("the business figures", e)); if (user.permissions.includes("repo.view")) api.agents().then((b) => setAgents(b.map((x) => x.path)), (e) => reportMinor("the list of agents", e)); }, [load]);   // eslint-disable-line react-hooks/exhaustive-deps
   const refresh = useCallback(() => {
     if (!current) { setData(null); return; }
     api.dashboardData(current, Intl.DateTimeFormat().resolvedOptions().timeZone).then((r) => setData(r.widgets), (e) => setError(message(e)));
@@ -244,7 +244,7 @@ function DashboardEditor({ api, d, copy, kpis, agents, onClose, onSaved }: { api
             ...(i < widgets.length - 1 ? [{ key: "down", label: "Move down", onSelect: () => move(i, 1) }] : []),
             { key: "remove", label: "Remove", separatorBefore: true, onSelect: () => setWidgets(widgets.filter((_, j) => j !== i)) }]} /></td></tr>)}</tbody></table>
         : <p className="st-muted">No widgets yet: add one, or start from a ready-made dashboard.</p>}
-      {kpis.length === 0 && <p className="st-muted">No KPI values recorded yet: mark an agent's outputs as KPI in OneAgentStudio and run it. Run figures work now.</p>}
+      {kpis.length === 0 && <p className="st-muted">No business figures recorded yet: tick Business figure on an agent's output in OneAgentStudio and run it. Run figures work now.</p>}
       {widget && <WidgetEditor w={widget.w} kpis={kpis} agents={agents} onClose={() => setWidget(null)}
         onDone={(w) => { setWidgets(widget.i == null ? [...widgets, w] : widgets.map((x, j) => j === widget.i ? w : x)); setWidget(null); }} />}
     </Dialog>
@@ -318,21 +318,21 @@ function WidgetEditor({ w, kpis, agents, onClose, onDone }: { w: DashWidget; kpi
       <div className="cc-grid2">
         <Field label="Show as">{(id) => <Select id={id} value={x.type ?? "number"} onChange={(e) => set({ type: e.target.value as DashWidget["type"] })} options={TYPES.map(([v, l]) => ({ value: v, label: l }))} />}</Field>
         <Field label="Figure from">{(id) => <Select id={id} value={x.source ?? "runs"} onChange={(e) => set({ source: e.target.value as DashWidget["source"] })}
-          options={[{ value: "runs", label: "The runs" }, { value: "kpi", label: "A KPI agents record" }, { value: "output", label: "An agent's output" }]} />}</Field>
+          options={[{ value: "runs", label: "The runs" }, { value: "kpi", label: "A business figure agents record" }, { value: "output", label: "An agent's output" }]} />}</Field>
         {(x.source ?? "runs") === "runs"
           ? <Field label="Figure">{(id) => <Select id={id} value={x.metric ?? "runs"} onChange={(e) => set({ metric: e.target.value as DashWidget["metric"] })} options={METRICS.map(([v, l]) => ({ value: v, label: l }))} />}</Field>
           : <>
             {x.source === "output"
               ? <Field label="Output" hint="Its name in the agent; choose the agent below">{(id) => <TextInput id={id} value={x.kpi ?? ""} maxLength={80} onChange={(e) => set({ kpi: e.target.value })} />}</Field>
-              : <Field label="KPI">{(id) => <Select id={id} value={x.kpi ?? ""} onChange={(e) => set({ kpi: e.target.value })} options={[{ value: "", label: "Choose a KPI" }, ...kpiNames.map((k) => ({ value: k, label: k }))]} />}</Field>}
+              : <Field label="Business figure">{(id) => <Select id={id} value={x.kpi ?? ""} onChange={(e) => set({ kpi: e.target.value })} options={[{ value: "", label: "Choose a business figure" }, ...kpiNames.map((k) => ({ value: k, label: k }))]} />}</Field>}
             <Field label="Work out">{(id) => <Select id={id} value={x.agg ?? "sum"} onChange={(e) => set({ agg: e.target.value as DashWidget["agg"] })} options={AGGS.map(([v, l]) => ({ value: v, label: l }))} />}</Field>
           </>}
         <Field label="Agent">{(id) => <Select id={id} value={x.bot ?? ""} onChange={(e) => set({ bot: e.target.value || undefined })}
           options={[{ value: "", label: x.source === "output" ? "Choose an agent" : "All agents" }, ...agents.map((a) => ({ value: a, label: name(a) }))]} />}</Field>
         {(x.type ?? "number") !== "number" && <Field label="Split by">{(id) => <Select id={id} value={x.group ?? "none"} onChange={(e) => set({ group: e.target.value as DashWidget["group"] })}
           options={GROUPS.filter(([g]) => g !== "value" || x.source === "kpi" || x.source === "output").map(([v, l]) => ({ value: v, label: l }))} />}</Field>}
-        {x.group === "value" && x.source === "kpi" && <Field label="The value of" hint="Empty: the KPI's own value">{(id) => <Select id={id} value={x.by ?? ""} onChange={(e) => set({ by: e.target.value || undefined })}
-          options={[{ value: "", label: x.kpi ?? "The KPI" }, ...kpiNames.filter((k) => k !== x.kpi).map((k) => ({ value: k, label: k }))]} />}</Field>}
+        {x.group === "value" && x.source === "kpi" && <Field label="The value of" hint="Empty: the figure's own value">{(id) => <Select id={id} value={x.by ?? ""} onChange={(e) => set({ by: e.target.value || undefined })}
+          options={[{ value: "", label: x.kpi ?? "The business figure" }, ...kpiNames.filter((k) => k !== x.kpi).map((k) => ({ value: k, label: k }))]} />}</Field>}
         <Field label="Days looked at" hint="1 to 365">{(id) => <TextInput id={id} type="number" min={1} max={365} value={String(x.days ?? 30)} onChange={(e) => set({ days: Number(e.target.value) || undefined })} />}</Field>
       </div>
     </Dialog>

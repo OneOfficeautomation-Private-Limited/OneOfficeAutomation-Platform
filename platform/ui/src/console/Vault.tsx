@@ -245,7 +245,7 @@ export function Vault({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
                       { key: "delete", label: "Delete…", disabled: !canDelete(r), separatorBefore: true, onSelect: () => { setSelected([key(r)]); setAsking(true); } }]} /></td>
                   </tr>
                 ))}
-                {folders && !shown.length && <tr className="is-static"><td colSpan={9} className="cc-none">{rows.length ? "No credentials match." : "No credentials you can see yet."}</td></tr>}
+                {folders && !shown.length && <tr className="is-static"><td colSpan={9} className="cc-none">{rows.length ? "No credentials match." : "No credentials you can see yet. Press Create credential to keep a password, key or token safely; agents read it from here, never from their steps."}</td></tr>}
                 {!folders && !error && <tr className="is-static"><td colSpan={9} className="cc-none" role="status">Loading…</td></tr>}
               </tbody>
             </table>

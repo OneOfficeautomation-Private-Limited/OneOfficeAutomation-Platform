@@ -428,8 +428,8 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
                   <strong>{nameOf(st.action ?? "")}</strong>
                   <span className="st-step-sum">{summarize(st)}</span>
                   {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
-                  {st.disabled && <span className="st-badge">OFF</span>}
-                  <span className="cc-code-id">{st.id}</span>
+                  {/* 14 Nov usability round, items 17 and 20: the word Studio uses, and no internal step id */}
+                  {st.disabled && <span className="st-badge" title="Kept in the agent, skipped when it runs">Disabled</span>}
                 </button>
                 {hasParts && <span className="st-step-tools">
                   <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"} aria-expanded={!r.folded}

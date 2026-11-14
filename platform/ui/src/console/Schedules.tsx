@@ -208,7 +208,7 @@ export function Schedules({ api, user, onNotice }: { api: CrApi; user: CrUser; o
                   <td className="cc-list-menu"><RowMenu label={"Actions for " + s.name} items={rowMenu(s)} /></td>
                 </tr>
               ))}
-              {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No schedules match." : "No schedules yet."}</td></tr>}
+              {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No schedules match." : "No schedules yet. Press Create schedule to run an agent at set times: every day, every week, every N minutes or on a calendar."}</td></tr>}
               {!list && !error && <tr className="is-static"><td colSpan={10} className="cc-none" role="status">Loading…</td></tr>}
             </tbody>
           </table>

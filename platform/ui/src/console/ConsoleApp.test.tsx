@@ -1118,7 +1118,7 @@ describe("rebuilt One CommandCenter console", () => {
     const w = await screen.findByRole("dialog", { name: "Widget" });
     fireEvent.change(within(w).getByLabelText("Show as"), { target: { value: "pie" } });
     fireEvent.change(within(w).getByLabelText("Figure from"), { target: { value: "kpi" } });
-    fireEvent.change(within(w).getByLabelText("KPI"), { target: { value: "amount" } });
+    fireEvent.change(within(w).getByLabelText("Business figure"), { target: { value: "amount" } });
     fireEvent.change(within(w).getByLabelText("Split by"), { target: { value: "value" } });
     fireEvent.change(within(w).getByLabelText("The value of"), { target: { value: "category" } });
     fireEvent.click(within(w).getByRole("button", { name: "Done" }));
