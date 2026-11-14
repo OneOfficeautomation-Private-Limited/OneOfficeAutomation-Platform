@@ -73,6 +73,8 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
   if (simple) onTrigger = undefined;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  // 14 Nov usability round, item 11: what the action under the pointer or the keyboard does, shown at the panel's foot
+  const [about, setAbout] = useState<{ name: string; text: string } | null>(null);
   const q = query.trim().toLowerCase();
   const [hidden, setHidden] = usePersistent("panel.actions.hidden", false);
   const [width, setWidth] = usePanelSize("actions");
@@ -136,6 +138,7 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
               </button>
               {isOpen && <ul className="st-group-actions" style={{ "--kit": m.color } as CSSProperties}>{actions.map((a) => (
                 <li key={a.id} className="st-action-row"><button type="button" className="st-action" title={a.description} draggable
+                  onMouseEnter={() => setAbout(a.description ? { name: a.name, text: a.description } : null)} onFocus={() => setAbout(a.description ? { name: a.name, text: a.description } : null)}
                   onDragStart={(e) => { e.dataTransfer.setData(ACTION_DRAG, p.id + "/" + a.id); e.dataTransfer.effectAllowed = "copy"; }}
                   onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}
                   {(() => { const own = a.name.toLowerCase().includes(q); const aa = !own ? aaMatch(p.id + "/" + a.id, q) : undefined; const was = !own && !aa ? formerMatch(p.id + "/" + a.id, q) : undefined;
@@ -146,6 +149,7 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
           );
         })}
       </ul>
+      {about && <p className="st-actions-about" role="status"><strong>{about.name}</strong> {about.text}</p>}
     </SidePanel>
     {!hidden && <Splitter label="Resize the actions panel" axis="x" grow={1} value={width} min={200} max={520}
       measure={() => panel.current?.getBoundingClientRect().width ?? 272} onChange={setWidth} />}</>

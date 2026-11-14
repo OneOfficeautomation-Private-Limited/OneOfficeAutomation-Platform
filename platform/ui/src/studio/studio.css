@@ -1030,3 +1030,8 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
   border: 1px solid var(--ui-accent); border-radius: 11px; background: var(--ui-bg); color: var(--ui-accent-text); font: inherit; font-size: 11.5px; cursor: pointer; }
 .st-add-here:hover { background: var(--ui-selected); }
 .st-step-row:hover > .st-add-here, .st-step-row.is-selected > .st-add-here, .st-add-here:focus-visible { display: inline-flex; }
+/* 14 Nov usability round, items 11 and 12: what the action under the pointer or the keyboard does, at the Actions panel's
+   foot (not only in a tooltip); every small control at least 24 px to click */
+.st-actions-about { margin: 0; padding: 8px 10px; border-top: 1px solid var(--ui-divider); background: var(--ui-soft); font-size: 12px; color: var(--ui-text-2); max-height: 6.5em; overflow: auto; flex: none; }
+.st-actions-about strong { color: var(--ui-text); }
+.st-tree-caret { width: 24px; height: 24px; }

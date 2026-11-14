@@ -2,7 +2,7 @@ import "./consoleApi";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, CrUser, Runner, RunnerPool, TestRunSummary, TestSet } from "../../api/cr";
 import { Button, Dialog, Field, HelpButton, Menu, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../../components";
-import { RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
+import { CloseView, RefreshButton, RowMenu, rowClick, when } from "../../console/ListParts";
 import { FolderIcon } from "../../console/Repository";
 import { PageIntro } from "../../shell/PageIntro";
 
@@ -338,7 +338,7 @@ function TestSetPage({ api, t, runners, pools, can, start, onClose, onFolder, on
           <Button kind="primary" disabled={!where} onClick={go}>Run</Button></>}
         {can("repo.checkin") && <Button kind="secondary" onClick={onEdit}>Edit</Button>}
         {more.length > 0 && <RowMenu label={"More for " + t.name} items={more} />}
-        <button type="button" className="cc-list-icon" aria-label="Close" title="Back to the test sets" onClick={onClose}>×</button>
+        <CloseView onClick={onClose} to="the test sets" />
       </div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {confirm && <div className="st-alert cc-inline" role="alert"><span>Delete {t.name} and all its results?</span>

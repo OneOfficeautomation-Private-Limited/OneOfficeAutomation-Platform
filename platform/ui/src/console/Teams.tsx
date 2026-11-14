@@ -129,7 +129,7 @@ export function Teams({ api, user, onNotice }: { api: CrApi; user: CrUser; onNot
                     { key: "delete", label: "Delete…", disabled: !admin, separatorBefore: true, onSelect: () => setAsking(t) }]} /></td>
                 </tr>
               ))}
-              {teams && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{teams.length ? "No teams match." : admin ? "No teams yet." : "You are not in any team."}</td></tr>}
+              {teams && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{teams.length ? "No teams match." : admin ? "No teams yet. Press Create team to group people who share agents, vault folders and work queues." : "You are not in any team."}</td></tr>}
               {!teams && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
             </tbody>
           </table>

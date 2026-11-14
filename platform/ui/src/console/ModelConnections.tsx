@@ -107,7 +107,7 @@ export function ModelConnections({ api, user, onNotice }: { api: CrApi; user: Cr
                 <td className="cc-list-menu"><RowMenu label={"Actions for " + c.name} items={rowMenu(c)} /></td>
               </tr>
             ))}
-            {list && !shown.length && <tr className="is-static"><td colSpan={9} className="cc-none">{list.length ? "No connections match." : "No model connections yet."}</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={9} className="cc-none">{list.length ? "No connections match." : "No model connections yet. Press Create connection to connect an AI model (OpenAI, Azure OpenAI, Anthropic, a local model) for AI steps."}</td></tr>}
             {!list && !error && <tr className="is-static"><td colSpan={9} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>

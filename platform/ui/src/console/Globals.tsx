@@ -107,7 +107,7 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
                 <td className="cc-list-menu"><RowMenu label={"Actions for $global." + g.name} items={rowMenu(g)} /></td>
               </tr>
             ))}
-            {list && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{list.length ? "No values match." : "No shared values yet."}</td></tr>}
+            {list && !shown.length && <tr className="is-static"><td colSpan={7} className="cc-none">{list.length ? "No values match." : "No shared values yet. Press Create value to keep a setting (an address, a folder, a limit) that every agent reads as $global.name$."}</td></tr>}
             {!list && !error && <tr className="is-static"><td colSpan={7} className="cc-none" role="status">Loading…</td></tr>}
           </tbody>
         </table>

@@ -253,3 +253,5 @@
 .df-tab-group + .df-tab-group { padding-left: 8px; border-left: 0; }
 /* round 2 item 5: the eight steps fit one row at 1366 px (step 8 wrapped) */
 .df-steps .df-stage { min-width: 112px; padding: 8px 10px; gap: 8px; }
+/* 14 Nov usability round, item 12: a learned label's remove button is large enough to click */
+.df-learned .df-link { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; min-height: 22px; padding: 0 4px; margin-left: 2px; border-radius: 4px; }

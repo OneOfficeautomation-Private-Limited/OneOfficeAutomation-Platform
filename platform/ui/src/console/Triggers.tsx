@@ -147,7 +147,7 @@ export function Triggers({ api, user, onNotice }: { api: CrApi; user: CrUser; on
                   <td className="cc-list-menu"><RowMenu label={"Actions for " + t.name} items={rowMenu(t)} /></td>
                 </tr>
               ))}
-              {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No triggers match." : "No triggers yet."}</td></tr>}
+              {list && !shown.length && <tr className="is-static"><td colSpan={10} className="cc-none">{list.length ? "No triggers match." : "No triggers yet. Press Create trigger to start an agent when a file arrives, an e-mail comes in or another system calls."}</td></tr>}
               {!list && !error && <tr className="is-static"><td colSpan={10} className="cc-none" role="status">Loading…</td></tr>}
             </tbody>
           </table>

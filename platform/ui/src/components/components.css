@@ -190,3 +190,6 @@ body.ui-resizing * { cursor: inherit !important; }
 .ui-dialog-help { margin-right: auto; margin-left: 4px; }
 .ui-dialog-head:has(.ui-dialog-help) .ui-dialog-title { flex: none; }
 .ui-learn-more { color: #1d5bc8; font-weight: 500; white-space: nowrap; }
+/* 14 Nov usability round, item 12: tree arrows and menus at least 24 px to click */
+.ui-tree-caret { width: 24px; height: 24px; align-items: center; cursor: pointer; flex: none; }
+.ui-tree-more { width: 24px; height: 24px; }
