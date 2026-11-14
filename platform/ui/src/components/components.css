@@ -127,7 +127,7 @@ body.ui-resizing { user-select: none; }
 body.ui-resizing * { cursor: inherit !important; }
 
 /* Help (issue 11, design B): the ⓘ after a title or heading, and the Help panel at the right of the page */
-.ui-help { height: 24px; border-radius: 12px; border: 1px solid var(--ui-accent); background: var(--ui-bg); color: var(--ui-accent-text);
+.ui-help { height: var(--ui-bar-h); border-radius: 14px; border: 1px solid var(--ui-accent); background: var(--ui-bg); color: var(--ui-accent-text);
   font: 600 12px/1 var(--ui-font); display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 9px 0 4px;
   margin-left: 8px; vertical-align: middle; cursor: pointer; flex: none; white-space: nowrap; }
 .ui-help-mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%;

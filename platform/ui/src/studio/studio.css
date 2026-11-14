@@ -1022,7 +1022,7 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-edit-bar .st-tool-word { width: auto; gap: 5px; padding: 0 8px; font-size: 12.5px; }
 .st-step-n { cursor: pointer; border-radius: 4px; }
 .st-step-n:hover { background: var(--ui-row-hover); color: var(--ui-text); }
-.st-step-tools .st-run-here { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border: 1px solid var(--ui-field);
+.st-step-tools .st-run-here { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 1px solid var(--ui-field);
   border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
 .st-step-tools .st-run-here > svg { color: var(--ui-run); }
 .st-step-tools .st-run-here:hover { background: var(--ui-row-hover); }
