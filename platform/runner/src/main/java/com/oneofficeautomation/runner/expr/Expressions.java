@@ -357,11 +357,13 @@ public final class Expressions {
     // ---------- argument resolution ----------
     /** A variable path: name, then .field or [index] parts. */
     private static final String PATH = "[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z0-9_]+|\\[[^\\]$]+\\])*";
+    /** A path as earlier agents wrote it, whose [index] may hold a variable: $policy.rates[$reason]. */
+    private static final String EARLIER_PATH = "[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z0-9_]+|\\[[^\\]]+\\])*";
     /**
-     * A whole value that is one variable: $path$ (as AA writes it, 14 Nov 2026) or $path (earlier agents); keeps its
-     * type (a Number stays a Number).
+     * A whole value that is one variable: $path$ (as AA writes it, 14 Nov 2026) or $path (earlier agents, read as
+     * before); keeps its type (a Number stays a Number).
      */
-    private static final Pattern REF = Pattern.compile("^\\$" + PATH + "\\$?$");
+    private static final Pattern REF = Pattern.compile("^\\$(?:" + PATH + "\\$?|" + EARLIER_PATH + ")$");
     /**
      * In text, ${expression} or $path$ is replaced by the value as text; a $ without a closing $ stays as it is, and
      * so does $F$1 (a closing $ followed by a digit): that is a spreadsheet's fixed cell reference, as in =B2*$F$1.

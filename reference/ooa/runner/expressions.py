@@ -176,6 +176,7 @@ _CACHE: dict[str, Any] = {}
 
 
 def parse(src: str):
+    src = plain(src)
     node = _CACHE.get(src)
     if node is None:
         node = _Parser(src).parse()
@@ -588,9 +589,33 @@ def evaluate(src: str, lookup: Callable[[str], Any]):
     return evaluate_node(parse(src), lookup)
 
 
-_REF = re.compile(r"^\$[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+|\[[^\]]+\])*$")
-_INTERP = re.compile(r"\$\{([^}]*)\}")
+# A variable path: name, then .field or [index] parts.
+_PATH = r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+|\[[^\]$]+\])*"
+# A path as earlier agents wrote it, whose [index] may hold a variable: $policy.rates[$reason].
+_EARLIER_PATH = r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+|\[[^\]]+\])*"
+# A whole value that is one variable: $path$ (as AA writes it, 14 Nov 2026) or $path (earlier agents, read as before);
+# keeps its type (a Number stays a Number). Matched with fullmatch, as the Java runner's matches().
+_REF = re.compile(r"\$(?:" + _PATH + r"\$?|" + _EARLIER_PATH + r")")
+# In text, ${expression} or $path$ is replaced by the value as text; a $ without a closing $ stays as it is, and so does
+# $F$1 (a closing $ followed by a digit): that is a spreadsheet's fixed cell reference, as in =B2*$F$1.
+_INTERP = re.compile(r"\$\{([^}]*)\}|\$(" + _PATH + r")\$(?![0-9])")
+_DELIMITED = re.compile(r"\$(" + _PATH + r")\$(?![0-9])")
 _BARE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+|\[[^\]]+\])*\s*$")
+
+
+def plain(src: str) -> str:
+    """An expression with every $path$ written $path, the form the parser reads."""
+    return _DELIMITED.sub(lambda m: "$" + m.group(1), src) if "$" in src else src
+
+
+def name_of(ref: str | None) -> str:
+    """A variable name as people may write it ($name$, $name or name): the name alone."""
+    t = (ref or "").strip()
+    if t.startswith("$"):
+        t = t[1:]
+    if t.endswith("$"):
+        t = t[:-1]
+    return t
 
 
 def _interp_src(inner: str) -> str:
@@ -600,19 +625,25 @@ def _interp_src(inner: str) -> str:
     return inner
 
 
+def _interp_match_src(m: re.Match) -> str:
+    """The expression an _INTERP match stands for: ${...} as written (a bare path is a variable), $path$ as $path."""
+    return _interp_src(m.group(1)) if m.group(1) is not None else "$" + m.group(2)
+
+
 def resolve(value: Any, lookup: Callable[[str], Any]) -> Any:
     """Resolve a step argument:
-       "$a.b[0]"           -> the referenced value (keeps its type)
-       "Hello ${name}"     -> interpolated string
+       "$a.b[0]$", "$a.b[0]" -> the referenced value (keeps its type)
+       "Hello $name$"      -> interpolated string (also "Hello ${name}"; a $ without a closing $ stays as typed,
+                              and so does a cell reference such as $F$1)
        {"expr": "1 + 2"}   -> full expression
        {"literal": "$x"}   -> the literal string "$x" (escape hatch)
        dicts / lists       -> resolved recursively"""
     if isinstance(value, str):
-        if _REF.match(value):
+        if _REF.fullmatch(value):
             return evaluate(value, lookup)
-        if "${" in value:
+        if "$" in value:
             def rep(m):
-                v = evaluate(_interp_src(m.group(1)), lookup)
+                v = evaluate(_interp_match_src(m), lookup)
                 _guard(v, "text interpolation")
                 return _s(v)
             return _INTERP.sub(rep, value)
@@ -632,22 +663,22 @@ def references(value: Any) -> set[str]:
     """Variable names referenced by an argument (used by Flow validation)."""
     found: set[str] = set()
 
+    def scan(src: str):
+        parse(src)  # surfaces syntax errors at validation time
+        for kind, text in tokenize(plain(src)):
+            if kind == "var":
+                found.add(text[1:])
+
     def walk(v):
         if isinstance(v, str):
-            srcs = [v] if _REF.match(v) else [_interp_src(x) for x in _INTERP.findall(v)]
+            srcs = [v] if _REF.fullmatch(v) else [_interp_match_src(m) for m in _INTERP.finditer(v)]
             for s in srcs:
-                parse(s)  # surfaces syntax errors at validation time
-                for kind, text in tokenize(s):
-                    if kind == "var":
-                        found.add(text[1:])
+                scan(s)
         elif isinstance(v, dict):
             if set(v) == {"literal"}:
                 return
             if set(v) == {"expr"}:
-                parse(v["expr"])
-                for kind, text in tokenize(v["expr"]):
-                    if kind == "var":
-                        found.add(text[1:])
+                scan(str(v["expr"]))
                 return
             for x in v.values():
                 walk(x)

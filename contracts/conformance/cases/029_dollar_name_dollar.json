@@ -1,0 +1,117 @@
+{
+  "name": "029_dollar_name_dollar",
+  "description": "$name$ (as AA writes it) keeps its type as a whole value and is replaced inside text; a $ without its closing $ and a cell reference such as $F$1 stay as typed; calculations read $name$; an earlier $path whose [index] holds a variable is still read.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c29",
+    "name": "c29",
+    "variables": [
+      {
+        "name": "customer",
+        "type": "String",
+        "direction": "input",
+        "required": true
+      },
+      {
+        "name": "count",
+        "type": "Number",
+        "default": 3
+      },
+      {
+        "name": "rates",
+        "type": "Dictionary",
+        "default": {
+          "damaged": 0.5,
+          "late": 0.25
+        }
+      },
+      {
+        "name": "reason",
+        "type": "String",
+        "default": "late"
+      },
+      {
+        "name": "whole",
+        "type": "Number",
+        "direction": "output"
+      },
+      {
+        "name": "msg",
+        "type": "String",
+        "direction": "output"
+      },
+      {
+        "name": "formula",
+        "type": "String",
+        "direction": "output"
+      },
+      {
+        "name": "calc",
+        "type": "Number",
+        "direction": "output"
+      },
+      {
+        "name": "rate",
+        "type": "Number",
+        "direction": "output"
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "action": "core/set",
+        "args": {
+          "variable": "whole",
+          "value": "$count$"
+        }
+      },
+      {
+        "id": "s2",
+        "action": "core/set",
+        "args": {
+          "variable": "msg",
+          "value": "Total $count$ for $customer$ (US$ 5, not $count)"
+        }
+      },
+      {
+        "id": "s3",
+        "action": "core/set",
+        "args": {
+          "variable": "formula",
+          "value": "=B2*$F$1 for $customer$"
+        }
+      },
+      {
+        "id": "s4",
+        "action": "core/set",
+        "args": {
+          "variable": "calc",
+          "value": {
+            "expr": "$count$ * 2 + $count"
+          }
+        }
+      },
+      {
+        "id": "s5",
+        "action": "core/set",
+        "args": {
+          "variable": "rate",
+          "value": "$rates[$reason]"
+        }
+      }
+    ]
+  },
+  "inputs": {
+    "customer": "Acme"
+  },
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "whole": 3,
+      "msg": "Total 3 for Acme (US$ 5, not $count)",
+      "formula": "=B2*$F$1 for Acme",
+      "calc": 9,
+      "rate": 0.25
+    }
+  }
+}
