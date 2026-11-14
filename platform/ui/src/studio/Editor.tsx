@@ -23,7 +23,7 @@ import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
 import { CommitInput, StepForm } from "./StepForm";
 import { TriggersPanel } from "./TriggersPanel";
 import { KINDS, TRIGGER_GROUPS } from "../shell/triggerKinds";
-import { lastValues } from "./variables";
+import { lastValues, varRef } from "./variables";
 import { ConnectorsDialog, SavedConnectionsDialog } from "./WorkspaceTools";
 import { VariableDialog, VariablesPanel, VarsContext, type NewVariable, type VarsCtx, type WhereChoice } from "./VariablesPanel";
 
@@ -368,6 +368,12 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
   const [view, setView] = usePersistent<"list" | "flow">("agent.view", "list");
   const [assistant, setAssistant] = useState<"build" | "explain" | null>(null);
   const agentName = (id: unknown) => { const a = agents.find((x) => x.id === id); return a ? a.name || a.id : String(id ?? ""); };
+  /** A Run agent step's line (item E): which agent, and where its outputs are kept. */
+  const runSummary = (st: FlowStep) => {
+    const id = st.args?.automation;
+    const outs = Object.values((st.args?.output_map ?? {}) as Record<string, string>);
+    return "runs " + (id === flow.id ? "this agent again" : agentName(id)) + (outs.length ? ", keeps outputs in " + outs.map(varRef).join(", ") : "");
+  };
   useEffect(() => { if (run) setBottomTab("run"); }, [run?.id]);   // a new run: show its output
   const at = runningStep(run);
   // a step of the list on screen by its line; one in another list (a subflow, or the main steps) by its line there and the list's name
@@ -612,7 +618,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
           <span className="st-guides" style={{ width: r.depth * 22 }} />
           <IconTile name={info.mark.icon} color={info.mark.color} size={24} />
           <strong>{info.name}</strong>
-          {(() => { const sum = r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note ? "runs " + agentName(r.step.args.automation) : summarize(r.step, packages);
+          {(() => { const sum = r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note ? runSummary(r.step) : summarize(r.step, packages);
             return <span className="st-step-sum" title={sum || undefined}>{sum}</span>; })()}
           {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
           {r.step.disabled && <span className="st-badge" title="Disabled: kept in the agent, skipped when it runs">Disabled</span>}

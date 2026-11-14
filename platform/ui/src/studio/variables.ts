@@ -217,3 +217,6 @@ export const SYS_HELP: Record<string, string> = {
   workspace: "The workspace folder the agent runs in", run_id: "This run's id", bot_id: "This agent's id", bot_name: "This agent's name",
   principal: "Who started the run", newline: "A line break", tab: "A tab character", empty: "An empty text",
 };
+
+/** How a variable is written in a field: $name (one place, so the notation can change in one place). */
+export const varRef = (name: string) => "$" + name;

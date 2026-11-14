@@ -976,3 +976,34 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-vp-list { max-height: 300px; }
 .st-vp-ref { flex: none; }
 .st-vp-type { flex: none; color: var(--ui-text-2); font-size: 11.5px; }
+/* Run Agent (14 Nov 2026, items D and E): where the agent comes from, Find an agent, inputs ticked when given, Quick map */
+.st-run-source { margin: 4px 0 8px; }
+.st-run-pick { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.st-run-place { flex: 1; min-width: 0; padding: 0 8px; height: var(--ui-bar-h); line-height: var(--ui-bar-h); border: 1px solid var(--ui-field); border-radius: var(--ui-radius);
+  background: var(--ui-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-run-place.is-empty { color: var(--ui-text-2); }
+.st-run-pick .ui-btn { height: var(--ui-bar-h); }
+.st-run-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.st-run-head .st-sub { margin: 10px 0 4px; }
+.st-run-done { margin: 0 0 6px; padding: 4px 8px; border-radius: var(--ui-radius); background: var(--ui-ok-bg); color: var(--ui-ok-text); font-size: 12.5px; }
+.st-run-input { margin-bottom: 6px; }
+.st-run-input .st-check-row { display: flex; align-items: center; gap: 6px; }
+.st-run-input .ui-field-control { margin: 4px 0 0 24px; }
+.st-run-name { font-weight: 600; }
+.st-check-row { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.st-finder-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.st-finder-top .ui-input { flex: 1; height: var(--ui-bar-h); }
+.st-finder-tabs .st-seg-btn { height: var(--ui-bar-h); }
+.st-finder-body { display: grid; grid-template-columns: 220px 1fr; gap: 10px; height: 360px; }
+.st-finder-body.is-search { grid-template-columns: 1fr; }
+.st-finder-tree, .st-finder-list { overflow: auto; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
+.st-finder-tree { padding: 4px; }
+.st-finder-list .st-table { width: 100%; }
+.st-finder-list tbody tr { cursor: pointer; }
+.st-finder-list tbody tr.is-selected { background: var(--ui-selected); }
+.st-finder-empty { padding: 10px; margin: 0; }
+.st-qmap { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.st-qmap-list { max-height: 340px; overflow: auto; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); padding: 4px; }
+.st-qmap-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; }
+.st-qmap-opts p { margin: 0 0 10px; }
+.st-qmap-opts .st-check-row { margin-bottom: 8px; }

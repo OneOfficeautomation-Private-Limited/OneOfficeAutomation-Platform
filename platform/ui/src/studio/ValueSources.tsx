@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import type { Flow, FlowStep, FlowVariable } from "../api/client";
-import { Button, is, Select, TextInput, withKey } from "../components";
+import type { AgentSummary, Flow, FlowStep, FlowVariable } from "../api/client";
+import { Button, Icon, is, Select, TextInput, withKey } from "../components";
 import { parseLoose, setArg, setOut, showValue } from "./flowEdit";
-import { useVars, VarPicker } from "./VariablesPanel";
-import { holdsType, isInput, isOutput } from "./variables";
+import { AgentFinder, agentPlace, applyQuickMap, planQuickMap, QuickMapDialog } from "./RunAgentParts";
+import { TypeBadge, useVars, VarPicker } from "./VariablesPanel";
+import { holdsType, isInput, isOutput, varRef } from "./variables";
 
 /**
  * A text field that reports its value when it loses focus or on Enter, not on every key. Callers key it on the value,
@@ -54,7 +55,6 @@ export function CommitInput({ id, initial, placeholder, mono, onCommit, want, ap
 }
 
 const NEW = "\u0000new";
-const VARIABLE = "\u0000variable";
 
 /**
  * Where a step's result is kept: only variables that can hold its type (a Number result, a Number variable), text
@@ -245,12 +245,22 @@ export function AssignmentsEditor({ step }: { step: FlowStep }) {
   );
 }
 
-/** Run agent: which agent of the workspace, a value for each of its inputs, and where each of its outputs is kept. */
+/**
+ * Run agent (14 Nov 2026, items D and E, as AA's Task Bot Run): which agent (this agent again, an agent of the
+ * workspace chosen in Find an agent, or one named by a variable), a value for each of its inputs (ticked when given),
+ * and where each of its outputs is kept; Quick map maps them all to same-name variables after showing what it will do.
+ */
 export function RunAgentFields({ step }: { step: FlowStep }) {
   const vars = useVars();
+  const [finding, setFinding] = useState(false);
+  const [mapping, setMapping] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const [opened, setOpened] = useState<Set<string>>(() => new Set());
   if (!vars) return null;
   const id = String(step.args?.automation ?? "");
-  const child = vars.agents.find((a) => a.id === id);
+  const self = !!id && id === vars.flow.id;
+  const fromVariable = id.startsWith("$");
+  const child = self ? { id: vars.flow.id, name: vars.flow.name, path: "", variables: vars.flow.variables ?? [] } as AgentSummary : vars.agents.find((a) => a.id === id);
   const inputs = (step.args?.inputs && typeof step.args.inputs === "object" ? step.args.inputs : {}) as Record<string, unknown>;
   const outMap = (step.args?.output_map && typeof step.args.output_map === "object" ? step.args.output_map : {}) as Record<string, string>;
   const set = (name: string, v: unknown) => applyNow(vars, (f) => setArg(f, step.id, name, v));
@@ -269,50 +279,52 @@ export function RunAgentFields({ step }: { step: FlowStep }) {
     return setArg(f, step.id, "output_map", Object.keys(next).length ? next : undefined);
   };
   const others = vars.agents.filter((a) => a.id && a.id !== vars.flow.id);
-  // the agent can also come from a variable (C4, as AA's Task Bot to run > Variable): its id is read when the step runs
-  const fromVariable = id.startsWith("$");
-  /**
-   * Quick map (C4, as AA): each input and output of the child goes to the agent's variable of the same name; a missing
-   * one is made with the child's type. Values already set stay as they are.
-   */
-  const quickMap = (f: Flow): Flow => {
-    if (!child) return f;
-    const mine = [...(f.variables ?? [])];
-    const ensure = (v: FlowVariable) => { if (!mine.some((x) => x.name === v.name)) mine.push({ name: v.name, type: v.type || "Any", description: v.description }); };
-    const ins = { ...inputs }, outs = { ...outMap };
-    for (const v of (child.variables ?? []).filter(isInput)) if (ins[v.name] === undefined) { ensure(v); ins[v.name] = "$" + v.name; }
-    for (const v of (child.variables ?? []).filter(isOutput)) if (!outs[v.name]) { ensure(v); outs[v.name] = v.name; }
-    let g: Flow = { ...f, variables: mine };
-    g = setArg(g, step.id, "inputs", Object.keys(ins).length ? ins : undefined);
-    return setArg(g, step.id, "output_map", Object.keys(outs).length ? outs : undefined);
-  };
+  const source = fromVariable ? "variable" : self ? "self" : "workspace";
+  const choose = (s: string) => { setDone(null); set("automation", s === "self" ? vars.flow.id : s === "variable" ? "$" : undefined); if (s === "workspace") setFinding(true); };
   return (
     <div className="st-run-agent">
-      <label className="st-label" htmlFor={step.id + "-agent"}>Agent to run *</label>
-      <Select id={step.id + "-agent"} value={fromVariable ? VARIABLE : id} onChange={(e) => set("automation", e.target.value === VARIABLE ? "$" : e.target.value || undefined)}
-        options={[{ value: "", label: others.length ? "Choose an agent…" : "No other agents in this workspace" },
-          ...others.map((a) => ({ value: a.id, label: (a.name || a.id) + " — " + a.path })),
-          { value: VARIABLE, label: "From a variable (its agent id)…" },
-          ...(id && !child && !fromVariable ? [{ value: id, label: id + " (not in this workspace)" }] : [])]} />
+      <span className="st-label" id={step.id + "-agent"}>Agent to run *</span>
+      <div className="st-seg st-run-source" role="radiogroup" aria-labelledby={step.id + "-agent"}>
+        {([["self", "This agent"], ["workspace", "Agent in the workspace"], ["variable", "Variable"]] as const).map(([k, l]) =>
+          <button key={k} type="button" role="radio" className="st-seg-btn" aria-checked={source === k} onClick={() => choose(k)}>{l}</button>)}
+      </div>
+      {source === "workspace" && <div className="st-run-pick">
+        <span className={"st-run-place" + (child ? "" : " is-empty")} aria-label="Chosen agent">
+          {child ? agentPlace(child) : id ? id + " (not in this workspace)" : others.length ? "No agent chosen" : "No other agents in this workspace"}</span>
+        <Button kind="secondary" onClick={() => setFinding(true)} disabled={!others.length}>Choose…</Button>
+      </div>}
+      {source === "self" && <p className="ui-field-hint">Runs this agent again from its first step (at most 10 levels deep).</p>}
       {fromVariable && <CommitInput key={id} label="Variable with the agent id" mono want="String" initial={id === "$" ? "" : id} placeholder="$agent_id"
         onCommit={(t) => set("automation", t.trim() ? (t.trim().startsWith("$") ? t.trim() : "$" + t.trim()) : "$")} />}
-      {child && vars.openChild && <button type="button" className="st-link" onClick={() => vars.openChild!(step.id)}>Open this agent</button>}
+      {child && !self && vars.openChild && <button type="button" className="st-link" onClick={() => vars.openChild!(step.id)}>Open this agent</button>}
+      {finding && <AgentFinder agents={others} current={child && !self ? child.id : undefined} onClose={() => setFinding(false)}
+        onPick={(picked) => { setFinding(false); setDone(null); set("automation", picked); }} />}
       {!child ? <p className="ui-field-hint">{fromVariable ? "The agent is chosen when the step runs: give its inputs as a Dictionary (Inputs, below); all its outputs come back in Save results in › Outputs."
         : id ? "This agent is not in the workspace, so its inputs are not known." : "Choose the agent first."}</p> : <>
-        <div className="st-row-tight"><Button kind="secondary" onClick={() => applyNow(vars, quickMap)}
-          title="Each input and output goes to this agent's variable of the same name; missing ones are made">Quick map</Button>
-          <span className="ui-field-hint">Same-name variables; missing ones are made.</span></div>
-        <h4 className="st-sub">Input values</h4>
+        <div className="st-run-head">
+          <h4 className="st-sub">Input values</h4>
+          <button type="button" className="st-tool st-qmap-btn" aria-label="Quick map" title="Quick map: map inputs and outputs to variables with the same name"
+            onClick={() => setMapping(true)}><Icon name="swap" size={15} /></button>
+        </div>
+        {done && <p className="st-run-done" role="status">{done}</p>}
         {(child.variables ?? []).filter(isInput).map((v) => {
           const val = inputs[v.name];
-          return <div key={v.name} className="ui-field ui-field-beside">
-            <span className="st-label">{v.name}{v.required ? " *" : ""} <span className="st-type-chip">{v.type}</span></span>
-            <div className="ui-field-control">
+          const on = val !== undefined || opened.has(v.name);
+          return <div key={v.name} className="st-run-input">
+            <label className="st-check-row">
+              <input type="checkbox" checked={on} aria-label={"Give a value for " + v.name}
+                onChange={(e) => {
+                  const next = new Set(opened); if (e.target.checked) next.add(v.name); else next.delete(v.name); setOpened(next);
+                  if (!e.target.checked && val !== undefined) applyNow(vars, (f) => putInput(v, "", f));
+                }} />
+              <TypeBadge type={v.type || "Any"} /><span className="st-run-name">{v.name}{v.required ? " *" : ""}</span><span className="st-type-chip">{v.type}</span>
+            </label>
+            {on && <div className="ui-field-control">
               <CommitInput key={v.name + showValue(val)} label={"Input " + v.name} initial={val === undefined ? "" : showValue(val)} want={v.type}
                 placeholder={v.type === "Credential" ? "$credential variable" : v.default !== undefined ? "default: " + showValue(v.default) : v.required ? "required" : "(not set)"}
                 onCommit={(t) => applyNow(vars, (f) => putInput(v, t, f))} apply={(t, f) => putInput(v, t, f)} nameHint={v.name} />
               {v.description && <div className="ui-field-hint">{v.description}</div>}
-            </div>
+            </div>}
           </div>;
         })}
         {!(child.variables ?? []).some(isInput) && <p className="ui-field-hint">The agent has no input variables.</p>}
@@ -320,18 +332,29 @@ export function RunAgentFields({ step }: { step: FlowStep }) {
         {(child.variables ?? []).filter(isOutput).map((v) => {
           const fit = (vars.flow.variables ?? []).filter((x) => holdsType(x.type, v.type) || x.name === outMap[v.name]);
           return <div key={v.name} className="ui-field ui-field-beside">
-            <span className="st-label">{v.name} <span className="st-type-chip">{v.type}</span></span>
+            <span className="st-label"><TypeBadge type={v.type || "Any"} /> {v.name} →</span>
             <div className="ui-field-control">
               <Select aria-label={"Variable for " + v.name} value={outMap[v.name] ?? ""} onChange={(e) => {
                 const x = e.target.value;
                 if (x === NEW) vars.newVariable({ type: v.type || "Any", name: v.name, description: "Output " + v.name + " of " + (child.name || child.id) + ".", then: (n, f) => putOut(v.name, n, f) });
                 else applyNow(vars, (f) => putOut(v.name, x, f));
-              }} options={[{ value: "", label: "(do not keep)" }, ...fit.map((x) => ({ value: x.name, label: "$" + x.name })), { value: NEW, label: "+ New variable “" + v.name + "”" }]} />
+              }} options={[{ value: "", label: "(do not keep)" }, ...fit.map((x) => ({ value: x.name, label: varRef(x.name) })), { value: NEW, label: "+ New variable “" + v.name + "”" }]} />
             </div>
           </div>;
         })}
         {!(child.variables ?? []).some(isOutput) && <p className="ui-field-hint">The agent has no output variables.</p>}
         {(child.variables ?? []).some(isOutput) && <p className="ui-field-hint">Or keep them all in one Dictionary: Save results in › Outputs, below (each key is an output's name).</p>}
+        {mapping && <QuickMapDialog rows={planQuickMap(child, vars.flow, inputs, outMap)} onClose={() => setMapping(false)}
+          onApply={(opts) => {
+            setMapping(false);
+            let summary = "";
+            applyNow(vars, (f) => {
+              const r = applyQuickMap(f, step.id, child, inputs, outMap, opts, setArg);
+              summary = r.mapped ? r.mapped + " mapped" + (r.made ? ", " + r.made + (r.made === 1 ? " new variable" : " new variables") : "") : "Nothing to map";
+              return r.flow;
+            });
+            setDone(summary);
+          }} />}
       </>}
     </div>
   );

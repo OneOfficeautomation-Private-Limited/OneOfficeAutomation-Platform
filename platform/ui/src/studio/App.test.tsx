@@ -653,7 +653,8 @@ describe("new Studio", () => {
     const steps = await openIntake();
     fireEvent.click(stepButton(steps, "Open workbook"));
     addFromLibrary(/^Core/, "Run agent");
-    fireEvent.change(await screen.findByLabelText("Agent to run *"), { target: { value: "lookup_order" } });
+    await chooseAgent("Look up order");
+    fireEvent.click(await screen.findByLabelText("Give a value for order_id"));   // ticked first, as in AA
     const input = await screen.findByLabelText("Input order_id");
     fireEvent.change(input, { target: { value: "1001" } });
     fireEvent.blur(input);
@@ -667,6 +668,15 @@ describe("new Studio", () => {
     fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "intake" } });
     fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
     return screen.findByRole("region", { name: "Agent steps" });
+  };
+  /** Run agent's Choose…: Find an agent, Search, the row, Choose. */
+  const chooseAgent = async (name: string) => {
+    fireEvent.click(await screen.findByRole("button", { name: "Choose…" }));
+    const finder = await screen.findByRole("dialog", { name: "Find an agent" });
+    fireEvent.click(within(finder).getByRole("radio", { name: "Search" }));
+    fireEvent.change(within(finder).getByLabelText("Find an agent by name"), { target: { value: name } });
+    fireEvent.click(within(finder).getByRole("button", { name }));
+    fireEvent.click(within(finder).getByRole("button", { name: "Choose" }));
   };
   const stepButton = (steps: HTMLElement, name: string) => within(steps).getAllByRole("button").find((b) => b.classList.contains("st-step") && b.textContent?.includes(name))!;
   const stepNames = (steps: HTMLElement) => within(steps).getAllByRole("button").filter((b) => b.classList.contains("st-step")).map((b) => b.querySelector("strong")!.textContent);
@@ -1622,7 +1632,7 @@ describe("new Studio", () => {
     expect(await screen.findByText(/Run by/)).toBeTruthy();   // Look up order has a Run agent step for this agent
     fireEvent.click(stepButton(steps, "Open workbook"));
     addFromLibrary(/^Core/, "Run agent");
-    fireEvent.change(await screen.findByLabelText("Agent to run *"), { target: { value: "lookup_order" } });
+    await chooseAgent("Look up order");
     expect(stepButton(steps, "Run agent").textContent).toContain("runs Look up order");
     fireEvent.contextMenu(stepButton(steps, "Run agent"));
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Open the agent it runs/ }));
