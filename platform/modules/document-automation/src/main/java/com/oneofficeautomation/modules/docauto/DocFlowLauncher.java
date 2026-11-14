@@ -95,12 +95,21 @@ final class DocFlowLauncher {
         } catch (IOException | IllegalArgumentException e) { return false; }
     }
 
+    /** How long a retry waits for DocFlow's own database to finish starting (it repairs itself after an unclean stop). */
+    static long dbWaitMillis = 180_000;
+    /** True from the first start until DocFlow answers or the launcher gives up: the screens say "starting". */
+    static volatile boolean starting;
+
+    /** Whether DocFlow is being started here and has not answered yet (14 Nov 2026: shown as "starting", not "not reachable"). */
+    public static boolean isStarting() { return starting; }
+
     /**
      * Starts DocFlow in the background and stops it with the platform; failures are logged, never thrown. DocFlow's own
-     * embedded database can be slow to come up the first time (Windows holding its log file for 30 s): when DocFlow stops
-     * on its own without ever answering, it is started again, at most twice.
+     * embedded database can take a minute or more to come up (it repairs itself after an unclean stop, and Windows can
+     * hold its log file for 30 s): when DocFlow stops on its own without ever answering, the launcher waits until the
+     * database says it is ready (up to {@link #dbWaitMillis}) and starts DocFlow again, at most three times.
      */
-    static void start(Path home, Path data) { start(home, data, urlOf(localEnv(home)), 2); }
+    static void start(Path home, Path data) { starting = true; start(home, data, urlOf(localEnv(home)), 3); }
 
     static synchronized void start(Path home, Path data, String url, int retries) {
         if (started != null && started.isAlive()) return;
@@ -114,11 +123,24 @@ final class DocFlowLauncher {
             started = pb.start();
             System.out.println("  Document Automation: DocFlow started from " + home + " (its log: " + log + ")");
             Process p = started;
-            if (retries == 2) Runtime.getRuntime().addShutdownHook(new Thread(() -> stop(started), "stop-docflow"));
+            if (retries == 3) {
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> stop(started, home), "stop-docflow"));
+                watchUntilAnswered(url);
+            }
             p.onExit().thenRun(() -> {
-                if (retries <= 0 || answers(url)) return;
-                System.out.println("  Document Automation: DocFlow stopped while starting; starting it again (see its log).");
-                try { Thread.sleep(5000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                if (answers(url)) return;
+                if (retries <= 0) { starting = false; System.out.println("  Document Automation: DocFlow did not start; see its log. Start it with "
+                        + home.resolve("windows").resolve("start.bat") + "."); return; }
+                Path pg = embeddedDb(home, localEnv(home));
+                String state = pg == null ? null : dbState(pg);
+                if (state != null && !"ready".equals(state)) {
+                    System.out.println("  Document Automation: DocFlow stopped while its database was still starting (" + state
+                            + "); waiting for the database, then starting DocFlow again.");
+                    waitForDb(pg, dbWaitMillis);
+                } else {
+                    System.out.println("  Document Automation: DocFlow stopped while starting; starting it again (see its log).");
+                    try { Thread.sleep(5000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                }
                 if (!answers(url)) start(home, data, url, retries - 1);
             });
         } catch (IOException | RuntimeException e) {
@@ -127,11 +149,81 @@ final class DocFlowLauncher {
         }
     }
 
-    /** Stops what was started here, with everything it started (its web server and database). */
-    static void stop(Process p) {
+    /** Clears "starting" once DocFlow answers (checked every 2 s, for as long as the launcher may still retry). */
+    private static void watchUntilAnswered(String url) {
+        Thread t = new Thread(() -> {
+            long until = System.currentTimeMillis() + 4 * dbWaitMillis + 120_000;
+            while (starting && System.currentTimeMillis() < until) {
+                if (answers(url)) { starting = false; return; }
+                try { Thread.sleep(2000); } catch (InterruptedException e) { return; }
+            }
+            starting = false;
+        }, "docflow-starting");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
+     * Stops what was started here: first DocFlow's own database, asked to shut down properly (so the next start needs no
+     * repair), then DocFlow with everything it started.
+     */
+    static void stop(Process p, Path home) {
         if (p == null) return;
+        try {
+            Path pg = embeddedDb(home, localEnv(home));
+            Path pgCtl = pg == null ? null : pgCtl(home);
+            if (pgCtl != null && dbState(pg) != null) {
+                Process s = new ProcessBuilder(pgCtl.toString(), "stop", "-D", pg.toString(), "-m", "fast", "-w", "-t", "20")
+                        .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+                s.waitFor(25, java.util.concurrent.TimeUnit.SECONDS);
+            }
+        } catch (IOException | RuntimeException e) { /* fall through to stopping DocFlow */ }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         p.toHandle().descendants().forEach(ProcessHandle::destroy);
         p.destroy();
+    }
+
+    /** DocFlow's embedded database folder (DOCAUTO_DATA_DIR, else home/data, then /postgres); null when it uses another database. */
+    static Path embeddedDb(Path home, Properties local) {
+        if (!blank(local.getProperty("DOCAUTO_DATABASE_URL"))) return null;
+        String d = local.getProperty("DOCAUTO_DATA_DIR", "./data").trim();
+        Path dir = Path.of(d.isEmpty() ? "./data" : d);
+        return (dir.isAbsolute() ? dir : home.resolve(dir)).normalize().resolve("postgres");
+    }
+
+    /**
+     * The embedded database's state from its postmaster.pid: "ready", "starting", "stopping" (or another word it
+     * writes), or null when it is not running (no file, or its process has ended).
+     */
+    static String dbState(Path pg) {
+        try {
+            java.util.List<String> lines = Files.readAllLines(pg.resolve("postmaster.pid"), StandardCharsets.UTF_8);
+            if (lines.isEmpty()) return null;
+            long pid = Long.parseLong(lines.get(0).trim());
+            if (ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false) == Boolean.FALSE) return null;
+            for (int i = lines.size() - 1; i > 0; i--) if (!lines.get(i).isBlank()) return lines.get(i).trim();
+            return "starting";
+        } catch (IOException | RuntimeException e) { return null; }
+    }
+
+    /** Waits until the database is ready or not running, at most the given time. */
+    static void waitForDb(Path pg, long millis) {
+        long until = System.currentTimeMillis() + millis;
+        while (System.currentTimeMillis() < until) {
+            String s = dbState(pg);
+            if (s == null || "ready".equals(s)) return;
+            try { Thread.sleep(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        }
+    }
+
+    /** pg_ctl of the database DocFlow runs (its Python packages' pgserver), or null. */
+    static Path pgCtl(Path home) {
+        for (Path venv : java.util.List.of(home.resolve(".venv"), home.resolveSibling("DocFlowPython"))) {
+            for (Path c : java.util.List.of(venv.resolve("Lib/site-packages/pgserver/pginstall/bin/pg_ctl.exe"),
+                    venv.resolve("lib/site-packages/pgserver/pginstall/bin/pg_ctl.exe")))
+                if (Files.isRegularFile(c)) return c;
+        }
+        return null;
     }
 
     private static boolean blank(String s) { return s == null || s.isBlank(); }

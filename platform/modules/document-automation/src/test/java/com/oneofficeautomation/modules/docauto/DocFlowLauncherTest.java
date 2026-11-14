@@ -65,4 +65,47 @@ class DocFlowLauncherTest {
     @Test void nothingAnswersAtAnAddressWithNoService() {
         assertFalse(DocFlowLauncher.answers("http://127.0.0.1:1"));
     }
+
+    // 14 Nov 2026: DocFlow's own database repairs itself after an unclean stop; the launcher waits for it before a retry
+    @Test void findsDocFlowsOwnDatabaseFolder() {
+        Path home = dir.resolve("docflow");
+        assertEquals(home.resolve("data").resolve("postgres").normalize(), DocFlowLauncher.embeddedDb(home, props(Map.of())));
+        assertEquals(home.resolve("store").resolve("postgres").normalize(), DocFlowLauncher.embeddedDb(home, props(Map.of("DOCAUTO_DATA_DIR", "./store"))));
+        Path abs = dir.resolve("D").resolve("docflow");
+        assertEquals(abs.resolve("postgres"), DocFlowLauncher.embeddedDb(home, props(Map.of("DOCAUTO_DATA_DIR", abs.toString()))));
+        assertNull(DocFlowLauncher.embeddedDb(home, props(Map.of("DOCAUTO_DATABASE_URL", "postgresql://db/docflow"))), "another database: nothing to wait for");
+    }
+
+    /** A postmaster.pid as PostgreSQL writes it: the process, the folder, start time, port, socket, address, memory key, state. */
+    private static String pidFile(long pid, Path pg, String state) {
+        return String.join("\n", String.valueOf(pid), pg.toString(), "1794669519", "59579", "", "127.0.0.1", "", state + "   ") + "\n";
+    }
+
+    @Test void readsTheDatabasesStateFromItsLockFile() throws Exception {
+        Path pg = Files.createDirectories(dir.resolve("pg"));
+        assertNull(DocFlowLauncher.dbState(pg), "no lock file: not running");
+        long me = ProcessHandle.current().pid();
+        Files.writeString(pg.resolve("postmaster.pid"), pidFile(me, pg, "starting"));
+        assertEquals("starting", DocFlowLauncher.dbState(pg));
+        Files.writeString(pg.resolve("postmaster.pid"), pidFile(me, pg, "ready"));
+        assertEquals("ready", DocFlowLauncher.dbState(pg));
+        Files.writeString(pg.resolve("postmaster.pid"), pidFile(999_999_999L, pg, "ready"));
+        assertNull(DocFlowLauncher.dbState(pg), "a lock file left by an ended process: not running");
+    }
+
+    @Test void aRetryWaitsUntilTheDatabaseIsReady() throws Exception {
+        Path pg = Files.createDirectories(dir.resolve("pg2"));
+        long me = ProcessHandle.current().pid();
+        Path pid = pg.resolve("postmaster.pid");
+        Files.writeString(pid, pidFile(me, pg, "starting"));
+        Thread t = new Thread(() -> { try { Thread.sleep(2500); Files.writeString(pid, pidFile(me, pg, "ready")); } catch (Exception ignored) { } });
+        t.start();
+        long t0 = System.currentTimeMillis();
+        DocFlowLauncher.waitForDb(pg, 20_000);
+        long waited = System.currentTimeMillis() - t0;
+        assertTrue(waited >= 2000 && waited < 15_000, "waited " + waited + " ms for ready");
+        t.join();
+    }
+
+    private static java.util.Properties props(Map<String, String> m) { java.util.Properties p = new java.util.Properties(); p.putAll(m); return p; }
 }

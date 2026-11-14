@@ -37,7 +37,12 @@ When DocFlow is installed on the same server, you do not start it yourself. One 
 - when nothing answers at that address, starts DocFlow in the background (its own `windows\start.ps1`, hidden), with
   its log in `<data>\logs\docflow.log`; when DocFlow stops on its own before it ever answered (its database can be
   slow the first time), starts it again, at most twice;
-- stops DocFlow, with its web server and database, when One CommandCenter stops.
+- stops DocFlow when One CommandCenter stops, asking its database to shut down properly first, so the next start
+  needs no repair;
+- when DocFlow stops while its database is still starting (after an unclean stop the database repairs itself, which
+  can take a minute or more), waits until the database says it is ready (up to 3 minutes) and starts DocFlow again,
+  at most three times. Meanwhile **AI > Document Automation** says "Document Automation is starting" instead of "not
+  reachable".
 
 It does not do this in the SaaS service, nor when **Settings > Document Automation > DocFlow address** points at
 another server. To switch it off, clear **Settings > Document Automation > Start with One CommandCenter** (on by
