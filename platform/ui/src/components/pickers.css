@@ -31,6 +31,8 @@
 .ui-sr { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Pickers (14 Nov 2026): a path field with Browse… on its right, as AA's file and folder fields */
-.ui-path-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.ui-path-row > :first-child { flex: 1; min-width: 0; }
-.ui-path-row > .ui-browse, .ui-path-row > button { flex: none; white-space: nowrap; }
+/* the path keeps at least 12em: in a narrow panel Browse… moves to its own line instead of squeezing it; the button is
+   as high as the box beside it (its own line: the field height) */
+.ui-path-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px 6px; min-width: 0; }
+.ui-path-row > :first-child { flex: 1 1 12em; min-width: 0; }
+.ui-path-row > .ui-browse { flex: none; height: auto; min-height: 26px; padding: 0 10px; font-size: 13px; white-space: nowrap; }
