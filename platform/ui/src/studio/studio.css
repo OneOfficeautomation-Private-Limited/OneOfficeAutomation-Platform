@@ -1035,3 +1035,11 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-actions-about { margin: 0; padding: 8px 10px; border-top: 1px solid var(--ui-divider); background: var(--ui-soft); font-size: 12px; color: var(--ui-text-2); max-height: 6.5em; overflow: auto; flex: none; }
 .st-actions-about strong { color: var(--ui-text); }
 .st-tree-caret { width: 24px; height: 24px; }
+.st-subflow-bar .st-tool-word { width: auto; gap: 5px; padding: 0 8px; font-size: 12.5px; }
+.st-steps-foot-row { display: flex; align-items: center; gap: 12px; }
+.st-steps-foot-row .st-link { font-size: 12.5px; }
+/* items 17 and 18: the agent id under Advanced; a Catch's common errors as tick boxes */
+.st-advanced { margin: 12px 0; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); padding: 6px 10px; }
+.st-advanced > summary { cursor: pointer; font-weight: 600; font-size: 12.5px; }
+.st-catch-kinds { margin: 0 0 8px; padding: 6px 10px; border: 1px solid var(--ui-divider); border-radius: var(--ui-radius); display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
+.st-catch-kinds legend { font-weight: 600; font-size: 12.5px; padding: 0 4px; }

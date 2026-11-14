@@ -275,6 +275,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
         </div>
         {!isPublic && <div className="st-page-actions">
           <Button kind="secondary" icon="plus" onClick={() => onNewFolder(folder)}>New folder</Button>
+          {/* 14 Nov usability round, item 16: Upload beside New folder, not only in a folder's ⋮ menu */}
+          <Button kind="secondary" icon="up" title={"Upload files from this computer into " + folderName} onClick={() => act.upload(folder)}>Upload</Button>
           <Menu label="Create" title={"Create in " + folderName}
             trigger={<Button kind="primary">Create ▾</Button>}
             items={ITEM_TYPES.map((t) => ({ key: t.kind, label: t.name, description: t.description, icon: <IconTile name={t.icon} color={t.color} size={28} />,

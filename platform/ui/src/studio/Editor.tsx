@@ -66,6 +66,15 @@ const STUDIO_TRIGGERS: [string, string][] = [["schedule", "On a schedule"], ["fi
 /** Asks the Actions panel to open with the cursor in its search (a step's "+ Add step"). */
 const ADD_STEP_EVENT = "ooa:add-step";
 
+/** A Catch's common choices: error kinds the runner knows (ErrorCodes.KINDS) and whole toolkits, in words (item 18). */
+const CATCH_CHOICES: [string, string][] = [
+  ["NOT_FOUND", "Anything not found"], ["FILE_NOT_FOUND", "A file or folder not found"], ["WINDOW_NOT_FOUND", "A window not open"],
+  ["OBJECT_NOT_FOUND", "An element or control not on screen"], ["TIMEOUT", "Waited too long"], ["AUTH_FAILED", "Sign-in or permission refused"],
+  ["RATE_LIMITED", "A service asked to slow down"], ["BROWSER.*", "Any browser error"], ["EXCEL.*", "Any Excel error"], ["DESKTOP.*", "Any desktop app error"],
+  ["CHILD.*", "Any error in a child agent"], ["CONNECTOR.*", "Any connector or web service error"], ["AI.*", "Any AI error"],
+];
+const CATCH_CODES = new Set(CATCH_CHOICES.map(([c]) => c));
+
 export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, onSimple }: { packages: PackageManifest[]; onAdd: (action: string) => void;
   onTrigger?: (kind: string, where: "studio" | "server") => void; simple?: boolean; onSimple?: (on: boolean) => void }) {
   // Simple mode (G47): everyday toolkits under plain names; no triggers
@@ -192,15 +201,23 @@ function withErrorHandling(flow: Flow, patch: { default?: "continue"; retry?: Re
 function AgentProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow) => void }) {
   const [id, setId] = useState(flow.id);
   const [about, setAbout] = useState(flow.description ?? "");
+  const [changingId, setChangingId] = useState(false);
   useEffect(() => { setId(flow.id); setAbout(flow.description ?? ""); }, [flow.id, flow.description]);
   const bad = !/^[A-Za-z0-9_.-]+$/.test(id.trim());
   return (
     <div className="st-pad">
       <p className="st-muted">Select a step to change its settings. With none selected, these are the agent's own.</p>
-      <Field label="Agent id" hint="One CommandCenter knows the agent by it, and Run agent steps find it by it; each agent needs its own. Letters, digits, _ . and -.">
-        {(fid) => <TextInput id={fid} className="ui-mono" value={id} onChange={(e) => setId(e.target.value)}
-          onBlur={() => { const v = id.trim(); if (!bad && v !== flow.id) onEdit({ ...flow, id: v }); }} />}</Field>
-      {bad && <p className="st-alert" role="alert">An agent id has letters, digits, _ . and - only. It stays {flow.id}.</p>}
+      {/* 14 Nov usability round, item 17: the id is under Advanced and changed only on purpose (Run agent steps find the agent by it) */}
+      <details className="st-advanced">
+        <summary>Advanced: the agent's id</summary>
+        <p className="st-muted">One CommandCenter knows the agent by its id, and Run agent steps in other agents find it by it. Changing it breaks those steps.</p>
+        {!changingId ? <div className="st-row-tight"><code className="ui-mono">{flow.id}</code>
+          <Button kind="secondary" onClick={() => setChangingId(true)}>Change the id…</Button></div>
+          : <Field label="Agent id" hint="Letters, digits, _ . and -. Each agent needs its own.">
+            {(fid) => <TextInput id={fid} className="ui-mono" value={id} onChange={(e) => setId(e.target.value)}
+              onBlur={() => { const v = id.trim(); if (!bad && v !== flow.id) onEdit({ ...flow, id: v }); }} />}</Field>}
+        {bad && <p className="st-alert" role="alert">An agent id has letters, digits, _ . and - only. It stays {flow.id}.</p>}
+      </details>
       <Field label="Description" hint="What the agent does: people who run it read this, and AI agents that may call it.">
         {(fid) => <TextArea id={fid} rows={3} value={about} onChange={(e) => setAbout(e.target.value)}
           onBlur={() => { if (about !== (flow.description ?? "")) onEdit({ ...flow, description: about }); }} />}</Field>
@@ -746,7 +763,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               {[null, ...whole.subflows.map((s) => s.name)].map((n) => <button key={n ?? "@main"} type="button" role="radio" aria-checked={sub === n} className="st-seg-btn"
                 title={n === null ? "The agent's main steps" : "Subflow " + n} onClick={() => { if (sub !== n) { setShown(n); onSelect([]); } }}>{n ?? "Main"}</button>)}
             </div>
-            <button type="button" className="st-tool" aria-label="Add a subflow" title="Add a subflow" onClick={() => setSubDialog({})}><Icon name="plus" size={16} /></button>
+            <button type="button" className="st-tool st-tool-word" title="Add a subflow: a named list of steps that Run subflow steps run" onClick={() => setSubDialog({})}><Icon name="plus" size={16} /><span>Subflow</span></button>
             {sub !== null && <Menu label={"Subflow " + sub} align="start" items={[
               { key: "rename", label: "Rename subflow…", description: "Run subflow steps follow the new name", onSelect: () => setSubDialog({ rename: sub }) },
               { key: "delete", label: "Delete subflow", description: "With its steps; " + keyOf("app.undo") + " brings it back",
@@ -799,7 +816,12 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
               {handlerFrom === rows.length && <li><p className="st-empty-steps">No error steps yet. Select ON ERROR, then pick actions: they run when an error ends the agent.</p></li>}
             </>}
           </ol>}
-          <p className="st-steps-meta st-steps-foot" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</p>
+          <div className="st-steps-foot-row">
+            <p className="st-steps-meta st-steps-foot" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</p>
+            {/* item 16: subflows are found here too, not only in the More menu */}
+            {!whole.subflows?.length && <button type="button" className="st-link" onClick={() => setSubDialog({})}
+              title="A named list of steps that Run subflow steps run, to reuse a part of this agent">Add a subflow</button>}
+          </div>
         </section>
 
         {!rightHidden && <Splitter label="Resize the details panel" axis="x" grow={-1} value={rightWidth} min={260} max={680}
@@ -1121,9 +1143,16 @@ function CatchFields({ flow, id, k, onEdit }: { flow: Flow; id: string; k: numbe
   if (!c) return null;
   const codes = c.codes ?? [];
   return <>
-    <Field label="Errors it catches" hint="Error codes or kinds (NOT_FOUND, TIMEOUT, FILE.*), separated by commas. Empty catches every error." layout="beside">{(fid) =>
-      <CommitInput key={id + k + codes.join(",")} id={fid} mono initial={codes.join(", ")} placeholder="Any error"
-        onCommit={(t) => onEdit(setCatchCodes(flow, id, k, t.split(",").map((x) => x.trim()).filter(Boolean)))} />}</Field>
+    {/* 14 Nov usability round, item 18: the common errors as choices in words; other codes typed below */}
+    <fieldset className="st-catch-kinds">
+      <legend>Errors it catches <span className="st-muted">(none ticked: every error)</span></legend>
+      {CATCH_CHOICES.map(([code, words]) => <label key={code} className="st-check-line" title={code}>
+        <input type="checkbox" checked={codes.includes(code)}
+          onChange={(e) => onEdit(setCatchCodes(flow, id, k, e.target.checked ? [...codes, code] : codes.filter((x) => x !== code)))} />{words}</label>)}
+    </fieldset>
+    <Field label="Other error codes" hint="Codes from the error list, separated by commas, such as SAP.LOGON_FAILED or PGP.*" layout="beside">{(fid) =>
+      <CommitInput key={id + k + codes.join(",")} id={fid} mono initial={codes.filter((x) => !CATCH_CODES.has(x)).join(", ")} placeholder="None"
+        onCommit={(t) => onEdit(setCatchCodes(flow, id, k, [...codes.filter((x) => CATCH_CODES.has(x)), ...t.split(",").map((x) => x.trim()).filter(Boolean)]))} />}</Field>
     <label className="st-check-line"><input type="checkbox" checked={!!c.continueOnError} onChange={(e) => onEdit(setCatch(flow, id, k, { continueOnError: e.target.checked }))} />
       On error, continue with the next step (every step of this Catch runs, even when one fails)</label>
     <Field label="Keep the error message in" hint="A text variable, for a log line or an e-mail." layout="beside">{() =>
