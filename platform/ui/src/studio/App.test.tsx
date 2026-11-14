@@ -835,6 +835,7 @@ describe("new Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add a check" }));
     const check2 = screen.getByRole("group", { name: "Check 2" });
     fireEvent.change(within(check2).getByLabelText("Value"), { target: { value: "$vendor" } });
+    fireEvent.blur(within(check2).getByLabelText("Value"));
     fireEvent.change(within(check2).getByLabelText("Comparison"), { target: { value: "empty" } });
     expect(within(screen.getByRole("group", { name: "Check 2" })).queryByLabelText("Compared with")).toBeNull();
     fireEvent.change(screen.getByLabelText("Combine checks"), { target: { value: "any" } });

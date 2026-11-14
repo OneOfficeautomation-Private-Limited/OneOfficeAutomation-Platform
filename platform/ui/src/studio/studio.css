@@ -1011,3 +1011,9 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-step-tools .st-help-links { display: none; align-items: center; padding: 0 4px; background: var(--ui-bg); border-radius: var(--ui-radius); }
 .st-step-row:hover .st-step-tools .st-help-links, .st-step-row.is-selected .st-step-tools .st-help-links, .st-step-tools:focus-within .st-help-links { display: inline-flex; }
 .st-step-row.is-selected .st-step-tools .st-help-links { background: var(--ui-selected); }
+/* 14 Nov usability round, items 2 and 3: Insert value says what it does; Quick map is a labelled button */
+.st-x-btn { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; }
+.st-x-mark { font-family: var(--ui-mono); font-size: 11px; color: var(--ui-accent-text); }
+.st-x-word { color: var(--ui-text); }
+.st-qmap-btn.ui-btn { height: var(--ui-bar-h); }
+.st-cond-row .st-var-field { flex: 1; min-width: 140px; }

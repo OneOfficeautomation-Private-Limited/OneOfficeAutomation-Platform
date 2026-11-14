@@ -223,12 +223,13 @@ export function ConditionEditor({ value, onCommit }: { value: unknown; onCommit:
       <div className="st-cond-row" role="group" aria-label={label}>
         <Select aria-label="What to check" className="st-cond-what" value={n.kind === "toolkit" ? n.condition : ""} onChange={(e) => choose(e.target.value)} options={what} />
         {n.kind === "value" ? <>
-          <TextInput aria-label="Value" mono value={n.left} placeholder="$total$" onChange={(e) => update(path, (x) => ({ ...(x as ValueCheck), left: e.target.value }), false)}
-            onBlur={(e) => { const t = e.currentTarget.value; update(path, (x) => ({ ...(x as ValueCheck), left: t })); }} />
+          {/* item 4 (14 Nov usability round): the condition's values take Insert value, $ and F2 as every field does */}
+          <CommitInput key={label + ":l:" + n.left} label="Value" mono want="Any" initial={n.left} placeholder="$total$"
+            onCommit={(t) => update(path, (x) => ({ ...(x as ValueCheck), left: t }))} />
           <Select aria-label="Comparison" value={n.op} onChange={(e) => update(path, (x) => ({ ...(x as ValueCheck), op: e.target.value }))}
             options={Object.entries(OPS).map(([op, words]) => ({ value: op, label: words }))} />
-          {!NO_RIGHT.has(n.op) && <TextInput aria-label="Compared with" value={n.right} placeholder="1000" onChange={(e) => update(path, (x) => ({ ...(x as ValueCheck), right: e.target.value }), false)}
-            onBlur={(e) => { const t = e.currentTarget.value; update(path, (x) => ({ ...(x as ValueCheck), right: t })); }} />}
+          {!NO_RIGHT.has(n.op) && <CommitInput key={label + ":r:" + n.right} label="Compared with" want="Any" initial={n.right} placeholder="1000"
+            onCommit={(t) => update(path, (x) => ({ ...(x as ValueCheck), right: t }))} />}
         </> : <>
           <Select aria-label="Is or is not" value={n.not ? "not" : "is"} onChange={(e) => update(path, (x) => ({ ...(x as ToolkitCheck), not: e.target.value === "not" }))}
             options={[{ value: "is", label: "is true" }, { value: "not", label: "is not true" }]} />

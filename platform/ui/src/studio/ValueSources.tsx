@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { AgentSummary, Flow, FlowStep, FlowVariable } from "../api/client";
-import { Button, Icon, is, Select, TextInput, withKey } from "../components";
+import { Button, is, Select, TextInput, withKey } from "../components";
 import { parseLoose, setArg, setOut, showValue } from "./flowEdit";
 import { AgentFinder, agentPlace, applyQuickMap, planQuickMap, QuickMapDialog } from "./RunAgentParts";
 import { TypeBadge, useVars, VarPicker } from "./VariablesPanel";
@@ -44,8 +44,8 @@ export function CommitInput({ id, initial, placeholder, mono, onCommit, want, ap
   return (
     <div className="st-var-field">
       {input}
-      <button type="button" className="st-x-btn" aria-label="Insert a value" title={withKey("Insert a value", "fields.variable")} aria-expanded={!!picking}
-        onMouseDown={(e) => e.preventDefault()} onClick={() => { typedAt.current = null; setPicking(picking ? null : (ref.current ?? undefined)?.getBoundingClientRect() ?? null); }}>{"{x}"}</button>
+      <button type="button" className="st-x-btn" aria-label="Insert a value" title={withKey("Insert a value", "fields.variable") + ". You can also type $ in the field."} aria-expanded={!!picking}
+        onMouseDown={(e) => e.preventDefault()} onClick={() => { typedAt.current = null; setPicking(picking ? null : (ref.current ?? undefined)?.getBoundingClientRect() ?? null); }}><span className="st-x-mark" aria-hidden="true">{"{x}"}</span><span className="st-x-word">Insert value</span></button>
       {picking && <VarPicker want={want} nameHint={nameHint} anchor={picking} typed={typedAt.current !== null} previewOf={withRef}
         onClose={() => { setPicking(null); typedAt.current = null; ref.current?.focus(); }}
         onPick={(r) => { setPicking(null); onCommit(withRef(r)); typedAt.current = null; }}
@@ -303,8 +303,8 @@ export function RunAgentFields({ step }: { step: FlowStep }) {
         : id ? "This agent is not in the workspace, so its inputs are not known." : "Choose the agent first."}</p> : <>
         <div className="st-run-head">
           <h4 className="st-sub">Input values</h4>
-          <button type="button" className="st-tool st-qmap-btn" aria-label="Quick map" title="Quick map: map inputs and outputs to variables with the same name"
-            onClick={() => setMapping(true)}><Icon name="swap" size={15} /></button>
+          <Button kind="secondary" icon="swap" className="st-qmap-btn" title="Map each input and output to this agent's variable with the same name"
+            onClick={() => setMapping(true)}>Quick map</Button>
         </div>
         {done && <p className="st-run-done" role="status">{done}</p>}
         {(child.variables ?? []).filter(isInput).map((v) => {
