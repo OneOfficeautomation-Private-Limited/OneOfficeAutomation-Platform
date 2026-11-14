@@ -115,6 +115,13 @@ Number); inside text, `$total$` is replaced by the value (`Total $total$ items`)
 wrote `$total` and `${total}`; they keep working, and saving the agent rewrites its references as `$total$`. A `$` with
 no closing `$` (such as `US$ 5`) stays as typed.
 
+**Inputs left empty** (as in AA). An agent runs without its inputs; only an input ticked **Required** stops the run
+("Required input 'count' has no value"). An input given as nothing (left empty in the Run dialog, an empty cell, or an
+empty value from a parent agent) counts as not given, so its default applies. A variable with no value starts empty
+for its type: Text `""`, an empty List, Dictionary or Table, and No for Yes/No. A Number or a date stays empty until a
+step sets it; using an empty one in a calculation stops with "A value used as a number is empty" and says to give it a
+value or a default.
+
 ### 3.2 Choices, tick boxes and More options
 
 Toolkits lay out their panels so the common case stays short:

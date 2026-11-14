@@ -28,6 +28,8 @@ public final class Values {
     private Values() {}
 
     public static BigDecimal toNumber(Object v) {
+        if (v == null) throw new OoaException("VAR.EMPTY", "A value used as a number is empty",
+                "A variable used here has no value yet (an input that was not given is empty): give it a value before this step, or set a default in the variable.");
         if (v instanceof BigDecimal d) return d;
         if (v instanceof Boolean b) return b ? BigDecimal.ONE : BigDecimal.ZERO;
         if (v instanceof Integer || v instanceof Long || v instanceof Short) return BigDecimal.valueOf(((Number) v).longValue());

@@ -559,7 +559,9 @@ public final class Runner {
                 String name = e.getKey();
                 Map<String, Object> v = e.getValue();
                 boolean isInput = java.util.Arrays.asList("input", "in_out").contains(v.get("direction"));
-                if (isInput && inputs.containsKey(name)) {
+                // as AA (14 Nov 2026): an input given as nothing (null, or empty text for a type that is not text) counts
+                // as not given: its default applies, and only a Required one stops the run
+                if (isInput && inputs.containsKey(name) && !givenEmpty(inputs.get(name), (String) v.get("type"))) {
                     Object val = inputs.get(name);
                     if (val instanceof Map<?, ?> m && m.size() == 1 && m.containsKey("$credential")) {
                         CredentialVault vault = (CredentialVault) services.get("vault");
@@ -573,10 +575,31 @@ public final class Runner {
                 } else if (v.containsKey("default")) {
                     scope.set(name, Values.deepCopy(v.get("default")));
                 } else if (isInput && Boolean.TRUE.equals(v.get("required"))) {
-                    throw new OoaException("RUN.INPUT_MISSING", "Required input '" + name + "' is missing",
+                    throw new OoaException("RUN.INPUT_MISSING", "Required input '" + name + "' has no value",
                             v.get("description") != null ? (String) v.get("description") : "Provide a " + v.get("type") + " value for '" + name + "'.");
                 }
             }
+            // as AA: a variable with no value starts empty for its type (text "", an empty list, dictionary or table, No),
+            // so steps that read it carry on; a Number or a date stays empty until something sets it
+            for (var e : declared.entrySet()) {
+                String name = e.getKey(), type = String.valueOf(e.getValue().get("type"));
+                if (scope.values.get(name) != null) continue;
+                Object empty = switch (type) {
+                    case "String" -> "";
+                    case "List" -> new ArrayList<>();
+                    case "Dictionary", "Record" -> new LinkedHashMap<>();
+                    case "Table" -> new LinkedHashMap<>(Map.of("columns", new ArrayList<>(), "rows", new ArrayList<>()));
+                    case "Boolean" -> Boolean.FALSE;
+                    default -> null;
+                };
+                if (empty != null) { try { scope.set(name, empty); } catch (OoaException ignored) { /* a type that takes no empty value */ } }
+            }
+        }
+
+        /** An input given as nothing: null, or blank text for a type that is not text. */
+        private boolean givenEmpty(Object val, String type) {
+            if (val == null) return true;
+            return val instanceof String s && s.isBlank() && !"String".equals(type) && !"Any".equals(type) && type != null;
         }
 
         /** Run from here: the carried-over values that were set, by name; see RunOptions.carryOver. */
