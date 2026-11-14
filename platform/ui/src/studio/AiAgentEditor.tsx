@@ -90,7 +90,7 @@ export function AiAgentEditor({ api, flow, onEdit, agents, connections, onNewCon
           { value: "model", label: "Model" }, { value: "outputs", label: "Outputs" }, { value: "limits", label: "Limits" }]}>
           <TabPanel value="instructions"><div className="st-ai-fields">
             <TextField label="Role" value={str(a.role)} placeholder="Accounts payable assistant for Acme Finance" onCommit={(v) => put("role", v)} />
-            <TextField label="Goal" mono value={str(a.goal)} onCommit={(v) => put("goal", v)} hint="What to achieve each time; ${request} is what the agent is asked when it runs." />
+            <TextField label="Goal" mono value={str(a.goal)} onCommit={(v) => put("goal", v)} hint="What to achieve each time; $request$ is what the agent is asked when it runs." />
             <TextField label="Instructions" multiline value={str(a.instructions)} placeholder="Rules and policy: never invent results; ask a person when unsure." onCommit={(v) => put("instructions", v)} />
             <TextField label="Plan" multiline value={str(a.action_plan)} placeholder="1. Read the invoice. 2. Find the order. 3. Compare. 4. Queue it or ask finance." onCommit={(v) => put("action_plan", v)} />
           </div></TabPanel>

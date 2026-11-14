@@ -53,6 +53,29 @@ export function enableTableTools(root: Document | HTMLElement = document): () =>
     }
     close();
     for (const [i, th] of [...head.cells].entries()) th.querySelector(".cc-col-filter")?.classList.toggle("is-on", !!f?.has(i));
+    note(t);
+  };
+
+  // 14 Nov usability round, item 19: a line above a filtered table says which columns filter it, with Clear, so a
+  // filter set with a column's small funnel is never forgotten
+  const note = (t: HTMLTableElement) => {
+    const f = filters.get(t);
+    const head = t.tHead?.rows[0];
+    let line = t.previousElementSibling as HTMLElement | null;
+    if (!line?.classList.contains("cc-col-filtered")) line = null;
+    if (!f || !f.size || !head) { line?.remove(); return; }
+    if (!line) {
+      line = document.createElement("div");
+      line.className = "cc-col-filtered"; line.setAttribute("role", "status");
+      t.parentElement?.insertBefore(line, t);
+    }
+    const names = [...f.keys()].map((i) => labelOf(head.cells[i]));
+    const shown = dataRows(t, head.cells.length).filter((r) => !r.hidden).length;
+    line.textContent = "Filtered by " + names.join(", ") + ": " + shown + (shown === 1 ? " row" : " rows") + " shown. ";
+    const clear = document.createElement("button");
+    clear.type = "button"; clear.className = "cc-col-filtered-clear"; clear.textContent = "Clear column filters";
+    clear.addEventListener("click", () => { filters.delete(t); apply(t); });
+    line.append(clear);
   };
 
   const freeze = (t: HTMLTableElement) => {

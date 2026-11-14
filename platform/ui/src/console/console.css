@@ -927,3 +927,9 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
 .cc-tree-chev { width: 24px; }
 .cc-tag > .ui-btn-plain { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; min-height: 22px; margin: -2px -4px -2px 2px; padding: 0 4px; border-radius: 4px; }
 .cc-tag > .ui-btn-plain:hover { background: rgba(0, 0, 0, .08); }
+/* item 19: the column funnels always visible; a line above a filtered table with Clear */
+.cc-col-filter { opacity: 1; color: var(--ui-text-2); }
+.cc-col-filtered { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 4px 10px; border-radius: var(--ui-radius);
+  background: var(--ui-selected); color: var(--ui-pill-text); font-size: 12.5px; }
+.cc-col-filtered-clear { height: 24px; padding: 0 8px; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); background: var(--ui-bg);
+  color: var(--ui-accent-text); font: inherit; cursor: pointer; }

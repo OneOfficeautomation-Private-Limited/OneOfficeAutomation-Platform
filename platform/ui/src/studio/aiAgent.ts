@@ -24,7 +24,7 @@ export function aiAgentTemplate(flow: Flow): Flow {
     ],
     steps: [{
       id: "s1", action: AI_ACTION,
-      args: { goal: "${request}", tools: [], max_steps: 8 },
+      args: { goal: "$request$", tools: [], max_steps: 8 },
       out: { answer: "answer", status: "status", outputs: "outputs", trace: "trace" },
     }],
   };
