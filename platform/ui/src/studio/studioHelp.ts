@@ -61,7 +61,7 @@ export const ACTIONS_HELP: HelpTopic = {
 export const DETAILS_HELP: HelpTopic = {
   title: "Details", about: "Settings of the selected step and of the whole agent, in four tabs.",
   items: [
-    { name: "Properties", text: "The selected step's settings. Fields marked required must be filled before the agent can run; a value can be typed, or taken from a variable with the picker next to the field." },
+    { name: "Properties", text: "The selected step's settings. A click on a step opens them; a second click on the same step folds Details away. Fields marked required must be filled before the agent can run; a value can be typed, or taken from a variable with {x} next to the field (or F2): Insert a value shows your variables first, then system and shared values. Variables are written $name$, as in AA: on its own the field passes the value with its type; inside text it puts the value there." },
     { name: "Variables", text: "The agent's variables: inputs it is given, outputs it returns, and values it keeps while it runs. Add one with its type; the ⋮ on a variable renames, copies or deletes it." },
     { name: "Triggers", text: "Start this agent on its own on this computer, for example every few minutes or when a file appears, while OneAgentStudio is running." },
     { name: "Dependencies", text: "What the agent uses: other agents it runs, files, forms and toolkits. Click one to open it or to go to the step that uses it." },

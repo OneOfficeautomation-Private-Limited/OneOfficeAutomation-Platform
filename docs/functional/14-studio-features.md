@@ -106,7 +106,9 @@ its own. **+ Quick add** (Ctrl+K or `/`) finds an action by typing and inserts i
   JSON" switch), description, required, and **Business figure (KPI)** on outputs.
 - Renaming a variable updates every `$name`, `${name}`, output and loop or catch name that uses it.
 - System variables (`$sys`) and shared values (`$global`) are listed for insertion.
-- A {x} button on text fields inserts a variable (fitting types first); Ctrl+Space or typing `$` does the same.
+- A {x} button on text fields opens Insert a value (a preview, your variables of fitting types first, system values with what each holds, shared values); F2, Ctrl+Space or typing `$` does the same. Variables are written `$name$` as in AA; the runner also reads the earlier `$name` and `${name}`, and saving an agent rewrites them as `$name$`.
+- A click on a step opens its Properties in Details; a second click on the same step folds Details (AA's editor). Each step has its command's Docs and Video beside its menu and in it.
+- Run Agent: This agent, Agent in the workspace (Find an agent: Browse by folder or Search) or Variable; inputs ticked when given; Quick map shows what it maps (Ready to map, New variable needed, Already set, Same name and another type) before Apply.
 
 ## 8. Step settings panel
 

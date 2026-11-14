@@ -143,6 +143,14 @@ replace…** (Ctrl+H), fold and unfold, **Check the agent**, **Saved connections
 **Flow**, the **Assistant** (build steps from a description, or explain the agent), **Record** and **Capture** (these three
 sit together as one group of icon buttons), and **Full screen**.
 
+**List** and **Flow** are two tabs: the one shown is underlined.
+
+**Clicking a step** (as in AA's editor): a click on a step chooses it and opens its **Properties** in **Details**; a
+second click on the same step folds **Details** away, so the steps get the whole width, and the next click opens it
+again. Clicking another step while Details is open shows that step's properties. Each step also shows its command's
+**Docs** and **Video** beside its **⋮** when it is chosen or under the pointer, and the step menu has **Docs for this
+command** and **Video for this command**.
+
 - **List** shows the steps as numbered lines, one under another, between **START** and **END**. Blocks (If, Loop, Try,
   Step) have their sections indented below them, labelled **Then**, **Else**, **Repeat**, **Try**, **Catch all
   errors**, **Finally (always)** and so on.
@@ -326,7 +334,7 @@ the page has focus; text fields keep their own keys, and keys the browser keeps 
 | F2 | Rename the selected step (its **Shown on the step** text) |
 | Ctrl+Shift+R | Record |
 | Shift+F10 or the menu key | Open the step's menu |
-| Ctrl+Space | Insert a variable in a field |
+| F2 or Ctrl+Space | Insert a value (a variable) in a field |
 | F2, Del, Ctrl+C/X/V, Ctrl+A, Esc in the Automation list | Rename, delete, copy, cut, paste, select all, clear the selection |
 
 In One CommandCenter's lists: `/` goes to the list's search, ↓ and ↑ move between rows, Enter opens a row and Shift+F10

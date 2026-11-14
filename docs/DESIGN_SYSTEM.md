@@ -89,6 +89,12 @@ page that fails shows its single error line as an error panel (`cr.css` section 
 
 ## Layout
 
+- **Tool bar rows** (14 Nov 2026): every control in a row of tools (buttons, icon buttons, fields, switches, groups) is
+  one height, `--ui-bar-h` (28 px) in Studio and the console's `--ui-h` (28 px) there, and sits on the row's centre
+  line; underline tabs are a strip of their own. `platform/ui/tools/check-alignment.js` measures this: load it in the
+  browser on a page and call `ooaCheckAlignment()`; it lists every row whose controls differ in height (by more than
+  1 px) or sit off the centre line (by more than 1.5 px). Run it on every page you change, at 1366 and 1920 px.
+
 - **Console**: a dark charcoal frame (44 px top bar, 220 px menu with monochrome icons; only the current page carries
   the accent) around a light, dense work area: 13 px body text, 16–20 px padding up to 1600 px wide, compact tables
   with small upper-case headers, and 18 px page titles (`cr.css` section 15). Under 760 px the menu collapses to icons

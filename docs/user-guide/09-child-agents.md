@@ -47,23 +47,44 @@ returns.
 
 1. Open the parent agent.
 2. In **Actions > Logic and flow**, add **Run Agent** where the child should run.
-3. In **Action settings**, under **Agent to run**, open the list. It shows every other agent of your workspace as
-   "name — path". Choose the child.
-   - **↻** refreshes the list after you created or renamed agents.
-   - An agent id that is not in the workspace stays listed as "(not in this workspace)".
+3. In **Action settings**, **Agent to run** has three choices:
+   - **This agent**: the agent runs itself again from its first step (at most 10 levels deep);
+   - **Agent in the workspace**: press **Choose…**. **Find an agent** opens with two tabs. **Browse** shows the folder
+     tree (with **Agents** at the top) and the agents of the folder you click, with how many inputs and outputs each
+     has. **Search** finds agents by name or folder in every folder. Click the child, then **Choose** (or double-click
+     it);
+   - **Variable**: the agent's id comes from a variable when the step runs (section 5).
 
-**What you see:** the step card shows the child's name. The **Input values** and **Save outputs to** fields fill with
-the child's variables.
+   The field then shows where the child is, for example **Agents › Finance › Invoice**. File names (`.flow.json`) are
+   never shown. An agent that is not in the workspace shows as "(not in this workspace)".
+
+**What you see:** the step's line says which agent runs and where its outputs go, for example "runs Invoice, keeps
+outputs in $total$". The **Input values** and **Save outputs to** fields fill with the child's variables.
 
 ## 4. Give inputs and keep outputs
 
-**Input values** shows one row per input variable of the child, with its type and description:
+**Input values** shows one row per input variable of the child, with a tick box, its type and description. Tick an
+input to give it a value (as in AA); an input left unticked takes the child's default:
 
-- type text or a number, or a `$variable` of the parent (use **{x}** or type `$` to pick one);
+- type text or a number, or a `$variable$` of the parent (use **{x}**, F2 or type `$` to pick one);
 - a Number input turns `42` into a number and a Boolean input turns `true`/`false` into true or false;
 - the placeholder shows the child's default ("default: …"), or says **required**;
-- for a Credential input, give a Credential variable of the parent, for example `$erp_password`;
-- leave a row empty to use the child's default.
+- for a Credential input, give a Credential variable of the parent, for example `$erp_password$`;
+- untick a row (or leave it empty) to use the child's default.
+
+**Quick map** (the ⇄ button beside **Input values**) maps the child's inputs and outputs to the parent's variables of
+the same name in one go. It first shows each input and output under what will happen to it:
+
+| Group | Meaning |
+| --- | --- |
+| **Ready to map** | The parent has a variable of that name and a type that fits. |
+| **New variable needed** | The parent has no variable of that name. |
+| **Already set** | The row has a value already; it is kept unless you tick **Also replace values already set**. |
+| **Same name, another type** | The parent's variable of that name cannot hold the value; it is left as it is. |
+
+**Make the missing variables, with the same name and type** is ticked at first; **Also replace values already set** is
+not. Press **Apply**: each mapped input shows its `$name$`, each mapped output its variable, and a line says what was
+done, for example "2 mapped, 1 new variable". Undo (Ctrl+Z) takes it back.
 
 **Save outputs to** shows one row per output of the child:
 

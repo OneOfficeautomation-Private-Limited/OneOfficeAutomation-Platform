@@ -99,15 +99,21 @@ Select a step to see its settings on the right. From top to bottom:
 
 | Field looks like | What to enter |
 | --- | --- |
-| Text box | Text, a `$variable`, or text with `${variable}` in it. |
-| Number box | A number, a `$variable`, or a small calculation such as `$n - 1`. A value outside the allowed range turns red. |
+| Text box | Text, a `$variable$`, or text with `$variable$` in it, such as `Invoice $number$`. |
+| Number box | A number, a `$variable$`, or a small calculation such as `$n$ - 1`. A value outside the allowed range turns red. |
 | Drop-down with "(default: …)" | Leave it on the default or pick another choice. |
 | true / false drop-down | For Boolean fields. |
 | "(choose a … variable)" list | For Table, List, Dictionary and Record fields: pick a variable of that type, **+ New … variable**, or **Enter a value or expression…**. |
-| **{x}** button | Opens the variable picker (also Ctrl+Space, or typing `$`). |
+| **{x}** button | Opens **Insert a value** (also F2 or Ctrl+Space, or typing `$`): a preview of the field with the value in it, **Your variables** (with their types) first, then **System values** (each with what it holds) and **Shared Global values**. Click one to put it at the cursor. **New variable** makes one of the field's type; from a field its button is **Create and use**. |
 | ⓘ | Hover or focus it for the field's help, allowed range and an example. |
 
 A required field that is still empty is marked with ***** and says **Required** under it, before you even validate.
+
+**How variables are written.** A variable is written between two dollar signs, as in AA: `$total$`, `$row.Amount$`,
+`$sys.date$`, `$global.region$`. A field that holds only `$total$` passes the value with its type (a Number stays a
+Number); inside text, `$total$` is replaced by the value (`Total $total$ items`). Agents made before 14 November 2026
+wrote `$total` and `${total}`; they keep working, and saving the agent rewrites its references as `$total$`. A `$` with
+no closing `$` (such as `US$ 5`) stays as typed.
 
 ### 3.2 Choices, tick boxes and More options
 
