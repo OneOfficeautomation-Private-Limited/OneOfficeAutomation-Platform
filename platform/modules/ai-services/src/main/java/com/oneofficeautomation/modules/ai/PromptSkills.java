@@ -28,15 +28,15 @@ public final class PromptSkills {
     static final List<Map<String, Object>> BUILT_IN_TEMPLATES = List.of(
             Map.of("name", "template_summarise", "description", "Summarise a text in a few sentences for a busy reader.",
                     "definition", Map.of("system", "You write short, factual summaries. Never add facts that are not in the text.",
-                            "prompt", "Summarise the following in at most ${sentences} sentences:\n\n${text}", "output", "text", "temperature", 0.2,
+                            "prompt", "Summarise the following in at most $sentences$ sentences:\n\n$text$", "output", "text", "temperature", 0.2,
                             "inputs", List.of(Map.of("name", "text", "description", "The text to summarise"), Map.of("name", "sentences", "description", "How many sentences", "default", "3")))),
             Map.of("name", "template_route_request", "description", "Put a customer message into one of your categories.",
                     "definition", Map.of("system", "You sort customer messages. Answer with JSON only.",
-                            "prompt", "Categories: ${categories}\n\nMessage:\n${message}\n\nAnswer as {\"category\": \"...\", \"reason\": \"...\"}.", "output", "json", "temperature", 0.0,
+                            "prompt", "Categories: $categories$\n\nMessage:\n$message$\n\nAnswer as {\"category\": \"...\", \"reason\": \"...\"}.", "output", "json", "temperature", 0.0,
                             "inputs", List.of(Map.of("name", "message", "description", "The customer's message"), Map.of("name", "categories", "description", "Comma-separated categories")))),
             Map.of("name", "template_invoice_fields", "description", "Read supplier, number, date and total from invoice text.",
                     "definition", Map.of("system", "You read invoices. Answer with JSON only; use null for anything you cannot find.",
-                            "prompt", "From this invoice text, give {\"supplier\", \"invoice_number\", \"invoice_date\", \"total\", \"currency\"}:\n\n${text}", "output", "json", "temperature", 0.0,
+                            "prompt", "From this invoice text, give {\"supplier\", \"invoice_number\", \"invoice_date\", \"total\", \"currency\"}:\n\n$text$", "output", "json", "temperature", 0.0,
                             "inputs", List.of(Map.of("name", "text", "description", "The invoice text (from OCR or a PDF)")))));
 
     static String checkName(String name) {
@@ -89,7 +89,7 @@ public final class PromptSkills {
 
     static void checkDefinition(Object d) {
         if (!(d instanceof Map<?, ?> m) || !(m.get("prompt") instanceof String p) || p.isBlank())
-            throw new OoaException("CR.BAD_INPUT", "A skill needs at least a prompt", "For example {\"prompt\": \"Summarise: ${text}\"}.");
+            throw new OoaException("CR.BAD_INPUT", "A skill needs at least a prompt", "For example {\"prompt\": \"Summarise: $text$\"}.");
         Object out = m.get("output");
         if (out != null && !"text".equals(out) && !"json".equals(out)) throw new OoaException("CR.BAD_INPUT", "output is text or json");
         if (m.get("temperature") != null && !(m.get("temperature") instanceof Number)) throw new OoaException("CR.BAD_INPUT", "temperature is a number");

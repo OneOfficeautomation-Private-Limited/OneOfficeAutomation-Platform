@@ -37,7 +37,7 @@ Fill a saved prompt template with your values and run it; returns text, or a Dic
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Skill | `skill` | Text | Yes |  | Main | Skill name (file name in ai-skills without .json). Example: `summarise_complaint` |
-| Values | `values` | Dictionary | No |  | Main | Values for the skill's ${...} placeholders. |
+| Values | `values` | Dictionary | No |  | Main | Values for the skill's placeholders, written $name$ in its prompt. |
 | Connection | `connection` | Text | No |  | Main | Model Connection to use instead of the skill's own provider and model. |
 | Knowledge index | `knowledge_index` | File path | No |  | Main; tick Ground the answer in documents | A Knowledge Q&A index (built with Build index) whose best passages go to the model with the prompt; overrides the skill's own "knowledge". |
 | Top k | `top_k` | Number | No |  | Main; tick Ground the answer in documents | How many passages of the index the model gets; the skill's own (or 4) when empty. Range: 1 to 20 |

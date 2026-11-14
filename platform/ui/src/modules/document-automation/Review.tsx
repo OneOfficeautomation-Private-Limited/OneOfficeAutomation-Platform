@@ -48,6 +48,8 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
       location.hash = r.next ? "#/review/" + encodeURIComponent(r.next) : back;   // Approve and next: the next one waiting
     } catch (e) { reportError(e); } finally { setSaving(false); }
   };
+  /** Previous task, Next task: another document waiting for review (what was typed here and not approved is not kept). */
+  const open = (id?: string) => { if (id) location.hash = "#/review/" + encodeURIComponent(id); };
   const openTypes = () => { setNewType(""); api.docTypes().then(setTypes, reportError); };
   const reclassify = async () => {
     if (!task || !newType) return;
@@ -113,8 +115,8 @@ export function Review({ api, documentId }: { api: DocFlowApi; documentId: strin
         </div>
         <span className="df-grow" />
         <span className="df-muted">Task {task.position} of {task.of}</span>
-        <IconButton icon="chevronLeft" label="Previous task" disabled={task.position === 1} />
-        <IconButton icon="chevronRight" label="Next task" />
+        <IconButton icon="chevronLeft" label="Previous task" disabled={!task.previousId} onClick={() => open(task.previousId)} />
+        <IconButton icon="chevronRight" label="Next task" disabled={!task.nextId} onClick={() => open(task.nextId)} />
       </div>
 
       <div className="df-review">

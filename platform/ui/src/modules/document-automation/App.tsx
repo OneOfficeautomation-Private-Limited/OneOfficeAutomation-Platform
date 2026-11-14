@@ -58,6 +58,10 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
   const [route, setRoute] = useState<Route>(() => parseRoute(location.hash));
   useEffect(() => { loadHelpConfig(); }, []);   // where Docs and Video point (round 3, item 6)
   const [optIn, setOptIn] = useState(false);
+  // the tenant chosen at the top (kept for the next visit); one no longer offered falls back to the first
+  const [savedTenant, setSavedTenant] = usePersistent("docflow.tenant", "");
+  const tenant = tenants.includes(savedTenant) ? savedTenant : tenants[0] ?? "";
+  if (tenant) api.setTenant?.(tenant);   // before the screens below load anything
   const [error, setError] = useState("");
   // "How to use this page" shows on a person's first visit to each page, until they hide it
   const [helpHidden, setHelpHidden] = usePersistent<Record<string, boolean>>("docflow.helpHidden", {});
@@ -68,7 +72,7 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
     window.addEventListener(DF_ERROR, onError);
     return () => { window.removeEventListener("hashchange", onHash); window.removeEventListener(DF_ERROR, onError); };
   }, []);
-  useEffect(() => { api.engines().then((e) => setOptIn(e.routing.cloudOptIn), reportError); }, [api, route]);
+  useEffect(() => { api.engines().then((e) => setOptIn(e.routing.cloudOptIn), reportError); }, [api, route, tenant]);
 
   const reviewing = route.tab === "review";
   const helpPage: HelpPage = reviewing ? "review" : route.process ? "process" : route.tab === "testlab" && route.section === "sets" ? "testsets"
@@ -93,8 +97,9 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
           {tenants.length > 1 && (
             <label className="df-filter" style={{ color: "var(--ui-frame-text-2)" }}>
               <span style={{ fontWeight: 400 }}>Tenant</span>
-              <select className="ui-input ui-select" aria-label="Tenant" style={{ height: 28, minWidth: 0 }}>
-                {tenants.map((t) => <option key={t}>{t}</option>)}
+              <select className="ui-input ui-select" aria-label="Tenant" style={{ height: 28, minWidth: 0 }} value={tenant}
+                onChange={(e) => setSavedTenant(e.target.value)}>
+                {tenants.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </label>
           )}
@@ -135,7 +140,8 @@ export function App({ api, controlRoom = "/", tenants = ["Acme Trading Co."], us
           {reviewing
             ? <div className="df-help-row"><HelpButton open={helpOpen} onToggle={toggleHelp} />{help}</div>
             : help && <div className="df-help-row">{help}</div>}
-          <Screen route={route} api={api} onOptIn={setOptIn} />
+          {/* a new tenant loads every screen again, for that tenant */}
+          <Screen key={tenant} route={route} api={api} onOptIn={setOptIn} />
         </main>
       </div>
     </div>
