@@ -104,7 +104,7 @@ Select a step to see its settings on the right. From top to bottom:
 | Drop-down with "(default: …)" | Leave it on the default or pick another choice. |
 | true / false drop-down | For Boolean fields. |
 | "(choose a … variable)" list | For Table, List, Dictionary and Record fields: pick a variable of that type, **+ New … variable**, or **Enter a value or expression…**. |
-| **{x}** button | Opens **Insert a value** (also F2 or Ctrl+Space, or typing `$`): a preview of the field with the value in it, **Your variables** (with their types) first, then **System values** (each with what it holds) and **Shared Global values**. Click one to put it at the cursor. **New variable** makes one of the field's type; from a field its button is **Create and use**. |
+| **{x} Insert value** button | Opens **Insert a value** (also F2 or Ctrl+Space, or typing `$`): a preview of the field with the value in it, **Your variables** (with their types) first, then **System values** (each with what it holds) and **Shared Global values**. Click one to put it at the cursor. **New variable** makes one of the field's type; from a field its button is **Create and use**. |
 | ⓘ | Hover or focus it for the field's help, allowed range and an example. |
 
 A required field that is still empty is marked with ***** and says **Required** under it, before you even validate.
@@ -352,9 +352,11 @@ Inside a loop, **Exit loop** leaves it and **Continue loop** skips to the next p
 2. Put the steps that may fail in **Try**.
 3. Put what to do on an error in **Catch**: log it, send a notice, skip the item.
 4. In Action settings, **Catch blocks** lets you set, for each Catch:
-   - **Errors to catch**: empty catches everything. Name a code (`FILE.NOT_FOUND`), a toolkit (`BROWSER.*`) or a kind
-     of error from any toolkit (`NOT_FOUND`, `TIMEOUT`, `AUTH_FAILED`, `RATE_LIMITED` …). The list suggests codes.
-     The first Catch that matches runs, so put specific ones first.
+   - **Errors it catches**: tick the kinds in words (**Anything not found**, **A file or folder not found**, **A window
+     not open**, **An element or control not on screen**, **Waited too long**, **Sign-in or permission refused**, **A
+     service asked to slow down**, **Any browser error**, **Any Excel error** and so on); none ticked catches every error.
+     **Other error codes** takes codes from the error list, such as `SAP.LOGON_FAILED` or `PGP.*`. The first Catch that
+     matches runs, so put specific ones first.
    - **Error message to**, **Line number to**, **All error details to** (a Dictionary with code, message,
      suggestedFix, line, action and stepId).
    - **Take a screenshot when the error is caught**: saved under `screenshots\` in the workspace.

@@ -216,7 +216,14 @@ editor, when an agent or other item is open.
 Tables fit the window, down to a 1366 px wide screen, without scrolling sideways. Text too long for its cell ends in
 "…"; point at it to see all of it. The same goes for headings and chart labels.
 
-Every page has an **i** after its title: it opens a help panel that explains each part of the page. After it comes one
+The small funnel beside a column's heading filters the table by that column's values, as in a spreadsheet; a line
+above the table then says which columns filter it, with **Clear column filters**. Fields that name people (vault folder
+members, work queue members, alert recipients, dashboard sharing, workflow stages) let you search and pick users, teams
+and roles. An agent's inputs (when running it, in a schedule, in a workflow stage or an app button) are one field per
+input, with **Edit as JSON** for those who prefer it.
+
+Every page has a **? Help** button after its title: it opens a help panel that explains each part of the page. The
+**?** in the top bar opens the **User guide** and the keyboard shortcuts. After it comes one
 line saying what the page does, then **Docs** (the documentation, in a new tab) and **Video** (how to use it, played
 beside the page). Dialogs, Settings sections and each agent command have the same two links, and an error with a code
 has **Learn more**.

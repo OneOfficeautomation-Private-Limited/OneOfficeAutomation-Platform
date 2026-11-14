@@ -46,6 +46,11 @@ default) or set `OOA_DOCFLOW_AUTOSTART=false`; then start DocFlow yourself.
 **AI > Document Automation > Overview** shows ten columns at a time: **Activity** (the default) or **Set-up**, chosen
 with the switch above the table, so it fits the screen without scrolling sideways.
 
+On the review screen, **Previous task** and **Next task** move between the documents waiting for review. A document
+type's field can have a **Format check** chosen from common formats (digits only, an amount with 2 decimals, dates,
+e-mail, phone, IBAN, GSTIN, PAN, EIN, VAT number, invoice number) or **Own pattern…**; the dialog says in words what
+the format accepts.
+
 In the **SaaS** service the region's operator sets `OOA_DOCFLOW_URL` and `OOA_DOCFLOW_TOKEN` for the region's Command
 Centers (tenants cannot point it elsewhere), and DocFlow's `DOCAUTO_PLATFORM_URL` may contain `{tenant}`, replaced by
 the tenant's address name.

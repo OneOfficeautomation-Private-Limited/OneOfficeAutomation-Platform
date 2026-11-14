@@ -65,7 +65,7 @@ Once signed in, the **Public** tab shows the address and who you are signed in a
 1. Check the agent: **Save** checks it, and **Check now** on the **Problems** tab looks again without saving.
    Check-in refuses agents with validation problems, and your company may also refuse check-ins that break its
    code-analysis rules (passwords typed into steps, empty Catch blocks, no description …).
-2. With no step selected (press Esc), fill in **Properties**: a clear **Agent id** and a **Description**.
+2. With no step selected (press Esc), fill in **Properties**: a **Description**, and a clear id under **Advanced: the agent's id**.
 3. Make inputs, outputs and descriptions clear: people see them when they run the agent.
 4. Replace any test values with **Credential** inputs or shared values. Never leave secrets in steps.
 5. Look at the **Dependencies** tab in the **Details** panel: the **Child agents and agent tools** must be in the

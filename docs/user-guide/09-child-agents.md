@@ -32,7 +32,7 @@ returns.
 ## 2. Prepare the child agent
 
 1. Create the child agent as usual (see [Building agents](03-studio-building-agents.md)).
-2. With no step selected (press Esc), give it a clear **Agent id** (for example `portal_sign_in`) and a
+2. With no step selected (press Esc), give it a clear id under **Advanced: the agent's id** > **Change the id…** (for example `portal_sign_in`) and a
    **Description** under **Properties**. Parents choose it by its id.
 3. In **Variables**, decide what it needs and what it gives back:
    - tick **Use as input** for each value the parent must give (mark it **Required** when it cannot run without it);
@@ -72,7 +72,7 @@ input to give it a value (as in AA); an input left unticked takes the child's de
 - for a Credential input, give a Credential variable of the parent, for example `$erp_password$`;
 - untick a row (or leave it empty) to use the child's default.
 
-**Quick map** (the ⇄ button beside **Input values**) maps the child's inputs and outputs to the parent's variables of
+**Quick map** (the button beside **Input values**) maps the child's inputs and outputs to the parent's variables of
 the same name in one go. It first shows each input and output under what will happen to it:
 
 | Group | Meaning |

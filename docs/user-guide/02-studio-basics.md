@@ -151,6 +151,19 @@ again. Clicking another step while Details is open shows that step's properties.
 **Docs** and **Video** beside its **⋮** when it is chosen or under the pointer, and the step menu has **Docs for this
 command** and **Video for this command**.
 
+More on the step list:
+
+- **Breakpoint**: click a step's line number (or press F9); click it again to remove it. A debug run stops there.
+- **Run from here**: the chosen step shows this button; earlier steps are skipped and their values come from the last run.
+- **+ Add step**: under the chosen step (and the one under the pointer); it opens **Actions** with the cursor in its
+  search, and the action you pick goes after that step.
+- **Duplicate** and **Disable** in the step tools say what they do; the common ones (undo, redo, cut, copy, delete)
+  keep their icons, with their name and key on hover.
+- Pointing at an action in **Actions** (or moving to it with the keyboard) shows what it does at the panel's foot.
+- Type badges say the type in a word: **Text**, **Number**, **Yes/No**, **Date**, **List**, **Dictionary**, **Table**,
+  **Secret** (a credential), **Duration** and so on.
+- **Add a subflow** is under the steps (and **+ Subflow** beside the subflow tabs once there is one).
+
 - **List** shows the steps as numbered lines, one under another, between **START** and **END**. Blocks (If, Loop, Try,
   Step) have their sections indented below them, labelled **Then**, **Else**, **Repeat**, **Try**, **Catch all
   errors**, **Finally (always)** and so on.
@@ -166,7 +179,7 @@ On the right, **Details** has four tabs:
 
 | Tab | Shows |
 | --- | --- |
-| **Properties** | The selected step's settings: its inputs, outputs, error handling and note. With **no step selected** (press Esc), the agent's own **Agent id** (One CommandCenter and Run agent steps know the agent by it; each agent needs its own) and **Description** (people who run it and AI agents read it). |
+| **Properties** | The selected step's settings: its inputs, outputs, error handling and note. With **no step selected** (press Esc), the agent's own id (under **Advanced: the agent's id**; One CommandCenter and Run agent steps know the agent by it, so change it only on purpose with **Change the id…**) and **Description** (people who run it and AI agents read it). |
 | **Variables** | The agent's variables: inputs, outputs and those inside the agent, plus system variables and Shared Global values. |
 | **Triggers** | Triggers that start the agent on this computer while the workspace runs. |
 | **Dependencies** | What the agent needs and who uses it: **Child agents and agent tools**, **Scripts**, **Prompt Skills**, **Files** and **Used by**. |
