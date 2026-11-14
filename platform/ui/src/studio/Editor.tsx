@@ -63,6 +63,9 @@ const ACTION_DRAG = "application/x-ooa-action";
 /** The triggers in the command list: the workspace's own (Details > Triggers) and One CommandCenter's (after check-in). */
 const STUDIO_TRIGGERS: [string, string][] = [["schedule", "On a schedule"], ["file", "When a file arrives in a folder"], ["webhook", "When a web address is called (webhook)"]];
 
+/** Asks the Actions panel to open with the cursor in its search (a step's "+ Add step"). */
+const ADD_STEP_EVENT = "ooa:add-step";
+
 export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, onSimple }: { packages: PackageManifest[]; onAdd: (action: string) => void;
   onTrigger?: (kind: string, where: "studio" | "server") => void; simple?: boolean; onSimple?: (on: boolean) => void }) {
   // Simple mode (G47): everyday toolkits under plain names; no triggers
@@ -74,6 +77,12 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
   const [hidden, setHidden] = usePersistent("panel.actions.hidden", false);
   const [width, setWidth] = usePanelSize("actions");
   const panel = useRef<HTMLElement | null>(null);
+  // 14 Nov usability round, item 7: "+ Add step" under a step opens this panel with the cursor in its search
+  useEffect(() => {
+    const open = () => { setHidden(false); setTimeout(() => panel.current?.querySelector<HTMLInputElement>('input[aria-label="Search actions"]')?.focus(), 30); };
+    window.addEventListener(ADD_STEP_EVENT, open);
+    return () => window.removeEventListener(ADD_STEP_EVENT, open);
+  }, [setHidden]);
   const total = packages.reduce((n, p) => n + p.actions.length, 0);
   // Enter in the search adds the best match: same name, then a name starting with the words, then the first found
   const best = () => {
@@ -452,6 +461,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     },
   };
   const click = (e: MouseEvent, id: string) => {
+    // 14 Nov usability round, item 6: the line number is where a breakpoint is set, as in a code editor
+    if ((e.target as HTMLElement).closest?.(".st-step-n") && !e.shiftKey && !e.ctrlKey && !e.metaKey) { onToggleBreakpoint(id); return; }
     if (e.ctrlKey || e.metaKey) { onSelect(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected.filter((x) => !x.startsWith("@")), id]); setAnchor(id); setCursor(id); }
     else if (e.shiftKey && (anchor ?? chosen[0])) extendTo(id);
     else openOrFold(id);
@@ -620,7 +631,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
           onDragOver={(e) => over(e, r.step.id, placeFor(e, r.step))}
           onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.step.id, placeFor(e, r.step))}
           onClick={(e) => click(e, r.step.id)}>
-          <span className="st-step-n">{bp && <span className="st-bp" title="Breakpoint" aria-label="breakpoint" />}{r.n}</span>
+          <span className="st-step-n" title={(bp ? "Remove the breakpoint" : "Set a breakpoint: a debug run stops here") + " (" + keyOf("run.breakpoint") + ")"}>{bp && <span className="st-bp" aria-label="breakpoint" />}{r.n}</span>
           <span className="st-guides" style={{ width: r.depth * 22 }} />
           <IconTile name={info.mark.icon} color={info.mark.color} size={24} />
           <strong>{info.name}</strong>
@@ -632,8 +643,13 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
           {r.step.continueOnError && <span className="st-badge is-info" title="Logs its error and goes on (If this step fails)">Continues on error</span>}
           {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
         </button>
+        <button type="button" className="st-add-here" aria-label={"Add a step after line " + r.n} title="Add a step after this one: pick it in Actions"
+          onClick={() => { selectOne(r.step.id); window.dispatchEvent(new Event(ADD_STEP_EVENT)); }}><Icon name="plus" size={12} stroke={2.6} /><span>Add step</span></button>
         <span className="st-step-tools">
           {/* item I (14 Nov 2026): the command's Docs and Video on the canvas too, shown on the chosen step or on hover */}
+          {isSel && chosen.length === 1 && !running && !inHandler(flow, r.step.id) &&
+            <button type="button" className="st-run-here" onClick={() => onRunFrom(r.step.id, false, false, undefined)}
+              title="Run the agent from this step: earlier steps are skipped and their values come from the last run"><Icon name="play" size={12} />Run from here</button>}
           <HelpLinks k={commandKey(r.step.action)} compact label={info.name} />
           {hasParts && <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"}
             aria-expanded={!r.folded} onClick={() => act.fold([r.step.id], !r.folded)}><Icon name={r.folded ? "chevronRight" : "chevronDown"} size={14} stroke={2.4} /></button>}
@@ -666,8 +682,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             {clipboard && <button type="button" className="st-tool" aria-label="Paste" title={withKey("Paste", "steps.paste")} onClick={() => act.paste()}><Icon name="paste" size={16} /></button>}
             {chosen.length > 0 && <>
               <button type="button" className="st-tool" aria-label="Delete" title={withKey("Delete", "steps.delete")} onClick={act.remove}><Icon name="trash" size={16} /></button>
-              <button type="button" className="st-tool" aria-label="Duplicate" title={withKey("Duplicate", "steps.duplicate")} onClick={act.duplicate}><Icon name="duplicate" size={16} /></button>
-              <button type="button" className="st-tool" aria-label={allOff ? "Enable" : "Disable"} title={withKey(allOff ? "Enable (it runs again)" : "Disable (kept, but skipped when the agent runs)", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /></button>
+              <button type="button" className="st-tool st-tool-word" title={withKey("Duplicate", "steps.duplicate")} onClick={act.duplicate}><Icon name="duplicate" size={16} /><span>Duplicate</span></button>
+              <button type="button" className="st-tool st-tool-word" title={withKey(allOff ? "Enable (it runs again)" : "Disable (kept, but skipped when the agent runs)", "steps.disable")} onClick={act.disable}><Icon name="power" size={16} /><span>{allOff ? "Enable" : "Disable"}</span></button>
             </>}
             <Menu label="More step actions" align="start" items={[
               ...(chosen.length ? [

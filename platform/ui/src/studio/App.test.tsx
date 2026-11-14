@@ -620,6 +620,21 @@ describe("new Studio", () => {
     expect(within(menu).getByRole("menuitem", { name: /^Video for this command/ })).toBeTruthy();
   });
 
+  it("sets a breakpoint from the line number, offers Run from here on the chosen step, and adds a step after one", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    const row = () => stepButton(steps, "Open workbook").closest("li")!;
+    fireEvent.click(row().querySelector(".st-step-n")!);                       // the number: a breakpoint, nothing else
+    expect(row().querySelector(".st-bp")).toBeTruthy();
+    fireEvent.click(row().querySelector(".st-step-n")!);
+    expect(row().querySelector(".st-bp")).toBeNull();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    expect(within(row()).getByRole("button", { name: /Run from here/ })).toBeTruthy();
+    const search = screen.getByLabelText("Search actions");
+    fireEvent.click(within(row()).getByRole("button", { name: /^Add a step after line/ }));
+    await waitFor(() => expect(document.activeElement).toBe(search));
+  });
+
   it("keeps a Number result only in Number variables, or in a new one named after the result", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);

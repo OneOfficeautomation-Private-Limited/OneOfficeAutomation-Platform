@@ -1017,3 +1017,16 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-x-word { color: var(--ui-text); }
 .st-qmap-btn.ui-btn { height: var(--ui-bar-h); }
 .st-cond-row .st-var-field { flex: 1; min-width: 140px; }
+/* 14 Nov usability round, items 5 to 7: words on the less common step tools; the line number sets a breakpoint;
+   Run from here on the chosen step; "+ Add step" under a step (shown on hover, on the chosen step and on focus) */
+.st-edit-bar .st-tool-word { width: auto; gap: 5px; padding: 0 8px; font-size: 12.5px; }
+.st-step-n { cursor: pointer; border-radius: 4px; }
+.st-step-n:hover { background: var(--ui-row-hover); color: var(--ui-text); }
+.st-step-tools .st-run-here { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border: 1px solid var(--ui-field);
+  border-radius: var(--ui-radius); background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.st-step-tools .st-run-here > svg { color: var(--ui-run); }
+.st-step-tools .st-run-here:hover { background: var(--ui-row-hover); }
+.st-add-here { position: absolute; left: 46px; bottom: -11px; z-index: 3; display: none; align-items: center; gap: 3px; height: 22px; padding: 0 8px;
+  border: 1px solid var(--ui-accent); border-radius: 11px; background: var(--ui-bg); color: var(--ui-accent-text); font: inherit; font-size: 11.5px; cursor: pointer; }
+.st-add-here:hover { background: var(--ui-selected); }
+.st-step-row:hover > .st-add-here, .st-step-row.is-selected > .st-add-here, .st-add-here:focus-visible { display: inline-flex; }
