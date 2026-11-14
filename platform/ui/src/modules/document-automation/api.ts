@@ -68,6 +68,8 @@ export interface ReviewPage { number: number; image: string; width?: number; hei
 export interface ReviewTask {
   /** docTypeId: the document type's id (DocType.id), when the document has one. */
   documentId: string; processId?: string; docTypeId?: string; status: DocStatus; reviewedBy?: string; name: string; processName: string; docType: string; cameIn: string; dueIn: string; targetHours: number; position: number; of: number;
+  /** The review tasks before and after this one in the waiting list (Previous task, Next task); absent at either end. */
+  previousId?: string; nextId?: string;
   engineTrail: string; pages: ReviewPage[];
   /** The page's text, shown only when there is no page image (an e-invoice XML on its own). */
   pageLines: { text: string; mark?: "flag" | "ok"; bold?: boolean }[];
@@ -568,7 +570,12 @@ export class SampleApi implements DocFlowApi {
   async reviewTask(documentId: string): Promise<ReviewTask> {
     const d = this.documentsData.find((x) => x.id === documentId);
     const approved = this.reviews.some((r) => r.documentId === documentId && r.decision === "approve") && d?.status === "done";
-    return { ...copy(REVIEW), documentId, name: d?.name ?? REVIEW.name, docTypeId: "supplier-invoice",
+    // where it stands in the documents waiting for review, for Previous task and Next task
+    const queue = this.documentsData.filter((x) => x.status === "review");
+    const at = queue.findIndex((x) => x.id === documentId);
+    const place = at < 0 ? {} : { position: at + 1, of: queue.length,
+      ...(at > 0 ? { previousId: queue[at - 1].id } : {}), ...(at < queue.length - 1 ? { nextId: queue[at + 1].id } : {}) };
+    return { ...copy(REVIEW), documentId, name: d?.name ?? REVIEW.name, docTypeId: "supplier-invoice", ...place,
       ...(approved ? { status: "done" as const, reviewedBy: "you", documentReasons: [] } : {}) };
   }
   async completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject") {

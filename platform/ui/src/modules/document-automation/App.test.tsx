@@ -182,6 +182,24 @@ describe("Document Automation", () => {
     expect(menu).toBeTruthy();
   });
 
+  it("moves to the previous and next review task; Previous is off on the first, Next on the last", async () => {
+    start(); await go("#/review/scan_0457");
+    await screen.findByRole("region", { name: "Fields" });
+    expect(screen.getByText("Task 1 of 3")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Previous task" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Next task" }));
+    expect(location.hash).toBe("#/review/nl_7710");
+    await go("#/review/nl_7710");
+    await waitFor(() => expect(screen.getByText("Task 2 of 3")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Next task" }));
+    expect(location.hash).toBe("#/review/batch_0930_3");
+    await go("#/review/batch_0930_3");
+    await waitFor(() => expect(screen.getByText("Task 3 of 3")).toBeTruthy());
+    expect((screen.getByRole("button", { name: "Next task" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Previous task" }));
+    expect(location.hash).toBe("#/review/nl_7710");
+  });
+
   it("says why the document needs review: the fields to check first with their reason, the rest after, the document's own reasons on top", async () => {
     const api = new SampleApi();
     const sample = await api.reviewTask("scan_0457");

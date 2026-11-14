@@ -250,6 +250,19 @@ describe("HttpDocFlowApi", () => {
     expect(await api.reviewTask("d1")).toMatchObject({ docTypeId: "invoice", status: "done", reviewedBy: "Sara" });
   });
 
+  it("names the review tasks before and after, from the review queue, for Previous task and Next task", async () => {
+    const doc = { ...row, flowId: "ap", status: "validation", flags: [], fields: { total: 115 }, confidence: { total: 0.9 }, error: null };
+    const queue = [{ id: "d0", flowId: "ap", ageHours: 1, slaHours: 24 }, { id: "d1", flowId: "ap", ageHours: 1, slaHours: 24 }, { id: "d2", flowId: "ap", ageHours: 1, slaHours: 24 }];
+    const mid = await fake({ "/df/documents/d1": doc, "/df/flows": [flow], "/df/doctypes": [], "/df/review": queue }).api.reviewTask("d1");
+    expect(mid).toMatchObject({ position: 2, of: 3, previousId: "d0", nextId: "d2" });
+    const first = await fake({ "/df/documents/d1": doc, "/df/flows": [flow], "/df/doctypes": [], "/df/review": queue.slice(1) }).api.reviewTask("d1");
+    expect(first.previousId).toBeUndefined();
+    expect(first.nextId).toBe("d2");
+    const gone = await fake({ "/df/documents/d1": doc, "/df/flows": [flow], "/df/doctypes": [], "/df/review": [queue[0]] }).api.reviewTask("d1");
+    expect(gone.previousId).toBeUndefined();           // not waiting any more: no neighbours
+    expect(gone.nextId).toBeUndefined();
+  });
+
   it("maps every process's set-up and activity for the Overview table in three calls", async () => {
     const inbox = { ...flow, id: "smart-inbox", name: "One Inbox", isInbox: true, docTypes: [], docTypeNames: ["Invoice", "Receipt"], classify: { mode: "single", split: true },
       engine: { ...flow.engine, extractionProvider: "claude" }, rules: [], deliveries: [], intake: { inputFolder: "", pollSeconds: 30 }, stats: { ...stats, thisMonth: undefined } };

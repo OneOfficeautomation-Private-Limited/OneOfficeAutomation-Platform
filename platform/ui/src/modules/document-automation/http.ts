@@ -320,6 +320,7 @@ export class HttpDocFlowApi implements DocFlowApi {
       cameIn: `${clock(d.created_at)} by ${sourceOf({ ...d, instance_id: d.flowId, flags: d.flags, confidence: null }).label.toLowerCase()}`,
       dueIn: mine ? `${Math.max(0, Math.round(mine.slaHours - mine.ageHours))} h` : "—", targetHours: mine?.slaHours ?? flow?.review.slaHours ?? 24,
       position: at >= 0 ? at + 1 : 1, of: Math.max(queue.length, 1),
+      ...(at > 0 ? { previousId: queue[at - 1].id } : {}), ...(at >= 0 && at < queue.length - 1 ? { nextId: queue[at + 1].id } : {}),
       engineTrail: engines.length ? "read by " + engines.join(", re-read by ") + (result?.confidence ? ` (${pct(result.confidence)}%)` : "") : "—",
       pages: (result?.pages ?? []).map((p, i) => {
         const n = p.pageNumber ?? i + 1;
