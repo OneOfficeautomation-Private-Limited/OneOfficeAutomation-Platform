@@ -28,7 +28,9 @@ export function HelpButton({ topic }: { topic: HelpTopic }) {
   const on = help.topic?.title === topic.title;
   return (
     <button type="button" className={"ui-help" + (on ? " is-on" : "")} aria-label={"Help: " + topic.title} aria-expanded={on}
-      title={on ? "Close the help" : "How to use " + topic.title} onClick={() => help.open(on ? null : topic)}>i</button>
+      title={on ? "Close the help" : "How to use " + topic.title} onClick={() => help.open(on ? null : topic)}>
+      {/* 14 Nov usability round, item 9: a word, not a 16 px "i" */}
+      <span className="ui-help-mark" aria-hidden="true">?</span><span className="ui-help-word">Help</span></button>
   );
 }
 

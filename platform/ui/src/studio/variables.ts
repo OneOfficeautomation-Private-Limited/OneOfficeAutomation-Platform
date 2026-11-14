@@ -11,16 +11,17 @@ export const TYPES = ["String", "Number", "Boolean", "DateTime", "Time", "TimeSp
   "Window", "UIElement", "Credential", "Any"] as const;
 
 /** A colour (white letters at 4.5:1 or more) and a plain description for each type. */
+/** Each type's colour and the word on its badge (14 Nov usability round, item 8: words, not abbreviations). */
 export const TYPE_STYLE: Record<string, { color: string; short: string; hint: string }> = {
-  String: { color: "#1d4ed8", short: "Abc", hint: "Text" }, Number: { color: "#047857", short: "123", hint: "Whole or decimal number" },
-  Boolean: { color: "#6d28d9", short: "Y/N", hint: "True or false" }, DateTime: { color: "#a14d05", short: "Date", hint: "Date and time" },
-  List: { color: "#0e7490", short: "[ ]", hint: "Ordered items" }, Dictionary: { color: "#be185d", short: "{ }", hint: "Named keys and values" },
-  Table: { color: "#15803d", short: "Tbl", hint: "Rows and columns" }, Record: { color: "#7e22ce", short: "Rec", hint: "One row of named values" },
-  File: { color: "#475569", short: "File", hint: "File or folder path" }, Window: { color: "#c2410c", short: "Win", hint: "An application window" },
-  UIElement: { color: "#9a3412", short: "UI", hint: "An element on screen or in a web page" }, Credential: { color: "#b91c1c", short: "Key", hint: "Secret from the vault" },
+  String: { color: "#1d4ed8", short: "Text", hint: "Text" }, Number: { color: "#047857", short: "Number", hint: "Whole or decimal number" },
+  Boolean: { color: "#6d28d9", short: "Yes/No", hint: "True or false" }, DateTime: { color: "#a14d05", short: "Date", hint: "Date and time" },
+  List: { color: "#0e7490", short: "List", hint: "Ordered items" }, Dictionary: { color: "#be185d", short: "Dictionary", hint: "Named keys and values" },
+  Table: { color: "#15803d", short: "Table", hint: "Rows and columns" }, Record: { color: "#7e22ce", short: "Record", hint: "One row of named values" },
+  File: { color: "#475569", short: "File", hint: "File or folder path" }, Window: { color: "#c2410c", short: "Window", hint: "An application window" },
+  UIElement: { color: "#9a3412", short: "Element", hint: "An element on screen or in a web page" }, Credential: { color: "#b91c1c", short: "Secret", hint: "Secret from the vault" },
   Any: { color: "#475569", short: "Any", hint: "Any kind of value" },
-  Time: { color: "#0f766e", short: "Time", hint: "Time of day, e.g. 14:30:05" }, TimeSpan: { color: "#9d174d", short: "Dur", hint: "Length of time, e.g. 2h 15m" },
-  Image: { color: "#4338ca", short: "Img", hint: "A picture held in memory" }, Binary: { color: "#334155", short: "Bin", hint: "Bytes held in memory, e.g. a file's contents" },
+  Time: { color: "#0f766e", short: "Time", hint: "Time of day, e.g. 14:30:05" }, TimeSpan: { color: "#9d174d", short: "Duration", hint: "Length of time, e.g. 2h 15m" },
+  Image: { color: "#4338ca", short: "Image", hint: "A picture held in memory" }, Binary: { color: "#334155", short: "Bytes", hint: "Bytes held in memory, e.g. a file's contents" },
 };
 
 /** "14:30" or "2:30 PM" as 14:30:00; undefined when the text is not a time of day. */

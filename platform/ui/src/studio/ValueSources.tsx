@@ -317,7 +317,7 @@ export function RunAgentFields({ step }: { step: FlowStep }) {
                   const next = new Set(opened); if (e.target.checked) next.add(v.name); else next.delete(v.name); setOpened(next);
                   if (!e.target.checked && val !== undefined) applyNow(vars, (f) => putInput(v, "", f));
                 }} />
-              <TypeBadge type={v.type || "Any"} /><span className="st-run-name">{v.name}{v.required ? " *" : ""}</span><span className="st-type-chip">{v.type}</span>
+              <TypeBadge type={v.type || "Any"} /><span className="st-run-name">{v.name}{v.required ? " *" : ""}</span>
             </label>
             {on && <div className="ui-field-control">
               <CommitInput key={v.name + showValue(val)} label={"Input " + v.name} initial={val === undefined ? "" : showValue(val)} want={v.type}

@@ -3,6 +3,7 @@ import type { CrApi, CrUser, Environment } from "../api/cr";
 import { Icon, is, keyOf, Menu } from "../components";
 import { CompanyName, TopBrand } from "../shell/TopBrand";
 import { canSee, MENU_SECTIONS } from "../shell/menu";
+import { helpLinks } from "../shell/helpCatalogue";
 import { PhoneNotificationsDialog } from "./PhoneNotifications";
 import { ApiKeysDialog } from "./ApiKeys";
 import { MyAccountDialog } from "./MyAccount";
@@ -47,7 +48,11 @@ export function TopBar({ api, user, onPage, onSignOut, onShortcuts, onChangePass
       <div className="st-top-actions">
         {alerts != null && <a className="st-top-icon cc-bell" href="#/alerts" aria-label={"Open alerts: " + alerts} title="Open alerts">
           <Icon name="bell" size={16} />{alerts > 0 && <span className="cc-badge">{alerts}</span>}</a>}
-        <Menu label="Help" align="end" items={[{ key: "keys", label: "Keyboard shortcuts", description: "Every key, and single-key shortcuts on or off", shortcut: keyOf("app.shortcuts"), onSelect: onShortcuts }]}
+        <Menu label="Help" align="end" items={[
+          // 14 Nov usability round, item 9: the user guide from the ? menu, not only from each page
+          ...(helpLinks("page:user-guide").doc ? [{ key: "guide", label: "User guide", description: "How to use One CommandCenter and OneAgentStudio, step by step",
+            onSelect: () => window.open(helpLinks("page:user-guide").doc, "_blank", "noopener,noreferrer") }] : []),
+          { key: "keys", label: "Keyboard shortcuts", description: "Every key, and single-key shortcuts on or off", shortcut: keyOf("app.shortcuts"), onSelect: onShortcuts }]}
           trigger={<button type="button" className="st-top-icon" aria-label="Help" title="Help"><Icon name="help" size={16} /></button>} />
         <Menu label="Your account" align="end" title={user.display_name + " · " + (user.roles?.length ? user.roles.join(", ") : user.role)}
           // round 3, item 9 (as AA's user menu): My account holds the profile, sessions, API keys, password, two-step

@@ -94,7 +94,7 @@ export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor, type
   const item = (ref: string, type: string, note: string) => (
     <button key={ref} type="button" role="option" aria-selected="false" className="st-vp-item" onClick={() => onPick(ref)}
       onMouseEnter={() => setShown(ref)} onFocus={() => setShown(ref)}>
-      <TypeBadge type={type} /><span className="st-vp-ref ui-mono">{ref}</span><span className="st-vp-type">{type}</span>
+      <TypeBadge type={type} /><span className="st-vp-ref ui-mono">{ref}</span>
       {note && <span className="st-vp-note">{note}</span>}
     </button>
   );
