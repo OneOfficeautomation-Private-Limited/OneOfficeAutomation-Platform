@@ -139,7 +139,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "https://quotes.toscrape.com/login",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -149,7 +149,7 @@
       "id": "s2",
       "action": "ooa.browser/type_text",
       "args": {
-        "text": "$quote_user",
+        "text": "$quote_user$",
         "object": {
           "technology": "web",
           "page": {
@@ -326,7 +326,7 @@
       "id": "s3",
       "action": "ooa.browser/type_text",
       "args": {
-        "text": "$quote_password",
+        "text": "$quote_password$",
         "object": {
           "technology": "web",
           "page": {
@@ -838,7 +838,7 @@
         "iterator": "while",
         "condition": {
           "op": "eq",
-          "left": "$more",
+          "left": "$more$",
           "right": true
         },
         "max_iterations": 30
@@ -1018,7 +1018,7 @@
           "id": "s10",
           "action": "ooa.datatable/from_records",
           "args": {
-            "records": "$page_quotes"
+            "records": "$page_quotes$"
           },
           "out": {
             "table": "page_table"
@@ -1029,8 +1029,8 @@
           "action": "ooa.datatable/merge",
           "args": {
             "tables": [
-              "$quotes",
-              "$page_table"
+              "$quotes$",
+              "$page_table$"
             ],
             "columns": "union"
           },
@@ -1385,7 +1385,7 @@
       "id": "s17",
       "action": "ooa.datatable/row_count",
       "args": {
-        "table": "$quotes"
+        "table": "$quotes$"
       },
       "out": {
         "count": "quote_count"
@@ -1395,7 +1395,7 @@
       "id": "s18",
       "action": "ooa.datatable/aggregate",
       "args": {
-        "table": "$quotes",
+        "table": "$quotes$",
         "group_by": [
           "Author"
         ],
@@ -1411,7 +1411,7 @@
       "id": "s19",
       "action": "ooa.datatable/sort",
       "args": {
-        "table": "$ranking",
+        "table": "$ranking$",
         "column": "Quotes",
         "descending": true,
         "then_by": [
@@ -1427,10 +1427,10 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$ranking",
+        "over": "$ranking$",
         "as": "a",
         "to_index": {
-          "expr": "$top_n - 1"
+          "expr": "$top_n$ - 1"
         }
       },
       "description": "The top authors' pages",
@@ -1439,7 +1439,7 @@
           "id": "s20",
           "action": "ooa.string/replace",
           "args": {
-            "text": "$a.Author",
+            "text": "$a.Author$",
             "find": "[^A-Za-z0-9]+",
             "replace_with": "-",
             "regex": true
@@ -1452,7 +1452,7 @@
           "id": "s21",
           "action": "ooa.string/replace",
           "args": {
-            "text": "$slug",
+            "text": "$slug$",
             "find": "^-+|-+$",
             "replace_with": "",
             "regex": true
@@ -1643,13 +1643,13 @@
           "id": "s25",
           "action": "ooa.datatable/add_row",
           "args": {
-            "table": "$authors",
+            "table": "$authors$",
             "values": [
-              "$a.Author",
-              "$a.Quotes",
-              "$born",
+              "$a.Author$",
+              "$a.Quotes$",
+              "$born$",
               {
-                "expr": "replace($place, \"in \", \"\")"
+                "expr": "replace($place$, \"in \", \"\")"
               }
             ]
           },
@@ -1663,7 +1663,7 @@
           "args": {
             "condition": {
               "op": "empty",
-              "left": "$top_author"
+              "left": "$top_author$"
             }
           },
           "children": [
@@ -1672,7 +1672,7 @@
               "action": "core/set",
               "args": {
                 "variable": "top_author",
-                "value": "$a.Author"
+                "value": "$a.Author$"
               }
             },
             {
@@ -1680,7 +1680,7 @@
               "action": "core/set",
               "args": {
                 "variable": "top_author_born",
-                "value": "$born"
+                "value": "$born$"
               }
             }
           ]
@@ -1702,7 +1702,7 @@
       "id": "s32",
       "action": "ooa.csv/write",
       "args": {
-        "table": "$quotes",
+        "table": "$quotes$",
         "path": "${folder}/output/quotes.csv"
       }
     },
@@ -1710,7 +1710,7 @@
       "id": "s33",
       "action": "ooa.csv/write",
       "args": {
-        "table": "$authors",
+        "table": "$authors$",
         "path": "${folder}/output/top-authors.csv"
       }
     }

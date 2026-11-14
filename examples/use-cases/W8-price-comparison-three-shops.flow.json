@@ -165,7 +165,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "${folder}/site/shop-a.html",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -176,7 +176,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$products",
+        "over": "$products$",
         "as": "p"
       },
       "description": "Each product",
@@ -202,7 +202,7 @@
           "action": "core/loop",
           "args": {
             "iterator": "list",
-            "over": "$shops",
+            "over": "$shops$",
             "as": "shop"
           },
           "description": "Each shop",
@@ -221,7 +221,7 @@
               "args": {
                 "condition": {
                   "op": "eq",
-                  "left": "$shop",
+                  "left": "$shop$",
                   "right": "Shop A"
                 }
               },
@@ -239,7 +239,7 @@
                   "action": "ooa.browser/type_text",
                   "args": {
                     "selector": "#search",
-                    "text": "$p.Product"
+                    "text": "$p.Product$"
                   }
                 },
                 {
@@ -286,7 +286,7 @@
                 {
                   "condition": {
                     "op": "eq",
-                    "left": "$shop",
+                    "left": "$shop$",
                     "right": "Shop B"
                   },
                   "children": [
@@ -302,7 +302,7 @@
                       "action": "ooa.browser/type_text",
                       "args": {
                         "selector": "input[name=query]",
-                        "text": "$p.Product",
+                        "text": "$p.Product$",
                         "press_enter": true
                       }
                     },
@@ -354,7 +354,7 @@
                   "action": "ooa.browser/type_text",
                   "args": {
                     "selector": "#find",
-                    "text": "$p.Product"
+                    "text": "$p.Product$"
                   }
                 },
                 {
@@ -405,7 +405,7 @@
               "args": {
                 "condition": {
                   "op": "notEmpty",
-                  "left": "$raw"
+                  "left": "$raw$"
                 }
               },
               "description": "The shop sells it: compare its price",
@@ -414,7 +414,7 @@
                   "id": "s25",
                   "action": "ooa.string/replace",
                   "args": {
-                    "text": "$raw",
+                    "text": "$raw$",
                     "find": "[^0-9,.]",
                     "replace_with": "",
                     "regex": true
@@ -427,7 +427,7 @@
                   "id": "s26",
                   "action": "ooa.string/replace",
                   "args": {
-                    "text": "$clean",
+                    "text": "$clean$",
                     "find": ",",
                     "replace_with": "."
                   },
@@ -441,7 +441,7 @@
                   "args": {
                     "variable": "price",
                     "value": {
-                      "expr": "toNumber($clean)"
+                      "expr": "toNumber($clean$)"
                     }
                   }
                 },
@@ -451,8 +451,8 @@
                   "args": {
                     "condition": {
                       "op": "lt",
-                      "left": "$price",
-                      "right": "$best"
+                      "left": "$price$",
+                      "right": "$best$"
                     }
                   },
                   "children": [
@@ -461,7 +461,7 @@
                       "action": "core/set",
                       "args": {
                         "variable": "best",
-                        "value": "$price"
+                        "value": "$price$"
                       }
                     },
                     {
@@ -469,7 +469,7 @@
                       "action": "core/set",
                       "args": {
                         "variable": "best_shop",
-                        "value": "$shop"
+                        "value": "$shop$"
                       }
                     }
                   ]
@@ -482,8 +482,8 @@
           "id": "s33",
           "action": "ooa.datatable/find",
           "args": {
-            "table": "$last",
-            "value": "$p.Product",
+            "table": "$last$",
+            "value": "$p.Product$",
             "column": "Product"
           },
           "out": {
@@ -505,7 +505,7 @@
           "args": {
             "condition": {
               "op": "eq",
-              "left": "$found",
+              "left": "$found$",
               "right": true
             }
           },
@@ -514,8 +514,8 @@
               "id": "s35",
               "action": "ooa.datatable/get_value",
               "args": {
-                "table": "$last",
-                "row": "$at",
+                "table": "$last$",
+                "row": "$at$",
                 "column": "LastBest"
               },
               "out": {
@@ -530,7 +530,7 @@
           "args": {
             "variable": "changed",
             "value": {
-              "expr": "$best != $previous"
+              "expr": "$best$ != $previous$"
             }
           }
         },
@@ -540,7 +540,7 @@
           "args": {
             "condition": {
               "op": "eq",
-              "left": "$changed",
+              "left": "$changed$",
               "right": true
             }
           },
@@ -551,7 +551,7 @@
               "args": {
                 "variable": "changes",
                 "value": {
-                  "expr": "$changes + 1"
+                  "expr": "$changes$ + 1"
                 }
               }
             }
@@ -563,7 +563,7 @@
           "args": {
             "condition": {
               "op": "eq",
-              "left": "$p.Product",
+              "left": "$p.Product$",
               "right": "Office chair"
             }
           },
@@ -573,7 +573,7 @@
               "action": "core/set",
               "args": {
                 "variable": "chair_shop",
-                "value": "$best_shop"
+                "value": "$best_shop$"
               }
             }
           ]
@@ -582,13 +582,13 @@
           "id": "s42",
           "action": "ooa.datatable/add_row",
           "args": {
-            "table": "$report",
+            "table": "$report$",
             "values": [
-              "$p.Product",
-              "$best_shop",
-              "$best",
-              "$previous",
-              "$changed"
+              "$p.Product$",
+              "$best_shop$",
+              "$best$",
+              "$previous$",
+              "$changed$"
             ]
           },
           "out": {
@@ -601,7 +601,7 @@
           "args": {
             "variable": "total_best",
             "value": {
-              "expr": "$total_best + $best"
+              "expr": "$total_best$ + $best$"
             }
           }
         },
@@ -611,7 +611,7 @@
           "args": {
             "variable": "compared",
             "value": {
-              "expr": "$compared + 1"
+              "expr": "$compared$ + 1"
             }
           }
         }
@@ -625,7 +625,7 @@
       "id": "s47",
       "action": "ooa.csv/write",
       "args": {
-        "table": "$report",
+        "table": "$report$",
         "path": "${folder}/output/price-report.csv"
       }
     }

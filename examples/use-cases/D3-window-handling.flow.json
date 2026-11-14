@@ -120,7 +120,7 @@
           "action": "core/set",
           "args": {
             "variable": "width",
-            "value": "$win.width"
+            "value": "$win.width$"
           }
         },
         {
@@ -128,7 +128,7 @@
           "action": "core/set",
           "args": {
             "variable": "height",
-            "value": "$win.height"
+            "value": "$win.height$"
           }
         },
         {
@@ -148,7 +148,7 @@
           "id": "s10",
           "action": "ooa.application/stop_program",
           "args": {
-            "process_id": "$app_pid",
+            "process_id": "$app_pid$",
             "force": true
           },
           "description": "Close the application"

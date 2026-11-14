@@ -128,7 +128,7 @@
       "id": "s2",
       "action": "ooa.json/parse",
       "args": {
-        "text": "$orders_json"
+        "text": "$orders_json$"
       },
       "out": {
         "value": "orders"
@@ -139,7 +139,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "${folder}/site/order-admin.html",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -150,7 +150,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "list",
-        "over": "$orders",
+        "over": "$orders$",
         "as": "o"
       },
       "description": "Each order",
@@ -482,7 +482,7 @@
           "id": "s6",
           "action": "ooa.browser/type_text",
           "args": {
-            "text": "$o.customer",
+            "text": "$o.customer$",
             "object": {
               "technology": "web",
               "page": {
@@ -650,7 +650,7 @@
           "action": "core/loop",
           "args": {
             "iterator": "list",
-            "over": "$o.lines",
+            "over": "$o.lines$",
             "as": "line"
           },
           "description": "Each product line",
@@ -819,7 +819,7 @@
               "args": {
                 "variable": "k",
                 "value": {
-                  "expr": "$k + 1"
+                  "expr": "$k$ + 1"
                 }
               }
             },
@@ -828,7 +828,7 @@
               "action": "ooa.browser/select_option",
               "args": {
                 "selector": "#lines .line:nth-child(${k}) select.product",
-                "option": "$line.product"
+                "option": "$line.product$"
               }
             },
             {
@@ -836,7 +836,7 @@
               "action": "ooa.browser/type_text",
               "args": {
                 "selector": "#lines .line:nth-child(${k}) input.qty",
-                "text": "${line.qty}"
+                "text": "$line.qty$"
               }
             }
           ]
@@ -1340,7 +1340,7 @@
             "iterator": "while",
             "condition": {
               "op": "ne",
-              "left": "$status",
+              "left": "$status$",
               "right": "Ready"
             },
             "max_iterations": 60
@@ -1697,7 +1697,7 @@
           "id": "s21",
           "action": "ooa.file/read_text",
           "args": {
-            "path": "$invoice_path"
+            "path": "$invoice_path$"
           },
           "out": {
             "text": "invoice_text"
@@ -1707,7 +1707,7 @@
           "id": "s22",
           "action": "ooa.string/find",
           "args": {
-            "text": "$invoice_text",
+            "text": "$invoice_text$",
             "find": "Total:\\s*[0-9.]+",
             "regex": true
           },
@@ -1719,7 +1719,7 @@
           "id": "s23",
           "action": "ooa.string/replace",
           "args": {
-            "text": "$match",
+            "text": "$match$",
             "find": "^Total:\\s*",
             "replace_with": "",
             "regex": true
@@ -1734,7 +1734,7 @@
           "args": {
             "variable": "total",
             "value": {
-              "expr": "toNumber($total_text)"
+              "expr": "toNumber($total_text$)"
             }
           }
         },
@@ -1744,8 +1744,8 @@
           "args": {
             "condition": {
               "op": "eq",
-              "left": "$total",
-              "right": "$o.expected_total"
+              "left": "$total$",
+              "right": "$o.expected_total$"
             }
           },
           "children": [
@@ -1755,7 +1755,7 @@
               "args": {
                 "variable": "verified",
                 "value": {
-                  "expr": "$verified + 1"
+                  "expr": "$verified$ + 1"
                 }
               }
             }
@@ -1777,7 +1777,7 @@
           "args": {
             "variable": "grand_total",
             "value": {
-              "expr": "$grand_total + $total"
+              "expr": "$grand_total$ + $total$"
             }
           }
         },
@@ -1787,7 +1787,7 @@
           "args": {
             "variable": "created",
             "value": {
-              "expr": "$created + 1"
+              "expr": "$created$ + 1"
             }
           }
         },
@@ -1965,7 +1965,7 @@
       "id": "s33",
       "action": "ooa.datatable/filter",
       "args": {
-        "table": "$order_list",
+        "table": "$order_list$",
         "column": "Status",
         "operator": "eq",
         "value": "Ready"
@@ -1982,7 +1982,7 @@
       "id": "s35",
       "action": "ooa.csv/write",
       "args": {
-        "table": "$order_list",
+        "table": "$order_list$",
         "path": "${folder}/output/created-orders.csv"
       }
     }

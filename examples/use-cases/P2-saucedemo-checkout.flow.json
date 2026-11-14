@@ -135,7 +135,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "https://www.saucedemo.com/",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -146,7 +146,7 @@
       "action": "ooa.browser/type_text",
       "args": {
         "selector": "#user-name",
-        "text": "$shop_user"
+        "text": "$shop_user$"
       }
     },
     {
@@ -154,7 +154,7 @@
       "action": "ooa.browser/type_text",
       "args": {
         "selector": "#password",
-        "text": "$shop_password"
+        "text": "$shop_password$"
       }
     },
     {
@@ -197,11 +197,11 @@
       "action": "core/loop",
       "args": {
         "iterator": "list",
-        "over": "$products",
+        "over": "$products$",
         "as": "p",
         "index": "i",
         "to_index": {
-          "expr": "$items_to_buy - 1"
+          "expr": "$items_to_buy$ - 1"
         }
       },
       "description": "The cheapest products",
@@ -220,7 +220,7 @@
           "args": {
             "variable": "expected",
             "value": {
-              "expr": "$expected + $p.price"
+              "expr": "$expected$ + $p.price$"
             }
           }
         }
@@ -257,7 +257,7 @@
       "args": {
         "variable": "cart_count",
         "value": {
-          "expr": "len($cart)"
+          "expr": "len($cart$)"
         }
       }
     },
@@ -273,7 +273,7 @@
       "action": "ooa.browser/type_text",
       "args": {
         "selector": "#first-name",
-        "text": "$first_name"
+        "text": "$first_name$"
       }
     },
     {
@@ -281,7 +281,7 @@
       "action": "ooa.browser/type_text",
       "args": {
         "selector": "#last-name",
-        "text": "$last_name"
+        "text": "$last_name$"
       }
     },
     {
@@ -289,7 +289,7 @@
       "action": "ooa.browser/type_text",
       "args": {
         "selector": "#postal-code",
-        "text": "$postal_code"
+        "text": "$postal_code$"
       }
     },
     {
@@ -315,7 +315,7 @@
       "args": {
         "variable": "item_total",
         "value": {
-          "expr": "toNumber(regexExtract($label, \"[0-9.]+\"))"
+          "expr": "toNumber(regexExtract($label$, \"[0-9.]+\"))"
         }
       }
     },
@@ -335,7 +335,7 @@
       "args": {
         "variable": "order_total",
         "value": {
-          "expr": "toNumber(regexExtract($label, \"[0-9.]+\"))"
+          "expr": "toNumber(regexExtract($label$, \"[0-9.]+\"))"
         }
       }
     },
@@ -345,7 +345,7 @@
       "args": {
         "variable": "total_matches",
         "value": {
-          "expr": "round($item_total, 2) == round($expected, 2)"
+          "expr": "round($item_total$, 2) == round($expected$, 2)"
         }
       }
     },

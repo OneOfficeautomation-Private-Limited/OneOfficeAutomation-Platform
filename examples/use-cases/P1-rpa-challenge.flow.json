@@ -55,7 +55,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "https://rpachallenge.com/",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -78,7 +78,7 @@
       "id": "s3",
       "action": "ooa.excel/open",
       "args": {
-        "path": "$xlsx",
+        "path": "$xlsx$",
         "session": "challenge",
         "header": true
       }
@@ -114,7 +114,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$people",
+        "over": "$people$",
         "as": "row"
       },
       "description": "One round per row: the fields move, so they are found by their name, not their place",
@@ -126,7 +126,7 @@
             "condition": {
               "op": "notEmpty",
               "left": {
-                "expr": "$row[\"First Name\"]"
+                "expr": "$row[\"First Name\"]$"
               }
             }
           },
@@ -137,7 +137,7 @@
               "args": {
                 "selector": "input[ng-reflect-name='labelFirstName']",
                 "text": {
-                  "expr": "toString($row[\"First Name\"])"
+                  "expr": "toString($row[\"First Name\"]$)"
                 }
               }
             },
@@ -147,7 +147,7 @@
               "args": {
                 "selector": "input[ng-reflect-name='labelLastName']",
                 "text": {
-                  "expr": "toString($row[\"Last Name \"])"
+                  "expr": "toString($row[\"Last Name \"]$)"
                 }
               }
             },
@@ -157,7 +157,7 @@
               "args": {
                 "selector": "input[ng-reflect-name='labelCompanyName']",
                 "text": {
-                  "expr": "toString($row[\"Company Name\"])"
+                  "expr": "toString($row[\"Company Name\"]$)"
                 }
               }
             },
@@ -167,7 +167,7 @@
               "args": {
                 "selector": "input[ng-reflect-name='labelRole']",
                 "text": {
-                  "expr": "toString($row[\"Role in Company\"])"
+                  "expr": "toString($row[\"Role in Company\"]$)"
                 }
               }
             },
@@ -177,7 +177,7 @@
               "args": {
                 "selector": "input[ng-reflect-name='labelAddress']",
                 "text": {
-                  "expr": "toString($row[\"Address\"])"
+                  "expr": "toString($row[\"Address\"]$)"
                 }
               }
             },
@@ -187,7 +187,7 @@
               "args": {
                 "selector": "input[ng-reflect-name='labelEmail']",
                 "text": {
-                  "expr": "toString($row[\"Email\"])"
+                  "expr": "toString($row[\"Email\"]$)"
                 }
               }
             },
@@ -197,7 +197,7 @@
               "args": {
                 "selector": "input[ng-reflect-name='labelPhone']",
                 "text": {
-                  "expr": "toString($row[\"Phone Number\"])"
+                  "expr": "toString($row[\"Phone Number\"]$)"
                 }
               }
             },
@@ -214,7 +214,7 @@
               "args": {
                 "variable": "rounds",
                 "value": {
-                  "expr": "$rounds + 1"
+                  "expr": "$rounds$ + 1"
                 }
               }
             }

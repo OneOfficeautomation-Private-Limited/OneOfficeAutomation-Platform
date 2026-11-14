@@ -16,16 +16,16 @@
     {"name": "flagged", "type": "Number", "direction": "output", "default": 0, "description": "Number of invoices sent to review."}
   ],
   "steps": [
-    {"id": "open", "action": "ooa.excel/open", "args": {"path": "$workbook"}},
+    {"id": "open", "action": "ooa.excel/open", "args": {"path": "$workbook$"}},
     {"id": "try", "action": "core/try", "children": [
       {"id": "read", "action": "ooa.excel/get_all_cells", "args": {}, "out": {"table": "invoices"}},
-      {"id": "sum", "action": "core/loop", "args": {"iterator": "table_rows", "over": "$invoices", "as": "row"}, "children": [
-        {"id": "add", "action": "core/set", "args": {"variable": "total", "value": {"expr": "$total + coalesce($row.Amount, 0)"}}}
+      {"id": "sum", "action": "core/loop", "args": {"iterator": "table_rows", "over": "$invoices$", "as": "row"}, "children": [
+        {"id": "add", "action": "core/set", "args": {"variable": "total", "value": {"expr": "$total$ + coalesce($row.Amount$, 0)"}}}
       ]},
-      {"id": "filter", "action": "ooa.datatable/filter", "args": {"table": "$invoices", "column": "Amount", "operator": "gt", "value": "$threshold"}, "out": {"table": "review", "count": "flagged"}},
-      {"id": "sort", "action": "ooa.datatable/sort", "args": {"table": "$review", "column": "Amount", "descending": true}, "out": {"table": "review"}},
+      {"id": "filter", "action": "ooa.datatable/filter", "args": {"table": "$invoices$", "column": "Amount", "operator": "gt", "value": "$threshold$"}, "out": {"table": "review", "count": "flagged"}},
+      {"id": "sort", "action": "ooa.datatable/sort", "args": {"table": "$review$", "column": "Amount", "descending": true}, "out": {"table": "review"}},
       {"id": "sheet", "action": "ooa.excel/add_sheet", "args": {"name": "Review"}},
-      {"id": "write", "action": "ooa.excel/write_table", "args": {"table": "$review", "sheet": "Review"}},
+      {"id": "write", "action": "ooa.excel/write_table", "args": {"table": "$review$", "sheet": "Review"}},
       {"id": "save", "action": "ooa.excel/save", "args": {}},
       {"id": "log", "action": "core/log", "args": {"message": "Total ${total}; ${flagged} invoice(s) above ${threshold} sent to review"}}
     ],

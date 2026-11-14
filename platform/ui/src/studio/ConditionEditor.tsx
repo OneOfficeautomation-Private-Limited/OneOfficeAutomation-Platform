@@ -223,7 +223,7 @@ export function ConditionEditor({ value, onCommit }: { value: unknown; onCommit:
       <div className="st-cond-row" role="group" aria-label={label}>
         <Select aria-label="What to check" className="st-cond-what" value={n.kind === "toolkit" ? n.condition : ""} onChange={(e) => choose(e.target.value)} options={what} />
         {n.kind === "value" ? <>
-          <TextInput aria-label="Value" mono value={n.left} placeholder="$total" onChange={(e) => update(path, (x) => ({ ...(x as ValueCheck), left: e.target.value }), false)}
+          <TextInput aria-label="Value" mono value={n.left} placeholder="$total$" onChange={(e) => update(path, (x) => ({ ...(x as ValueCheck), left: e.target.value }), false)}
             onBlur={(e) => { const t = e.currentTarget.value; update(path, (x) => ({ ...(x as ValueCheck), left: t })); }} />
           <Select aria-label="Comparison" value={n.op} onChange={(e) => update(path, (x) => ({ ...(x as ValueCheck), op: e.target.value }))}
             options={Object.entries(OPS).map(([op, words]) => ({ value: op, label: words }))} />

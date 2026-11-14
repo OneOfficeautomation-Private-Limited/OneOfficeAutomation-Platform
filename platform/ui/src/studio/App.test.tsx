@@ -342,7 +342,7 @@ describe("new Studio", () => {
       .toEqual(["1 Open workbook", "2 Loop", "3 Write to log"]);
     expect((screen.getByLabelText("path") as HTMLInputElement).value).toBe("$workbook");
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Variables" }));
-    expect(await screen.findByText("$workbook")).toBeTruthy();
+    expect(await screen.findByText("$workbook$")).toBeTruthy();
     // with no step selected, Properties has the agent's own id and description (AA's bot properties)
     fireEvent.keyDown(steps, { key: "Escape" });
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Properties" }));
@@ -552,11 +552,11 @@ describe("new Studio", () => {
     fireEvent.click(within(dialog).getByLabelText(/Use as output/));
     fireEvent.click(within(dialog).getByRole("button", { name: /^Create (variable|and use)$/ }));
     const group = await screen.findByRole("region", { name: "Inputs and outputs" });
-    expect(within(group).getByText("$codes")).toBeTruthy();
+    expect(within(group).getByText("$codes$")).toBeTruthy();
     expect(within(group).getByText(/= A1, 42/)).toBeTruthy();
     // the System and Shared Global values from the platform are listed too
-    expect(screen.getByText("$sys.today")).toBeTruthy();
-    expect(screen.getByText("$global.company")).toBeTruthy();
+    expect(screen.getByText("$sys.today$")).toBeTruthy();
+    expect(screen.getByText("$global.company$")).toBeTruthy();
     const saved = await saveAndGet(created);
     expect(saved.variables.find((v: any) => v.name === "codes")).toEqual({ name: "codes", type: "List", direction: "in_out", default: ["A1", 42] });
     // a variable in use asks before it is deleted; renaming it changes every use
@@ -566,7 +566,7 @@ describe("new Studio", () => {
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "book" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
     const renamed = await saveAndGet(created);
-    expect(renamed.steps[0].args.path).toBe("$book");
+    expect(renamed.steps[0].args.path).toBe("$book$");
   });
 
   it("puts a variable into a field with {x}, offering the field's type first, and makes a new one from there", async () => {
@@ -576,9 +576,9 @@ describe("new Studio", () => {
     fireEvent.click(stepButton(steps, "Write to log"));
     fireEvent.click(await screen.findByRole("button", { name: "Insert a value" }));
     const picker = screen.getByRole("dialog", { name: "Insert a value" });
-    expect(within(picker).getByText("$workbook")).toBeTruthy();
-    expect(within(picker).getByText("$sys.today")).toBeTruthy();
-    fireEvent.click(within(picker).getByText("$workbook"));
+    expect(within(picker).getByText("$workbook$")).toBeTruthy();
+    expect(within(picker).getByText("$sys.today$")).toBeTruthy();
+    fireEvent.click(within(picker).getByText("$workbook$"));
     let saved = await saveAndGet(created);
     expect(saved.steps[1].children[0].args.message).toMatch(/\$workbook/);
     // + New variable from the picker makes it and puts it in the field, as one change
@@ -607,6 +607,17 @@ describe("new Studio", () => {
     expect(toggle().getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(stepButton(steps, "Write to log"));          // another step: Details stays open on its Properties
     expect(toggle().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("gives every step on the canvas its command's Docs and Video, beside its menu and in it", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    const row = stepButton(steps, "Open workbook").closest("li")!;
+    expect(within(row).getByRole("link", { name: /^Docs for / }).getAttribute("href")).toMatch(/commands\/ooa\/excel\/open$/);
+    fireEvent.contextMenu(stepButton(steps, "Open workbook"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: /^Docs for this command/ })).toBeTruthy();
+    expect(within(menu).getByRole("menuitem", { name: /^Video for this command/ })).toBeTruthy();
   });
 
   it("keeps a Number result only in Number variables, or in a new one named after the result", async () => {
@@ -643,7 +654,7 @@ describe("new Studio", () => {
     expect((within(dialog).getByLabelText("Type") as HTMLSelectElement).value).toBe("Credential");
     fireEvent.click(within(dialog).getByRole("button", { name: /^Create (variable|and use)$/ }));
     const saved = await saveAndGet(created);
-    expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/type_text", args: { text: "$password" } });
+    expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/type_text", args: { text: "$password$" } });
     expect(saved.variables).toContainEqual({ name: "password", type: "Credential", direction: "input", description: "From the vault: map it to a credential when running." });
   });
 
@@ -834,7 +845,7 @@ describe("new Studio", () => {
     const all = (list: any[]): any[] => list.flatMap((x) => [x, ...all(x.children ?? [])]);
     const iff = all(saved.steps).find((x: any) => x.action === "core/if");
     expect(saved.steps[1].children.map((x: any) => x.action)).toEqual(["core/log", "core/if"]);   // inside the loop, after the log
-    expect(iff.args.condition).toEqual({ any: [{ op: "gt", left: "$total", right: 1000 }, { op: "empty", left: "$vendor" }] });
+    expect(iff.args.condition).toEqual({ any: [{ op: "gt", left: "$total$", right: 1000 }, { op: "empty", left: "$vendor$" }] });
     expect(iff.children).toEqual([]);
     expect(iff.else).toEqual([]);
   });;
@@ -858,14 +869,14 @@ describe("new Studio", () => {
     await openIntake();
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
     const dialog = await screen.findByRole("dialog", { name: "Run Invoice intake" });
-    fireEvent.change(within(dialog).getByLabelText("$workbook (File)"), { target: { value: "C:/in.xlsx" } });
+    fireEvent.change(within(dialog).getByLabelText("$workbook$ (File)"), { target: { value: "C:/in.xlsx" } });
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Run" })); });
     expect(runs[0].inputs).toEqual({ workbook: "C:/in.xlsx" });
     expect(runs[0].flow.steps.map((x: any) => x.id)).toEqual(["open", "loop"]);   // the flow as it is in the editor
     expect(await screen.findByText("Run finished", {}, { timeout: 3000 })).toBeTruthy();
     expect(screen.getByText(/Line 1 Open workbook · done in 4 ms/)).toBeTruthy();
     expect(screen.getByText("Finished")).toBeTruthy();
-    expect(screen.getByText("$total").closest("tr")!.textContent).toContain("1250");
+    expect(screen.getByText("$total$").closest("tr")!.textContent).toContain("1250");
   });
 
   it("debugs: stops at a breakpoint, shows the values there, and continues", async () => {
@@ -882,7 +893,7 @@ describe("new Studio", () => {
     expect(await screen.findByText("Stopped at a step", {}, { timeout: 3000 })).toBeTruthy();
     expect(stepButton(steps, "Loop").classList.contains("is-running")).toBe(true);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Debug values" }));
-    expect((await screen.findByText("$workbook")).closest("tr")!.textContent).toContain("C:/in.xlsx");
+    expect((await screen.findByText("$workbook$")).closest("tr")!.textContent).toContain("C:/in.xlsx");
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Run output" }));
     expect(screen.getByRole("button", { name: "Continue" }).title).toContain("F5");
     await act(async () => { fireEvent.keyDown(window, { key: "F5" }); });   // F5 continues while the run waits at a step
@@ -1180,7 +1191,7 @@ describe("new Studio", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); await new Promise((r) => setTimeout(r, 30)); });
     const saved = (created.filter((c: any) => c.saved).pop() as any).saved;
     expect(saved.tags).toContain("ai-agent");
-    expect(saved.steps[0]).toMatchObject({ action: "ooa.ai_agent/run", args: { goal: "${request}", tools: ["lookup_order"], sensitive_tools: ["lookup_order"], role: "Accounts payable assistant" } });
+    expect(saved.steps[0]).toMatchObject({ action: "ooa.ai_agent/run", args: { goal: "$request$", tools: ["lookup_order"], sensitive_tools: ["lookup_order"], role: "Accounts payable assistant" } });
 
     const tryIt = screen.getByRole("complementary", { name: "Try it" });
     fireEvent.change(within(tryIt).getByLabelText("Request"), { target: { value: "Invoice 42 from Acme" } });
@@ -1252,7 +1263,7 @@ describe("new Studio", () => {
     fireEvent.paste(stepButton(steps, "Loop"), { clipboardData: { getData: () => classic } });
     expect(stepNames(steps)).toEqual(["Loop", "Write to log", "Open workbook", "Write to log", "Open workbook"]);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Variables" }));
-    expect(await screen.findByText("$total")).toBeTruthy();
+    expect(await screen.findByText("$total$")).toBeTruthy();
     Reflect.deleteProperty(navigator, "clipboard");
   });
 
@@ -1375,7 +1386,7 @@ describe("new Studio", () => {
     fireEvent.change(count, { target: { value: "$rows - 1" } });   // not a number: kept as a calculation
     fireEvent.blur(count);
     const saved = await saveAndGet(created);
-    expect(saved.steps[1].args).toMatchObject({ iterator: "times", count: { expr: "$rows - 1" } });
+    expect(saved.steps[1].args).toMatchObject({ iterator: "times", count: { expr: "$rows$ - 1" } });
   });
 
   it("shows an element action's own fields, its time-out box, and keeps a result in a new variable", async () => {
@@ -1567,7 +1578,7 @@ describe("new Studio", () => {
     expect(screen.getByRole("button", { name: "Capture anchor" })).toBeTruthy();
     const saved = await saveAndGet(created);
     const step = saved.steps[1];
-    expect(step).toMatchObject({ action: "ooa.browser/element_action", args: { action: "click", window: "$Window_1" } });
+    expect(step).toMatchObject({ action: "ooa.browser/element_action", args: { action: "click", window: "$Window_1$" } });
     expect(step.args.object.properties[1]).toMatchObject({ name: "id", use: true, match: "regex" });
     expect(saved.variables).toContainEqual(expect.objectContaining({ name: "Window_1", type: "Dictionary",
       default: { source: "browser", title: "Example", title_match: "equals", link: "https://example.com/", browser: "edge" } }));
@@ -1597,7 +1608,7 @@ describe("new Studio", () => {
     fireEvent.keyDown(within(steps).getByRole("button", { name: "Capture" }), { key: "Enter" });
     await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Capture a desktop control/ })); });
     expect(await screen.findByText(/the window is in \$Window_1/)).toBeTruthy();
-    expect(screen.getByText(/The window in \$Window_1, shared with other steps/)).toBeTruthy();
+    expect(screen.getByText(/The window in \$Window_1\$, shared with other steps/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Use a window of this step only" }));
     expect(await screen.findByText(/C:\\Apps\\notepad.exe/)).toBeTruthy();
     expect([...(screen.getByLabelText("Window preset") as HTMLSelectElement).options].map((o) => o.value)).toEqual(["", "active", "desktop", "taskbar"]);
@@ -1619,9 +1630,9 @@ describe("new Studio", () => {
     fireEvent.change(within(where).getByLabelText("Web address"), { target: { value: "https://x.test/form" } });
     await act(async () => { fireEvent.click(within(where).getByRole("button", { name: "Open and record" })); });
     expect(created).toContainEqual({ record: { url: "https://x.test/form", browser: "edge" } });   // the browser chosen beside the address (Edge first)
-    expect(await screen.findByText(/Added 1 recorded steps and 2 variables: \$Window_1, \$Text_1/)).toBeTruthy();
+    expect(await screen.findByText(/Added 1 recorded steps and 2 variables: \$Window_1\$, \$Text_1\$/)).toBeTruthy();
     const saved = await saveAndGet(created);
-    expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/type_text", args: { window: "$Window_1", text: "$Text_1" } });
+    expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/type_text", args: { window: "$Window_1$", text: "$Text_1$" } });
     expect(saved.variables).toContainEqual(expect.objectContaining({ name: "Text_1", default: "tomsmith", direction: "input" }));
   });
 
@@ -1673,7 +1684,7 @@ describe("new Studio", () => {
     expect(await within(dialog).findByRole("button", { name: "Set up a Model Connection" })).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("tab", { name: "Explain this agent" }));
     const text = within(dialog).getByText(/Steps:/).textContent!;
-    expect(text).toContain("It needs: $workbook (File).");
+    expect(text).toContain("It needs: $workbook$ (File).");
     expect(text).toContain("1. Open workbook with path $workbook");
     expect(text).toContain("2. Repeat for each item of");
     expect(text).toContain("  - Write to log with message row");

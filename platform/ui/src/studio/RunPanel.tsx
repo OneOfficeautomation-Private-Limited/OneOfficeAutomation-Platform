@@ -2,6 +2,7 @@ import { runErrorText } from "../api/client";
 import type { DebugCommand, DebugState, RunEvent, RunResult } from "../api/client";
 import { Button, withKey } from "../components";
 import { logFields, showValue } from "./flowEdit";
+import { varRef } from "./variables";
 
 /** A run of the open agent from this Studio: what it reported so far and, when it is being debugged, where it stopped. */
 export type LiveRun = { id: string; debug: boolean; state: string; events: RunEvent[]; result?: RunResult; stopped?: DebugState; elapsed: number };
@@ -36,7 +37,7 @@ function line(e: RunEvent, stepName: (id: string) => string): { text: string; to
     case "step.failed": return { text: at + "failed: " + (d.message ? runErrorText({ message: String(d.message), suggestedFix: d.suggestedFix ? String(d.suggestedFix) : undefined }) : String(d.code ?? "")), tone: "bad" };
     case "step.retry": return { text: at + "trying again" };
     case "log": return { text: at + String(d.message ?? "") + logFields(d.fields), tone: d.level === "error" ? "bad" : undefined };
-    case "variable.set": return { text: at + "$" + String(d.name) + " = " + showValue(d.value) };
+    case "variable.set": return { text: at + varRef(String(d.name)) + " = " + showValue(d.value) };
     case "run.paused": return { text: "Paused" };
     case "run.resumed": return { text: "Resumed" };
     case "error_handler.started": return { text: "On error started for " + String(d.code ?? "the error"), tone: "bad" };
@@ -85,7 +86,7 @@ function RunSummary({ result, stepName }: { result: RunResult; stepName: (id: st
       {outputs.length > 0 && <>
         <h3 className="st-prop-section">Outputs</h3>
         <table className="st-table st-values"><tbody>
-          {outputs.map(([k, v]) => <tr key={k}><th scope="row">${k}</th><td>{showValue(v)}</td></tr>)}
+          {outputs.map(([k, v]) => <tr key={k}><th scope="row">{varRef(k)}</th><td>{showValue(v)}</td></tr>)}
         </tbody></table>
       </>}
     </div>
@@ -97,7 +98,7 @@ export function DebugValues({ run }: { run: LiveRun | null }) {
   if (!run?.stopped) return <p className="st-muted st-pad">Values show here while a debugged run is stopped at a step. Press Debug, with a breakpoint on a step (F9).</p>;
   return (
     <table className="st-table st-values"><tbody>
-      {vars.map(([k, v]) => <tr key={k}><th scope="row">${k}</th><td>{showValue(v)}</td></tr>)}
+      {vars.map(([k, v]) => <tr key={k}><th scope="row">{varRef(k)}</th><td>{showValue(v)}</td></tr>)}
       {!vars.length && <tr><td className="st-empty">No values yet.</td></tr>}
     </tbody></table>
   );

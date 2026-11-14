@@ -106,7 +106,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$tickets",
+        "over": "$tickets$",
         "as": "t"
       },
       "children": [
@@ -120,10 +120,10 @@
               "Technical",
               "Other"
             ],
-            "provider": "$provider",
-            "model": "$model",
-            "base_url": "$base_url",
-            "api_key": "$api_key"
+            "provider": "$provider$",
+            "model": "$model$",
+            "base_url": "$base_url$",
+            "api_key": "$api_key$"
           },
           "out": {
             "label": "label"
@@ -133,11 +133,11 @@
           "id": "s3",
           "action": "ooa.datatable/add_row",
           "args": {
-            "table": "$routed",
+            "table": "$routed$",
             "values": [
-              "$t.Id",
-              "$t.Subject",
-              "$label"
+              "$t.Id$",
+              "$t.Subject$",
+              "$label$"
             ]
           },
           "out": {
@@ -150,7 +150,7 @@
           "args": {
             "condition": {
               "op": "eq",
-              "left": "$label",
+              "left": "$label$",
               "right": "Billing"
             }
           },
@@ -161,7 +161,7 @@
               "args": {
                 "variable": "billing",
                 "value": {
-                  "expr": "$billing + 1"
+                  "expr": "$billing$ + 1"
                 }
               }
             }
@@ -170,7 +170,7 @@
             {
               "condition": {
                 "op": "eq",
-                "left": "$label",
+                "left": "$label$",
                 "right": "Technical"
               },
               "children": [
@@ -180,7 +180,7 @@
                   "args": {
                     "variable": "technical",
                     "value": {
-                      "expr": "$technical + 1"
+                      "expr": "$technical$ + 1"
                     }
                   }
                 }
@@ -194,7 +194,7 @@
               "args": {
                 "variable": "other",
                 "value": {
-                  "expr": "$other + 1"
+                  "expr": "$other$ + 1"
                 }
               }
             }
@@ -206,7 +206,7 @@
       "id": "s9",
       "action": "ooa.csv/write",
       "args": {
-        "table": "$routed",
+        "table": "$routed$",
         "path": "${folder}/output/routed-tickets.csv"
       }
     }

@@ -79,7 +79,7 @@
       "id": "s2",
       "action": "ooa.database/connect",
       "args": {
-        "jdbc_url": "$jdbc_url",
+        "jdbc_url": "$jdbc_url$",
         "user": "sa",
         "session": "db"
       }
@@ -105,7 +105,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "list",
-        "over": "$users",
+        "over": "$users$",
         "as": "u"
       },
       "children": [
@@ -115,9 +115,9 @@
           "args": {
             "sql": "INSERT INTO api_users (id, name, city) VALUES (?, ?, ?)",
             "parameters": [
-              "$u.id",
-              "$u.name",
-              "$u.address.city"
+              "$u.id$",
+              "$u.name$",
+              "$u.address.city$"
             ],
             "session": "db"
           }
@@ -128,7 +128,7 @@
           "args": {
             "variable": "loaded",
             "value": {
-              "expr": "$loaded + 1"
+              "expr": "$loaded$ + 1"
             }
           }
         }
@@ -150,7 +150,7 @@
       "id": "s9",
       "action": "ooa.datatable/get_value",
       "args": {
-        "table": "$by_city",
+        "table": "$by_city$",
         "row": 0,
         "column": "CITY"
       },

@@ -100,7 +100,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "https://en.wikipedia.org/wiki/List_of_countries_and_dependencies_by_population",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -129,7 +129,7 @@
       "id": "s4",
       "action": "ooa.datatable/from_records",
       "args": {
-        "records": "$rows"
+        "records": "$rows$"
       },
       "out": {
         "table": "countries"
@@ -140,10 +140,10 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$countries",
+        "over": "$countries$",
         "as": "c",
         "to_index": {
-          "expr": "$top_n - 1"
+          "expr": "$top_n$ - 1"
         }
       },
       "description": "Each of the largest countries",
@@ -152,7 +152,7 @@
           "id": "s5",
           "action": "ooa.browser/navigate",
           "args": {
-            "url": "$c.Url"
+            "url": "$c.Url$"
           }
         },
         {
@@ -232,12 +232,12 @@
           "id": "s13",
           "action": "ooa.datatable/add_row",
           "args": {
-            "table": "$facts",
+            "table": "$facts$",
             "values": [
-              "$c.Country",
-              "$c.Population",
-              "$capital",
-              "$currency"
+              "$c.Country$",
+              "$c.Population$",
+              "$capital$",
+              "$currency$"
             ]
           },
           "out": {
@@ -250,7 +250,7 @@
           "args": {
             "variable": "looked_up",
             "value": {
-              "expr": "$looked_up + 1"
+              "expr": "$looked_up$ + 1"
             }
           }
         },
@@ -260,7 +260,7 @@
           "args": {
             "variable": "total_population",
             "value": {
-              "expr": "$total_population + $c.Population"
+              "expr": "$total_population$ + $c.Population$"
             }
           }
         },
@@ -270,7 +270,7 @@
           "args": {
             "condition": {
               "op": "empty",
-              "left": "$first_country"
+              "left": "$first_country$"
             }
           },
           "children": [
@@ -279,7 +279,7 @@
               "action": "core/set",
               "args": {
                 "variable": "first_country",
-                "value": "$c.Country"
+                "value": "$c.Country$"
               }
             },
             {
@@ -287,7 +287,7 @@
               "action": "core/set",
               "args": {
                 "variable": "first_capital",
-                "value": "$capital"
+                "value": "$capital$"
               }
             }
           ]
@@ -321,7 +321,7 @@
       "id": "s23",
       "action": "ooa.excel/write_table",
       "args": {
-        "table": "$facts",
+        "table": "$facts$",
         "session": "report"
       }
     },

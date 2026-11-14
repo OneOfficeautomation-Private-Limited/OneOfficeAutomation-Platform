@@ -270,7 +270,7 @@
           "id": "s12",
           "action": "ooa.application/stop_program",
           "args": {
-            "process_id": "$app_pid",
+            "process_id": "$app_pid$",
             "force": true
           },
           "description": "Close the application"

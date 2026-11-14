@@ -3,6 +3,7 @@ import type { CrApi, CrTeam, CrUser, GlobalValue } from "../api/cr";
 import { Button, Dialog, Field, HelpButton, Select, TextArea, TextInput, type HelpTopic, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { PageIntro } from "../shell/PageIntro";
+import { varRef } from "../studio/variables";
 
 /**
  * Manage > Shared Global values, built as AA's Global values (checked against AA's docs, UiPath's assets and Blue Prism's
@@ -61,7 +62,7 @@ export function Globals({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
     && (!only || (only === "changeable" ? g.changeable : g.changeable && g.my_value !== undefined))), [list, q, only]);
 
   const openOf = (g: GlobalValue) => manage ? { kind: "edit" as const, g } : g.changeable ? { kind: "mine" as const, g } : null;
-  const copy = (g: GlobalValue) => (navigator.clipboard?.writeText("$global." + g.name) ?? Promise.reject(new Error("no clipboard")))
+  const copy = (g: GlobalValue) => (navigator.clipboard?.writeText(varRef("global." + g.name)) ?? Promise.reject(new Error("no clipboard")))
     .then(() => onNotice("Copied $global." + g.name + "."), () => setError("Copying is not allowed here: type $global." + g.name + " in the agent."));
   const del = (g: GlobalValue) => api.deleteGlobal(g.name).then(() => { onNotice("Deleted $global." + g.name + "."); setAsk(null); load(); }, (e) => setError(message(e)));
   const rowMenu = (g: GlobalValue) => [

@@ -104,7 +104,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "${folder}/site/leave-manager.html",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -131,7 +131,7 @@
       "id": "s4",
       "action": "ooa.datatable/change_column_type",
       "args": {
-        "table": "$balances",
+        "table": "$balances$",
         "column": "Remaining",
         "type": "Number"
       },
@@ -202,7 +202,7 @@
           "args": {
             "variable": "days",
             "value": {
-              "expr": "toNumber($days_text)"
+              "expr": "toNumber($days_text$)"
             }
           }
         },
@@ -210,8 +210,8 @@
           "id": "s11",
           "action": "ooa.datatable/find",
           "args": {
-            "table": "$balances",
-            "value": "$who",
+            "table": "$balances$",
+            "value": "$who$",
             "column": "Employee"
           },
           "out": {
@@ -233,7 +233,7 @@
           "args": {
             "condition": {
               "op": "eq",
-              "left": "$found",
+              "left": "$found$",
               "right": true
             }
           },
@@ -242,8 +242,8 @@
               "id": "s13",
               "action": "ooa.datatable/get_value",
               "args": {
-                "table": "$balances",
-                "row": "$at",
+                "table": "$balances$",
+                "row": "$at$",
                 "column": "Remaining"
               },
               "out": {
@@ -258,8 +258,8 @@
           "args": {
             "condition": {
               "op": "le",
-              "left": "$days",
-              "right": "$left"
+              "left": "$days$",
+              "right": "$left$"
             }
           },
           "description": "Enough days left?",
@@ -268,11 +268,11 @@
               "id": "s15",
               "action": "ooa.datatable/set_value",
               "args": {
-                "table": "$balances",
-                "row": "$at",
+                "table": "$balances$",
+                "row": "$at$",
                 "column": "Remaining",
                 "value": {
-                  "expr": "$left - $days"
+                  "expr": "$left$ - $days$"
                 }
               },
               "out": {
@@ -300,7 +300,7 @@
               "args": {
                 "variable": "approved",
                 "value": {
-                  "expr": "$approved + 1"
+                  "expr": "$approved$ + 1"
                 }
               }
             }
@@ -327,7 +327,7 @@
               "args": {
                 "variable": "declined",
                 "value": {
-                  "expr": "$declined + 1"
+                  "expr": "$declined$ + 1"
                 }
               }
             }
@@ -394,7 +394,7 @@
       "args": {
         "variable": "dashboard_matches",
         "value": {
-          "expr": "$d_approved == $approved + 1 && $d_declined == $declined && $d_pending == 0"
+          "expr": "$d_approved$ == $approved$ + 1 && $d_declined$ == $declined$ && $d_pending$ == 0"
         }
       },
       "description": "Eve was approved before the agent started"
@@ -403,7 +403,7 @@
       "id": "s31",
       "action": "ooa.datatable/find",
       "args": {
-        "table": "$balances",
+        "table": "$balances$",
         "value": "Ann",
         "column": "Employee"
       },
@@ -415,8 +415,8 @@
       "id": "s32",
       "action": "ooa.datatable/get_value",
       "args": {
-        "table": "$balances",
-        "row": "$at",
+        "table": "$balances$",
+        "row": "$at$",
         "column": "Remaining"
       },
       "out": {
@@ -431,7 +431,7 @@
       "id": "s34",
       "action": "ooa.csv/write",
       "args": {
-        "table": "$balances",
+        "table": "$balances$",
         "path": "${folder}/output/leave-balances.csv"
       }
     }

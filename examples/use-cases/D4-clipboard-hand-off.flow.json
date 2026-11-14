@@ -90,7 +90,7 @@
           "id": "s2",
           "action": "ooa.desktop/clipboard_set",
           "args": {
-            "text": "$note"
+            "text": "$note$"
           }
         },
         {
@@ -123,7 +123,7 @@
               ]
             },
             "action": "set_text",
-            "text": "$clip"
+            "text": "$clip$"
           }
         },
         {
@@ -157,7 +157,7 @@
           "args": {
             "variable": "same",
             "value": {
-              "expr": "$back == $note"
+              "expr": "$back$ == $note$"
             }
           }
         }
@@ -167,7 +167,7 @@
           "id": "s9",
           "action": "ooa.application/stop_program",
           "args": {
-            "process_id": "$app_pid",
+            "process_id": "$app_pid$",
             "force": true
           },
           "description": "Close the application"

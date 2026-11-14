@@ -148,7 +148,7 @@ public final class FlowValidator {
                     if (args.get(k) instanceof String v && !declared.containsKey(v)) p.add(sid, "args/" + k, "Loop variable '" + v + "' is not declared", null);
                 if (args.get("columns_to") instanceof Map<?, ?> cols)
                     cols.forEach((col, var) -> {
-                        String v = String.valueOf(var).trim(); if (v.startsWith("$")) v = v.substring(1);
+                        String v = com.oneofficeautomation.runner.expr.Expressions.nameOf(String.valueOf(var));
                         if (!v.isEmpty() && !declared.containsKey(v)) p.add(sid, "args/columns_to/" + col, "Loop variable '" + v + "' is not declared", "Declare variable '" + v + "'.");
                     });
             }

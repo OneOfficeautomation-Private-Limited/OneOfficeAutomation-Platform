@@ -14,7 +14,7 @@
   ],
   "steps": [
     {"id": "read", "action": "ooa.json/read_file", "args": {"path": "data/orders.json"}, "out": {"value": "orders"}},
-    {"id": "pick", "action": "core/set", "args": {"variable": "order", "value": {"expr": "get($orders, upper(trim($order_id)))"}}},
-    {"id": "flag", "action": "core/set", "args": {"variable": "found", "value": {"expr": "not isEmpty($order)"}}}
+    {"id": "pick", "action": "core/set", "args": {"variable": "order", "value": {"expr": "get($orders$, upper(trim($order_id$)))"}}},
+    {"id": "flag", "action": "core/set", "args": {"variable": "found", "value": {"expr": "not isEmpty($order$)"}}}
   ]
 }

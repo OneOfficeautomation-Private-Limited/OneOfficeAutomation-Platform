@@ -1007,3 +1007,7 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-qmap-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; }
 .st-qmap-opts p { margin: 0 0 10px; }
 .st-qmap-opts .st-check-row { margin-bottom: 8px; }
+/* item I (14 Nov 2026): a step's Docs and Video sit beside its menu, shown on the chosen step and on hover */
+.st-step-tools .st-help-links { display: none; align-items: center; padding: 0 4px; background: var(--ui-bg); border-radius: var(--ui-radius); }
+.st-step-row:hover .st-step-tools .st-help-links, .st-step-row.is-selected .st-step-tools .st-help-links, .st-step-tools:focus-within .st-help-links { display: inline-flex; }
+.st-step-row.is-selected .st-step-tools .st-help-links { background: var(--ui-selected); }

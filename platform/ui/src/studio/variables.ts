@@ -218,5 +218,44 @@ export const SYS_HELP: Record<string, string> = {
   principal: "Who started the run", newline: "A line break", tab: "A tab character", empty: "An empty text",
 };
 
-/** How a variable is written in a field: $name (one place, so the notation can change in one place). */
-export const varRef = (name: string) => "$" + name;
+/**
+ * How a variable is written in a field: $name$, as AA writes it (14 Nov 2026, item F). The runner also reads the
+ * earlier $name and ${name}; in text only $name$ (or ${name}) is replaced by the value.
+ */
+export const varRef = (name: string) => "$" + name + "$";
+
+/** A whole field that is one variable, in any form: $name$, $name, ${name}, with .field or [index] parts. */
+const WHOLE_REF = /^\$(?:\{\s*)?([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+|\[[^\]$]+\])*)(?:\s*\}|\$)?$/;
+
+/** Whether a value is one variable and nothing else. */
+export const isRef = (v: unknown): v is string => typeof v === "string" && WHOLE_REF.test(v.trim());
+
+/** The name (with any .field or [index]) a reference points to, in any form; "" when it is not one. */
+export const refName = (v: unknown): string => (typeof v === "string" ? WHOLE_REF.exec(v.trim())?.[1] ?? "" : "");
+
+/**
+ * The agent with its references written $name$ (item F, when it is saved): a whole field $name or ${name} becomes
+ * $name$, and so do $name and ${name} inside a calculation ({"expr": ...}). Text with $name inside it is left as it
+ * is: the runner never replaced that, and scripts and code fields keep their own $ words.
+ */
+export function upgradeRefs(flow: Flow): Flow {
+  const EXPR_REF = /\$\{?\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+|\[[^\]$]+\])*)(\s*\})?(?![A-Za-z0-9_.\[$])/g;
+  const fix = (v: unknown): unknown => {
+    if (typeof v === "string") { const t = v.trim(); return WHOLE_REF.test(t) && !t.endsWith("$") ? varRef(refName(t)) : v; }
+    if (Array.isArray(v)) return v.map(fix);
+    if (v && typeof v === "object") {
+      const o = v as Record<string, unknown>;
+      if (Object.keys(o).length === 1 && "literal" in o) return v;
+      if (Object.keys(o).length === 1 && typeof o.expr === "string") return { expr: o.expr.replace(EXPR_REF, (m, p, brace) => (m.startsWith("${") && !brace ? m : varRef(p))) };
+      return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, fix(x)]));
+    }
+    return v;
+  };
+  // every setting of every step, nested blocks and subflows too; a step's note is the builder's own words
+  const steps = (list: FlowStep[]) => list.map((st) => {
+    const { note, ...rest } = st;
+    const out = fix(rest) as FlowStep;
+    return note === undefined ? out : { ...out, note };
+  });
+  return { ...flow, steps: steps(flow.steps ?? []), ...(flow.subflows ? { subflows: flow.subflows.map((sf) => ({ ...sf, steps: steps(sf.steps ?? []) })) } : {}) };
+}

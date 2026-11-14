@@ -98,7 +98,7 @@
           "action": "core/loop",
           "args": {
             "iterator": "table_rows",
-            "over": "$orders",
+            "over": "$orders$",
             "as": "o"
           },
           "children": [
@@ -122,7 +122,7 @@
                   ]
                 },
                 "action": "set_text",
-                "text": "$o.Customer"
+                "text": "$o.Customer$"
               }
             },
             {
@@ -145,7 +145,7 @@
                   ]
                 },
                 "action": "set_text",
-                "text": "${o.Amount}"
+                "text": "$o.Amount$"
               }
             },
             {
@@ -168,7 +168,7 @@
                   ]
                 },
                 "action": "select_item",
-                "item": "$o.Kind"
+                "item": "$o.Kind$"
               }
             },
             {
@@ -177,7 +177,7 @@
               "args": {
                 "condition": {
                   "op": "eq",
-                  "left": "$o.Urgent",
+                  "left": "$o.Urgent$",
                   "right": "yes"
                 }
               },
@@ -260,7 +260,7 @@
               "args": {
                 "variable": "saved",
                 "value": {
-                  "expr": "$saved + 1"
+                  "expr": "$saved$ + 1"
                 }
               }
             },
@@ -269,7 +269,7 @@
               "action": "core/set",
               "args": {
                 "variable": "last_status",
-                "value": "$status_text"
+                "value": "$status_text$"
               }
             }
           ]
@@ -280,7 +280,7 @@
           "id": "s14",
           "action": "ooa.application/stop_program",
           "args": {
-            "process_id": "$app_pid",
+            "process_id": "$app_pid$",
             "force": true
           },
           "description": "Close the application"

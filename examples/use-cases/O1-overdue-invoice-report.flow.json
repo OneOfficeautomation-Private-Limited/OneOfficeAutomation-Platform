@@ -70,7 +70,7 @@
       "id": "s2",
       "action": "ooa.datatable/filter",
       "args": {
-        "table": "$invoices",
+        "table": "$invoices$",
         "column": "Status",
         "operator": "ne",
         "value": "Paid"
@@ -83,10 +83,10 @@
       "id": "s3",
       "action": "ooa.datatable/filter",
       "args": {
-        "table": "$unpaid",
+        "table": "$unpaid$",
         "column": "DueDate",
         "operator": "lt",
-        "value": "$report_date"
+        "value": "$report_date$"
       },
       "out": {
         "table": "overdue"
@@ -96,7 +96,7 @@
       "id": "s4",
       "action": "ooa.datatable/aggregate",
       "args": {
-        "table": "$overdue",
+        "table": "$overdue$",
         "group_by": [
           "Customer"
         ],
@@ -114,7 +114,7 @@
       "id": "s5",
       "action": "ooa.datatable/sort",
       "args": {
-        "table": "$summary",
+        "table": "$summary$",
         "column": "Overdue",
         "descending": true
       },
@@ -136,7 +136,7 @@
       "id": "s7",
       "action": "ooa.excel/write_table",
       "args": {
-        "table": "$summary",
+        "table": "$summary$",
         "session": "report"
       }
     },
@@ -152,7 +152,7 @@
       "id": "s9",
       "action": "ooa.datatable/sum_column",
       "args": {
-        "table": "$summary",
+        "table": "$summary$",
         "column": "Overdue"
       },
       "out": {

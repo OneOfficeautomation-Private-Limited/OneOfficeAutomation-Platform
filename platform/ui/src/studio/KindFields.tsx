@@ -53,7 +53,7 @@ export function WindowEditor({ step }: { step: FlowStep }) {
       </div>
       <p className="st-win-now">Working in <strong>{working || "the browser's current tab (no window chosen)"}</strong></p>
       {v.source === "variable" ? (
-        <Field label="Variable" layout="beside">{(id) => <CommitInput id={id} mono want="Window" initial={v.variable ?? ""} placeholder="$myBrowser" onCommit={(t) => put({ variable: t.trim() || undefined })} />}</Field>
+        <Field label="Variable" layout="beside">{(id) => <CommitInput id={id} mono want="Window" initial={v.variable ?? ""} placeholder="$myBrowser$" onCommit={(t) => put({ variable: t.trim() || undefined })} />}</Field>
       ) : <>
         <Field label="Open window" layout="beside">{(id) => <div className="st-row-tight">
           <Select id={id} value={chosen >= 0 ? String(chosen) : ""} onChange={(e) => {

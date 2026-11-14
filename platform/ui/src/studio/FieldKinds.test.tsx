@@ -45,7 +45,7 @@ describe("typing $ in a field (item 2)", () => {
     fireEvent.input(box, { target: { value: "Total $" } });
     const list = screen.getByRole("dialog", { name: "Insert a value" });
     fireEvent.click(within(list).getByRole("option", { name: /\$count/ }));
-    expect(onArg).toHaveBeenCalledWith("text", "Total $count");
+    expect(onArg).toHaveBeenCalledWith("text", "Total $count$");
   });
 
   it("opens Insert a value with F2: a preview of the field, your variables first, system values with what they hold", () => {
@@ -60,9 +60,9 @@ describe("typing $ in a field (item 2)", () => {
     const date = within(panel).getByRole("option", { name: /\$sys\.date/ });
     expect(date.textContent).toContain("Today's date");
     fireEvent.mouseEnter(date);
-    expect(within(panel).getByLabelText("Preview").textContent).toContain("Hello $sys.date");
+    expect(within(panel).getByLabelText("Preview").textContent).toContain("Hello $sys.date$");
     fireEvent.click(date);
-    expect(onArg).toHaveBeenCalledWith("text", "Hello $sys.date");
+    expect(onArg).toHaveBeenCalledWith("text", "Hello $sys.date$");
   });
 
   it("does not open for a $ inside a word or a price", () => {
@@ -80,7 +80,7 @@ describe("typing $ in a field (item 2)", () => {
     expect(shown.every((t) => t?.includes("$global."))).toBe(true);
     expect(shown.length).toBe(2);
     fireEvent.click(within(list).getByRole("option", { name: /\$global\.region/ }));
-    expect(onArg).toHaveBeenCalledWith("text", "$global.region");
+    expect(onArg).toHaveBeenCalledWith("text", "$global.region$");
   });
 });
 

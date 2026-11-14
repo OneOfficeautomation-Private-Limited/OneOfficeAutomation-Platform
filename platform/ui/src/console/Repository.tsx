@@ -8,6 +8,7 @@ import { AgentAnalysis, ExportAgents, ImportAgents, RepoFiles } from "./RepoTool
 import { Analysis, ColumnsDialog, PUBLIC_COLUMNS, PUBLIC_HIDDEN, PUBLIC_HIDDEN_KEY, sizeText } from "../studio/columns";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
+import { varRef } from "../studio/variables";
 
 /**
  * Build > Agent Repository, built as AA's public workspace (checked 31 Oct 2026): a folder tree beside the agents in the
@@ -446,7 +447,7 @@ function AgentView({ api, user, a, folders, approvalOn, studio, onClose, onFolde
             <div className="cc-agent-pad">
               {Object.keys(sel.args ?? {}).length || Object.keys(sel.out ?? {}).length ? <table className="cc-au-kv"><tbody>
                 {Object.entries(sel.args ?? {}).map(([k, v]) => <tr key={k}><th scope="row">{k.replace(/_/g, " ")}</th><td className="ui-mono">{k === "condition" ? conditionText(v) : plainValue(v, 400)}</td></tr>)}
-                {Object.values(sel.out ?? {}).length > 0 && <tr><th scope="row">Result into</th><td className="ui-mono">{Object.values(sel.out ?? {}).map((x) => "$" + x).join(", ")}</td></tr>}
+                {Object.values(sel.out ?? {}).length > 0 && <tr><th scope="row">Result into</th><td className="ui-mono">{Object.values(sel.out ?? {}).map((x) => varRef(x)).join(", ")}</td></tr>}
               </tbody></table> : <p className="cc-none">No settings.</p>}
               <p className="cc-none">Step <span className="ui-mono">{sel.id}</span> · {(sel.action ?? "").split("/")[0]}{sel.note ? " · note: " + sel.note : ""}</p>
               {can("runs.view") && <a href={"#/activity?tab=completed&status=failed&q=" + encodeURIComponent(a.path.split("/").pop()!.replace(/\.(flow|process|form)\.json$/, ""))}>Failed runs of this agent</a>}

@@ -68,7 +68,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "list",
-        "over": "$invoices",
+        "over": "$invoices$",
         "as": "inv"
       },
       "children": [
@@ -86,7 +86,7 @@
           "id": "s2",
           "action": "ooa.string/find",
           "args": {
-            "text": "$text",
+            "text": "$text$",
             "find": "Total:\\s*[0-9.,]+",
             "regex": true
           },
@@ -98,7 +98,7 @@
           "id": "s3",
           "action": "ooa.string/replace",
           "args": {
-            "text": "$match",
+            "text": "$match$",
             "find": "^Total:\\s*",
             "replace_with": "",
             "regex": true
@@ -111,7 +111,7 @@
           "id": "s4",
           "action": "ooa.string/find",
           "args": {
-            "text": "$text",
+            "text": "$text$",
             "find": "Customer:\\s*[^\\r\\n]+",
             "regex": true
           },
@@ -123,7 +123,7 @@
           "id": "s5",
           "action": "ooa.string/replace",
           "args": {
-            "text": "$match",
+            "text": "$match$",
             "find": "^Customer:\\s*",
             "replace_with": "",
             "regex": true
@@ -147,7 +147,7 @@
           "action": "ooa.word/replace_text",
           "args": {
             "find": "{{customer}}",
-            "replace_with": "$customer",
+            "replace_with": "$customer$",
             "session": "letter"
           }
         },
@@ -156,7 +156,7 @@
           "action": "ooa.word/replace_text",
           "args": {
             "find": "{{invoice}}",
-            "replace_with": "$inv",
+            "replace_with": "$inv$",
             "session": "letter"
           }
         },
@@ -165,7 +165,7 @@
           "action": "ooa.word/replace_text",
           "args": {
             "find": "{{total}}",
-            "replace_with": "$total",
+            "replace_with": "$total$",
             "session": "letter"
           }
         },
@@ -193,7 +193,7 @@
           "args": {
             "variable": "letters",
             "value": {
-              "expr": "$letters + 1"
+              "expr": "$letters$ + 1"
             }
           }
         }

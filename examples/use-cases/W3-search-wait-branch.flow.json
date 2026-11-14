@@ -63,7 +63,7 @@
           "action": "ooa.browser/open",
           "args": {
             "url": "${folder}/site/search.html",
-            "headless": "$headless",
+            "headless": "$headless$",
             "engine": "playwright",
             "keep_open": false
           }
@@ -73,7 +73,7 @@
           "action": "ooa.browser/type_text",
           "args": {
             "selector": "#q",
-            "text": "$term",
+            "text": "$term$",
             "press_enter": true
           }
         },
@@ -123,7 +123,7 @@
               "id": "s6",
               "action": "ooa.datatable/row_count",
               "args": {
-                "table": "$results"
+                "table": "$results$"
               },
               "out": {
                 "count": "found"
@@ -133,7 +133,7 @@
               "id": "s7",
               "action": "ooa.datatable/get_value",
               "args": {
-                "table": "$results",
+                "table": "$results$",
                 "row": 0,
                 "column": "Name"
               },

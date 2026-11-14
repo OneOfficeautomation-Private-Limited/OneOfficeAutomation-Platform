@@ -83,7 +83,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "${folder}/site/orders.html",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       }
@@ -117,7 +117,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$web_orders",
+        "over": "$web_orders$",
         "as": "row"
       },
       "children": [
@@ -125,8 +125,8 @@
           "id": "s5",
           "action": "ooa.datatable/find",
           "args": {
-            "table": "$expected",
-            "value": "$row.Order",
+            "table": "$expected$",
+            "value": "$row.Order$",
             "column": "Order",
             "match": "equals"
           },
@@ -141,7 +141,7 @@
           "args": {
             "condition": {
               "op": "eq",
-              "left": "$found",
+              "left": "$found$",
               "right": false
             }
           },
@@ -150,10 +150,10 @@
               "id": "s6",
               "action": "ooa.datatable/add_row",
               "args": {
-                "table": "$differences",
+                "table": "$differences$",
                 "values": [
-                  "$row.Order",
-                  "$row.Status",
+                  "$row.Order$",
+                  "$row.Status$",
                   "(missing)"
                 ]
               },
@@ -167,8 +167,8 @@
               "id": "s7",
               "action": "ooa.datatable/get_value",
               "args": {
-                "table": "$expected",
-                "row": "$at",
+                "table": "$expected$",
+                "row": "$at$",
                 "column": "Status"
               },
               "out": {
@@ -181,8 +181,8 @@
               "args": {
                 "condition": {
                   "op": "ne",
-                  "left": "$row.Status",
-                  "right": "$want"
+                  "left": "$row.Status$",
+                  "right": "$want$"
                 }
               },
               "children": [
@@ -190,11 +190,11 @@
                   "id": "s8",
                   "action": "ooa.datatable/add_row",
                   "args": {
-                    "table": "$differences",
+                    "table": "$differences$",
                     "values": [
-                      "$row.Order",
-                      "$row.Status",
-                      "$want"
+                      "$row.Order$",
+                      "$row.Status$",
+                      "$want$"
                     ]
                   },
                   "out": {
@@ -211,7 +211,7 @@
           "args": {
             "variable": "checked",
             "value": {
-              "expr": "$checked + 1"
+              "expr": "$checked$ + 1"
             }
           }
         }
@@ -221,7 +221,7 @@
       "id": "s13",
       "action": "ooa.csv/write",
       "args": {
-        "table": "$differences",
+        "table": "$differences$",
         "path": "${folder}/output/order-differences.csv"
       }
     },
@@ -229,7 +229,7 @@
       "id": "s14",
       "action": "ooa.datatable/row_count",
       "args": {
-        "table": "$differences"
+        "table": "$differences$"
       },
       "out": {
         "count": "mismatches"

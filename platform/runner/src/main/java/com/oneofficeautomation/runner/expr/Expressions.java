@@ -78,6 +78,7 @@ public final class Expressions {
     public static Object parse(String src) { return parseNode(src); }
 
     static Node parseNode(String src) {
+        src = plain(src);
         Node n = CACHE.get(src);
         if (n == null) {
             n = new Parser(src).parse();
@@ -354,8 +355,29 @@ public final class Expressions {
     }
 
     // ---------- argument resolution ----------
-    private static final Pattern REF = Pattern.compile("^\\$[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z0-9_]+|\\[[^\\]]+\\])*$");
-    private static final Pattern INTERP = Pattern.compile("\\$\\{([^}]*)\\}");
+    /** A variable path: name, then .field or [index] parts. */
+    private static final String PATH = "[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z0-9_]+|\\[[^\\]$]+\\])*";
+    /**
+     * A whole value that is one variable: $path$ (as AA writes it, 14 Nov 2026) or $path (earlier agents); keeps its
+     * type (a Number stays a Number).
+     */
+    private static final Pattern REF = Pattern.compile("^\\$" + PATH + "\\$?$");
+    /** In text, ${expression} or $path$ is replaced by the value as text; a $ without a closing $ stays as it is. */
+    private static final Pattern INTERP = Pattern.compile("\\$\\{([^}]*)\\}|\\$(" + PATH + ")\\$");
+    private static final Pattern DELIMITED = Pattern.compile("\\$(" + PATH + ")\\$");
+
+    /** An expression with every $path$ written $path, the form the parser reads. */
+    public static String plain(String src) {
+        return src.indexOf('$') < 0 ? src : DELIMITED.matcher(src).replaceAll(m -> Matcher.quoteReplacement("$" + m.group(1)));
+    }
+
+    /** A variable name as people may write it ($name$, $name or name): the name alone. */
+    public static String nameOf(String ref) {
+        String t = ref == null ? "" : ref.trim();
+        if (t.startsWith("$")) t = t.substring(1);
+        if (t.endsWith("$")) t = t.substring(0, t.length() - 1);
+        return t;
+    }
     private static final Pattern BARE = Pattern.compile("^\\s*[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z0-9_]+|\\[[^\\]]+\\])*\\s*$");
 
     /** Inside ${...} a bare path means a variable: ${name} == ${$name}. */
@@ -373,11 +395,12 @@ public final class Expressions {
     public static Object resolve(Object value, Function<String, Object> lookup) {
         if (value instanceof String s) {
             if (REF.matcher(s).matches()) return evaluate(s, lookup);
-            if (s.contains("${")) {
+            if (s.indexOf('$') >= 0) {
                 Matcher m = INTERP.matcher(s);
                 StringBuilder sb = new StringBuilder();
                 while (m.find()) {
-                    Object v = guard(evaluate(interpSrc(m.group(1)), lookup), "text interpolation");
+                    String src = m.group(1) != null ? interpSrc(m.group(1)) : "$" + m.group(2);
+                    Object v = guard(evaluate(src, lookup), "text interpolation");
                     m.appendReplacement(sb, Matcher.quoteReplacement(Values.text(v)));
                 }
                 m.appendTail(sb);
@@ -407,7 +430,7 @@ public final class Expressions {
         if (v instanceof String s) {
             List<String> srcs = new ArrayList<>();
             if (REF.matcher(s).matches()) srcs.add(s);
-            else { Matcher m = INTERP.matcher(s); while (m.find()) srcs.add(interpSrc(m.group(1))); }
+            else { Matcher m = INTERP.matcher(s); while (m.find()) srcs.add(m.group(1) != null ? interpSrc(m.group(1)) : "$" + m.group(2)); }
             for (String src : srcs) scan(src, found);
         } else if (v instanceof Map<?, ?> m) {
             if (m.size() == 1 && m.containsKey("literal")) return;
@@ -418,7 +441,7 @@ public final class Expressions {
 
     private static void scan(String src, Set<String> found) {
         parseNode(src);
-        for (Tok t : tokenize(src)) if (t.kind().equals("var")) found.add(t.text().substring(1));
+        for (Tok t : tokenize(plain(src))) if (t.kind().equals("var")) found.add(t.text().substring(1));
     }
 
     static BigDecimal roundHalfUp(BigDecimal n, int digits) { return n.setScale(digits, RoundingMode.HALF_UP); }

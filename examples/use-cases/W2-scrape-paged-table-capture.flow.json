@@ -58,7 +58,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "${folder}/site/products-1.html",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       }
@@ -70,7 +70,7 @@
         "iterator": "while",
         "condition": {
           "op": "eq",
-          "left": "$more",
+          "left": "$more$",
           "right": true
         },
         "max_iterations": 20
@@ -92,8 +92,8 @@
           "action": "ooa.datatable/merge",
           "args": {
             "tables": [
-              "$all_products",
-              "$page_table"
+              "$all_products$",
+              "$page_table$"
             ],
             "columns": "union"
           },
@@ -615,7 +615,7 @@
       "id": "s10",
       "action": "ooa.datatable/change_column_type",
       "args": {
-        "table": "$all_products",
+        "table": "$all_products$",
         "column": "Price",
         "type": "Number"
       },
@@ -627,7 +627,7 @@
       "id": "s11",
       "action": "ooa.csv/write",
       "args": {
-        "table": "$all_products",
+        "table": "$all_products$",
         "path": "${folder}/output/products.csv"
       }
     },
@@ -635,7 +635,7 @@
       "id": "s12",
       "action": "ooa.datatable/row_count",
       "args": {
-        "table": "$all_products"
+        "table": "$all_products$"
       },
       "out": {
         "count": "product_count"
@@ -645,7 +645,7 @@
       "id": "s13",
       "action": "ooa.datatable/sum_column",
       "args": {
-        "table": "$all_products",
+        "table": "$all_products$",
         "column": "Price"
       },
       "out": {

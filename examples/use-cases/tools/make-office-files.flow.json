@@ -50,7 +50,7 @@
       "id": "s2",
       "action": "ooa.excel/write_table",
       "args": {
-        "table": "$people",
+        "table": "$people$",
         "session": "x"
       }
     },

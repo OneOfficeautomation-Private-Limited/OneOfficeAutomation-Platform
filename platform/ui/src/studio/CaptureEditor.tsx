@@ -8,6 +8,7 @@ import {
 import { useVars, type WhereChoice } from "./VariablesPanel";
 import { isObjectRef, PickElementDialog, SaveElementDialog } from "./ObjectRepository";
 import type { ObjectRef } from "../api/client";
+import { refName, varRef } from "./variables";
 
 // "only the selected properties" or "all properties", remembered across steps as in Classic
 const VIEW_KEY = "ooa.studio.captureView2";
@@ -278,7 +279,7 @@ function DesktopWindowDetails({ obj, put, nested }: { obj: Captured; put: (o: Ca
     <details className="st-cap-page" open><summary>Window</summary>
       <p className="st-muted">The window in {obj.window}, shared with other steps. Change its title in Variables.</p>
       <Button kind="secondary" onClick={() => {
-        const v = (vars.flow.variables ?? []).find((x) => "$" + x.name === obj.window);
+        const v = (vars.flow.variables ?? []).find((x) => x.name === refName(obj.window));
         put({ ...obj, window: v?.default && typeof v.default === "object" ? structuredClone(v.default) as DesktopWindow : { title: "", title_match: "wildcard" } });
       }}>Use a window of this step only</Button>
     </details>
@@ -294,7 +295,7 @@ function DesktopWindowDetails({ obj, put, nested }: { obj: Captured; put: (o: Ca
     const f = r.flow, name = r.name;
     const walk = (list: FlowStep[]) => { for (const s of list) {
       const o = s.args?.object as Captured | undefined;
-      if (o && typeof o === "object" && o.technology === "desktop" && same(o.window)) s.args = { ...s.args, object: { ...o, window: "$" + name } };
+      if (o && typeof o === "object" && o.technology === "desktop" && same(o.window)) s.args = { ...s.args, object: { ...o, window: varRef(name) } };
       for (const l of [s.children, s.else, s.finally, ...(s.elseIf ?? []).map((b) => b.children), ...(s.catch ?? []).map((c) => c.children),
         ...(s.cases ?? []).map((c) => c.children), s.default, ...stateLists(s)]) if (l) walk(l);
     } };

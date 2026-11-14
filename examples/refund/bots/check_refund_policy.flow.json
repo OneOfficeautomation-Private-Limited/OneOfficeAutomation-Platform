@@ -21,18 +21,18 @@
     {"id": "load", "action": "core/step", "args": {"title": "Load data"}, "children": [
       {"id": "read_orders", "action": "ooa.json/read_file", "args": {"path": "data/orders.json"}, "out": {"value": "orders"}},
       {"id": "read_policy", "action": "ooa.json/read_file", "args": {"path": "data/refund_policy.json"}, "out": {"value": "policy"}},
-      {"id": "pick", "action": "core/set", "args": {"variable": "order", "value": {"expr": "get($orders, upper(trim($order_id)))"}}}
+      {"id": "pick", "action": "core/set", "args": {"variable": "order", "value": {"expr": "get($orders$, upper(trim($order_id$)))"}}}
     ]},
-    {"id": "missing", "action": "core/if", "args": {"condition": {"op": "empty", "left": "$order"}}, "children": [
+    {"id": "missing", "action": "core/if", "args": {"condition": {"op": "empty", "left": "$order$"}}, "children": [
       {"id": "throw_missing", "action": "core/throw", "args": {"code": "BUSINESS.ORDER_NOT_FOUND", "message": "Order ${order_id} does not exist", "suggested_fix": "Ask the customer to confirm the order id."}}
     ]},
-    {"id": "age", "action": "core/set", "args": {"variable": "days_since_delivery", "value": {"expr": "dateDiff($order.delivered_on, coalesce($policy.as_of, today()), 'days')"}}},
+    {"id": "age", "action": "core/set", "args": {"variable": "days_since_delivery", "value": {"expr": "dateDiff($order.delivered_on$, coalesce($policy.as_of$, today()), 'days')"}}},
     {"id": "note", "action": "core/set", "args": {"variable": "policy_note", "value": "$policy.notes[$reason]"}},
     {"id": "decide", "action": "core/if",
      "args": {"condition": {"all": ["$days_since_delivery <= $policy.window_days", {"op": "gt", "left": "$policy.reason_rates[$reason]", "right": 0}]}},
      "children": [
        {"id": "eligible_yes", "action": "core/set", "args": {"variable": "eligible", "value": true}},
-       {"id": "amount", "action": "core/set", "args": {"variable": "max_refund", "value": {"expr": "round($order.total * $policy.reason_rates[$reason], 2)"}}}
+       {"id": "amount", "action": "core/set", "args": {"variable": "max_refund", "value": {"expr": "round($order.total$ * $policy.reason_rates[$reason$], 2)"}}}
      ],
      "else": [
        {"id": "why_not", "action": "core/if", "args": {"condition": "$days_since_delivery > $policy.window_days"}, "children": [

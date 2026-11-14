@@ -41,7 +41,7 @@ export function BoolField({ id, name, value, fallback, onCommit, apply }: FieldP
   const pick = (m: typeof mode) => { setMode(m); if (m === "true" || m === "false") onCommit(m === "true"); else if (typeof value === "boolean") onCommit(undefined); };
   return <div className="st-source">
     <SourceSwitch label="Yes, no or a variable" value={mode} options={[["true", "Yes"], ["false", "No"], ["variable", "Variable"]]} onChange={pick} />
-    {mode === "variable" && <VariableBox id={id} name={name} value={value} want="Boolean" placeholder="$isReady" onCommit={onCommit} apply={apply} />}
+    {mode === "variable" && <VariableBox id={id} name={name} value={value} want="Boolean" placeholder="$isReady$" onCommit={onCommit} apply={apply} />}
     {mode === "" && fallback && <span className="st-muted st-source-note">{fallback}</span>}
   </div>;
 }
@@ -60,7 +60,7 @@ export function DateField({ id, name, value, onCommit, apply }: FieldProps) {
       ? <TextInput id={id} aria-label="Date and time" type="datetime-local" step="1" key={"d" + String(literal ? value : "")}
           defaultValue={literal ? String(value).slice(0, 19) : ""}
           onChange={(e) => onCommit(e.target.value ? (e.target.value.length === 16 ? e.target.value + ":00" : e.target.value) : undefined)} />
-      : <VariableBox id={id} name={name} value={value} want="DateTime" placeholder="$dueDate" onCommit={onCommit} apply={apply} />}
+      : <VariableBox id={id} name={name} value={value} want="DateTime" placeholder="$dueDate$" onCommit={onCommit} apply={apply} />}
   </div>;
 }
 
@@ -82,7 +82,7 @@ export function CollectionField({ id, name, type, value, onCommit, apply }: Fiel
     <SourceSwitch label={type + " or a variable"} value={mode} options={[["value", type], ["variable", "Variable"]]} onChange={setMode} />
     {mode === "value"
       ? <div className="st-source-value" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) keep(); }}>{editor}</div>
-      : <VariableBox id={id} name={name} value={value} want={type} placeholder={"$my" + type} onCommit={onCommit} apply={apply} />}
+      : <VariableBox id={id} name={name} value={value} want={type} placeholder={"$my" + type + "$"} onCommit={onCommit} apply={apply} />}
   </div>;
 }
 
@@ -100,7 +100,7 @@ export function FileField({ id, name, value, fallback, onCommit, apply, folder }
   const inRepo = !!vars?.flow.files?.includes(text);
   // the path gets the field's whole width; where it comes from is chosen just below it, in words (as AA's file sources)
   return <div className="st-file-field">
-    <CommitInput key={"f" + text} id={id} initial={text} placeholder={fallback || (folder ? "C:\\Folder or $folder" : "C:\\Folder\\file.xlsx or $file")} want="File"
+    <CommitInput key={"f" + text} id={id} initial={text} placeholder={fallback || (folder ? "C:\\Folder or $folder$" : "C:\\Folder\\file.xlsx or $file$")} want="File"
       nameHint={name} onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
     <div className="st-file-sources">
       <button type="button" className="st-link" aria-label="Browse…" title="Choose on this computer" onClick={() => setBrowsing(true)}><Icon name="folder" size={13} /> Browse this computer</button>
@@ -189,7 +189,7 @@ export function CredentialField({ id, name, value, onCommit, apply }: FieldProps
         <CommitInput label="Attribute" initial={attr ?? ""} placeholder="password" onCommit={(t) => set(folder ?? "", cred ?? "", t)} />
       </div>}
       {list && !list.length && <span className="st-muted st-source-note">Connect to One CommandCenter to choose from its vault.</span>}
-    </> : <VariableBox id={id} name={name} value={value} want="Credential" placeholder="$password" onCommit={onCommit} apply={apply} />}
+    </> : <VariableBox id={id} name={name} value={value} want="Credential" placeholder="$password$" onCommit={onCommit} apply={apply} />}
   </div>;
 }
 

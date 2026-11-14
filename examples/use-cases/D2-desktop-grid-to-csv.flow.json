@@ -108,7 +108,7 @@
           "id": "s2",
           "action": "ooa.datatable/filter",
           "args": {
-            "table": "$grid",
+            "table": "$grid$",
             "column": "Status",
             "operator": "eq",
             "value": "Open"
@@ -122,7 +122,7 @@
           "id": "s3",
           "action": "ooa.csv/write",
           "args": {
-            "table": "$open_orders",
+            "table": "$open_orders$",
             "path": "${folder}/output/open-orders.csv"
           }
         }
@@ -132,7 +132,7 @@
           "id": "s6",
           "action": "ooa.application/stop_program",
           "args": {
-            "process_id": "$app_pid",
+            "process_id": "$app_pid$",
             "force": true
           },
           "description": "Close the application"

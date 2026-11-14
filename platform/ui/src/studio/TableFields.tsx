@@ -3,6 +3,7 @@ import type { Flow, FlowStep } from "../api/client";
 import { Button, Select, TextInput } from "../components";
 import { enumWord } from "./enumWords";
 import { parseLoose, showValue } from "./flowEdit";
+import { refName } from "./variables";
 
 /**
  * The columns of the table a Data Table step works on, as far as the agent tells (command review D4, 10 Nov 2026): the
@@ -11,7 +12,7 @@ import { parseLoose, showValue } from "./flowEdit";
 export function knownColumns(flow: Flow, table: unknown): string[] {
   const out = new Set<string>();
   const ref = typeof table === "string" ? table.trim() : "";
-  const name = ref.startsWith("$") ? ref.slice(1).replace(/^\{|\}$/g, "") : "";
+  const name = refName(ref);
   const v = (flow.variables ?? []).find((x) => x.name === name);
   const d = v?.default as { columns?: unknown[] } | undefined;
   if (d && Array.isArray(d.columns)) for (const c of d.columns) if (typeof c === "string") out.add(c);

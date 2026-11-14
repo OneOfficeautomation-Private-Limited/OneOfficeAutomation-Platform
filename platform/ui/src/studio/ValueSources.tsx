@@ -4,7 +4,7 @@ import { Button, Icon, is, Select, TextInput, withKey } from "../components";
 import { parseLoose, setArg, setOut, showValue } from "./flowEdit";
 import { AgentFinder, agentPlace, applyQuickMap, planQuickMap, QuickMapDialog } from "./RunAgentParts";
 import { TypeBadge, useVars, VarPicker } from "./VariablesPanel";
-import { holdsType, isInput, isOutput, varRef } from "./variables";
+import { holdsType, isInput, isOutput, isRef, refName, varRef } from "./variables";
 
 /**
  * A text field that reports its value when it loses focus or on Enter, not on every key. Callers key it on the value,
@@ -69,10 +69,10 @@ export function OutputChooser({ step, output, type, label }: { step: FlowStep; o
   const converts = (v: FlowVariable) => type === "String" && (v.type === "Number" || v.type === "Boolean");
   const fit = all.filter((v) => holdsType(v.type, type) || converts(v));
   const opts = [{ value: "", label: "(do not keep)" },
-    ...fit.map((v) => ({ value: v.name, label: "$" + v.name + " (" + v.type + (converts(v) ? ", converted from text" : "") + ")" }))];
+    ...fit.map((v) => ({ value: v.name, label: varRef(v.name) + " (" + v.type + (converts(v) ? ", converted from text" : "") + ")" }))];
   const wrong = cur && !fit.some((v) => v.name === cur) ? all.find((v) => v.name === cur) : undefined;
-  if (wrong) opts.push({ value: wrong.name, label: "$" + wrong.name + " (" + wrong.type + ": does not match " + type + ")" });
-  else if (cur && !all.some((v) => v.name === cur)) opts.push({ value: cur, label: "$" + cur + " (not a variable of this agent)" });
+  if (wrong) opts.push({ value: wrong.name, label: varRef(wrong.name) + " (" + wrong.type + ": does not match " + type + ")" });
+  else if (cur && !all.some((v) => v.name === cur)) opts.push({ value: cur, label: varRef(cur) + " (not a variable of this agent)" });
   opts.push({ value: NEW, label: "+ New " + (type && type !== "Any" ? type + " " : "") + "variable" });
   return <Select aria-label={label} value={cur} onChange={(e) => {
     const v = e.target.value;
@@ -93,10 +93,10 @@ export function VariableChooser({ value, type, label, nameHint, onPick }: { valu
   const cur = value ?? "";
   const all = vars.flow.variables ?? [];
   const fit = all.filter((v) => holdsType(v.type, type) || v.type === "Any");
-  const opts = [{ value: "", label: "(not kept)" }, ...fit.map((v) => ({ value: v.name, label: "$" + v.name + " (" + v.type + ")" }))];
+  const opts = [{ value: "", label: "(not kept)" }, ...fit.map((v) => ({ value: v.name, label: varRef(v.name) + " (" + v.type + ")" }))];
   const other = cur && !fit.some((v) => v.name === cur) ? all.find((v) => v.name === cur) : undefined;
-  if (other) opts.push({ value: other.name, label: "$" + other.name + " (" + other.type + ": does not hold " + type + ")" });
-  else if (cur && !all.some((v) => v.name === cur)) opts.push({ value: cur, label: "$" + cur + " (not a variable of this agent)" });
+  if (other) opts.push({ value: other.name, label: varRef(other.name) + " (" + other.type + ": does not hold " + type + ")" });
+  else if (cur && !all.some((v) => v.name === cur)) opts.push({ value: cur, label: varRef(cur) + " (not a variable of this agent)" });
   opts.push({ value: NEW, label: "+ New " + type + " variable" });
   return <Select aria-label={label} value={cur} onChange={(e) => {
     const v = e.target.value;
@@ -108,7 +108,7 @@ export function VariableChooser({ value, type, label, nameHint, onPick }: { valu
 /** Steps' fields change the agent through the context's editor, from the agent as it is now. */
 function applyNow(vars: NonNullable<ReturnType<typeof useVars>>, change: (f: Flow) => Flow) { vars.edit(change(vars.flow)); }
 
-const isVarRef = (v: unknown) => typeof v === "string" && /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(v.trim());
+const isVarRef = (v: unknown) => isRef(v) && !refName(v).includes(".") && !refName(v).includes("[");
 const isCalc = (v: unknown): v is { expr: string } => !!v && typeof v === "object" && !Array.isArray(v) && typeof (v as { expr?: unknown }).expr === "string";
 
 /**
@@ -119,7 +119,7 @@ const isCalc = (v: unknown): v is { expr: string } => !!v && typeof v === "objec
 export function TextSource({ step, name, onlyCredential }: { step: FlowStep; name: string; onlyCredential?: boolean }) {
   const vars = useVars();
   const value = step.args?.[name];
-  const vname = isVarRef(value) ? String(value).trim().slice(1) : "";
+  const vname = isVarRef(value) ? refName(value) : "";
   const vdef = vars?.flow.variables?.find((v) => v.name === vname);
   const [mode, setMode] = useState<"credential" | "variable" | "plain" | "calc">(onlyCredential ? "credential"
     : vname ? (vdef?.type === "Credential" ? "credential" : "variable") : isCalc(value) ? "calc" : "plain");
@@ -133,23 +133,23 @@ export function TextSource({ step, name, onlyCredential }: { step: FlowStep; nam
         {modes.map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={mode === k} className="st-seg-btn" onClick={() => setMode(k)}>{t}</button>)}
       </div>}
       {mode === "calc" ? <CommitInput key={"calc" + (isCalc(value) ? value.expr : "")} label="Calculation" mono want="Any" initial={isCalc(value) ? value.expr : ""}
-          placeholder="upper($row.Name) or $qty * 2" onCommit={(t) => set(t.trim() ? { expr: t.trim() } : undefined)}
+          placeholder="upper($row.Name$) or $qty$ * 2" onCommit={(t) => set(t.trim() ? { expr: t.trim() } : undefined)}
           apply={(t, f) => setArg(f, step.id, name, { expr: t.trim() })} />
         : mode === "plain" ? <CommitInput key={"plain" + showValue(value)} label="Text" want="String" initial={vname || isCalc(value) || value == null ? "" : String(value)}
           onCommit={(t) => set(t === "" ? undefined : t)} apply={(t, f) => setArg(f, step.id, name, t)} />
         : <div className="st-row-tight">
             <Select aria-label={mode === "credential" ? "Credential variable" : "Variable"} value={list.some((v) => v.name === vname) ? vname : ""}
-              onChange={(e) => set(e.target.value ? "$" + e.target.value : undefined)}
+              onChange={(e) => set(e.target.value ? varRef(e.target.value) : undefined)}
               options={[{ value: "", label: mode === "credential" ? "Choose a credential variable…" : "Choose a variable…" },
-                ...list.map((v) => ({ value: v.name, label: "$" + v.name + " (" + v.type + ")" }))]} />
+                ...list.map((v) => ({ value: v.name, label: varRef(v.name) + " (" + v.type + ")" }))]} />
             <Button kind="secondary" icon="plus" title={mode === "credential" ? "A Credential variable: its value comes from the vault when the agent runs" : "A new variable"}
               onClick={() => vars.newVariable(mode === "credential"
-                ? { type: "Credential", name: "password", direction: "input", description: "From the vault: map it to a credential when running.", then: (n, f) => setArg(f, step.id, name, "$" + n) }
-                : { type: "String", name: "text_value", then: (n, f) => setArg(f, step.id, name, "$" + n) })}>New</Button>
+                ? { type: "Credential", name: "password", direction: "input", description: "From the vault: map it to a credential when running.", then: (n, f) => setArg(f, step.id, name, varRef(n)) }
+                : { type: "String", name: "text_value", then: (n, f) => setArg(f, step.id, name, varRef(n)) })}>New</Button>
           </div>}
       <p className="ui-field-hint">{onlyCredential ? "A credential comes from another Credential variable, mapped to the vault when the agent runs; it is never typed into the agent."
-        : mode === "plain" ? "Typed as written; $row.Name or ${amount} put a variable's value in the text. Use a credential for passwords."
-        : mode === "calc" ? "Worked out when the step runs, then typed: upper(), round($x, 2), $a + $b."
+        : mode === "plain" ? "Typed as written; $row.Name$ puts a variable's value in the text. Use a credential for passwords."
+        : mode === "calc" ? "Worked out when the step runs, then typed: upper(), round($x$, 2), $a$ + $b$."
         : mode === "credential" ? "From the vault when the agent runs; never shown or logged." : "The variable's value when the step runs."}</p>
     </div>
   );
@@ -177,10 +177,10 @@ export function AssignValue({ step }: { step: FlowStep }) {
           placeholder="$count + 1" onCommit={(t) => { const x = t.trim().replace(/^=\s*/, ""); set(x ? { expr: x } : undefined); }}
           apply={(t, f) => setArg(f, step.id, "value", { expr: t.trim() })} />
         : <CommitInput key={"v" + showValue(value)} label="Value" want={target?.type ?? "Any"} initial={isCalc(value) ? "" : showValue(value)}
-          placeholder={target?.type === "Number" ? "42 or $other" : "text, $variable or JSON"} onCommit={(t) => set(parseLoose(t))}
+          placeholder={target?.type === "Number" ? "42 or $other$" : "text, $variable$ or JSON"} onCommit={(t) => set(parseLoose(t))}
           apply={(t, f) => setArg(f, step.id, "value", parseLoose(t))} />}
-      <p className="ui-field-hint">{calc ? "Worked out when the step runs: + - * / %, comparisons, && and ||, and functions such as round($x, 2) or upper($name)."
-        : "Saved as typed. $name copies a variable (keeping its type); ${name} puts a value inside text: Invoice ${number}."}</p>
+      <p className="ui-field-hint">{calc ? "Worked out when the step runs: + - * / %, comparisons, && and ||, and functions such as round($x$, 2) or upper($name$)."
+        : "Saved as typed. $name$ alone copies a variable (keeping its type); inside text it puts the value there: Invoice $number$."}</p>
     </div>
   );
 }
@@ -218,15 +218,15 @@ export function AssignmentsEditor({ step }: { step: FlowStep }) {
         const known = !r.variable || !!target;
         return <div key={i} className="st-assignment" role="group" aria-label={"Assignment " + (i + 1)}>
           <Select aria-label={"Variable " + (i + 1)} value={r.variable ?? ""} onChange={(e) => change(i, { ...r, variable: e.target.value || undefined })}
-            options={[{ value: "", label: "Variable…" }, ...all.map((v) => ({ value: v.name, label: "$" + v.name + " (" + v.type + ")" })),
-              ...(known ? [] : [{ value: r.variable!, label: "$" + r.variable + " (not a variable of this agent)" }])]} />
+            options={[{ value: "", label: "Variable…" }, ...all.map((v) => ({ value: v.name, label: varRef(v.name) + " (" + v.type + ")" })),
+              ...(known ? [] : [{ value: r.variable!, label: varRef(r.variable ?? "") + " (not a variable of this agent)" }])]} />
           {target?.type === "Credential"
             ? <Select aria-label={"Value " + (i + 1)} value={typeof r.value === "string" ? r.value.replace(/^\$/, "") : ""}
-                onChange={(e) => change(i, { ...r, value: e.target.value ? "$" + e.target.value : undefined })}
+                onChange={(e) => change(i, { ...r, value: e.target.value ? varRef(e.target.value) : undefined })}
                 options={[{ value: "", label: "Credential variable…" }, ...all.filter((v) => v.type === "Credential" && v.name !== r.variable)
-                  .map((v) => ({ value: v.name, label: "$" + v.name }))]} />
+                  .map((v) => ({ value: v.name, label: varRef(v.name) }))]} />
             : <CommitInput key={i + ":" + assignmentText(r.value)} label={"Value " + (i + 1)} want={target?.type ?? "Any"} initial={assignmentText(r.value)}
-                placeholder={target?.type === "Number" ? "42, $other or =$count + 1" : "text, $variable or =calculation"}
+                placeholder={target?.type === "Number" ? "42, $other$ or =$count$ + 1" : "text, $variable$ or =calculation"}
                 onCommit={(t) => change(i, { ...r, value: assignmentValue(t) })}
                 apply={(t, f) => put(rows.map((x, k) => k === i ? { ...r, value: assignmentValue(t) } : x), f)} />}
           <div className="st-assignment-tools">
@@ -294,8 +294,8 @@ export function RunAgentFields({ step }: { step: FlowStep }) {
         <Button kind="secondary" onClick={() => setFinding(true)} disabled={!others.length}>Choose…</Button>
       </div>}
       {source === "self" && <p className="ui-field-hint">Runs this agent again from its first step (at most 10 levels deep).</p>}
-      {fromVariable && <CommitInput key={id} label="Variable with the agent id" mono want="String" initial={id === "$" ? "" : id} placeholder="$agent_id"
-        onCommit={(t) => set("automation", t.trim() ? (t.trim().startsWith("$") ? t.trim() : "$" + t.trim()) : "$")} />}
+      {fromVariable && <CommitInput key={id} label="Variable with the agent id" mono want="String" initial={id === "$" ? "" : id} placeholder="$agent_id$"
+        onCommit={(t) => set("automation", t.trim() ? (t.trim().startsWith("$") ? t.trim() : varRef(t.trim())) : "$")} />}
       {child && !self && vars.openChild && <button type="button" className="st-link" onClick={() => vars.openChild!(step.id)}>Open this agent</button>}
       {finding && <AgentFinder agents={others} current={child && !self ? child.id : undefined} onClose={() => setFinding(false)}
         onPick={(picked) => { setFinding(false); setDone(null); set("automation", picked); }} />}
@@ -321,7 +321,7 @@ export function RunAgentFields({ step }: { step: FlowStep }) {
             </label>
             {on && <div className="ui-field-control">
               <CommitInput key={v.name + showValue(val)} label={"Input " + v.name} initial={val === undefined ? "" : showValue(val)} want={v.type}
-                placeholder={v.type === "Credential" ? "$credential variable" : v.default !== undefined ? "default: " + showValue(v.default) : v.required ? "required" : "(not set)"}
+                placeholder={v.type === "Credential" ? "a Credential variable" : v.default !== undefined ? "default: " + showValue(v.default) : v.required ? "required" : "(not set)"}
                 onCommit={(t) => applyNow(vars, (f) => putInput(v, t, f))} apply={(t, f) => putInput(v, t, f)} nameHint={v.name} />
               {v.description && <div className="ui-field-hint">{v.description}</div>}
             </div>}

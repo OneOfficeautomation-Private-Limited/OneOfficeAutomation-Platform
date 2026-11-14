@@ -103,14 +103,14 @@
       "id": "s1",
       "action": "ooa.email/connect",
       "args": {
-        "imap_host": "$imap_host",
-        "port": "$imap_port",
-        "user": "$mailbox",
-        "password": "$password",
-        "security": "$security",
-        "smtp_host": "$smtp_host",
-        "smtp_port": "$smtp_port",
-        "smtp_security": "$smtp_security"
+        "imap_host": "$imap_host$",
+        "port": "$imap_port$",
+        "user": "$mailbox$",
+        "password": "$password$",
+        "security": "$security$",
+        "smtp_host": "$smtp_host$",
+        "smtp_port": "$smtp_port$",
+        "smtp_security": "$smtp_security$"
       }
     },
     {
@@ -130,7 +130,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$mails",
+        "over": "$mails$",
         "as": "m"
       },
       "children": [
@@ -138,7 +138,7 @@
           "id": "s3",
           "action": "ooa.email/save_attachments",
           "args": {
-            "id": "$m.id",
+            "id": "$m.id$",
             "target_folder": "${folder}/output/invoices"
           },
           "out": {
@@ -151,7 +151,7 @@
           "args": {
             "variable": "attachments",
             "value": {
-              "expr": "$attachments + len($files)"
+              "expr": "$attachments$ + len($files$)"
             }
           }
         },
@@ -159,7 +159,7 @@
           "id": "s5",
           "action": "ooa.email/reply",
           "args": {
-            "id": "$m.id",
+            "id": "$m.id$",
             "body": "Thank you, we received ${m.subject}."
           }
         },
@@ -169,7 +169,7 @@
           "args": {
             "variable": "processed",
             "value": {
-              "expr": "$processed + 1"
+              "expr": "$processed$ + 1"
             }
           }
         }

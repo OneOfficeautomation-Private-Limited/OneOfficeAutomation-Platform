@@ -377,7 +377,7 @@ function HtmlBodyEditor({ step, field }: { step: FlowStep; field: string }) {
           {TOOLS.map(([cmd, label, v]) => <button key={label} type="button" className="st-seg-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => run(cmd, v)}>{label}</button>)}
           <button type="button" className="st-seg-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => { const u = window.prompt("Link address"); if (u) run("createLink", u); }}>Link</button>
           <label className="st-html-colour">Colour <input type="color" aria-label="Text colour" onChange={(e) => run("foreColor", e.target.value)} /></label>
-          <button type="button" className="st-seg-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => run("insertText", "$variable")}>Insert $variable</button>
+          <button type="button" className="st-seg-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => run("insertText", "$variable$")}>Insert $variable$</button>
         </div>
         <div ref={areaRef} className="st-html-area" contentEditable suppressContentEditableWarning role="textbox" aria-multiline aria-label="Body" onInput={sync} onBlur={sync} />
         <p className="st-muted">Variables such as $customer are filled in when the agent runs.</p>

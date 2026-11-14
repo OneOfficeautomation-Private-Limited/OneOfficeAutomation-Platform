@@ -55,7 +55,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "https://rpachallenge.com/",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -78,7 +78,7 @@
       "id": "s3",
       "action": "ooa.excel/open",
       "args": {
-        "path": "$xlsx",
+        "path": "$xlsx$",
         "session": "challenge",
         "header": true
       }
@@ -265,7 +265,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$people",
+        "over": "$people$",
         "as": "row"
       },
       "description": "One round per row: the fields move, so they are found by their name, not their place",
@@ -277,7 +277,7 @@
             "condition": {
               "op": "notEmpty",
               "left": {
-                "expr": "$row[\"First Name\"]"
+                "expr": "$row[\"First Name\"]$"
               }
             }
           },
@@ -287,7 +287,7 @@
               "action": "ooa.browser/type_text",
               "args": {
                 "text": {
-                  "expr": "toString($row[\"First Name\"])"
+                  "expr": "toString($row[\"First Name\"]$)"
                 },
                 "object": {
                   "technology": "web",
@@ -466,7 +466,7 @@
               "action": "ooa.browser/type_text",
               "args": {
                 "text": {
-                  "expr": "toString($row[\"Last Name \"])"
+                  "expr": "toString($row[\"Last Name \"]$)"
                 },
                 "object": {
                   "technology": "web",
@@ -645,7 +645,7 @@
               "action": "ooa.browser/type_text",
               "args": {
                 "text": {
-                  "expr": "toString($row[\"Company Name\"])"
+                  "expr": "toString($row[\"Company Name\"]$)"
                 },
                 "object": {
                   "technology": "web",
@@ -824,7 +824,7 @@
               "action": "ooa.browser/type_text",
               "args": {
                 "text": {
-                  "expr": "toString($row[\"Role in Company\"])"
+                  "expr": "toString($row[\"Role in Company\"]$)"
                 },
                 "object": {
                   "technology": "web",
@@ -1003,7 +1003,7 @@
               "action": "ooa.browser/type_text",
               "args": {
                 "text": {
-                  "expr": "toString($row[\"Address\"])"
+                  "expr": "toString($row[\"Address\"]$)"
                 },
                 "object": {
                   "technology": "web",
@@ -1182,7 +1182,7 @@
               "action": "ooa.browser/type_text",
               "args": {
                 "text": {
-                  "expr": "toString($row[\"Email\"])"
+                  "expr": "toString($row[\"Email\"]$)"
                 },
                 "object": {
                   "technology": "web",
@@ -1361,7 +1361,7 @@
               "action": "ooa.browser/type_text",
               "args": {
                 "text": {
-                  "expr": "toString($row[\"Phone Number\"])"
+                  "expr": "toString($row[\"Phone Number\"]$)"
                 },
                 "object": {
                   "technology": "web",
@@ -1705,7 +1705,7 @@
               "args": {
                 "variable": "rounds",
                 "value": {
-                  "expr": "$rounds + 1"
+                  "expr": "$rounds$ + 1"
                 }
               }
             }

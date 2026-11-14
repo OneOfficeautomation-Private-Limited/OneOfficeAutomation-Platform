@@ -5,7 +5,7 @@ import { errorText } from "../api/client";
 import { Button, Dialog, Field, IconTile, Select, TextArea } from "../components";
 import { ON_ERROR, stateLists, type Place } from "./flowEdit";
 import { caseText, conditionText, describeAction, plainValue, startState, stateText, summarize, transitionText } from "./toolkits";
-import { isInput, isOutput } from "./variables";
+import { isInput, isOutput, varRef } from "./variables";
 import { designDocument, designDocx, docFileName, type DocBlock } from "./designDoc";
 
 /** The agent in plain words: what it needs and returns, then its steps, blocks indented (Classic's Explain this agent). */
@@ -18,8 +18,8 @@ export function explainAgent(flow: Flow, packages: PackageManifest[] = []): stri
   }
   const ins = (flow.variables ?? []).filter(isInput), outs = (flow.variables ?? []).filter(isOutput);
   return [(flow.name || "This agent") + (flow.description ? ": " + flow.description : ""),
-    ins.length ? "It needs: " + ins.map((v) => "$" + v.name + " (" + v.type + (v.required ? ", required" : "") + ")").join(", ") + "." : "It needs no inputs.",
-    outs.length ? "It returns: " + outs.map((v) => "$" + v.name + " (" + v.type + ")").join(", ") + "." : "It returns no outputs.", "", "Steps:",
+    ins.length ? "It needs: " + ins.map((v) => varRef(v.name) + " (" + v.type + (v.required ? ", required" : "") + ")").join(", ") + "." : "It needs no inputs.",
+    outs.length ? "It returns: " + outs.map((v) => varRef(v.name) + " (" + v.type + ")").join(", ") + "." : "It returns no outputs.", "", "Steps:",
     ...(lines.length ? lines : ["(no steps yet)"])].join("\n");
 }
 
@@ -39,11 +39,11 @@ export function explainSteps(steps: FlowStep[] | undefined, packages: PackageMan
     else if (s.action === "core/try") text = "Try the following, and handle errors:";
     else if (s.action === "core/set") text = "Set $" + a.variable + " to " + plainValue(a.value);
     else if (s.action === "core/set_many") text = "Set " + (Array.isArray(a.assignments) ? a.assignments : [])
-      .map((r: { variable?: string; value?: unknown }) => "$" + r.variable + " to " + plainValue(r.value)).join(", then ");
+      .map((r: { variable?: string; value?: unknown }) => varRef(r.variable ?? "?") + " to " + plainValue(r.value)).join(", then ");
     else if (s.action === "core/comment") text = "Note: " + plainValue(a.text);
     else text = describeAction(s.action, packages).name + (s.note ? " (" + s.note + ")" : "")
       + (Object.keys(a).length ? " with " + Object.entries(a).slice(0, 3).map(([k, v]) => k.replace(/_/g, " ") + " " + plainValue(v, 40)).join(", ") : "")
-      + (s.out ? ", storing " + Object.values(s.out).map((v) => "$" + v).join(" and ") : "");
+      + (s.out ? ", storing " + Object.values(s.out).map((v) => varRef(v)).join(" and ") : "");
     lines.push(pad + text);
     walk(s.children, depth + 1);
     for (const b of s.elseIf ?? []) { lines.push("  ".repeat(depth + 1) + "Otherwise, if " + conditionText(b.condition, packages) + ":"); walk(b.children, depth + 2); }
@@ -76,7 +76,7 @@ export function DependenciesPanel({ api, path, dirty, onOpen, onStep }:
     <section className="st-dep-group" aria-label={title}>
       <div className="st-dep-head"><IconTile name={mark.icon} color={mark.color} size={20} /><strong>{title}</strong><span className="st-count">{items.length}</span></div>
       {items.length ? <ul className="st-dep-list">{items.map((x, i) => <li key={i} className={x.missing ? "is-missing" : ""}>
-        {x.path ? <button type="button" className="st-link ui-mono" onClick={() => onOpen(x.path!)}>{x.path}</button> : <span className="ui-mono">{x.name}</span>}
+        {x.path ? <button type="button" className="st-link ui-mono" onClick={() => onOpen(x.path!)} title={x.path}>{x.path.replace(/\.[a-z]+\.json$/i, "").split("/").join(" › ")}</button> : <span className="ui-mono">{x.name}</span>}
         {x.missing && <span className="st-check">Not in the workspace</span>}
         {x.step && !usedBy && <button type="button" className="st-link st-dep-step" onClick={() => onStep(x.step!)}>step {x.step}</button>}
       </li>)}</ul> : <p className="st-muted st-dep-empty">{empty}</p>}

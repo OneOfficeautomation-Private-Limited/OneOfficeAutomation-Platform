@@ -1,7 +1,7 @@
 import type { IconName } from "../components";
 import type { Flow, FlowStep, PackageManifest } from "../api/client";
 import { innerLists, stateLists, type Part } from "./flowEdit";
-import { binarySummary } from "./variables";
+import { binarySummary, varRef } from "./variables";
 
 /** Colour and icon of a toolkit, so steps and the action library share one mark per toolkit (approved look). */
 export type Mark = { color: string; icon: IconName };
@@ -236,7 +236,7 @@ export function summarize(step: FlowStep, packages: PackageManifest[] = []): str
     return name + (args.length ? " (" + args.join(", ") + ")" : "") + (typeof step.args.as === "string" && step.args.as ? " → $" + step.args.as : "");
   }
   if (step.action === "core/set_many" && Array.isArray(step.args?.assignments))
-    return (step.args!.assignments as { variable?: string; value?: unknown }[]).map((r) => "$" + (r.variable ?? "?") + " = " + plainValue(r.value)).join(" · ");
+    return (step.args!.assignments as { variable?: string; value?: unknown }[]).map((r) => varRef((r.variable ?? "?")) + " = " + plainValue(r.value)).join(" · ");
   const parts = Object.entries(step.args ?? {}).filter(([, v]) => v !== "" && v != null).slice(0, 3)
     .map(([k, v]) => k === "condition" ? conditionText(v, packages) : `${k.replace(/_/g, " ")}: ${plainValue(v)}`);
   const out = Object.values(step.out ?? {});

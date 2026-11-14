@@ -14,15 +14,15 @@ describe("capture and recording", () => {
   it("puts a captured page in a numbered window variable, the same one for the same window", () => {
     const s1: FlowStep = { id: "s1", action: "ooa.browser/click", args: {} };
     let f = fillWindowFromCapture(flow(), s1, page("The Internet"), true);
-    expect(s1.args!.window).toBe("$Window_1");
+    expect(s1.args!.window).toBe("$Window_1$");
     expect(f.variables![0]).toMatchObject({ name: "Window_1", type: "Dictionary",
       default: { source: "browser", title: "The Internet", title_match: "equals", link: "https://x.test/The Internet", browser: "edge" } });
     const s2: FlowStep = { id: "s2", action: "ooa.browser/click", args: {} };
     f = fillWindowFromCapture(f, s2, page("The Internet", "https://x.test/other"), true);
-    expect(s2.args!.window).toBe("$Window_1");
+    expect(s2.args!.window).toBe("$Window_1$");
     const s3: FlowStep = { id: "s3", action: "ooa.browser/click", args: {} };
     f = fillWindowFromCapture(f, s3, page("Secure Area"), true);
-    expect(s3.args!.window).toBe("$Window_2");
+    expect(s3.args!.window).toBe("$Window_2$");
     const set: FlowStep = { id: "s4", action: "ooa.browser/click", args: { window: "$mine" } };
     expect(fillWindowFromCapture(f, set, page("X"), true)).toBe(f);   // a window already chosen stays
   });
@@ -31,14 +31,14 @@ describe("capture and recording", () => {
     const win = { source: "browser", title: "Web form", title_match: "equals", link: "https://x.test/form", browser: "edge" };
     const steps: FlowStep[] = [
       { id: "a", action: "ooa.browser/type_text", args: { window: { ...win }, text: "tomsmith", object: { properties: [{ name: "label", value: "Username" }, { name: "name", value: "user" }] } } },
-      { id: "b", action: "ooa.browser/type_text", args: { window: { ...win }, text: "$password" } },
+      { id: "b", action: "ooa.browser/type_text", args: { window: { ...win }, text: "$password$" } },
       { id: "c", action: "ooa.browser/select_option", args: { option: "Option 2", object: { properties: [{ name: "id", value: "dropdown" }] } } },
       { id: "d", action: "ooa.desktop_ui/object_action", args: { action: "set_text", text: "Ann", object: { properties: [{ name: "Name", value: "Customer name" }] } } },
     ];
     const r = recordedVariables(flow(), steps);
     expect(r.made).toEqual(["Window_1", "Text_1", "Choice_1", "Text_2", "password"]);
-    expect(steps.map((s) => s.args!.window ?? null).slice(0, 2)).toEqual(["$Window_1", "$Window_1"]);
-    expect([steps[0].args!.text, steps[1].args!.text, steps[2].args!.option, steps[3].args!.text]).toEqual(["$Text_1", "$password", "$Choice_1", "$Text_2"]);
+    expect(steps.map((s) => s.args!.window ?? null).slice(0, 2)).toEqual(["$Window_1$", "$Window_1$"]);
+    expect([steps[0].args!.text, steps[1].args!.text, steps[2].args!.option, steps[3].args!.text]).toEqual(["$Text_1$", "$password$", "$Choice_1$", "$Text_2$"]);
     const v = (n: string) => r.flow.variables!.find((x) => x.name === n)!;
     expect(v("Text_1")).toMatchObject({ type: "String", direction: "input", default: "tomsmith" });
     expect(v("Text_1").description).toContain("Username");
@@ -49,7 +49,7 @@ describe("capture and recording", () => {
   it("puts a captured or recorded application window in a window variable, one per window, as AA does", () => {
     const notepad = { title: "Untitled - Notepad", title_match: "wildcard", process: "notepad", resize: { width: 800, height: 600 } };
     const c = shareDesktopWindow(flow(), { technology: "desktop", window: { ...notepad }, properties: [] });
-    expect(c.obj.window).toBe("$Window_1");
+    expect(c.obj.window).toBe("$Window_1$");
     expect(c.flow.variables![0]).toMatchObject({ name: "Window_1", type: "Dictionary", default: { title: "Untitled - Notepad", process: "notepad" } });
     expect((c.flow.variables![0].default as { resize?: unknown }).resize).toBeUndefined();
     // the window in front (a preset) stays in the step
@@ -63,7 +63,7 @@ describe("capture and recording", () => {
     ];
     const r = recordedVariables(c.flow, steps);
     expect(r.made).toEqual(["Window_2"]);
-    expect(steps.map((s) => (s.args!.object as { window: unknown }).window)).toEqual(["$Window_1", "$Window_2", "$Window_1"]);
+    expect(steps.map((s) => (s.args!.object as { window: unknown }).window)).toEqual(["$Window_1$", "$Window_2$", "$Window_1$"]);
     expect(r.flow.variables![1].description).toContain("Calculator");
   });
 
@@ -76,7 +76,7 @@ describe("capture and recording", () => {
     expect(longRecordedVariables(f).map((v) => v.name)).toEqual(["window_contact_us_acme", "tell_us_more"]);
     const g = shortenRecordedNames(f);
     expect(g.variables!.map((v) => v.name)).toEqual(["Window_2", "Text_1", "Window_1"]);
-    expect(g.steps[0].args).toEqual({ window: "$Window_2", text: "$Text_1" });
+    expect(g.steps[0].args).toEqual({ window: "$Window_2", text: "$Text_1" });   // a rename keeps the form the step had
     expect(longRecordedVariables(g)).toEqual([]);
   });
 

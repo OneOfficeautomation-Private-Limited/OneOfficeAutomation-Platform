@@ -67,7 +67,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "${folder}/site/portal.html",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -77,7 +77,7 @@
       "id": "s2",
       "action": "ooa.browser/type_text",
       "args": {
-        "text": "$portal_user",
+        "text": "$portal_user$",
         "object": {
           "technology": "web",
           "page": {
@@ -236,7 +236,7 @@
       "id": "s3",
       "action": "ooa.browser/type_text",
       "args": {
-        "text": "$portal_password",
+        "text": "$portal_password$",
         "object": {
           "technology": "web",
           "page": {
@@ -726,7 +726,7 @@
       "id": "s6",
       "action": "ooa.browser/type_text",
       "args": {
-        "text": "$customer",
+        "text": "$customer$",
         "object": {
           "technology": "web",
           "page": {
@@ -885,7 +885,7 @@
       "id": "s7",
       "action": "ooa.browser/type_text",
       "args": {
-        "text": "${amount}",
+        "text": "$amount$",
         "object": {
           "technology": "web",
           "page": {
@@ -1050,7 +1050,7 @@
       "id": "s8",
       "action": "ooa.browser/select_option",
       "args": {
-        "option": "$kind",
+        "option": "$kind$",
         "object": {
           "technology": "web",
           "page": {

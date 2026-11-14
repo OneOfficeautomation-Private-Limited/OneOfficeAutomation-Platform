@@ -5,6 +5,7 @@ import { aiStep } from "./aiAgent";
 import { setArg } from "./flowEdit";
 import { isFinished, type LiveRun } from "./RunPanel";
 import { oneStep, runOnce } from "./runOnce";
+import { AGENTS_ROOT, folderOf } from "./RunAgentParts";
 
 type Args = Record<string, unknown>;
 const str = (v: unknown) => (v === undefined || v === null ? "" : String(v));
@@ -29,6 +30,9 @@ function TextField({ label, value, onCommit, multiline, placeholder, hint, mono,
  * approval; the model, the values it must return, and its limits; and try it on a request, with the answer and the
  * trace of what it did. Everything is saved as the arguments of the agent's one Run AI agent step.
  */
+/** Where a tool agent is, as people read it (item G): Agents › Finance, never its file name. */
+const agentFolder = (a: AgentSummary) => [AGENTS_ROOT, ...folderOf(a.path).split("/").filter(Boolean)].join(" › ");
+
 export function AiAgentEditor({ api, flow, onEdit, agents, connections, onNewConnection, run, onTry, onShowSteps }:
   { api: StudioApi; flow: Flow; onEdit: (next: Flow) => void; agents: AgentSummary[]; connections: ModelConnections | null;
     onNewConnection: () => void; run: LiveRun | null; onTry: (request: string) => void; onShowSteps: () => void }) {
@@ -107,7 +111,7 @@ export function AiAgentEditor({ api, flow, onEdit, agents, connections, onNewCon
               </tbody>
             </table>
             <Field label="Add an agent as a tool">{(id) => <SearchSelect id={id} value="" placeholder="Search your agents"
-              options={agents.filter((x) => x.id && x.id !== flow.id && !tools.includes(x.id)).map((x) => ({ value: x.id, label: x.name, description: x.path }))}
+              options={agents.filter((x) => x.id && x.id !== flow.id && !tools.includes(x.id)).map((x) => ({ value: x.id, label: x.name, description: agentFolder(x) }))}
               onChange={(v) => { if (v) put("tools", [...tools, v]); }} />}</Field>
           </div></TabPanel>
           <TabPanel value="model"><div className="st-ai-fields">

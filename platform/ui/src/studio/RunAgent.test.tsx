@@ -57,12 +57,12 @@ describe("Run Agent (14 Nov 2026, items D and E, as AA's Task Bot Run)", () => {
     expect(group("Already set")).toEqual([expect.stringMatching(/amountinput ← 5$/)]);
     fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     const step = state.flow.steps[0];
-    expect(step.args!.inputs).toEqual({ amount: 5, customer: "$customer" });   // a value already set stays
+    expect(step.args!.inputs).toEqual({ amount: 5, customer: "$customer$" });   // a value already set stays
     expect(step.args!.output_map).toEqual({ total: "total" });
     expect(state.flow.variables!.map((v) => v.name + ":" + v.type)).toEqual(["customer:String", "total:Number"]);
     expect(screen.getByRole("status").textContent).toBe("2 mapped, 1 new variable");
     again();
-    expect((screen.getByLabelText("Input customer") as HTMLInputElement).value).toBe("$customer");
+    expect((screen.getByLabelText("Input customer") as HTMLInputElement).value).toBe("$customer$");
     expect((screen.getByLabelText("Give a value for customer") as HTMLInputElement).checked).toBe(true);
   });
 
@@ -73,7 +73,7 @@ describe("Run Agent (14 Nov 2026, items D and E, as AA's Task Bot Run)", () => {
     fireEvent.click(within(dialog).getByLabelText("Also replace values already set"));
     fireEvent.click(within(dialog).getByLabelText("Make the missing variables, with the same name and type"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
-    expect(state.flow.steps[0].args!.inputs).toEqual({ customer: "$customer" });
+    expect(state.flow.steps[0].args!.inputs).toEqual({ customer: "$customer$" });
     expect(state.flow.variables!.map((v) => v.name)).toEqual(["customer"]);   // nothing made
   });
 

@@ -201,9 +201,9 @@ export function WorkflowEditor({ data, onChange, tree }: { data: Obj; onChange: 
           <TextField label="Name" value={str(s.name)} onCommit={(v) => put("name", v)} />
           {t === "bot" && <>
             {sel("Agent", "bot", pick("bot", "Choose an agent"))}
-            <TextField label="Inputs (JSON)" mono multiline value={s.inputs ? JSON.stringify(s.inputs, null, 2) : ""} placeholder='For example: {"order_id": "$form.order_id"}'
+            <TextField label="Inputs (JSON)" mono multiline value={s.inputs ? JSON.stringify(s.inputs, null, 2) : ""} placeholder='For example: {"order_id": "$form.order_id$"}'
               onCommit={(v) => { try { const o = v.trim() ? JSON.parse(v) : undefined; if (o === undefined || (typeof o === "object" && !Array.isArray(o))) put("inputs", o); } catch { /* not JSON: kept as it was */ } }}
-              hint="A JSON object of the agent's inputs; values can use $form.field." />
+              hint="A JSON object of the agent's inputs; values can use $form.field$." />
           </>}
           {t === "form" && <>
             {sel("Form", "form", pick("form", "Choose a form"))}
@@ -217,7 +217,7 @@ export function WorkflowEditor({ data, onChange, tree }: { data: Obj; onChange: 
               ...stages.filter((x) => x !== s).map((x) => ({ value: str(x.id), label: "Go to " + (str(x.name) || str(x.id)) }))], str(s.on_reject) || "end")}
           </>}
           {t === "decision" && <>
-            <TextField label="Condition" mono value={str(s.condition)} placeholder="$amount > 1000" onCommit={(v) => put("condition", v)} />
+            <TextField label="Condition" mono value={str(s.condition)} placeholder="$amount$ > 1000" onCommit={(v) => put("condition", v)} />
             {sel("If true, go to", "if_true", targets(s))}
             {sel("If false, go to", "if_false", targets(s))}
           </>}

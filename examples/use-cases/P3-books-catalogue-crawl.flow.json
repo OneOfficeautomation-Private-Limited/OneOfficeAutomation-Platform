@@ -131,7 +131,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "https://books.toscrape.com/",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -152,7 +152,7 @@
         "iterator": "while",
         "condition": {
           "op": "eq",
-          "left": "$more",
+          "left": "$more$",
           "right": true
         },
         "max_iterations": 60
@@ -181,7 +181,7 @@
           "id": "s5",
           "action": "ooa.datatable/from_records",
           "args": {
-            "records": "$page_books"
+            "records": "$page_books$"
           },
           "out": {
             "table": "page_table"
@@ -192,8 +192,8 @@
           "action": "ooa.datatable/merge",
           "args": {
             "tables": [
-              "$all",
-              "$page_table"
+              "$all$",
+              "$page_table$"
             ],
             "columns": "union"
           },
@@ -239,7 +239,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$all",
+        "over": "$all$",
         "as": "b"
       },
       "description": "Each book page: product code and stock",
@@ -248,7 +248,7 @@
           "id": "s11",
           "action": "ooa.browser/navigate",
           "args": {
-            "url": "$b.Url"
+            "url": "$b.Url$"
           }
         },
         {
@@ -277,7 +277,7 @@
           "args": {
             "variable": "stock",
             "value": {
-              "expr": "toNumber(coalesce(regexExtract($availability, \"[0-9]+\"), \"0\"))"
+              "expr": "toNumber(coalesce(regexExtract($availability$, \"[0-9]+\"), \"0\"))"
             }
           }
         },
@@ -285,13 +285,13 @@
           "id": "s15",
           "action": "ooa.datatable/add_row",
           "args": {
-            "table": "$details",
+            "table": "$details$",
             "values": [
-              "$b.Title",
-              "$b.Price",
-              "$b.Rating",
-              "$upc",
-              "$stock"
+              "$b.Title$",
+              "$b.Price$",
+              "$b.Rating$",
+              "$upc$",
+              "$stock$"
             ]
           },
           "out": {
@@ -304,7 +304,7 @@
           "args": {
             "variable": "total_stock",
             "value": {
-              "expr": "$total_stock + $stock"
+              "expr": "$total_stock$ + $stock$"
             }
           }
         }
@@ -318,7 +318,7 @@
       "id": "s19",
       "action": "ooa.datatable/row_count",
       "args": {
-        "table": "$details"
+        "table": "$details$"
       },
       "out": {
         "count": "books"
@@ -328,7 +328,7 @@
       "id": "s20",
       "action": "ooa.datatable/sort",
       "args": {
-        "table": "$details",
+        "table": "$details$",
         "column": "Price",
         "descending": true
       },
@@ -340,7 +340,7 @@
       "id": "s21",
       "action": "ooa.datatable/get_value",
       "args": {
-        "table": "$sorted",
+        "table": "$sorted$",
         "row": 0,
         "column": "Title"
       },
@@ -352,7 +352,7 @@
       "id": "s22",
       "action": "ooa.datatable/aggregate",
       "args": {
-        "table": "$details",
+        "table": "$details$",
         "group_by": [
           "Rating"
         ],
@@ -381,7 +381,7 @@
       "id": "s24",
       "action": "ooa.excel/write_table",
       "args": {
-        "table": "$sorted",
+        "table": "$sorted$",
         "session": "report"
       }
     },
@@ -397,7 +397,7 @@
       "id": "s26",
       "action": "ooa.excel/write_table",
       "args": {
-        "table": "$by_rating",
+        "table": "$by_rating$",
         "sheet": "By rating",
         "session": "report"
       }

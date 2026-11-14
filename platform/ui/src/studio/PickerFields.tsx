@@ -27,7 +27,7 @@ export function TimeZoneField({ id, value, local, onCommit }: { id: string; valu
     ...allZones().filter((z) => z !== "UTC").map((z) => ({ value: z, label: z.replace(/_/g, " "), description: z.split("/")[0] })),
     { value: VARIABLE, label: "From a variable…", description: "Its value is read when the step runs" }], [local]);
   const [asVariable, setAsVariable] = useState(text.startsWith("$"));
-  if (asVariable) return <CommitInput id={id} initial={text} mono want="String" placeholder="$time_zone" onCommit={(t) => { if (!t.trim()) setAsVariable(false); onCommit(t.trim() || undefined); }} />;
+  if (asVariable) return <CommitInput id={id} initial={text} mono want="String" placeholder="$time_zone$" onCommit={(t) => { if (!t.trim()) setAsVariable(false); onCommit(t.trim() || undefined); }} />;
   return <SearchSelect id={id} value={text.toLowerCase() === "local" ? "local" : text} options={options} placeholder="Type a city or region"
     onChange={(v) => { if (v === VARIABLE) setAsVariable(true); else onCommit(v || undefined); }} />;
 }
@@ -124,7 +124,7 @@ export function SizeField({ id, value, onCommit }: { id: string; value: unknown;
   const [unit, setUnit] = useState(best[0]);
   const factor = UNITS.find(([u]) => u === unit)![1];
   if (typeof value === "string" && value.startsWith("$"))
-    return <CommitInput id={id} initial={value} mono want="Number" placeholder="$size" onCommit={(t) => onCommit(t === "" ? undefined : t)} />;
+    return <CommitInput id={id} initial={value} mono want="Number" placeholder="$size$" onCommit={(t) => onCommit(t === "" ? undefined : t)} />;
   return <div className="st-row-tight">
     <input id={id} className="ui-input" type="number" min={0} step="any" key={unit + String(bytes)} defaultValue={bytes === undefined ? "" : String(bytes / factor)}
       onBlur={(e) => { const n = e.currentTarget.value === "" ? undefined : Math.round(Number(e.currentTarget.value) * factor); if (n !== bytes) onCommit(n); }} />

@@ -1,6 +1,6 @@
 import type { Flow, FlowStep, FlowVariable } from "../api/client";
 import { innerLists } from "./flowEdit";
-import { renameRefs } from "./variables";
+import { renameRefs, varRef } from "./variables";
 
 /**
  * Captured objects and recordings, as pure functions: how a property must match, readable property names, the
@@ -89,7 +89,7 @@ export function shareDesktopWindow(flow: Flow, obj: Captured): { flow: Flow; obj
   const w = obj.window;
   if (!w || typeof w !== "object" || w.preset || !w.title) return { flow, obj };
   const r = desktopWindowVariable(flow, w);
-  return { flow: r.flow, obj: { ...obj, window: "$" + r.name }, name: r.name };
+  return { flow: r.flow, obj: { ...obj, window: varRef(r.name) }, name: r.name };
 }
 
 /** After a web capture: the step's window becomes the captured page (title, link, browser) in a window variable, when none is set. */
@@ -101,7 +101,7 @@ export function fillWindowFromCapture(flow: Flow, step: FlowStep, obj: Captured,
   const w: WebWindow = { source: "browser", title: obj.page.title || "", title_match: "equals", link: obj.page.url || "", browser: obj.page.browser || "edge" };
   if (!w.title) { delete w.title; step.args = { ...(step.args ?? {}), window: w }; return flow; }
   const r = windowVariable(flow, w);
-  step.args = { ...(step.args ?? {}), window: "$" + r.name };
+  step.args = { ...(step.args ?? {}), window: varRef(r.name) };
   return r.flow;
 }
 
@@ -148,7 +148,7 @@ export function recordedVariables(flow: Flow, steps: FlowStep[]): { flow: Flow; 
       const r = desktopWindowVariable(f, dw, "Application window the recording worked in (“" + dw.title + "”" + (dw.process ? ", " + dw.process : "") + ").");
       f = r.flow;
       if (r.made) made.push(r.name);
-      st.args = { ...st.args, object: { ...o, window: "$" + r.name } };
+      st.args = { ...st.args, object: { ...o, window: varRef(r.name) } };
       continue;
     }
     const w = st.args?.window as WebWindow | undefined;
@@ -158,7 +158,7 @@ export function recordedVariables(flow: Flow, steps: FlowStep[]): { flow: Flow; 
       f = { ...r.flow, variables: r.flow.variables!.map((v) => v.name === r.name ? { ...v, description: "Window the recording worked in (browser title “" + w.title + "”)." } : v) };
       made.push(r.name);
     }
-    st.args = { ...st.args, window: "$" + r.name };
+    st.args = { ...st.args, window: varRef(r.name) };
   }
   for (const st of steps) {
     const key = st.action === "ooa.browser/type_text" || (st.action === "ooa.desktop_ui/object_action" && st.args?.action === "set_text") ? "text"
@@ -168,10 +168,10 @@ export function recordedVariables(flow: Flow, steps: FlowStep[]): { flow: Flow; 
     const name = numberedName(f, key === "text" ? "Text" : "Choice");
     f = { ...f, variables: [...(f.variables ?? []), { name, type: "String", direction: "input", default: value,
       description: (key === "text" ? "Typed into" : "Selected in") + " the field “" + fieldName(st) + "” when recorded (change it here or pass it in)." }] };
-    st.args = { ...st.args, [key]: "$" + name };
+    st.args = { ...st.args, [key]: varRef(name) };
     made.push(name);
   }
-  if (JSON.stringify(steps).includes('"$password"') && !(f.variables ?? []).some((v) => v.name === "password")) {
+  if (/"\$password\$?"/.test(JSON.stringify(steps)) && !(f.variables ?? []).some((v) => v.name === "password")) {
     f = { ...f, variables: [...(f.variables ?? []), { name: "password", type: "Credential", direction: "input", description: "Password used by the recorded steps (from the vault)." }] };
     made.push("password");
   }

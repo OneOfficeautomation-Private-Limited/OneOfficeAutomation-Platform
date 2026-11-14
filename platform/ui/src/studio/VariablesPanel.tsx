@@ -6,7 +6,7 @@ import { Button, Dialog, Field, Icon, Menu, Select, TextArea, TextInput } from "
 import { parseLoose, showValue } from "./flowEdit";
 import { plainValue } from "./toolkits";
 import {
-  compatible, directionOf, GROUPS, guessType, isInput, isOutput, parseTime, parseTimeSpan, saveVariable, SYS_HELP, TYPE_STYLE, TYPES, uniqueName, usageCount, type Direction,
+  compatible, directionOf, GROUPS, guessType, isInput, isOutput, parseTime, parseTimeSpan, saveVariable, SYS_HELP, TYPE_STYLE, varRef, TYPES, uniqueName, usageCount, type Direction,
 } from "./variables";
 
 /**
@@ -113,17 +113,17 @@ export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor, type
         value={query} onChange={(e) => setQ(e.target.value)} />
       <div className="st-vp-list" role="listbox" aria-label="Variables">
         {good.length > 0 && <div className="st-vp-head">{typed && typed !== "String" && !all ? "Your " + typed + " variables" : "Your variables"}</div>}
-        {good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? usedAs(v).toLowerCase() : ""))}
+        {good.map((v) => item(varRef(v.name), v.type, v.direction && v.direction !== "local" ? usedAs(v).toLowerCase() : ""))}
         {sys.length > 0 && <div className="st-vp-head">System values</div>}
-        {sys.map(([k, val]) => item("$sys." + k, guessType(val), SYS_HELP[k] ?? preview(val)))}
+        {sys.map(([k, val]) => item(varRef("sys." + k), guessType(val), SYS_HELP[k] ?? preview(val)))}
         {glob.length > 0 && <div className="st-vp-head">Shared Global values</div>}
-        {glob.map(([k, val]) => item("$global." + k, guessType(val), preview(val)))}
+        {glob.map(([k, val]) => item(varRef("global." + k), guessType(val), preview(val)))}
         {!good.length && !sys.length && !glob.length && <p className="st-vp-empty">{globalsOnly ? "No Shared Global values match (they are managed in One CommandCenter)."
           : typed && !all ? "No " + typed + " variables yet." : "No variables match."}</p>}
       </div>
       <div className="st-vp-foot">
         {hidden > 0 && <Button kind="plain" onClick={() => setAll(true)}>Show all ({hidden} of another type)</Button>}
-        <Button kind="plain" icon="plus" onClick={() => { onClose(); ctx.newVariable({ type: typed ?? "String", name: nameHint, then: onNew && ((n, fl) => onNew("$" + n, fl)) }); }}>
+        <Button kind="plain" icon="plus" onClick={() => { onClose(); ctx.newVariable({ type: typed ?? "String", name: nameHint, then: onNew && ((n, fl) => onNew(varRef(n), fl)) }); }}>
           New variable{typed ? " (" + typed + ")" : ""}</Button>
       </div>
     </div>, document.body);
@@ -285,10 +285,10 @@ export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
       <li key={v.name} className="st-var-row">
         <button type="button" className="st-var-main" onClick={() => setEditing(v)} title={(v.description ? v.description + "\n" : "") + "Click to change"}>
           <TypeBadge type={v.type} />
-          <span className="st-var-text"><span className="st-var ui-mono">${v.name}</span><span className="st-var-meta">{meta}</span></span>
+          <span className="st-var-text"><span className="st-var ui-mono">{varRef(v.name)}</span><span className="st-var-meta">{meta}</span></span>
           <span className={"st-uses" + (uses ? "" : " is-none")}>{uses ? uses + (uses === 1 ? " use" : " uses") : "unused"}</span>
         </button>
-        <Menu label={"$" + v.name + " menu"} align="end" items={[
+        <Menu label={varRef(v.name) + " menu"} align="end" items={[
           { key: "change", label: "Change…", onSelect: () => setEditing(v) },
           { key: "copy", label: "Copy", description: "A copy named $" + uniqueName(flow, v.name + "_copy"), onSelect: () => duplicate(v) },
           { key: "delete", label: "Delete…", separatorBefore: true, onSelect: () => remove(v) },
@@ -303,7 +303,7 @@ export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
         <summary><span>{title}</span><span className="st-count">{rows.length}</span></summary>
         <p className="st-muted st-var-note">{note}</p>
         {rows.length ? <ul className="st-vars">{rows.map(([k, val]) => <li key={k} className="st-var-row is-builtin">
-          <span className="st-var-main"><TypeBadge type={guessType(val)} /><span className="st-var-text"><span className="st-var ui-mono">{prefix + k}</span><span className="st-var-meta">{preview(val)}</span></span></span>
+          <span className="st-var-main"><TypeBadge type={guessType(val)} /><span className="st-var-text"><span className="st-var ui-mono">{prefix + k + "$"}</span><span className="st-var-meta">{preview(val)}</span></span></span>
         </li>)}</ul> : <p className="st-muted st-var-note">None defined.</p>}
       </details>
     );

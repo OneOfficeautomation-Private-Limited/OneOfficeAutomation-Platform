@@ -21,6 +21,7 @@ import { oneStep, runOnce } from "./runOnce";
 import { CompanyName, TopBrand } from "../shell/TopBrand";
 import { loadHelpConfig } from "../shell/helpCatalogue";
 import { HelpLinks } from "../shell/HelpLinks";
+import { upgradeRefs, varRef } from "./variables";
 
 /**
  * One open agent: the flow being edited, the last saved copy (to know about unsaved changes), undo and redo
@@ -183,8 +184,10 @@ export function App({ api: given }: { api?: StudioApi }) {
       } catch (e) { fail(e); return false; }
     }
     try {
-      const r = await api.saveBot(path, tab.flow);
-      patch(path, (t) => ({ ...t, saved: JSON.stringify(tab.flow), problems: r.problems ?? [], checked: true }));
+      // item F: references are saved as $name$ (the runner reads the earlier $name and ${name} too)
+      const flow = upgradeRefs(tab.flow);
+      const r = await api.saveBot(path, flow);
+      patch(path, (t) => ({ ...t, flow: t.flow === tab.flow ? flow : t.flow, saved: JSON.stringify(flow), problems: r.problems ?? [], checked: true }));
       setNotice(r.problems?.length ? `Saved ${tab.name}, with ${r.problems.length} problem${r.problems.length > 1 ? "s" : ""} to check.` : `Saved ${tab.name}.`);
       return true;
     } catch (e) { fail(e); return false; }
@@ -300,11 +303,11 @@ export function App({ api: given }: { api?: StudioApi }) {
     for (const f of fields) want[f.name] = (f.description || f.name) + (f.type && f.type !== "String" ? " (" + f.type + ")" : "") + (f.required ? "" : " (may be missing)");
     const accept = (Array.isArray(d.accept) ? d.accept : ["pdf", "txt"]) as string[];
     const usePdf = accept.includes("pdf") && packages.some((p) => p.id === "ooa.pdf" && p.actions.some((a) => a.id === "extract_text"));
-    const read: FlowStep = { id: "s3", action: "ooa.file/read_text", args: { path: "$document" }, out: { text: "text" } };
-    const extract: FlowStep = { id: "s4", action: "ooa.genai/extract", args: { text: "$text", fields: want, model: String(d.model || "gpt-4o-mini"), api_key: "$api_key" }, out: { fields: "fields" } };
+    const read: FlowStep = { id: "s3", action: "ooa.file/read_text", args: { path: "$document$" }, out: { text: "text" } };
+    const extract: FlowStep = { id: "s4", action: "ooa.genai/extract", args: { text: "$text$", fields: want, model: String(d.model || "gpt-4o-mini"), api_key: "$api_key$" }, out: { fields: "fields" } };
     if (d.provider && d.provider !== "openai") extract.args!.provider = d.provider;
-    const steps: FlowStep[] = usePdf ? [{ id: "s1", action: "core/if", args: { condition: { op: "endsWith", left: "$document", right: ".pdf" } },
-      children: [{ id: "s2", action: "ooa.pdf/extract_text", args: { path: "$document" }, out: { text: "text" } }], else: [read] }, extract] : [read, extract];
+    const steps: FlowStep[] = usePdf ? [{ id: "s1", action: "core/if", args: { condition: { op: "endsWith", left: "$document$", right: ".pdf" } },
+      children: [{ id: "s2", action: "ooa.pdf/extract_text", args: { path: "$document$" }, out: { text: "text" } }], else: [read] }, extract] : [read, extract];
     try {
       const parent = tab.path.includes("/") ? tab.path.slice(0, tab.path.lastIndexOf("/")) : "";
       const path = await api.create("TaskBot", parent, (String(d.name || "") || "Document") + " extraction");
@@ -697,7 +700,7 @@ function RunDialog({ name, debug, inputs, onRun, onClose }:
       <form className="st-form" onSubmit={(e) => { e.preventDefault(); run(); }}>
         <p className="st-muted">The agent runs on this computer, as it is in the editor (saved or not).</p>
         {inputs.map((v) => (
-          <Field key={v.name} label={"$" + v.name + " (" + v.type + ")"} hint={v.description}>{(id) =>
+          <Field key={v.name} label={varRef(v.name) + " (" + v.type + ")"} hint={v.description}>{(id) =>
             <TextInput id={id} value={values[v.name] ?? ""} placeholder={v.default !== undefined ? "Default: " + String(v.default) : ""}
               onChange={(e) => setValues({ ...values, [v.name]: e.target.value })} />}</Field>
         ))}

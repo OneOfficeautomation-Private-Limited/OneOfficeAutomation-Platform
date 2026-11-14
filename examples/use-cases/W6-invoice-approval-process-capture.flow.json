@@ -125,7 +125,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "${folder}/site/invoice-approvals.html",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -135,7 +135,7 @@
       "id": "s2",
       "action": "ooa.browser/type_text",
       "args": {
-        "text": "$portal_user",
+        "text": "$portal_user$",
         "object": {
           "technology": "web",
           "page": {
@@ -294,7 +294,7 @@
       "id": "s3",
       "action": "ooa.browser/type_text",
       "args": {
-        "text": "$portal_password",
+        "text": "$portal_password$",
         "object": {
           "technology": "web",
           "page": {
@@ -1952,7 +1952,7 @@
           "args": {
             "variable": "amount",
             "value": {
-              "expr": "toNumber($amount_text)"
+              "expr": "toNumber($amount_text$)"
             }
           }
         },
@@ -1962,7 +1962,7 @@
           "args": {
             "condition": {
               "op": "empty",
-              "left": "$po"
+              "left": "$po$"
             }
           },
           "description": "Approval rules",
@@ -1988,8 +1988,8 @@
             {
               "condition": {
                 "op": "gt",
-                "left": "$amount",
-                "right": "$limit"
+                "left": "$amount$",
+                "right": "$limit$"
               },
               "children": [
                 {
@@ -2034,7 +2034,7 @@
           "id": "s21",
           "action": "ooa.browser/type_text",
           "args": {
-            "text": "$reason",
+            "text": "$reason$",
             "object": {
               "technology": "web",
               "page": {
@@ -2353,13 +2353,13 @@
           "id": "s24",
           "action": "ooa.datatable/add_row",
           "args": {
-            "table": "$decisions",
+            "table": "$decisions$",
             "values": [
-              "$inv",
-              "$supplier",
-              "$amount",
-              "$decision",
-              "$reason"
+              "$inv$",
+              "$supplier$",
+              "$amount$",
+              "$decision$",
+              "$reason$"
             ]
           },
           "out": {
@@ -2372,7 +2372,7 @@
           "args": {
             "variable": "processed",
             "value": {
-              "expr": "$processed + 1"
+              "expr": "$processed$ + 1"
             }
           }
         }
@@ -2869,7 +2869,7 @@
       "id": "s31",
       "action": "ooa.csv/write",
       "args": {
-        "table": "$decisions",
+        "table": "$decisions$",
         "path": "${folder}/output/invoice-decisions.csv"
       }
     }

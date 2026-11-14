@@ -91,7 +91,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "${folder}/site/form-entry.html",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       }
@@ -101,7 +101,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$people",
+        "over": "$people$",
         "as": "person",
         "index": "i"
       },
@@ -110,7 +110,7 @@
           "id": "s4",
           "action": "ooa.browser/type_text",
           "args": {
-            "text": "$person.Name",
+            "text": "$person.Name$",
             "object": {
               "technology": "web",
               "page": {
@@ -269,7 +269,7 @@
           "id": "s5",
           "action": "ooa.browser/type_text",
           "args": {
-            "text": "$person.Email",
+            "text": "$person.Email$",
             "object": {
               "technology": "web",
               "page": {
@@ -434,7 +434,7 @@
           "id": "s6",
           "action": "ooa.browser/select_option",
           "args": {
-            "option": "$person.Plan",
+            "option": "$person.Plan$",
             "object": {
               "technology": "web",
               "page": {
@@ -932,7 +932,7 @@
           "args": {
             "variable": "row_no",
             "value": {
-              "expr": "$i + 2"
+              "expr": "$i$ + 2"
             }
           }
         },
@@ -941,7 +941,7 @@
           "action": "ooa.excel/set_cell",
           "args": {
             "cell": "D${row_no}",
-            "value": "$reg_id",
+            "value": "$reg_id$",
             "session": "people"
           }
         },
@@ -951,7 +951,7 @@
           "args": {
             "variable": "registered",
             "value": {
-              "expr": "$registered + 1"
+              "expr": "$registered$ + 1"
             }
           }
         },
@@ -960,7 +960,7 @@
           "action": "core/set",
           "args": {
             "variable": "last_id",
-            "value": "$reg_id"
+            "value": "$reg_id$"
           }
         }
       ]

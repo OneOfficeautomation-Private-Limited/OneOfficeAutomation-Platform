@@ -103,7 +103,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "https://demoqa.com/webtables",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -131,7 +131,7 @@
       "id": "s5",
       "action": "ooa.datatable/row_count",
       "args": {
-        "table": "$start_table"
+        "table": "$start_table$"
       },
       "out": {
         "count": "rows_before"
@@ -167,7 +167,7 @@
           "args": {
             "variable": "deleted",
             "value": {
-              "expr": "$deleted + 1"
+              "expr": "$deleted$ + 1"
             }
           }
         },
@@ -186,7 +186,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$employees",
+        "over": "$employees$",
         "as": "e"
       },
       "description": "Add each employee",
@@ -213,7 +213,7 @@
           "action": "ooa.browser/type_text",
           "args": {
             "selector": "#firstName",
-            "text": "$e.FirstName"
+            "text": "$e.FirstName$"
           }
         },
         {
@@ -221,7 +221,7 @@
           "action": "ooa.browser/type_text",
           "args": {
             "selector": "#lastName",
-            "text": "$e.LastName"
+            "text": "$e.LastName$"
           }
         },
         {
@@ -229,7 +229,7 @@
           "action": "ooa.browser/type_text",
           "args": {
             "selector": "#userEmail",
-            "text": "$e.Email"
+            "text": "$e.Email$"
           }
         },
         {
@@ -237,7 +237,7 @@
           "action": "ooa.browser/type_text",
           "args": {
             "selector": "#age",
-            "text": "${e.Age}"
+            "text": "$e.Age$"
           }
         },
         {
@@ -245,7 +245,7 @@
           "action": "ooa.browser/type_text",
           "args": {
             "selector": "#salary",
-            "text": "${e.Salary}"
+            "text": "$e.Salary$"
           }
         },
         {
@@ -253,7 +253,7 @@
           "action": "ooa.browser/type_text",
           "args": {
             "selector": "#department",
-            "text": "$e.Department"
+            "text": "$e.Department$"
           }
         },
         {
@@ -280,7 +280,7 @@
       "action": "ooa.browser/type_text",
       "args": {
         "selector": "#searchBox",
-        "text": "$raise_for"
+        "text": "$raise_for$"
       },
       "description": "Find the employee"
     },
@@ -306,7 +306,7 @@
       "action": "ooa.browser/type_text",
       "args": {
         "selector": "#salary",
-        "text": "${new_salary}"
+        "text": "$new_salary$"
       }
     },
     {
@@ -358,7 +358,7 @@
       "id": "s30",
       "action": "ooa.datatable/filter",
       "args": {
-        "table": "$end_table",
+        "table": "$end_table$",
         "column": "Email",
         "operator": "not_empty"
       },
@@ -374,7 +374,7 @@
       "id": "s32",
       "action": "ooa.csv/write",
       "args": {
-        "table": "$end_table",
+        "table": "$end_table$",
         "path": "${folder}/output/demoqa-table.csv"
       }
     }

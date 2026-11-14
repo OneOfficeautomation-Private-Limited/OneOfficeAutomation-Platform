@@ -96,7 +96,7 @@
       "action": "ooa.browser/open",
       "args": {
         "url": "${folder}/site/supplier-onboarding.html",
-        "headless": "$headless",
+        "headless": "$headless$",
         "engine": "playwright",
         "keep_open": false
       },
@@ -107,7 +107,7 @@
       "action": "core/loop",
       "args": {
         "iterator": "table_rows",
-        "over": "$suppliers",
+        "over": "$suppliers$",
         "as": "sup"
       },
       "description": "Each supplier",
@@ -121,7 +121,7 @@
               "id": "s3",
               "action": "ooa.browser/type_text",
               "args": {
-                "text": "$sup.Company",
+                "text": "$sup.Company$",
                 "object": {
                   "technology": "web",
                   "page": {
@@ -280,7 +280,7 @@
               "id": "s4",
               "action": "ooa.browser/select_option",
               "args": {
-                "option": "$sup.Country",
+                "option": "$sup.Country$",
                 "object": {
                   "technology": "web",
                   "page": {
@@ -451,7 +451,7 @@
               "id": "s5",
               "action": "ooa.browser/type_text",
               "args": {
-                "text": "$sup.VAT",
+                "text": "$sup.VAT$",
                 "object": {
                   "technology": "web",
                   "page": {
@@ -1113,7 +1113,7 @@
                   "action": "core/throw",
                   "args": {
                     "code": "BUSINESS.REFUSED",
-                    "message": "$msg"
+                    "message": "$msg$"
                   }
                 }
               ]
@@ -1287,7 +1287,7 @@
               "id": "s12",
               "action": "ooa.browser/type_text",
               "args": {
-                "text": "$sup.IBAN",
+                "text": "$sup.IBAN$",
                 "object": {
                   "technology": "web",
                   "page": {
@@ -1446,7 +1446,7 @@
               "id": "s13",
               "action": "ooa.browser/type_text",
               "args": {
-                "text": "$sup.BIC",
+                "text": "$sup.BIC$",
                 "object": {
                   "technology": "web",
                   "page": {
@@ -2108,7 +2108,7 @@
                   "action": "core/throw",
                   "args": {
                     "code": "BUSINESS.REFUSED",
-                    "message": "$msg"
+                    "message": "$msg$"
                   }
                 }
               ]
@@ -2282,7 +2282,7 @@
               "id": "s20",
               "action": "ooa.browser/type_text",
               "args": {
-                "text": "$sup.Contact",
+                "text": "$sup.Contact$",
                 "object": {
                   "technology": "web",
                   "page": {
@@ -2441,7 +2441,7 @@
               "id": "s21",
               "action": "ooa.browser/type_text",
               "args": {
-                "text": "$sup.Email",
+                "text": "$sup.Email$",
                 "object": {
                   "technology": "web",
                   "page": {
@@ -3267,10 +3267,10 @@
               "id": "s26",
               "action": "ooa.datatable/add_row",
               "args": {
-                "table": "$results",
+                "table": "$results$",
                 "values": [
-                  "$sup.Company",
-                  "$sid",
+                  "$sup.Company$",
+                  "$sid$",
                   "Onboarded",
                   ""
                 ]
@@ -3285,7 +3285,7 @@
               "args": {
                 "variable": "onboarded",
                 "value": {
-                  "expr": "$onboarded + 1"
+                  "expr": "$onboarded$ + 1"
                 }
               }
             },
@@ -3294,7 +3294,7 @@
               "action": "core/set",
               "args": {
                 "variable": "last_id",
-                "value": "$sid"
+                "value": "$sid$"
               }
             },
             {
@@ -3467,12 +3467,12 @@
                   "id": "s30",
                   "action": "ooa.datatable/add_row",
                   "args": {
-                    "table": "$results",
+                    "table": "$results$",
                     "values": [
-                      "$sup.Company",
+                      "$sup.Company$",
                       "",
                       "Refused",
-                      "$err"
+                      "$err$"
                     ]
                   },
                   "out": {
@@ -3485,7 +3485,7 @@
                   "args": {
                     "variable": "failed",
                     "value": {
-                      "expr": "$failed + 1"
+                      "expr": "$failed$ + 1"
                     }
                   }
                 },
@@ -3671,7 +3671,7 @@
       "id": "s37",
       "action": "ooa.excel/write_table",
       "args": {
-        "table": "$results",
+        "table": "$results$",
         "session": "report"
       }
     },

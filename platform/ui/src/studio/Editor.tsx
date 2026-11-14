@@ -40,7 +40,7 @@ import { AA_NAMES } from "./aaNames";
 import { FORMER_NAMES } from "./formerNames";
 import { MailSwitchDialog } from "./MailSwitchDialog";
 import { HelpLinks } from "../shell/HelpLinks";
-import { commandKey } from "../shell/helpCatalogue";
+import { commandKey, helpLinks } from "../shell/helpCatalogue";
 
 /**
  * Actions kept so older agents still run, but no longer offered in the library (usage review item 26): Open file is
@@ -357,7 +357,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
       const steps = res.steps ?? [];
       const v = recordedVariables(flow, steps);
       insertSteps(v.flow, steps);
-      onNotice("Added " + steps.length + " recorded steps" + (v.made.length ? " and " + v.made.length + " variable" + (v.made.length === 1 ? "" : "s") + ": " + v.made.map((n) => "$" + n).join(", ") : "") + ".");
+      onNotice("Added " + steps.length + " recorded steps" + (v.made.length ? " and " + v.made.length + " variable" + (v.made.length === 1 ? "" : "s") + ": " + v.made.map((n) => varRef(n)).join(", ") : "") + ".");
     } catch (e) { onError(e); }
     finally { clearInterval(poll); setRecording(null); }
   };
@@ -570,6 +570,12 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     const target = step.action === "core/run_subflow" ? String(step.args?.subflow ?? "") : "";
     if (target && whole.subflows?.some((s) => s.name === target) && chosen.length === 1)
       items.push({ key: "subflow", label: "Open the subflow it runs", description: target, separatorBefore: true, onSelect: () => { setShown(target); onSelect([]); } });
+    // item I: the command's documentation and video from the step's menu
+    const help = chosen.length === 1 ? helpLinks(commandKey(step.action)) : {};
+    if (help.doc) items.push({ key: "docs", label: "Docs for this command", description: describeAction(step.action, packages).name, separatorBefore: true,
+      onSelect: () => window.open(help.doc, "_blank", "noopener,noreferrer") });
+    if (help.video) items.push({ key: "video", label: "Video for this command", separatorBefore: !help.doc,
+      onSelect: () => window.open(help.video, "_blank", "noopener,noreferrer") });
     // run part of the agent: the skipped steps' variables keep the values the last run here had at this step
     // a disabled step (or one in a disabled block) does not run: Run from here starts at the next enabled step (item 25)
     const off = disabledState(flow.steps, step.id) ?? null;
@@ -607,7 +613,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     const bp = breakpoints.includes(r.step.id);
     const hasParts = innerLists(r.step).length > 0;
     return (
-      <li key={r.step.id} className="st-step-row"
+      <li key={r.step.id} className={"st-step-row" + (isSel ? " is-selected" : "")}
         onContextMenu={(e) => { e.preventDefault(); if (!isSel) selectOne(r.step.id); setMenuFor(r.step.id); }}>
         <button type="button" data-key={r.step.id} className={`st-step${isSel ? " is-selected" : ""}${r.step.disabled ? " is-disabled" : ""}${hint}`} aria-pressed={isSel}
           draggable onDragStart={(e) => { e.dataTransfer.setData(STEP_DRAG, JSON.stringify(dragIds(r.step.id))); e.dataTransfer.effectAllowed = "move"; }}
@@ -627,6 +633,8 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
           {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
         </button>
         <span className="st-step-tools">
+          {/* item I (14 Nov 2026): the command's Docs and Video on the canvas too, shown on the chosen step or on hover */}
+          <HelpLinks k={commandKey(r.step.action)} compact label={info.name} />
           {hasParts && <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"}
             aria-expanded={!r.folded} onClick={() => act.fold([r.step.id], !r.folded)}><Icon name={r.folded ? "chevronRight" : "chevronDown"} size={14} stroke={2.4} /></button>}
           <Menu label={"Line " + r.n + " menu"} items={menuItems(r.step)} open={menuFor === r.step.id}
@@ -1030,7 +1038,7 @@ function CaseValues({ flow, id, k, onEdit }: { flow: Flow; id: string; k: number
           <span className="st-bar-fill">{byCondition
             ? <ConditionEditor value={v} onCommit={(c) => put(i, c)} />
             : <CommitInput initial={showValue(v)} mono want="Any" label={i < values.length ? "Value " + (i + 1) : "New value"}
-                placeholder={i < values.length ? "" : i ? "Another value" : "A value, e.g. Approved or $status"}
+                placeholder={i < values.length ? "" : i ? "Another value" : "A value, e.g. Approved or $status$"}
                 onCommit={(t) => { const p = parseLoose(t); if (p === undefined) { if (i < values.length) drop(i); } else put(i, p); }} />}</span>
           {i < values.length && <IconButton icon="trash" label={"Remove value " + (i + 1)} onClick={() => drop(i)} />}
         </div>
