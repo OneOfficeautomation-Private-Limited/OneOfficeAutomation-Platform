@@ -261,3 +261,30 @@
 .df-ms-code { font-family: ui-monospace, Consolas, monospace; font-size: 18px; font-weight: 700; letter-spacing: 1px; padding: 2px 8px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-tint); color: var(--ui-text); }
 .df-ms-account .df-head-row { flex-wrap: wrap; }
 .df-ms-account .df-chip { white-space: normal; overflow-wrap: anywhere; max-width: 100%; height: auto; min-height: 22px; padding: 2px 8px; }
+/* DA-1 item 5: the folder picker (folderPicker.tsx; design plan DA1-FolderPick) */
+.df-folder-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.df-folder-field .ui-input[readonly] { background: var(--ui-soft); color: var(--ui-text); }
+.df-folder-links { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 12.5px; }
+.df-folder-pick { display: grid; grid-template-columns: minmax(180px, 250px) minmax(0, 1fr); border: 1px solid var(--ui-border); border-radius: 6px; overflow: hidden; height: 340px; }
+.df-folder-roots { display: flex; flex-direction: column; background: var(--ui-soft); border-right: 1px solid var(--ui-border); overflow-y: auto; }
+.df-folder-label { padding: 10px 12px 6px; font-size: 12px; font-weight: 600; color: var(--ui-text); }
+.df-folder-root { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--ui-divider); background: transparent; color: var(--ui-text); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.df-folder-root:hover { background: var(--ui-tint); }
+.df-folder-root.is-on { background: var(--ui-tint); box-shadow: inset 3px 0 0 var(--ui-accent); }
+.df-folder-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; padding-bottom: 8px; }
+.df-folder-crumb { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 10px; border-bottom: 1px solid var(--ui-border); background: var(--ui-soft); overflow-wrap: anywhere; }
+.df-folder-list { flex: 1; min-height: 0; overflow: auto; }
+.df-folder-main > .df-small { padding: 0 10px; }
+.df-folder-list .df-table td { padding: 4px 12px; }
+.df-folder-list tr.is-selected td { background: var(--ui-tint); }
+.df-folder-list tr.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--ui-accent); }
+.df-folder-name { border: 0; background: none; padding: 4px 0; font: inherit; color: var(--ui-text); cursor: pointer; text-align: left; width: 100%; }
+.df-folder-list tr.is-selected .df-folder-name { font-weight: 700; }
+.df-folder-chosen { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-right: auto; overflow-wrap: anywhere; }
+.df-folder-new { display: inline-flex; gap: 6px; align-items: center; }
+.df-folder-new .ui-input { width: 180px; }
+@media (max-width: 720px) {
+  .df-folder-pick { grid-template-columns: 1fr; height: auto; }
+  .df-folder-roots { border-right: 0; border-bottom: 1px solid var(--ui-border); max-height: 150px; }
+  .df-folder-list { max-height: 260px; }
+}

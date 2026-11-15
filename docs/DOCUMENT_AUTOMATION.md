@@ -81,7 +81,9 @@ set for the whole DocFlow server.
 ## 3. How documents come in
 
 - **Upload**: Add documents (or drop files on the Inbox). Choose a process, or let DocFlow recognise each document.
-- **Watched folder**: a process's Intake stage; DocFlow reads new files there while the process is live.
+- **Watched folder**: a process's Intake stage; DocFlow reads new files there while the process is live, and moves
+  each file it read to the folder's `processed` folder. People choose it with **Browse…** from the folders an
+  administrator allowed (section 3.2); folder and Excel results are chosen the same way.
 - **Email inbox**: a process's Intake stage. Microsoft 365 with **Sign in with Microsoft** (section 3.1), or your own
   Microsoft app (an app registration with the Mail.Read application permission, under Show advanced settings), or IMAP.
   A password or client secret is a saved value from the vault that the person setting it up must be allowed to use.
@@ -129,6 +131,23 @@ needs to reach One CommandCenter.
 - **National clouds** (for example Microsoft 365 GCC High): set `OOA_MICROSOFT_LOGIN_URL` (such as
   `https://login.microsoftonline.us`) and `OOA_MICROSOFT_GRAPH_URL` (such as `https://graph.microsoft.us/v1.0`) for
   One CommandCenter. Settings > Outbound connections must allow the sign-in address.
+
+### 3.2 Folders processes may use (DocFlow 3.2.0)
+
+An administrator lists the folders on DocFlow's server that processes may watch and save results in, under
+Administration > Settings > Document Automation, **Folders processes may use** (needs `docs.engines`). Each folder
+has a name people see, DocFlow's access to it (can read and move files, read only, not found, no access) and the
+processes using it; before saving, the list says which processes a change would leave outside.
+
+- People then choose a folder inside the list with **Browse…** (`docs.manage`): the folders in it (never the files),
+  how many files each would read straight away, and which process already watches it. **New folder** makes one
+  inside. **Type the path** stays one click away; DocFlow still checks it.
+- DocFlow refuses a new or changed folder outside the list when a process is saved (real paths: `..`, links and
+  junctions are resolved first). A folder a process already had stays, so the process can still be edited, but
+  DocFlow does not read it or write results there while it is outside the list.
+- No list (or a DocFlow before 3.2.0): any folder can be typed, as before. In DocFlow the list is
+  `DOCAUTO_ALLOWED_FOLDERS` (`Name=folder; folder`); in SaaS, `{tenant}` in a path is replaced by the tenant.
+- Network folders: the Windows account DocFlow runs as needs read and write access to the share.
 
 ## 4. Review in the Task inbox
 
@@ -227,6 +246,8 @@ after installing.
 | Email inbox: "The Microsoft sign-in for … no longer works" | Open the process, step Document ingestion, choose Sign in with Microsoft again, and save. |
 | Sign in with Microsoft: "declined" or an administrator's approval is needed | Ask your Microsoft 365 administrator to approve One CommandCenter once (or your own app), then sign in again. |
 | Saving an inbox: "This Microsoft sign-in was made by …" | Only the person who signed in can put a sign-in in a process: choose Sign in with Microsoft and sign in yourself. |
+| Saving a process: "… is not one of the folders processes may use" | Choose the folder with Browse…, or ask an administrator to add it in Settings > Document Automation (section 3.2). |
+| Browse… shows "No access: DocFlow's account cannot open it" | Give the Windows account DocFlow runs as read and write access to that folder or share. |
 | A reviewer does not see a review task | They need `docs.review` and view access to the process's folder. |
 | An "On Document Automation" trigger shows "…may not see the process's folder" | Give the trigger's owner view access to that folder, or make someone who has it the owner. |
 | An "On Document Automation" trigger never fires | Check DocFlow's `DOCAUTO_PLATFORM_URL`, the trigger's Process (name or id) and Document type, and that it is not paused. |

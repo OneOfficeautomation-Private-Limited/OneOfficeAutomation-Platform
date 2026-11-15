@@ -12,3 +12,13 @@
 .df-start-area .df-start-go { flex: none; color: var(--ui-accent-text); font-weight: 600; }
 .df-start-area:hover, .df-start-area:focus-visible { border-color: var(--ui-accent); box-shadow: 0 0 0 1px var(--ui-accent); }
 @media (max-width: 900px) { .df-start-grid { grid-template-columns: minmax(0, 1fr); } }
+/* DA-1 item 5: Settings > Document Automation, "Folders processes may use" (allowedFolders.tsx; design plan DA1-FolderAdmin) */
+.df-af { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.df-af h3 { margin: 0; font-size: 14px; }
+.df-af-path { overflow-wrap: anywhere; }
+.df-af .st-table .ui-input { width: 100%; min-width: 140px; }
+.df-af-add { flex-wrap: wrap; }
+.df-af-add .ui-input:first-child { flex: 2 1 260px; }
+.df-af-add .ui-input:nth-child(2) { flex: 1 1 180px; }
+.df-af-foot { flex-wrap: wrap; justify-content: flex-end; }
+.df-af-foot .st-muted { margin-right: auto; }

@@ -188,7 +188,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
             <section className="df-card df-pad df-span2" aria-label={current.name} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div><b style={{ fontSize: 15 }}>{stage + 1} · {current.name}</b><div className="df-muted">{current.summary}</div></div>
               {stage === INTAKE && <>
-                <IntakeStage s={design.settings} set={setSettings} inbox={inbox} live={live} vaultRefs={vaultRefs} api={api} />
+                <IntakeStage s={design.settings} set={setSettings} inbox={inbox} live={live} vaultRefs={vaultRefs} api={api} processId={design.id} />
                 <section aria-label="Upload files" style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
                   <div><b>Upload files</b><span className="df-small" style={{ display: "block" }}>
                     Into {design.name}{live ? "" : ", while it is a draft too"}{dirty ? ". They are read with the saved settings" : ""}.</span></div>
@@ -224,7 +224,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
       {editCheck && <CheckDialog key={editCheck === "new" ? "new" : editCheck.id} open value={editCheck === "new" ? null : editCheck} design={design} tables={tables}
         onClose={() => setEditCheck(null)}
         onSave={(c) => { change({ checks: design.checks.some((x) => x.id === c.id) ? design.checks.map((x) => x.id === c.id ? c : x) : [...design.checks, c] }); setEditCheck(null); }} />}
-      {editDelivery && <DeliveryDialog key={editDelivery === "new" ? "new" : editDelivery.id} open value={editDelivery === "new" ? null : editDelivery}
+      {editDelivery && <DeliveryDialog key={editDelivery === "new" ? "new" : editDelivery.id} open value={editDelivery === "new" ? null : editDelivery} api={api} processId={design.id}
         onClose={() => setEditDelivery(null)}
         onSave={(d) => { change({ deliveries: design.deliveries.some((x) => x.id === d.id) ? design.deliveries.map((x) => x.id === d.id ? d : x) : [...design.deliveries, d] }); setEditDelivery(null); }} />}
       {newProcess}

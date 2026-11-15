@@ -235,6 +235,10 @@ class DocFlowProxyTest {
         assertEquals("docs.manage", DocFlowProxy.permission("POST", "df/flows/ap/documents"));
         assertEquals("docs.engines", DocFlowProxy.permission("GET", "admin/settings"));
         assertEquals("docs.engines", DocFlowProxy.permission("PUT", "admin/settings"));
+        // DA-1: the folder picker browses DocFlow's server for people who change processes; the list is the administrator's
+        assertEquals("docs.manage", DocFlowProxy.permission("GET", "df/folders"));
+        assertEquals("docs.manage", DocFlowProxy.permission("POST", "df/folders"));
+        assertEquals("docs.engines", DocFlowProxy.permission("POST", "df/folders/preview"));
         // test sets: everyone who sees Document Automation sees them; making and running them is changing it
         assertEquals("docs.view", DocFlowProxy.permission("GET", "df/testsets"));
         assertEquals("docs.view", DocFlowProxy.permission("GET", "df/testsets/seed-1/runs/r1"));
@@ -545,6 +549,32 @@ class DocFlowProxyTest {
         } finally {
             reviewQueue = "[]";
             proxy(cr).syncReviews();
+            flowsJson = "[]";
+            cr.folders.setPermissions(admin, "Finance/Accounts payable", List.of(), null);
+        }
+    }
+
+    @Test void theFolderPickerNamesOnlyProcessesThePersonMaySee() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        String fiona = sessionFor("fpfiona", "bot_creator"), mia = sessionFor("fpmia", "bot_creator"), rob = sessionFor("fprob", "bot_runner");
+        cr.folders.setPermissions(admin, "Finance/Accounts payable", List.of(Map.of("principal", "user:fpfiona", "access", "edit")), null);
+        flowsJson = "[{\"id\":\"ap\",\"name\":\"AP\",\"folder\":\"Finance / Accounts payable\",\"status\":\"live\"},{\"id\":\"open\",\"name\":\"Open\",\"folder\":\"\",\"status\":\"live\"}]";
+        String ap = "{\"id\":\"ap\",\"name\":\"AP\"}", open = "{\"id\":\"open\",\"name\":\"Open\"}";
+        canned.put("GET df/folders", new Object[]{200, "{\"limited\":true,\"path\":\"D:\\\\scans\",\"parent\":null,\"watchedBy\":[" + ap + "," + open + "],"
+                + "\"roots\":[{\"name\":\"Scans\",\"usedBy\":[" + ap + "]}],\"outside\":[{\"id\":\"ap\",\"name\":\"AP\",\"use\":\"watched\",\"path\":\"E:\\\\old\"}],"
+                + "\"folders\":[{\"name\":\"x\",\"waiting\":2,\"watchedBy\":[" + ap + "]}]}"});
+        try {
+            HttpResponse<String> r = as(mia, "GET", "/api/docflow/df/folders?path=D%3A%5Cscans", null, "application/json");
+            assertEquals(200, r.statusCode(), r.body());
+            assertTrue(seen.get(seen.size() - 1).get("uri").endsWith("/df/folders?path=D%3A%5Cscans"));          // the folder asked for reaches DocFlow
+            assertFalse(r.body().contains("\"AP\""), r.body());                                            // mia may not see the AP process
+            assertTrue(r.body().contains("\"Open\"") && r.body().contains("\"waiting\":2") && r.body().contains("\"parent\":null"), r.body());
+            assertTrue(as(fiona, "GET", "/api/docflow/df/folders", null, "application/json").body().contains("\"AP\""));
+            assertEquals(403, as(rob, "GET", "/api/docflow/df/folders", null, "application/json").statusCode());         // seeing processes is not browsing the server
+            assertEquals(403, as(fiona, "POST", "/api/docflow/df/folders/preview", "{\"folders\":\"D:\\\\scans\"}", "application/json").statusCode());   // the list is the administrator's
+            assertEquals(200, call("POST", "/api/docflow/df/folders/preview", "{\"folders\":\"D:\\\\scans\"}").statusCode());
+        } finally {
+            canned.clear();
             flowsJson = "[]";
             cr.folders.setPermissions(admin, "Finance/Accounts payable", List.of(), null);
         }

@@ -62,6 +62,9 @@ public final class DocFlowProxy {
     /** Adding a reviewed document to a test set copies its file and values: the document is named in the body. */
     private static final Pattern TESTSET_DOC = Pattern.compile("^df/testsets/[A-Za-z0-9._-]+/documents$");
     private static final Set<String> REQUEST_HEADERS = Set.of("Content-Type", "Accept");
+    /** Lists answered without what the person may not see (processes in folders they may not see). */
+    private static final List<String> LISTS = List.of("df/flows", "df/flows/all/documents", "df/review", "df/overview", "df/folders");
+    private static final Set<String> USES = Set.of("watchedBy", "usedBy", "outside");
     private static final List<String> RESPONSE_HEADERS = List.of("Content-Type", "Content-Disposition");
 
     private final ModuleContext ctx;
@@ -80,6 +83,10 @@ public final class DocFlowProxy {
     /** The permission a request needs. */
     public static String permission(String method, String route) {
         if (route.startsWith("admin/")) return "docs.engines";
+        // DA-1 item 5 (DocFlow 3.2.0): the administrator's list of folders before it is saved; browsing the folders on
+        // DocFlow's server (and making one) is for people who change processes, not for everyone who sees them
+        if (route.equals("df/folders/preview")) return "docs.engines";
+        if (route.equals("df/folders")) return "docs.manage";
         if (method.equals("GET")) return "docs.view";
         if (REVIEW.matcher(route).matches()) return "docs.review";
         return "docs.manage";
@@ -209,7 +216,7 @@ public final class DocFlowProxy {
      */
     @SuppressWarnings("unchecked")
     private Map<String, String> checkFolder(User u, String method, String route, byte[] in, Map<String, Map<String, String>> all) {
-        boolean listing = method.equals("GET") && List.of("df/flows", "df/flows/all/documents", "df/review", "df/overview").contains(route);
+        boolean listing = method.equals("GET") && LISTS.contains(route);
         Matcher f = FLOW_ROUTE.matcher(route), d = DOC_ROUTE.matcher(route);
         boolean flow = f.matches() && !f.group(1).equals("all"), doc = d.matches();
         Object newFolder = null;
@@ -242,13 +249,14 @@ public final class DocFlowProxy {
     /** Lists without what the person may not see: processes, documents and review queue items in other folders. */
     @SuppressWarnings("unchecked")
     private byte[] onlyVisible(User u, String route, byte[] body, Map<String, String> folders, Map<String, Map<String, String>> all) {
-        if (folders == null || !List.of("df/flows", "df/flows/all/documents", "df/review", "df/overview").contains(route)) return body;
+        if (folders == null || !LISTS.contains(route)) return body;
         java.util.function.Predicate<Object> visible = id -> ctx.atLeast(folderAccess(u, folders.getOrDefault(String.valueOf(id), ""), all), "view");
         Object parsed = JsonLite.parse(new String(body, StandardCharsets.UTF_8));
         Object out = switch (route) {
             case "df/flows" -> ((List<Object>) parsed).stream().filter(o -> visible.test(((Map<String, Object>) o).get("id"))).toList();
             case "df/flows/all/documents" -> ((List<Object>) parsed).stream().filter(o -> visible.test(((Map<String, Object>) o).get("instance_id"))).toList();
             case "df/review" -> ((List<Object>) parsed).stream().filter(o -> visible.test(((Map<String, Object>) o).get("flowId"))).toList();
+            case "df/folders" -> onlyVisibleUses(parsed, visible);
             default -> {
                 Map<String, Object> o = new LinkedHashMap<>((Map<String, Object>) parsed);
                 if (o.get("flows") instanceof List<?> l) o.put("flows", l.stream().filter(x -> visible.test(((Map<String, Object>) x).get("id"))).toList());
@@ -257,6 +265,18 @@ public final class DocFlowProxy {
             }
         };
         return JsonLite.write(out).getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** DA-1: folder listings name the processes using each folder (watchedBy, usedBy, outside): only those the person may see. */
+    private static Object onlyVisibleUses(Object o, java.util.function.Predicate<Object> visible) {
+        if (o instanceof Map<?, ?> m) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            m.forEach((k, v) -> out.put(String.valueOf(k), USES.contains(String.valueOf(k)) && v instanceof List<?> l
+                    ? l.stream().filter(x -> x instanceof Map<?, ?> e && visible.test(e.get("id"))).toList() : onlyVisibleUses(v, visible)));
+            return out;
+        }
+        if (o instanceof List<?> l) return l.stream().map(x -> onlyVisibleUses(x, visible)).toList();
+        return o;
     }
 
     private static String person(User u) { return u.displayName() == null || u.displayName().isBlank() ? u.username() : u.displayName(); }

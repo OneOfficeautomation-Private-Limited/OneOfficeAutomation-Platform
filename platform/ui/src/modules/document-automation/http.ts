@@ -1,5 +1,5 @@
 import {
-  INBOX_ID, RULE_KIND, ruleTest, stagesOf,
+  INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
   type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
   type ProcessRow, type ProcessSummary, type RefTable,
@@ -307,6 +307,20 @@ export class HttpDocFlowApi implements DocFlowApi {
   }
   msSignInStart(): Promise<MsSignInStart> { return this.call<MsSignInStart>("POST", "/ms-signin"); }
   msSignInPoll(id: string): Promise<MsSignInState> { return this.call<MsSignInState>("GET", `/ms-signin/${encodeURIComponent(id)}`); }
+
+  // DA-1 item 5: the folders processes may use (DocFlow 3.2.0); an older DocFlow, or no list, means any typed folder
+  async folderRoots(): Promise<FolderRoots> {
+    try { return await this.call<FolderRoots>("GET", "/df/folders"); } catch { return NO_FOLDER_LIST; }
+  }
+  folderList(path: string): Promise<FolderListing> { return this.call<FolderListing>("GET", `/df/folders?path=${encodeURIComponent(path)}`); }
+  folderCreate(path: string, name: string): Promise<FolderListing> { return this.call<FolderListing>("POST", "/df/folders", { path, name }); }
+  folderPreview(list: string): Promise<FolderRoots> { return this.call<FolderRoots>("POST", "/df/folders/preview", { folders: list }); }
+  async allowedFolders(): Promise<string | null> {
+    const s = await this.call<{ deployment?: DfSetting[] }>("GET", "/admin/settings");
+    const f = s.deployment?.find((x) => x.key === "DOCAUTO_ALLOWED_FOLDERS");
+    return f ? String(f.value ?? "") : null;
+  }
+  async saveAllowedFolders(list: string): Promise<void> { await this.call("PUT", "/admin/settings", { values: { DOCAUTO_ALLOWED_FOLDERS: list } }); }
 
   async folders(): Promise<string[]> {
     // the platform's own folders (the Agent repository's), with the person's access to each

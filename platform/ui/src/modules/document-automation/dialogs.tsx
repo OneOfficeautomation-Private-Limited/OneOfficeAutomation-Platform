@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
 import type { DocFlowApi, DocType, TestRun } from "./api";
 import { TEMPLATES, sampleFile, typeFor } from "./templates";
+import { FolderField } from "./folderPicker";
 import { HINTS } from "./help";
 import { Hint, reportError } from "./ui";
 
@@ -102,10 +103,10 @@ export function NewProcessDialog({ api, open, onClose, onCreated }:
             <span className="df-small" style={{ display: "block" }}>A scanner or shared drive saves files here</span></span></label>
           {watch && (
             <div className="df-grid" style={{ gridTemplateColumns: "3fr 1fr", gap: 12, margin: "10px 0 0 24px" }}>
-              <Field label="Folder path">{(id) => <TextInput id={id} value={path} placeholder="\\scan01\invoices" onChange={(e) => setPath(e.target.value)} />}</Field>
+              <FolderField api={api} label="Folder path" title="Choose the watched folder" value={path} placeholder="\\scan01\invoices" onChange={setPath} />
               <Field label="Check every">{(id) => <Select id={id} value={every} onChange={(e) => setEvery(e.target.value)}
                 options={[{ value: "30", label: "30 seconds" }, { value: "60", label: "1 minute" }, { value: "300", label: "5 minutes" }]} />}</Field>
-              <span className="df-small" style={{ gridColumn: "1 / -1" }}>Files are moved to the process folder after reading, so nothing is read twice.</span>
+              <span className="df-small" style={{ gridColumn: "1 / -1" }}>Each file read moves to the folder's processed folder, so nothing is read twice.</span>
             </div>
           )}
         </div>

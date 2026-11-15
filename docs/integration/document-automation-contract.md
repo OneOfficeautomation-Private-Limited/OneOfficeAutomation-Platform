@@ -40,8 +40,8 @@ name, URL-encoded). A tenant can't point Document Automation somewhere else.
 |---|---|
 | `docs.view` | See processes, documents, results (every GET) |
 | `docs.review` | Approve, reject, reclassify documents |
-| `docs.manage` | Add documents; change processes, document types, reference data |
-| `docs.engines` | Engines, routing, cloud opt-in (every `admin/` route) |
+| `docs.manage` | Add documents; change processes, document types, reference data; browse DocFlow's folders (`df/folders`) |
+| `docs.engines` | Engines, routing, cloud opt-in, the folders processes may use (every `admin/` route, `df/folders/preview`) |
 
 ## Routes the platform uses
 
@@ -54,6 +54,8 @@ All are under DocFlow's `/api/docs/v1/`.
   - Document types: `df/doctypes`, `df/doctypes/{id}`, `df/doctypes/suggest`, `df/library`
   - Reference data: `df/reftables`, `df/reftables/{id}`
   - Test lab: `df/test`
+  - Folder picker (DocFlow 3.2.0): `df/folders` (GET, `?path=`; POST makes a folder), `df/folders/preview`; listings
+    name only the processes the person may see
   - Engines and settings: `providers`, `costs`, `usage`, `admin/settings`, `admin/providers/{id}/test`
 - **Also allowed by the proxy**: `documents/{id}/page/{n}.png`, `documents/{id}/file` and any other `df/...` route.
 - **Never forwarded**: DocFlow's self-update (`admin/update`, `admin/installer.bat`).

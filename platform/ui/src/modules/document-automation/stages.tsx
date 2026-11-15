@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
 import { HINTS } from "./help";
+import { FolderField } from "./folderPicker";
 import { MicrosoftAccount } from "./msSignIn";
 import { AdvancedToggle } from "./ui";
 import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
@@ -29,8 +30,8 @@ const SEND_ON: [string, string][] = [
 
 type SetSettings = (patch: Partial<ProcessSettings>) => void;
 
-export function IntakeStage({ s, set, inbox, live, vaultRefs, api }:
-  { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null; api?: DocFlowApi }) {
+export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId }:
+  { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null; api?: DocFlowApi; processId?: string }) {
   const email = s.email;
   const setEmail = (patch: Partial<EmailInbox>) => set({ email: { ...(email ?? { enabled: true, kind: "outlook" }), ...patch } as EmailInbox });
   const text = (key: keyof EmailInbox, label: string, placeholder = "", hint?: string) => (
@@ -54,9 +55,9 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api }:
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <div className="df-grid df-g2">
-      <Field label="Watched folder" hint="DocFlow reads every new file put here. Empty: upload only.">
-        {(id) => <TextInput id={id} value={s.inputFolder} placeholder="\\scan01\invoices" onChange={(e) => set({ inputFolder: e.target.value })} />}
-      </Field>
+      {/* DA-1 item 5: chosen from the folders processes may use (DocFlow 3.2.0); typed while there is no list */}
+      <FolderField api={api} label="Watched folder" title="Choose the watched folder" hint="DocFlow reads every new file put here. Empty: upload only."
+        value={s.inputFolder} placeholder="\\scan01\invoices" empty="No folder chosen: upload only" processId={processId} onChange={(v) => set({ inputFolder: v })} />
       <Field label="Check the folder every">
         {(id) => <Select id={id} value={String(s.pollSeconds)} onChange={(e) => set({ pollSeconds: Number(e.target.value) })}
           options={[{ value: "30", label: "30 seconds" }, { value: "60", label: "1 minute" }, { value: "300", label: "5 minutes" }, { value: "900", label: "15 minutes" }]} />}
@@ -234,7 +235,8 @@ export function DeliverStage({ deliveries, onEdit, onRemove, onAdd }:
 
 const newId = (p: string) => p + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
 
-export function DeliveryDialog({ open, value, onClose, onSave }: { open: boolean; value: Delivery | null; onClose: () => void; onSave: (d: Delivery) => void }) {
+export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
+  { open: boolean; value: Delivery | null; onClose: () => void; onSave: (d: Delivery) => void; api?: DocFlowApi; processId?: string }) {
   const [d, setD] = useState<Delivery>(() => value ?? { id: newId("d"), type: "excel", name: "", enabled: true, target: "", on: ["success", "validated"] });
   const kind = DELIVERY_KIND[d.type];
   return (
@@ -245,9 +247,14 @@ export function DeliveryDialog({ open, value, onClose, onSave }: { open: boolean
           options={(Object.keys(DELIVERY_KIND) as DeliveryType[]).map((k) => ({ value: k, label: DELIVERY_KIND[k].label }))} />}</Field>
         <Field label="Name (optional)">{(id) => <TextInput id={id} value={d.name} placeholder={kind.label} onChange={(e) => setD({ ...d, name: e.target.value })} />}</Field>
       </div>
-      <Field label={kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
-        {(id) => <TextInput id={id} value={d.target} placeholder={kind.placeholder} onChange={(e) => setD({ ...d, target: e.target.value })} />}
-      </Field>
+      {d.type === "folder" || d.type === "excel"
+        ? <FolderField key={d.type} api={api} label={kind.target} title={d.type === "excel" ? "Choose the folder for the Excel file" : "Choose the folder for results"}
+            value={d.target} placeholder={kind.placeholder} file={d.type === "excel" ? "register.xlsx" : undefined} processId={processId}
+            hint={d.type === "folder" ? "Each document's values and file go in a folder named after its status (success, validated...)." : "One sheet per document type, a row for each document."}
+            onChange={(v) => setD({ ...d, target: v })} />
+        : <Field label={kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
+            {(id) => <TextInput id={id} value={d.target} placeholder={kind.placeholder} onChange={(e) => setD({ ...d, target: e.target.value })} />}
+          </Field>}
       {d.type === "start_bot" && (
         <Field label="Runner pool (optional)" hint="Empty: your default runner.">
           {(id) => <TextInput id={id} value={d.pool ?? ""} placeholder="pool id" onChange={(e) => setD({ ...d, pool: e.target.value })} />}

@@ -5,6 +5,10 @@ import { SETTING_HELP } from "./settingsHelp";
 import { ROLE_NAMES } from "./roleNames";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
+import { modulePart } from "../modules/pages";
+
+/** Document Automation's "Folders processes may use" (its module part), under that section when the module is installed. */
+const AllowedFolders = modulePart<{ onNotice: (t: string) => void; onError: (e: string) => void }>("allowed-folders");
 
 /**
  * Administration > Settings, built as AA's Settings (checked against AA's docs, UiPath's tenant and organisation
@@ -410,6 +414,7 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
         r.username + (r.display_name ? " (" + r.display_name + ")" : "") + " is in " + (r.groups?.length ? r.groups.join(", ") : "no group") + "; " + (r.role ? "they get the role " + r.role + "." : "no group gives a role, so they cannot sign in.")), fail)}>
         Test the directory</Button>
     </div>}
+    {section === "documents" && AllowedFolders && <AllowedFolders onNotice={onNotice} onError={onError} />}
     {section === "agents" && <Button kind="secondary" onClick={() => api.gitSync().then((r) => onNotice(r.changed ? "Pushed to Git." : "Git is up to date."), fail)}>Sync Git now</Button>}
     {section === "agents" && <Button kind="secondary" onClick={() => api.gitPull().then((r) => onNotice(pullNotice(r)), fail)}>Pull from Git</Button>}
     {section === "data" && <span className="cc-inline">
