@@ -118,6 +118,17 @@ class OktaPackageTest {
         }
     }
 
+    @Test void pagingNeverFollowsANextLinkToAnotherHost() throws Exception {
+        // 16 Nov 2026: a Link rel="next" to another host would have received the SSWS token; paging now stops there
+        try (Fake okta = new Fake(); Fake other = new Fake()) {
+            okta.on("GET /api/v1/users", c -> new Object[]{200, "[" + USER + "]", Map.of("Link", "<" + other.url() + "/api/v1/users?after=xyz>; rel=\"next\"")});
+            other.on("GET /api/v1/users", c -> ok("[]"));
+            Map<String, Object> r = pkg.listUsers(ctx(PackagesTest.tmp()), okta.url(), null, null, 100, TOKEN, null);
+            assertEquals(BigDecimal.ONE, r.get("count"), "the first page only");
+            assertTrue(other.calls.isEmpty(), "nothing, and no token, is sent to the other host");
+        }
+    }
+
     @Test void groupsByNameOrIdAndUserGroups() throws Exception {
         try (Fake f = new Fake()) {
             String group = "{\"id\":\"" + GID + "\",\"type\":\"OKTA_GROUP\",\"profile\":{\"name\":\"Finance Team\",\"description\":\"AP and AR\"}}";

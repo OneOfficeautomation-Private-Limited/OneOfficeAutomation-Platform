@@ -55,7 +55,10 @@ public final class OktaPackage {
         return new ArrayList<>(Arrays.asList(g.get("id"), p.get("name"), p.get("description"), g.get("type")));
     }
 
-    /** Reads every page by following the Link rel="next" header. */
+    /**
+     * Reads every page by following the Link rel="next" header, only on the Okta host itself: a next link to another
+     * host ends the paging, so the API token is never sent anywhere else (as GitHub's paging does).
+     */
     private static List<Map<?, ?>> pages(ActionContext ctx, String first, int max, Object apiToken, Object accessToken) {
         List<Map<?, ?>> out = new ArrayList<>();
         String url = first;
@@ -63,7 +66,8 @@ public final class OktaPackage {
             HttpJson.Response r = req("GET", url, apiToken, accessToken).timeout(120).send(ctx);
             if (!(r.json() instanceof List<?> l)) break;
             for (Object o : l) { if (o instanceof Map<?, ?> m) out.add(m); if (out.size() >= max) break; }
-            url = l.isEmpty() ? null : HttpJson.nextLink(r);
+            String next = l.isEmpty() ? null : HttpJson.nextLink(r);
+            url = next != null && HttpJson.sameOrigin(first, next) ? next : null;
         }
         return out;
     }
