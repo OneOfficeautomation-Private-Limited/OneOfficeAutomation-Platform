@@ -34,6 +34,8 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
   const [stage, setStage] = useState(firstStep(processId, firstStage));
   const [creating, setCreating] = useState(false);
   const [inbox, setInbox] = useState<InboxStatus | null>(null);
+  const [vaultRefs, setVaultRefs] = useState<{ ref: string; label: string }[] | null>(null);
+  useEffect(() => { api.vaultRefs().then(setVaultRefs, () => setVaultRefs([])); }, [api]);
   const [q, setQ] = useState("");
   const [kind, setKind] = useState("all");
   const [onOff, setOnOff] = useState<"all" | "on" | "off">("all");
@@ -186,7 +188,7 @@ export function Builder({ api, processId, stage: firstStage }: { api: DocFlowApi
             <section className="df-card df-pad df-span2" aria-label={current.name} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div><b style={{ fontSize: 15 }}>{stage + 1} · {current.name}</b><div className="df-muted">{current.summary}</div></div>
               {stage === INTAKE && <>
-                <IntakeStage s={design.settings} set={setSettings} inbox={inbox} live={live} />
+                <IntakeStage s={design.settings} set={setSettings} inbox={inbox} live={live} vaultRefs={vaultRefs} />
                 <section aria-label="Upload files" style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
                   <div><b>Upload files</b><span className="df-small" style={{ display: "block" }}>
                     Into {design.name}{live ? "" : ", while it is a draft too"}{dirty ? ". They are read with the saved settings" : ""}.</span></div>

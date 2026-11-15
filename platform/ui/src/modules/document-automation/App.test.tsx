@@ -742,7 +742,8 @@ describe("Document Automation", () => {
     fireEvent.change(within(intake).getByLabelText("Mailbox kind"), { target: { value: "email" } });
     fireEvent.change(within(intake).getByLabelText("Mail server"), { target: { value: "imap.example.com" } });
     fireEvent.change(within(intake).getByLabelText("User name"), { target: { value: "invoices@example.com" } });
-    fireEvent.change(within(intake).getByLabelText("Password (vault reference)"), { target: { value: "mail/invoices/password" } });
+    await within(intake).findByRole("option", { name: "mail · invoices · password" });   // DA-1: a saved value, picked
+    fireEvent.change(within(intake).getByLabelText("Password"), { target: { value: "mail/invoices/password" } });
     fireEvent.change(within(intake).getByLabelText("Subject contains (optional)"), { target: { value: "invoice" } });
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     await screen.findByRole("button", { name: "Saved" });

@@ -248,6 +248,8 @@ export interface DocFlowApi {
   createProcess(p: NewProcess): Promise<{ id: string }>;
   /** The platform folders a new process can go in (where the person may edit). */
   folders(): Promise<string[]>;
+  /** DA-1: the vault values the person may use (folder/credential/attribute), for pickers instead of typing references. */
+  vaultRefs(): Promise<{ ref: string; label: string }[]>;
   reviewTask(documentId: string): Promise<ReviewTask>;
   /** Saves the review; `next` is the next document waiting in the same process, if any. */
   completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject"): Promise<{ next?: string }>;
@@ -569,6 +571,7 @@ export class SampleApi implements DocFlowApi {
     return { processId: target };
   }
   async folders() { return ["Finance/Accounts payable", "Finance/Expenses", "Operations/Goods received", "Shared/Unsorted"]; }
+  async vaultRefs() { return [{ ref: "mail/invoices/password", label: "mail · invoices · password" }, { ref: "m365/app/secret", label: "m365 · app · secret" }]; }
   async createProcess(n: NewProcess) {
     const id = n.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "process";
     this.processesData.push({ id, name: n.name, folder: n.folder, docType: DOC_TYPES.find((t) => t.id === n.docType)?.name ?? n.docType, state: "draft", version: 1, today: 0, review: 0, processing: 0,

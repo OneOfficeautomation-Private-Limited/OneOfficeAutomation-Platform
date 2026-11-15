@@ -293,6 +293,14 @@ export class HttpDocFlowApi implements DocFlowApi {
     return { processId: target };
   }
 
+  async vaultRefs(): Promise<{ ref: string; label: string }[]> {
+    // the platform's vault folders the person may use, with their credentials' attributes (never the values)
+    const r = await this.fetcher("/api/lockers", { credentials: "same-origin" });
+    if (!r.ok) return [];
+    const body = await r.json() as { lockers?: { name: string; credentials: { name: string; attribute: string }[] }[] };
+    return (body.lockers ?? []).flatMap((l) => l.credentials.map((c) => ({ ref: `${l.name}/${c.name}/${c.attribute}`, label: `${l.name} · ${c.name} · ${c.attribute}` })));
+  }
+
   async folders(): Promise<string[]> {
     // the platform's own folders (the Agent repository's), with the person's access to each
     const r = await this.fetcher("/api/repo/folders", { credentials: "same-origin" });

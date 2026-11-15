@@ -28,13 +28,25 @@ const SEND_ON: [string, string][] = [
 
 type SetSettings = (patch: Partial<ProcessSettings>) => void;
 
-export function IntakeStage({ s, set, inbox, live }: { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean }) {
+export function IntakeStage({ s, set, inbox, live, vaultRefs }:
+  { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null }) {
   const email = s.email;
   const setEmail = (patch: Partial<EmailInbox>) => set({ email: { ...(email ?? { enabled: true, kind: "outlook" }), ...patch } as EmailInbox });
   const text = (key: keyof EmailInbox, label: string, placeholder = "", hint?: string) => (
     <Field label={label} hint={hint}>{(id) => <TextInput id={id} value={String(email?.[key] ?? "")} placeholder={placeholder}
       onChange={(e) => setEmail({ [key]: key === "port" ? Number(e.target.value) || undefined : e.target.value } as Partial<EmailInbox>)} />}</Field>
   );
+  // DA-1: a saved account from the vault, picked from the ones the person may use; typing the reference is advanced
+  const [typeRef, setTypeRef] = useState(false);
+  const secret = (key: "password_ref" | "client_secret_ref", label: string, placeholder: string) => {
+    const value = String(email?.[key] ?? "");
+    const refs = vaultRefs ?? [];
+    const listed = !value || refs.some((r) => r.ref === value);
+    if (typeRef || !listed) return text(key, label + " (vault reference)", placeholder, "folder/credential/attribute; you must be allowed to use it");
+    return <Field label={label} hint={refs.length ? "Saved in the vault; only the ones you may use are listed." : "Nothing saved that you may use yet: ask your administrator to add it to the vault."}>
+      {(id) => <Select id={id} value={value} onChange={(e) => setEmail({ [key]: e.target.value } as Partial<EmailInbox>)}
+        options={[{ value: "", label: refs.length ? "Choose a saved value" : "None saved yet" }, ...refs.map((r) => ({ value: r.ref, label: r.label }))]} />}</Field>;
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <div className="df-grid df-g2">
@@ -68,17 +80,18 @@ export function IntakeStage({ s, set, inbox, live }: { s: ProcessSettings; set: 
               {text("mail_folder", "Folder", "inbox")}
               {text("tenant_id", "Directory (tenant) id")}
               {text("client_id", "Application (client) id")}
-              {text("client_secret_ref", "Client secret (vault reference)", "m365/app/secret", "folder/credential/attribute; you must be allowed to use it")}
+              {secret("client_secret_ref", "Client secret", "m365/app/secret")}
             </div>
           ) : (
             <div className="df-grid df-g2">
               {text("host", "Mail server", "imap.example.com")}
               {text("port", "Port", "993")}
               {text("username", "User name", "invoices@example.com")}
-              {text("password_ref", "Password (vault reference)", "mail/invoices/password", "folder/credential/attribute; you must be allowed to use it")}
+              {secret("password_ref", "Password", "mail/invoices/password")}
               {text("mail_folder", "Folder", "INBOX")}
             </div>
           )}
+          <AdvancedToggle open={typeRef} onToggle={() => setTypeRef(!typeRef)} what="type a vault reference instead of choosing a saved value" />
           <div className="df-grid df-g2">
             {text("from_contains", "Only from (optional)", "@supplier.com")}
             {text("subject_contains", "Subject contains (optional)", "invoice")}
