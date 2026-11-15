@@ -171,7 +171,10 @@ describe("Document Automation", () => {
     fireEvent.click(await screen.findByRole("button", { name: "New process" }));
     const dialog = await screen.findByRole("dialog", { name: "New process" });
     const create = within(dialog).getByRole("button", { name: "Create process" }) as HTMLButtonElement;
-    expect(create.disabled).toBe(true);
+    await waitFor(() => expect(create.disabled).toBe(false));                    // DA-1: the first template fills the name and type
+    expect((within(dialog).getByLabelText("Process name") as HTMLInputElement).value).toBe("Supplier invoices");
+    fireEvent.change(within(dialog).getByLabelText("Process name"), { target: { value: "" } });
+    expect(create.disabled).toBe(true);                                         // a name is needed
     fireEvent.change(within(dialog).getByLabelText("Process name"), { target: { value: "Supplier invoices KSA" } });
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Watched folder/ }));
     expect(create.disabled).toBe(true);                                         // a watched folder needs its path
@@ -182,6 +185,22 @@ describe("Document Automation", () => {
     const made = (await api.processes()).find((p) => p.name === "Supplier invoices KSA")!;
     expect(made.sources).toEqual(["upload", "folder", "email"]);
     expect(made.state).toBe("draft");
+  });
+
+  it("starts a new process from a template and tries it with a sample, saving nothing", async () => {
+    const api = start(); await go("#/inbox");
+    fireEvent.click(await screen.findByRole("button", { name: "New process" }));
+    const dialog = await screen.findByRole("dialog", { name: "New process" });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Receipts for expense claims/ }));
+    expect(within(dialog).getByRole("button", { name: /Receipts for expense claims/ }).getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() => expect((within(dialog).getByLabelText("Process name") as HTMLInputElement).value).toBe("Expense receipts"));
+    expect((within(dialog).getByLabelText("Document type") as HTMLSelectElement).value).toBe("receipt");
+    const before = (await api.processes()).length;
+    fireEvent.click(within(dialog).getByRole("button", { name: "Try it with a sample receipt" }));
+    expect(await within(dialog).findByRole("region", { name: "What the sample gave" })).toBeTruthy();
+    expect((await api.processes()).length).toBe(before);                       // a try saves nothing
+    fireEvent.click(within(dialog).getByRole("button", { name: /Start from scratch/ }));
+    expect(within(dialog).queryByRole("button", { name: /Try it with a sample/ })).toBeNull();
   });
 
   it("shows every document of a process, with filters on how it came in, engine and confidence", async () => {
