@@ -31,7 +31,14 @@ pick the first phase whose status is not **Done**, follow its list, and update i
 | Use | Agents get a typed Document; document events start agents; MCP tools; One Chat questions; Excel, webhooks, business systems |
 | Governance | Residency and cloud opt-in per customer, approved models, personal data masked before cloud models, every AI call in the platform's audit (`ai_calls`), costs to licensing and billing |
 
-## DA-1 Ease of use (platform UI) — status: Not started
+## DA-1 Ease of use (platform UI) — status: In progress (branch `docauto/da1-ease-of-use`, not merged)
+
+Done (15 Nov 2026, the user chose plan B: "Show advanced settings" per section, no page-wide switch): items 1-3 (advanced
+sections on Document types, steps 4 and 6, the routing card and the Test lab; checks in words, the built-in Saudi
+patterns named), item 4 in part (the vault picker for the mailbox secret), items 6-7 (templates and Try it with a
+sample). Checked in the browser against DocFlow 3.1.2; UI tests 488/488.
+Left: item 4's **Sign in with Microsoft** (needs an Entra app registration: the user decides whose app), item 5 (a
+watched-folder picker: needs a folder-browse endpoint on DocFlow's server), item 8 (Engines cards in plain words).
 
 Designs on the canvas first, then:
 1. A **Simple / Advanced** switch on the Document Automation screens (remembered per person; Simple for new users if
