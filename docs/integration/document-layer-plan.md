@@ -31,26 +31,41 @@ pick the first phase whose status is not **Done**, follow its list, and update i
 | Use | Agents get a typed Document; document events start agents; MCP tools; One Chat questions; Excel, webhooks, business systems |
 | Governance | Residency and cloud opt-in per customer, approved models, personal data masked before cloud models, every AI call in the platform's audit (`ai_calls`), costs to licensing and billing |
 
-## DA-1 Ease of use (platform UI) — status: In progress (branch `docauto/da1-ease-of-use`, not merged)
+## DA-1 Ease of use (platform UI) — status: Built, waiting for merge and the DocFlow 3.2.0 release (branch `docauto/da1-ease-of-use`, not merged)
 
 Done (15 Nov 2026, the user chose plan B: "Show advanced settings" per section, no page-wide switch): items 1-3 (advanced
 sections on Document types, steps 4 and 6, the routing card and the Test lab; checks in words, the built-in Saudi
-patterns named), item 4 (the vault picker for mailbox secrets, and **Sign in with Microsoft**), items 6-7 (templates
-and Try it with a sample), item 8 (Engines: "On this server", "Cloud reading", "AI reading" with the OneCore /
-OneConnect / OneMind labels; "Ready", "Off: cloud not allowed", "Needs a key", "Needs setting up"). Commits 0375dc67,
-de22f01d, f8120b1c, 2cf943a5, 03fbf3f1. Checked in the browser against DocFlow 3.1.2 (Sign in with Microsoft against a
-fake Microsoft); UI tests 493/493, module tests green.
-Left: item 5 (a watched-folder picker: needs a folder-browse endpoint on DocFlow's server, limited to allowed
-folders); and the user registering OOA's Microsoft app in Entra, then its Application (client) ID goes into
-`MicrosoftSignIn.OOA_APP_ID` (until then an administrator sets Settings > Document Automation > Microsoft app ID).
+patterns named), item 4 (the vault picker for mailbox secrets, and **Sign in with Microsoft**), item 5 (the folder
+picker), items 6-7 (templates and Try it with a sample), item 8 (Engines: "On this server", "Cloud reading", "AI
+reading" with the OneCore / OneConnect / OneMind labels; "Ready", "Off: cloud not allowed", "Needs a key", "Needs
+setting up"). Platform commits 0375dc67, de22f01d, f8120b1c, 2cf943a5, 03fbf3f1, 2f8840e9, d177d067 and the Outlook
+trigger commit. Checked in the browser against DocFlow 3.1.2, and the folder picker against DocFlow 3.2.0 from its
+branch (Sign in with Microsoft against a fake Microsoft).
+Left: merging (the user's OK); releasing DocFlow 3.2.0 (branch `da1-folder-picker` in oneoffice-docauto, the user's OK)
+and then moving the platform's pin to it; and the user registering OOA's Microsoft app in Entra, then its Application
+(client) ID goes into `MicrosoftSignIn.OOA_APP_ID` (until then an administrator sets Settings > E-mail, proxy and SIEM >
+Microsoft app ID).
 
-**Sign in with Microsoft: built (user chose "One OOA app", 15 Nov 2026; commit 03fbf3f1).** The platform reads the
-inbox (DocFlowProxy.pollMail), so DocFlow needed no change. OAuth device code flow with a multi-tenant public app;
-MicrosoftSignIn keeps the device code and refresh token encrypted with the vault key (table docflow_ms_signin, module
-schema 2); only the person who signed in can put the sign-in in a process or change its mailbox or folder;
-ModuleContext.graphMailbox(accessToken, mailbox, folder); OOA_MICROSOFT_LOGIN_URL / OOA_MICROSOFT_GRAPH_URL for
-national clouds; docs/DOCUMENT_AUTOMATION.md 3.1. Not done: the same button on Microsoft 365 email triggers (step 6,
-optional).
+**Folder picker (item 5): built (user's OK "Build A, then B", 15 Nov 2026).** DocFlow 3.2.0 (branch
+`da1-folder-picker`, commits 9c4ca7d, cd5ec4b, f2e9e24; CI green on 9c4ca7d): DOCAUTO_ALLOWED_FOLDERS ("Name=folder;
+folder", `{tenant}` in SaaS), GET/POST `df/folders`, POST `df/folders/preview`; a new or changed watched folder,
+folder result or Excel register outside the list is refused at save (real paths); the watcher and deliveries leave a
+folder outside the list alone; empty list = any folder, as before. Platform (d177d067): Browse... in step 2, New
+process and folder / Excel deliveries (typed path one click away, and the only way with no list or an older DocFlow);
+Settings > Document Automation > "Folders processes may use" (module part, docs.engines); `df/folders` needs
+docs.manage, `df/folders/preview` docs.engines, and listings name only processes the person may see. DocFlow's flaky
+delivery test fixed in the same branch.
+
+**Sign in with Microsoft: built (user chose "One OOA app", 15 Nov 2026).** The platform reads the inbox
+(DocFlowProxy.pollMail), so DocFlow needed no change. OAuth device code flow with a multi-tenant public app. Moved into
+the kernel for the Outlook trigger (user's OK "Build A, then B"): `controlroom.MicrosoftSignIn` keeps the device code
+and refresh token encrypted with the vault key in `ms_signins` (kernel schema 47; the module's own version 2 was
+dropped before any merge); setting `microsoft_app_id` is the kernel's (Settings > E-mail, proxy and SIEM); only the
+person who signed in can put the sign-in in a process or a trigger (or change an inbox's mailbox or folder); the
+trigger stops with a clear error when that person is no longer active; routes `/api/docflow/ms-signin` (docs.manage)
+and `/api/triggers/ms-signin` (triggers.manage); the dialog is the shared `components/MicrosoftSignIn.tsx`;
+OOA_MICROSOFT_LOGIN_URL / OOA_MICROSOFT_GRAPH_URL for national clouds (now for triggers too); docs/DOCUMENT_AUTOMATION.md
+3.1, docs/functional/04-schedules-and-triggers.md.
 App registration for the user (Microsoft Entra admin centre > App registrations > New registration): name "One
 CommandCenter"; "Accounts in any organizational directory (multitenant)"; no redirect URI; Authentication > "Allow
 public client flows" = Yes; API permissions > Microsoft Graph > Delegated: Mail.Read, Mail.Read.Shared, User.Read,
