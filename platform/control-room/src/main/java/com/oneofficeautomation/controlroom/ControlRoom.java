@@ -75,6 +75,8 @@ public final class ControlRoom {
     public MicrosoftSignIn microsoft = new MicrosoftSignIn(this);
     /** Mail accounts: mailboxes set up once and chosen by name (Manage > Connections). */
     public final com.oneofficeautomation.controlroom.mail.MailAccounts mailAccounts = new com.oneofficeautomation.controlroom.mail.MailAccounts(this);
+    /** One reader per mail account and its rules: where each email goes. */
+    public final com.oneofficeautomation.controlroom.mail.MailRouter mailRouter = new com.oneofficeautomation.controlroom.mail.MailRouter(this);
     /** Shared values and credentials a running agent changes, checked as the run's user (gap G30). */
     public final AgentWrites agentWrites = new AgentWrites(this);
     private final FlowValidator validator;

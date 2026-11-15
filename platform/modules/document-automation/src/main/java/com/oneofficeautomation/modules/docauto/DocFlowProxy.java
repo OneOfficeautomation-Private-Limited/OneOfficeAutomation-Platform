@@ -521,6 +521,39 @@ public final class DocFlowProxy {
         return sent;
     }
 
+    // ------------------------------------------------------------------ Mail accounts (MA-2): a process as a mail rule's target
+
+    /** What DocFlow reads from an email (its process intake): PDFs, images and XML e-invoices. */
+    static final Pattern MAIL_READABLE = Pattern.compile("(?i).+\\.(pdf|png|jpe?g|tiff?|bmp|webp|xml)$");
+
+    /** On saving a mail rule that sends emails here: the person may change this process (docs.manage, edit in its folder). Returns its name. */
+    @SuppressWarnings("unchecked")
+    public String checkMailTarget(User u, String processId) {
+        ctx.require(u, "docs.manage", "send emails to a process");
+        Map<String, Object> flow = mailFlow(processId);
+        need(u, flow.get("folder"), "edit", ctx.folderEntries(), "send emails to this process");
+        return String.valueOf(flow.getOrDefault("name", processId));
+    }
+
+    /** One email from a mail rule: its readable attachments go into the process, as the rule's owner (run access in its folder). */
+    public void deliverMail(ModuleContext.MailDelivery d) {
+        User u = ctx.activeUser(d.asUser());
+        if (u == null) throw new OoaException("CR.FORBIDDEN", "'" + d.asUser() + "', who made the mail rule " + d.ruleName() + ", is not an active user", "Make the rule again as someone who is.");
+        ctx.require(u, "docs.view", "add documents to Document Automation");
+        Map<String, Object> flow = mailFlow(d.target());
+        need(u, flow.get("folder"), "run", ctx.folderEntries(), "add documents to this process");
+        for (MailSource.Attachment a : d.attachments()) if (MAIL_READABLE.matcher(a.name()).matches()) upload(d.target(), a, d.email());
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> mailFlow(String processId) {
+        if (processId == null || !processId.matches("[A-Za-z0-9._-]{1,120}")) throw new OoaException("CR.NOT_FOUND", "Process '" + processId + "' not found", "Choose the process again; it may have been deleted.");
+        HttpResponse<byte[]> r = send("GET", "df/flows/" + processId, null, null, null, "Command Center");
+        if (r.statusCode() == 404 || r.statusCode() == 400) throw new OoaException("CR.NOT_FOUND", "Process '" + processId + "' not found", "Choose the process again; it may have been deleted.");
+        if (r.statusCode() >= 300) throw new OoaException("DOCS.UNAVAILABLE", "Document Automation answered HTTP " + r.statusCode(), "Check that the Document Automation service is running.");
+        return (Map<String, Object>) JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8));
+    }
+
     public interface Mailboxes { MailSource open(Map<String, Object> email) throws IOException; }
     /** Opens an inbox's mailbox (tests replace it). */
     public Mailboxes mails = this::mailSource;

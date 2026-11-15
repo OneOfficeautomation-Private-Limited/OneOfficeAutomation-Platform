@@ -172,6 +172,8 @@ public final class ControlRoomServer {
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.runWaits.tick(); } catch (RuntimeException ignored) { } }, 6, 5, TimeUnit.SECONDS);
         cr.serverless.start();
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
+        // Mail accounts (MA-2): each mailbox with rules is read once per interval; its rules send each email on
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.mailRouter.tick(); } catch (RuntimeException ignored) { } }, 9, 5, TimeUnit.SECONDS);
         // jobs feature modules added (Document Automation: review tasks every 20 s, email inboxes every 30 s), on the leader only
         for (Modules.Job j : cr.modules.jobs)
             clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) j.run().run(); } catch (RuntimeException ignored) { } },
@@ -1082,6 +1084,27 @@ public final class ControlRoomServer {
                 else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, mail.save(u, seg[1], map(body(ex)), ip));
                 else if (m.equals("DELETE") && seg.length == 2) { mail.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("test")) sendJson(ex, 200, mail.test(u, seg[1]));
+                // MA-2: an account's rules, their order, trying conditions, reading now, and Not matched
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("rules")) sendJson(ex, 200, cr.mailRouter.rules(u, seg[1]));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("rules")) sendJson(ex, 200, cr.mailRouter.saveRule(u, null, seg[1], map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 4 && seg[2].equals("rules") && seg[3].equals("order")) {
+                    Object ids = map(body(ex)).get("ids");
+                    cr.mailRouter.order(u, seg[1], ids instanceof List<?> l ? l.stream().map(String::valueOf).toList() : List.of(), ip);
+                    sendJson(ex, 200, Map.of("ok", true));
+                }
+                else if (m.equals("POST") && seg.length == 4 && seg[2].equals("rules") && seg[3].equals("try")) sendJson(ex, 200, cr.mailRouter.tryRule(u, seg[1], map(body(ex))));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("read")) sendJson(ex, 200, cr.mailRouter.readNow(u, seg[1]));
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("unmatched")) sendJson(ex, 200, Map.of("emails", cr.mailRouter.unmatched(u, seg[1])));
+                else notFound(ex);
+            }
+            case "mail-rules" -> {
+                if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.mailRouter.saveRule(u, seg[1], null, map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.mailRouter.deleteRule(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "mail-unmatched" -> {   // send a not-matched email to a rule's target now, or ignore it
+                if (m.equals("POST") && seg.length == 3 && seg[2].equals("send")) { cr.mailRouter.handleUnmatched(u, seg[1], String.valueOf(map(body(ex)).get("rule")), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("ignore")) { cr.mailRouter.handleUnmatched(u, seg[1], null, ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
             case "saved-connections" -> {
