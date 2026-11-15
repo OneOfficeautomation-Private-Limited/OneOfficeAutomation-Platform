@@ -110,13 +110,13 @@ Select a step to see its settings on the right. From top to bottom:
 
 A required field that is still empty is marked with ***** and says **Required** under it, before you even validate.
 
-**How variables are written.** A variable is written between two dollar signs, as in AA: `$total$`, `$row.Amount$`,
+**How variables are written.** A variable is written between two dollar signs: `$total$`, `$row.Amount$`,
 `$sys.date$`, `$global.region$`. A field that holds only `$total$` passes the value with its type (a Number stays a
 Number); inside text, `$total$` is replaced by the value (`Total $total$ items`). Agents made before 14 November 2026
 wrote `$total` and `${total}`; they keep working, and saving the agent rewrites its references as `$total$`. A `$` with
 no closing `$` (such as `US$ 5`) stays as typed.
 
-**Inputs left empty** (as in AA). An agent runs without its inputs; only an input ticked **Required** stops the run
+**Inputs left empty**. An agent runs without its inputs; only an input ticked **Required** stops the run
 ("Required input 'count' has no value"). An input given as nothing (left empty in the Run dialog, an empty cell, or an
 empty value from a parent agent) counts as not given, so its default applies. A variable with no value starts empty
 for its type: Text `""`, an empty List, Dictionary or Table, and No for Yes/No. A Number or a date stays empty until a

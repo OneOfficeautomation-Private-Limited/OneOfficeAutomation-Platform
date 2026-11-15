@@ -70,7 +70,7 @@ export function BusinessPage({ api, user, onNotice }: { api: CrApi; user: CrUser
 const PERIODS: [string, string][] = [["1", "Last 24 hours"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]];
 const RESULTS: [string, string][] = [["ok", "Done"], ["failed", "Failed"], ["denied", "Denied"]];
 const HELP_AUDIT: HelpTopic = { title: "Audit", about: "Who did what over a period, from the Audit Trail: what kind of activity, by whom, with what result, "
-  + "and on which days; and the latest actions that failed or were denied. It follows AA's Audit dashboard. You need the Audit Trail's permission.",
+  + "and on which days; and the latest actions that failed or were denied. You need the Audit Trail's permission.",
   items: [
     { name: "Period, Who, Activity, Result", text: "Narrow every figure and list. Clicking a bar sets the matching filter; Clear filters removes them." },
     { name: "People", text: "How many people did something in the period; the system and runners are counted apart." },

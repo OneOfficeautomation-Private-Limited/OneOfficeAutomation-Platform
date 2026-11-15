@@ -151,7 +151,7 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
                   onDragStart={(e) => { e.dataTransfer.setData(ACTION_DRAG, p.id + "/" + a.id); e.dataTransfer.effectAllowed = "copy"; }}
                   onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}
                   {(() => { const own = a.name.toLowerCase().includes(q); const aa = !own ? aaMatch(p.id + "/" + a.id, q) : undefined; const was = !own && !aa ? formerMatch(p.id + "/" + a.id, q) : undefined;
-                    return aa ? <span className="st-aa-name">AA: {aa}</span> : was ? <span className="st-aa-name">Formerly: {was}</span> : null; })()}</button>
+                    return aa ? <span className="st-alt-name">Also called: {aa}</span> : was ? <span className="st-alt-name">Formerly: {was}</span> : null; })()}</button>
                 </li>
               ))}</ul>}
             </li>

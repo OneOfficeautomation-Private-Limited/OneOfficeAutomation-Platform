@@ -364,7 +364,7 @@ Read one field, found by a screen position inside it or by the label just before
 | Row | `row` | Number | No |  | Main; choice Find the field by = Position | Row of any position in the field (1-based). |
 | Column | `column` | Number | No |  | Main; choice Find the field by = Position | Column of that position (1-based). |
 | Label | `label` | Text | No |  | Main; choice Find the field by = Label | Label text shown before the field; used instead of row and column. |
-| Index | `index` | Number | No |  | Main; choice Find the field by = Field number | Field number as listed by Get all fields, counted from 1 (AA counts from 0: add 1); used instead of position or label. |
+| Index | `index` | Number | No |  | Main; choice Find the field by = Field number | Field number as listed by Get all fields, counted from 1 (add 1 to a number counted from 0); used instead of position or label. |
 
 **Results**
 
@@ -417,7 +417,7 @@ Replace the contents of an input field, found by position, label or field number
 | Row | `row` | Number | No |  | Main; choice Find the field by = Position | Row of any position in the field (1-based). |
 | Column | `column` | Number | No |  | Main; choice Find the field by = Position | Column of that position (1-based). |
 | Label | `label` | Text | No |  | Main; choice Find the field by = Label | Label text shown before the field; the next input field after it is used. |
-| Index | `index` | Number | No |  | Main; choice Find the field by = Field number | Field number as listed by Get all fields, counted from 1 (AA counts from 0: add 1); used instead of position or label. |
+| Index | `index` | Number | No |  | Main; choice Find the field by = Field number | Field number as listed by Get all fields, counted from 1 (add 1 to a number counted from 0); used instead of position or label. |
 | Text | `text` | Any | Yes |  | Main | Text, or a Credential variable for passwords. |
 | Press key | `press_key` | Text | No |  | Main; tick Press a key after filling | Key to press after filling the field; none when empty. Example: `Enter` |
 | Wait for text | `wait_for_text` | Text | No |  | Main; tick Wait for text afterwards | Text that must appear on the screen afterwards, e.g. the next screen's title (waits up to timeout_seconds); no check when empty. |

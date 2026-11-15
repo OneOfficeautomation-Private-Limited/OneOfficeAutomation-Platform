@@ -68,7 +68,7 @@ hand on their own default runner. Administrators assign seats on **Administratio
 
 ### The quick way: download a ready runner installer
 
-As AA's Connect local device, One CommandCenter can give a ready installer: a ZIP of the product with its own Java and
+One CommandCenter can give a ready installer: a ZIP of the product with its own Java and
 an `Install.cmd` that already holds this One CommandCenter's address and a one-time key.
 
 - For your own computer: **My devices > Connect to my computer > Download the runner installer** (permission *Connect

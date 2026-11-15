@@ -187,7 +187,7 @@ public final class WindowPackage {
 
     @Action(id = "pick_point", name = "Pick a point on screen", category = "Capture", timeoutSeconds = 900, capabilities = "desktop",
             description = "Design time: point at a place in any window and press Ctrl+Shift+C. Gives the point on the screen and measured from the "
-                    + "window's top-left corner, with the window's title and size, for mouse steps (AA's Capture coordinate).",
+                    + "window's top-left corner, with the window's title and size, for mouse steps.",
             panel = "timeout_seconds")
     @Output(name = "x", type = OoaType.NUMBER, description = "Horizontal position from the window's left edge.")
     @Output(name = "y", type = OoaType.NUMBER, description = "Vertical position from the window's top edge.")
