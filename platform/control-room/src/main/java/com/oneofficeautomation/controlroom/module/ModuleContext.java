@@ -205,6 +205,13 @@ public interface ModuleContext {
     /** A Microsoft 365 mailbox through Microsoft Graph, signed in as an app with a client secret. */
     MailSource graphMailbox(String tenantId, String clientId, String clientSecret, String mailbox, String folder) throws IOException;
 
+    /**
+     * A Microsoft 365 mailbox through Microsoft Graph, read with a person's sign-in (an access token from "Sign in with
+     * Microsoft"): their own mailbox when mailbox is empty, or a shared mailbox they may read. Graph's address is
+     * graph.microsoft.com, or OOA_MICROSOFT_GRAPH_URL (national clouds such as graph.microsoft.us).
+     */
+    MailSource graphMailbox(String accessToken, String mailbox, String folder);
+
     // ------------------------------------------------------------------ HTTP helpers for routes
 
     /** Sends a JSON answer. */

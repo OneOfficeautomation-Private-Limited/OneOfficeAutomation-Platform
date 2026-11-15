@@ -1,6 +1,6 @@
 import {
   INBOX_ID, RULE_KIND, ruleTest, stagesOf,
-  type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
+  type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
   type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
   type ProcessRow, type ProcessSummary, type RefTable,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
@@ -300,6 +300,13 @@ export class HttpDocFlowApi implements DocFlowApi {
     const body = await r.json() as { lockers?: { name: string; credentials: { name: string; attribute: string }[] }[] };
     return (body.lockers ?? []).flatMap((l) => l.credentials.map((c) => ({ ref: `${l.name}/${c.name}/${c.attribute}`, label: `${l.name} · ${c.name} · ${c.attribute}` })));
   }
+
+  // DA-1: "Sign in with Microsoft" for an email inbox (the platform's /api/docflow/ms-signin)
+  async msSignInReady(): Promise<boolean> {
+    try { return (await this.call<{ ready: boolean }>("GET", "/ms-signin")).ready; } catch { return false; }
+  }
+  msSignInStart(): Promise<MsSignInStart> { return this.call<MsSignInStart>("POST", "/ms-signin"); }
+  msSignInPoll(id: string): Promise<MsSignInState> { return this.call<MsSignInState>("GET", `/ms-signin/${encodeURIComponent(id)}`); }
 
   async folders(): Promise<string[]> {
     // the platform's own folders (the Agent repository's), with the person's access to each

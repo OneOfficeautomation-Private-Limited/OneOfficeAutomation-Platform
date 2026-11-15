@@ -754,6 +754,40 @@ describe("Document Automation", () => {
       username: "invoices@example.com", password_ref: "mail/invoices/password", subject_contains: "invoice" });
   });
 
+  it("signs a Microsoft 365 inbox in with Microsoft: a code to type, then who is signed in (DA-1)", async () => {
+    const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
+    const intake = await screen.findByRole("region", { name: "Document ingestion" });
+    fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
+    expect((within(intake).getByLabelText("Mailbox kind") as HTMLSelectElement).value).toBe("outlook");
+    expect(within(intake).queryByLabelText("Directory (tenant) id")).toBeNull();          // your own app is advanced
+    fireEvent.click(await within(intake).findByRole("button", { name: "Sign in with Microsoft" }));
+    const dialog = await screen.findByRole("dialog", { name: "Sign in with Microsoft" });
+    expect(await within(dialog).findByText("SAMPLE-01")).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: "microsoft.com/devicelogin" }).getAttribute("href")).toBe("https://microsoft.com/devicelogin");
+    expect(await within(intake).findByText("Signed in as invoices@example.com", {}, { timeout: 4000 })).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Sign in with Microsoft" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("button", { name: "Saved" });
+    expect((await api.processDesign("supplier-invoices-ksa")).settings.email).toMatchObject({ enabled: true, kind: "outlook", ms_signin: "ms" + "0".repeat(24), ms_account: "invoices@example.com" });
+    // your own Microsoft app stays under Show advanced settings
+    fireEvent.click(within(intake).getByRole("button", { name: "Show advanced settings" }));
+    expect(within(intake).getByRole("group", { name: "Your own Microsoft app" })).toBeTruthy();
+    expect(within(intake).getByText(/Not used while signed in with Microsoft/)).toBeTruthy();
+    expect(within(intake).getByLabelText("Client secret").tagName).toBe("SELECT");          // a saved value, picked
+    fireEvent.click(within(intake).getByRole("button", { name: "Sign out" }));
+    expect(await within(intake).findByRole("button", { name: "Sign in with Microsoft" })).toBeTruthy();
+  }, 10000);
+
+  it("says when Sign in with Microsoft is not set up on the server", async () => {
+    const api = new SampleApi();
+    api.msSignInReady = async () => false;
+    start(api); await go("#/processes/supplier-invoices-ksa/intake");
+    const intake = await screen.findByRole("region", { name: "Document ingestion" });
+    fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
+    expect(await within(intake).findByText(/Sign in with Microsoft is not set up on this server/)).toBeTruthy();
+    expect(within(intake).queryByRole("button", { name: "Sign in with Microsoft" })).toBeNull();
+  });
+
   it("counts every document of a process in the Inbox, not only today's", async () => {
     const api = new SampleApi();
     const all = await api.processes();

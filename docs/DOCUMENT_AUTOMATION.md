@@ -82,10 +82,12 @@ set for the whole DocFlow server.
 
 - **Upload**: Add documents (or drop files on the Inbox). Choose a process, or let DocFlow recognise each document.
 - **Watched folder**: a process's Intake stage; DocFlow reads new files there while the process is live.
-- **Email inbox**: a process's Intake stage. Microsoft 365 (an app registration with Mail.Read) or IMAP; the password
-  or client secret is a vault reference the person setting it up must be allowed to use. The Command Center reads the
-  inbox of live processes every minute (the first check only marks where the inbox is: older mail is not read) and
-  sends new PDF, PNG, JPG and TIFF attachments to the process. The Intake stage shows the last check and any problem.
+- **Email inbox**: a process's Intake stage. Microsoft 365 with **Sign in with Microsoft** (section 3.1), or your own
+  Microsoft app (an app registration with the Mail.Read application permission, under Show advanced settings), or IMAP.
+  A password or client secret is a saved value from the vault that the person setting it up must be allowed to use.
+  The Command Center reads the inbox of live processes every minute (the first check only marks where the inbox is:
+  older mail is not read) and sends new PDF, PNG, JPG and TIFF attachments to the process. The Intake stage shows the
+  last check and any problem.
 - **From an agent**: the **Document Automation** toolkit's **Send document to process** action (process by name or
   id; optionally wait for the status and fields). The agent must run from the Command Center; the document goes in as
   the run's user, who needs `docs.view` and run access to the process's folder.
@@ -105,6 +107,28 @@ pass it on:
 For a mailbox that only brings documents, a process's own **Email inbox** (above) is simpler: no agent is needed. A
 process's **Watched folder** reads a folder on the DocFlow server; the "File arrives" trigger is for a folder on a
 runner's machine.
+
+### 3.1 Sign in with Microsoft (Microsoft 365 inboxes)
+
+The person setting up the inbox chooses **Sign in with Microsoft**, opens microsoft.com/devicelogin, types the short
+code shown and signs in with the mailbox's account (or with an account that may read the shared mailbox named in
+**Mailbox**). Nobody types an app ID, tenant ID or secret. This works for servers inside your network: Microsoft never
+needs to reach One CommandCenter.
+
+- **The app.** By default One CommandCenter's own Microsoft app is used. The first time someone from your organisation
+  signs in, Microsoft asks your **Microsoft 365 administrator to approve it once** (it asks to read mail the
+  signed-in person may read, their name, and to stay signed in). To use your own app instead, register one in Microsoft
+  Entra (App registrations > New registration; Authentication > **Allow public client flows: Yes**; API permissions >
+  Microsoft Graph > delegated **Mail.Read**, **Mail.Read.Shared**, **User.Read**, **offline_access**) and put its
+  Application (client) ID in Administration > Settings > Document Automation > **Microsoft app ID**.
+- **What is kept.** The Microsoft account's name and directory, and the lasting sign-in, encrypted with the vault key
+  and never shown. It is renewed each time the inbox is read. Only the person who signed in can put that sign-in in a
+  process; others who may change the process can save it unchanged.
+- **When it stops working** (password changed, access removed by an administrator) the Intake stage says
+  "The Microsoft sign-in for … no longer works": choose **Sign in with Microsoft** again and save the process.
+- **National clouds** (for example Microsoft 365 GCC High): set `OOA_MICROSOFT_LOGIN_URL` (such as
+  `https://login.microsoftonline.us`) and `OOA_MICROSOFT_GRAPH_URL` (such as `https://graph.microsoft.us/v1.0`) for
+  One CommandCenter. Settings > Outbound connections must allow the sign-in address.
 
 ## 4. Review in the Task inbox
 
@@ -199,6 +223,10 @@ after installing.
 | A Start-a-bot delivery fails with "DOCAUTO_PLATFORM_URL is not set" | Set it in DocFlow's `config/local.env` and restart DocFlow. |
 | Email inbox: "The mail server … is not known" / "does not answer" | Check the server name and port (993 for IMAP over TLS). |
 | Email inbox: VAULT.DENIED | Make the person who set up the inbox a consumer of the vault folder, then save the process again. |
+| Email inbox: "Sign in with Microsoft is not set up on this server" | Put a Microsoft app ID in Settings > Document Automation (section 3.1), or use your own app under Show advanced settings. |
+| Email inbox: "The Microsoft sign-in for … no longer works" | Open the process, step Document ingestion, choose Sign in with Microsoft again, and save. |
+| Sign in with Microsoft: "declined" or an administrator's approval is needed | Ask your Microsoft 365 administrator to approve One CommandCenter once (or your own app), then sign in again. |
+| Saving an inbox: "This Microsoft sign-in was made by …" | Only the person who signed in can put a sign-in in a process: choose Sign in with Microsoft and sign in yourself. |
 | A reviewer does not see a review task | They need `docs.review` and view access to the process's folder. |
 | An "On Document Automation" trigger shows "…may not see the process's folder" | Give the trigger's owner view access to that folder, or make someone who has it the owner. |
 | An "On Document Automation" trigger never fires | Check DocFlow's `DOCAUTO_PLATFORM_URL`, the trigger's Process (name or id) and Document type, and that it is not paused. |

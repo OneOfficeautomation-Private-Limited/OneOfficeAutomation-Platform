@@ -39,8 +39,9 @@ import java.util.regex.Pattern;
  * with docs.review; {@link #syncReviews}), and a process's "Start a bot" delivery calls
  * /api/docflow-callback/start-bot with the service token, which starts the bot as the person who set the delivery up.
  * And one more way in: a live process's email inbox (intake.email, IMAP or Microsoft 365) is read here, with the
- * mailbox's vault secret as the person who set it up, and new PDF and image attachments go to the process
- * ({@link #pollMail}); /api/docflow/mail-status says how each inbox's last check went.
+ * mailbox's vault secret as the person who set it up, or with their "Sign in with Microsoft" ({@link MicrosoftSignIn},
+ * /api/docflow/ms-signin), and new PDF and image attachments go to the process ({@link #pollMail});
+ * /api/docflow/mail-status says how each inbox's last check went.
  * <p>
  * Folder access: a process's folder ("Finance / Accounts payable") is the platform folder of that path, and its folder
  * permissions apply on top of the docs.* permissions: view to see the process, its documents and its review tasks, run
@@ -65,12 +66,15 @@ public final class DocFlowProxy {
 
     private final ModuleContext ctx;
     private final HttpClient http;
+    /** "Sign in with Microsoft" for email inboxes (tests point it at a fake Microsoft). */
+    public MicrosoftSignIn microsoft;
 
     public DocFlowProxy(ModuleContext ctx) {
         this.ctx = ctx;
         // DocFlow runs next to the Command Center: never through the outbound proxy for internet traffic
         // and over HTTP/1.1: DocFlow (uvicorn) does not take the HTTP/2 upgrade and logged a warning for every request
         this.http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(5)).proxy(HttpClient.Builder.NO_PROXY).build();
+        this.microsoft = new MicrosoftSignIn(ctx);
     }
 
     /** The permission a request needs. */
@@ -100,6 +104,15 @@ public final class DocFlowProxy {
         if (route.equals("version") && method.equals("GET")) {
             ctx.require(u, "docs.view", "see Document Automation");
             ctx.sendJson(ex, 200, version());
+            return;
+        }
+        // DA-1: "Sign in with Microsoft" for an email inbox (MicrosoftSignIn): whether it is offered, start, and poll
+        if (route.equals("ms-signin") || route.matches("ms-signin/[A-Za-z0-9]{1,40}")) {
+            ctx.require(u, "docs.manage", "change Document Automation");
+            if (route.equals("ms-signin") && method.equals("GET")) ctx.sendJson(ex, 200, Map.of("ready", microsoft.ready()));
+            else if (route.equals("ms-signin") && method.equals("POST")) ctx.sendJson(ex, 200, microsoft.start(u));
+            else if (method.equals("GET")) ctx.sendJson(ex, 200, microsoft.poll(u, route.substring("ms-signin/".length())));
+            else throw new OoaException("CR.NOT_FOUND", "Not found", "Reload the page and choose it again; it may have been renamed, moved or deleted.");
             return;
         }
         if (!ROUTES.matcher(route).matches() || route.contains("..")) throw new OoaException("CR.NOT_FOUND", "Not found", "Reload the page and choose it again; it may have been renamed, moved or deleted.");
@@ -143,7 +156,7 @@ public final class DocFlowProxy {
     Answer exchange(User u, String method, String route, String rawQuery, byte[] in, Map<String, String> headers, String person) {
         requirePermission(u, method, route);
         String type = headers == null ? null : headers.get("Content-Type");
-        if (in != null && FLOW_WRITE.matcher(route).matches() && type != null && type.startsWith("application/json")) in = stampBotDeliveries(u, in);
+        if (in != null && FLOW_WRITE.matcher(route).matches() && type != null && type.startsWith("application/json")) in = stampBotDeliveries(u, route, in);
         Map<String, Map<String, String>> all = ctx.folderEntries();
         Map<String, String> folders = checkFolder(u, method, route, in, all);
         HttpResponse<byte[]> r = send(method, route, rawQuery, in, headers, person);
@@ -280,11 +293,47 @@ public final class DocFlowProxy {
     }
 
     /**
+     * DA-1: an inbox read with "Sign in with Microsoft" names its sign-in (ms_signin). Only the person who signed in may
+     * put it in a process or change which mailbox and folder it reads (their Microsoft access must not be pointed at
+     * another mailbox by someone else); anyone who may change the process may save the rest of it. The account shown
+     * (ms_account) is always the one Microsoft confirmed, never what the browser sent.
+     */
+    @SuppressWarnings("unchecked")
+    private void checkMicrosoftSignIn(User u, String route, Map<String, Object> email) {
+        String id = email.get("ms_signin") instanceof String s ? s.trim() : "";
+        if (id.isEmpty()) { email.remove("ms_signin"); email.remove("ms_account"); return; }
+        Map<String, Object> row = microsoft.row(id);
+        if (row == null) throw new OoaException("DOCS.MS_SIGNIN", "This inbox's Microsoft sign-in is not known", "Choose Sign in with Microsoft again.");
+        if (!u.username().equals(row.get("started_by"))) {
+            Matcher f = FLOW_ROUTE.matcher(route);
+            Map<String, Object> saved = Map.of();
+            if (f.matches() && f.group(2) == null) {
+                HttpResponse<byte[]> r = send("GET", route, null, null, null, "Command Center");
+                if (r.statusCode() == 200 && JsonLite.parse(new String(r.body(), StandardCharsets.UTF_8)) instanceof Map<?, ?> flow
+                        && flow.get("intake") instanceof Map<?, ?> in && in.get("email") instanceof Map<?, ?> e) saved = (Map<String, Object>) e;
+            }
+            if (!id.equals(saved.get("ms_signin"))) throw new OoaException("VAULT.DENIED", "This Microsoft sign-in was made by '" + row.get("started_by") + "'", "Choose Sign in with Microsoft and sign in yourself.");
+            if (!same(saved.get("mailbox"), email.get("mailbox")) || !same(saved.get("mail_folder"), email.get("mail_folder")))
+                throw new OoaException("VAULT.DENIED", "Only '" + row.get("started_by") + "', who signed in with Microsoft, can change which mailbox or folder this inbox reads",
+                        "Choose Sign in with Microsoft and sign in yourself, or ask them to change it.");
+        } else if (!"signed_in".equals(row.get("status")) && !"expired".equals(row.get("status"))) {
+            throw new OoaException("DOCS.MS_SIGNIN", "The sign-in with Microsoft is not finished", "Finish signing in at Microsoft, or choose Sign in with Microsoft again.");
+        }
+        email.put("ms_signin", id);
+        email.put("ms_account", String.valueOf(row.get("account")));
+    }
+
+    /** Two inbox values are the same (empty and missing count as the same; case does not matter for addresses). */
+    private static boolean same(Object a, Object b) {
+        return String.valueOf(a == null ? "" : a).trim().equalsIgnoreCase(String.valueOf(b == null ? "" : b).trim());
+    }
+
+    /**
      * A "Start a bot" delivery runs as the person who saves it: they must be allowed to start that agent, and DocFlow is
      * told to call the Command Center back (platform) rather than an address someone typed in.
      */
     @SuppressWarnings("unchecked")
-    private byte[] stampBotDeliveries(User u, byte[] in) {
+    private byte[] stampBotDeliveries(User u, String route, byte[] in) {
         Object parsed;
         try { parsed = JsonLite.parse(new String(in, StandardCharsets.UTF_8)); } catch (IllegalArgumentException e) { return in; }
         if (!(parsed instanceof Map<?, ?> flow)) return in;
@@ -295,6 +344,7 @@ public final class DocFlowProxy {
             if ("email".equals(email.get("kind")) && email.get("host") instanceof String host && !host.isBlank()) ctx.checkHost(host, "The mail server");
             String ref = String.valueOf(email.getOrDefault("kind", "").equals("outlook") ? email.getOrDefault("client_secret_ref", "") : email.getOrDefault("password_ref", ""));
             if (Boolean.TRUE.equals(email.get("enabled")) && !ref.isBlank()) vaultAccess(u.username(), u.role(), ref);
+            if ("outlook".equals(email.get("kind"))) checkMicrosoftSignIn(u, route, email);
             email.put("requestedBy", u.username());
             changed = true;
         }
@@ -418,6 +468,7 @@ public final class DocFlowProxy {
      */
     @SuppressWarnings("unchecked")
     public int pollMail() {
+        microsoft.cleanUp();
         if (!configured()) return 0;
         HttpResponse<byte[]> r = send("GET", "df/flows", null, null, null, "Command Center");
         if (r.statusCode() != 200) return 0;
@@ -466,6 +517,14 @@ public final class DocFlowProxy {
     /** The mailbox of an email inbox, as an email trigger's (IMAP, or Microsoft 365 through Graph). */
     MailSource mailSource(Map<String, Object> email) throws IOException {
         String by = String.valueOf(email.getOrDefault("requestedBy", ""));
+        if ("outlook".equals(email.get("kind")) && email.get("ms_signin") instanceof String sid && !sid.isBlank()) {
+            // DA-1: read with the person's Microsoft sign-in, as long as the person who signed in is still an active user
+            Map<String, Object> row = microsoft.row(sid);
+            String signer = row == null ? by : String.valueOf(row.get("started_by"));
+            if (ctx.db().one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", signer) == null)
+                throw new OoaException("VAULT.DENIED", "The person who signed in to Microsoft for this inbox (" + signer + ") is not an active user", "Open the process and choose Sign in with Microsoft again.");
+            return ctx.graphMailbox(microsoft.accessToken(sid), (String) email.get("mailbox"), (String) email.getOrDefault("mail_folder", "inbox"));
+        }
         if ("outlook".equals(email.get("kind"))) {
             return ctx.graphMailbox(String.valueOf(email.get("tenant_id")), String.valueOf(email.get("client_id")),
                     secret(by, String.valueOf(email.get("client_secret_ref"))), (String) email.get("mailbox"), (String) email.getOrDefault("mail_folder", "inbox"));

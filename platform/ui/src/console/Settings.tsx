@@ -152,6 +152,8 @@ const SECTIONS: Section[] = [
       { key: "docflow_autostart", label: "Start with One CommandCenter", hint: "Starts DocFlow installed on this server, and stops it with One CommandCenter.", kind: "check" },
       { key: "docflow_url", label: "DocFlow address", hint: "Empty: http://127.0.0.1:8085.", kind: "text", placeholder: "http://127.0.0.1:8085" },
       { key: "docflow_token_ref", label: "Service token", hint: VAULT_REF, kind: "text", placeholder: "docflow/service/token" }] },
+    { title: "Email inboxes", settings: [
+      { key: "microsoft_app_id", label: "Microsoft app ID", hint: "For Sign in with Microsoft. Empty: One CommandCenter's own app.", kind: "text", placeholder: "11111111-2222-3333-4444-555555555555" }] },
   ] },
   { id: "connections", title: "E-mail, proxy and SIEM", mark: "E", colour: "#b45309", about: "One CommandCenter's own e-mail, its proxy to the internet, and audit forwarding to your SIEM.", groups: [
     { title: "E-mail", settings: [

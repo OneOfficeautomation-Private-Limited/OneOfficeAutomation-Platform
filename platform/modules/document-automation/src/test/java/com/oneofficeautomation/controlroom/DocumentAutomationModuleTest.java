@@ -28,7 +28,7 @@ class DocumentAutomationModuleTest {
         try (Db db = Db.embedded(data)) {
             ControlRoom cr = new ControlRoom(db, data, com.oneofficeautomation.packages.FirstPartyPackages.registry(), null);
             assertTrue(cr.modules.list().contains(Map.of("id", "document-automation", "name", "Document Automation",
-                    "version", com.oneofficeautomation.modules.docauto.DocumentAutomationModule.VERSION, "schema", 1)), String.valueOf(cr.modules.list()));
+                    "version", com.oneofficeautomation.modules.docauto.DocumentAutomationModule.VERSION, "schema", 2)), String.valueOf(cr.modules.list()));
             assertTrue(cr.modules.userRoutes.containsKey("docflow"));
             assertTrue(cr.modules.agentRoutes.keySet().containsAll(List.of("docflow/documents", "docflow/results")));
             assertTrue(cr.modules.callbacks.keySet().containsAll(List.of("docflow-callback/start-bot", "docflow-callback/events")));
@@ -37,11 +37,14 @@ class DocumentAutomationModuleTest {
             assertNotNull(cr.modules.taskKind("document_review").completeElsewhere(), "a review closes on the review screen, not in the Task inbox");
             for (String kind : com.oneofficeautomation.modules.docauto.DocFlowProxy.DOCUMENT_EVENTS.values()) assertTrue(TriggerKinds.pushed(kind), kind);
             assertEquals("", cr.platform.setting("docflow_url"));
+            assertEquals("", cr.platform.setting("microsoft_app_id"), "Sign in with Microsoft uses OOA's own app unless one is set");
             assertEquals(1, ((Number) cr.platform.setting("mcp_documents")).intValue());
             assertEquals(1, cr.modules.mcpTools.size(), "its documents_ tools");
             assertEquals(1, cr.modules.templateParts.size());
-            // ooa db migrate also brings each module's own tables up to date (version 1, docflow_collected, made when the module started)
-            assertTrue(Modules.migrateAll(db).contains(Map.of("module", "document-automation", "from", 1, "to", 1)));
+            // ooa db migrate also brings each module's own tables up to date (version 1, docflow_collected; version 2,
+            // docflow_ms_signin; made when the module started)
+            assertTrue(Modules.migrateAll(db).contains(Map.of("module", "document-automation", "from", 2, "to", 2)));
+            assertEquals(0, db.query("SELECT id FROM docflow_ms_signin").size(), "the Microsoft sign-ins table is there");
             assertEquals(0, db.query("SELECT document_id FROM docflow_collected").size(), "its table is there");
         }
     }

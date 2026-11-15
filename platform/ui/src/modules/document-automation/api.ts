@@ -108,7 +108,13 @@ export interface EmailInbox {
   enabled: boolean; kind: "email" | "outlook"; host?: string; port?: number; ssl?: boolean; username?: string; password_ref?: string;
   mailbox?: string; tenant_id?: string; client_id?: string; client_secret_ref?: string; mail_folder?: string;
   from_contains?: string; subject_contains?: string; interval_seconds?: number;
+  /** DA-1: read with "Sign in with Microsoft": the sign-in's id, and the account Microsoft confirmed (set by the server). */
+  ms_signin?: string; ms_account?: string;
 }
+/** DA-1: a started "Sign in with Microsoft": the code the person types at Microsoft, where, and how often to ask. */
+export interface MsSignInStart { id: string; userCode: string; verificationUri: string; expiresIn: number; interval: number }
+/** Where a "Sign in with Microsoft" is. */
+export type MsSignInState = { status: "pending" } | { status: "signed_in"; account: string } | { status: "failed"; message: string };
 export interface ProcessSettings {
   inputFolder: string; pollSeconds: number; classifyMode: "single" | "auto"; split: boolean; extraction: string;
   fieldConfidence: number; slaHours: number; email: EmailInbox | null;
@@ -250,6 +256,11 @@ export interface DocFlowApi {
   folders(): Promise<string[]>;
   /** DA-1: the vault values the person may use (folder/credential/attribute), for pickers instead of typing references. */
   vaultRefs(): Promise<{ ref: string; label: string }[]>;
+  /** DA-1: whether "Sign in with Microsoft" is offered for email inboxes (a Microsoft app is set up). */
+  msSignInReady(): Promise<boolean>;
+  /** Starts "Sign in with Microsoft": the person types the code at Microsoft; then ask msSignInPoll until it is done. */
+  msSignInStart(): Promise<MsSignInStart>;
+  msSignInPoll(id: string): Promise<MsSignInState>;
   reviewTask(documentId: string): Promise<ReviewTask>;
   /** Saves the review; `next` is the next document waiting in the same process, if any. */
   completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject"): Promise<{ next?: string }>;
@@ -572,6 +583,10 @@ export class SampleApi implements DocFlowApi {
   }
   async folders() { return ["Finance/Accounts payable", "Finance/Expenses", "Operations/Goods received", "Shared/Unsorted"]; }
   async vaultRefs() { return [{ ref: "mail/invoices/password", label: "mail · invoices · password" }, { ref: "m365/app/secret", label: "m365 · app · secret" }]; }
+  private msPolls = 0;
+  async msSignInReady() { return true; }
+  async msSignInStart(): Promise<MsSignInStart> { this.msPolls = 0; return { id: "ms" + "0".repeat(24), userCode: "SAMPLE-01", verificationUri: "https://microsoft.com/devicelogin", expiresIn: 900, interval: 1 }; }
+  async msSignInPoll(): Promise<MsSignInState> { return ++this.msPolls < 2 ? { status: "pending" } : { status: "signed_in", account: "invoices@example.com" }; }
   async createProcess(n: NewProcess) {
     const id = n.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "process";
     this.processesData.push({ id, name: n.name, folder: n.folder, docType: DOC_TYPES.find((t) => t.id === n.docType)?.name ?? n.docType, state: "draft", version: 1, today: 0, review: 0, processing: 0,

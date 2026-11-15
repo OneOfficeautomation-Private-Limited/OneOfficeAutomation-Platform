@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
 import { HINTS } from "./help";
+import { MicrosoftAccount } from "./msSignIn";
 import { AdvancedToggle } from "./ui";
-import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
+import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
 
@@ -28,8 +29,8 @@ const SEND_ON: [string, string][] = [
 
 type SetSettings = (patch: Partial<ProcessSettings>) => void;
 
-export function IntakeStage({ s, set, inbox, live, vaultRefs }:
-  { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null }) {
+export function IntakeStage({ s, set, inbox, live, vaultRefs, api }:
+  { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null; api?: DocFlowApi }) {
   const email = s.email;
   const setEmail = (patch: Partial<EmailInbox>) => set({ email: { ...(email ?? { enabled: true, kind: "outlook" }), ...patch } as EmailInbox });
   const text = (key: keyof EmailInbox, label: string, placeholder = "", hint?: string) => (
@@ -38,11 +39,14 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs }:
   );
   // DA-1: a saved account from the vault, picked from the ones the person may use; typing the reference is advanced
   const [typeRef, setTypeRef] = useState(false);
+  // DA-1: Microsoft 365 signs in with Microsoft; your own app (tenant, app id, secret) is advanced, or shown when already set
+  const ownApp = typeRef || (!email?.ms_signin && !!(email?.tenant_id || email?.client_id || email?.client_secret_ref));
   const secret = (key: "password_ref" | "client_secret_ref", label: string, placeholder: string) => {
     const value = String(email?.[key] ?? "");
     const refs = vaultRefs ?? [];
     const listed = !value || refs.some((r) => r.ref === value);
-    if (typeRef || !listed) return text(key, label + " (vault reference)", placeholder, "folder/credential/attribute; you must be allowed to use it");
+    // for Microsoft 365 the advanced switch shows your own app (with its secret picked); for IMAP it types the reference
+    if ((typeRef && key === "password_ref") || !listed) return text(key, label + " (vault reference)", placeholder, "folder/credential/attribute; you must be allowed to use it");
     return <Field label={label} hint={refs.length ? "Saved in the vault; only the ones you may use are listed." : "Nothing saved that you may use yet: ask your administrator to add it to the vault."}>
       {(id) => <Select id={id} value={value} onChange={(e) => setEmail({ [key]: e.target.value } as Partial<EmailInbox>)}
         options={[{ value: "", label: refs.length ? "Choose a saved value" : "None saved yet" }, ...refs.map((r) => ({ value: r.ref, label: r.label }))]} />}</Field>;
@@ -74,15 +78,21 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs }:
         <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "10px 0 0 24px" }}>
           <Field label="Mailbox kind">{(id) => <Select id={id} value={email.kind} onChange={(e) => setEmail({ kind: e.target.value as EmailInbox["kind"] })}
             options={[{ value: "outlook", label: "Microsoft 365 (Outlook)" }, { value: "email", label: "IMAP (any other mail server)" }]} />}</Field>
-          {email.kind === "outlook" ? (
+          {email.kind === "outlook" ? (<>
+            <MicrosoftAccount api={api} account={email.ms_account} signedIn={!!email.ms_signin}
+              onSignedIn={(id, account) => setEmail({ ms_signin: id, ms_account: account, tenant_id: "", client_id: "", client_secret_ref: "" })}
+              onSignOut={() => setEmail({ ms_signin: "", ms_account: "" })} />
             <div className="df-grid df-g2">
-              {text("mailbox", "Mailbox", "invoices@example.com")}
+              {text("mailbox", "Mailbox (optional)", "invoices@example.com", "Empty: the signed-in account's own mailbox. Or a shared mailbox it may read.")}
               {text("mail_folder", "Folder", "inbox")}
+            </div>
+            {ownApp && <div className="df-grid df-g2" role="group" aria-label="Your own Microsoft app">
+              <p className="df-small" style={{ gridColumn: "1 / -1", margin: 0 }}>Your own Microsoft app, signed in as the app (it needs the Mail.Read application permission).{email.ms_signin ? " Not used while signed in with Microsoft." : ""}</p>
               {text("tenant_id", "Directory (tenant) id")}
               {text("client_id", "Application (client) id")}
               {secret("client_secret_ref", "Client secret", "m365/app/secret")}
-            </div>
-          ) : (
+            </div>}
+          </>) : (
             <div className="df-grid df-g2">
               {text("host", "Mail server", "imap.example.com")}
               {text("port", "Port", "993")}
@@ -91,7 +101,8 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs }:
               {text("mail_folder", "Folder", "INBOX")}
             </div>
           )}
-          <AdvancedToggle open={typeRef} onToggle={() => setTypeRef(!typeRef)} what="type a vault reference instead of choosing a saved value" />
+          <AdvancedToggle open={typeRef} onToggle={() => setTypeRef(!typeRef)}
+            what={email.kind === "outlook" ? "your own Microsoft app instead of Sign in with Microsoft" : "type a vault reference instead of choosing a saved value"} />
           <div className="df-grid df-g2">
             {text("from_contains", "Only from (optional)", "@supplier.com")}
             {text("subject_contains", "Subject contains (optional)", "invoice")}

@@ -255,3 +255,9 @@
 .df-steps .df-stage { min-width: 112px; padding: 8px 10px; gap: 8px; }
 /* 14 Nov usability round, item 12: a learned label's remove button is large enough to click */
 .df-learned .df-link { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; min-height: 22px; padding: 0 4px; margin-left: 2px; border-radius: 4px; }
+/* DA-1: Sign in with Microsoft (email inbox) */
+.df-ms-account { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg); }
+.df-ms-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.df-ms-code { font-family: ui-monospace, Consolas, monospace; font-size: 18px; font-weight: 700; letter-spacing: 1px; padding: 2px 8px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-tint); color: var(--ui-text); }
+.df-ms-account .df-head-row { flex-wrap: wrap; }
+.df-ms-account .df-chip { white-space: normal; overflow-wrap: anywhere; max-width: 100%; height: auto; min-height: 22px; padding: 2px 8px; }
