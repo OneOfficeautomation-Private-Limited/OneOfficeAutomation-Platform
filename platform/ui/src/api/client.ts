@@ -41,9 +41,23 @@ export type PanelEntry = string | { choice: string; options: { label: string; fi
 export type ActionManifest = {
   id: string; name: string; category?: string; description?: string;
   inputs?: { properties?: Record<string, FieldSpec>; required?: string[] };
-  outputs?: { properties?: Record<string, FieldSpec> };
+  /** What the action gives back, by name: the toolkits' manifest lists them flat ({text: {...}}), not under "properties". */
+  outputs?: Record<string, FieldSpec>;
   "x-ooa-panel"?: { main?: PanelEntry[]; more?: PanelEntry[] };
 };
+
+/**
+ * An action's outputs by name. The manifest lists them flat; an older form wrapped them in "properties" (kept readable).
+ * Reading only the wrapped form hid "Save results in" for every toolkit action (16 Nov 2026).
+ */
+export function actionOutputs(spec?: { outputs?: unknown } | null): Record<string, FieldSpec> {
+  const o = spec?.outputs;
+  if (!o || typeof o !== "object") return {};
+  const m = o as Record<string, unknown>;
+  const p = m.properties;
+  const wrapped = Object.keys(m).length === 1 && !!p && typeof p === "object" && !("x-ooa-type" in (p as object)) && !("description" in (p as object));
+  return (wrapped ? p : m) as Record<string, FieldSpec>;
+}
 export type PackageManifest = { id: string; name: string; version: string; description?: string; actions: ActionManifest[]; conditions?: ActionManifest[]; iterators?: ActionManifest[] };
 
 /** A variable: in_out is both an input and an output; local (or none) is a working value inside the agent. */

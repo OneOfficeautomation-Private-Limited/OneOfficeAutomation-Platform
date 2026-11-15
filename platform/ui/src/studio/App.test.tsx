@@ -28,7 +28,7 @@ function fakeServer() {
     "GET tree": () => ({ workspace: "C:/ws", tree }),
     "GET packages": () => ({ packages: [
       { id: "ooa.excel", name: "Excel", version: "1.0.0", actions: [{ id: "open", name: "Open workbook" }, { id: "close", name: "Close workbook" },
-        { id: "count_rows", name: "Count rows", outputs: { properties: { count: { "x-ooa-type": "Number", "x-ooa-label": "Row count" } } } }] },
+        { id: "count_rows", name: "Count rows", outputs: { count: { "x-ooa-type": "Number", "x-ooa-label": "Row count" } } }] },
       { id: "ooa.browser", name: "Browser", version: "1.0.0", actions: [{ id: "type_text", name: "Type text", inputs: { properties: { text: {} } } },
         { id: "element_action", name: "Element action", inputs: { properties: {
           window: { type: "object", "x-ooa-type": "Dictionary" }, object: { type: "object", "x-ooa-type": "Dictionary" }, selector: { type: "string", "x-ooa-type": "String" },

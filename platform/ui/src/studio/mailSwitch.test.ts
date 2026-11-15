@@ -3,7 +3,9 @@ import type { Flow, PackageManifest } from "../api/client";
 import { servicesUsed, switchMailService } from "./mailSwitch";
 
 const props = (...names: string[]) => ({ properties: Object.fromEntries(names.map((n) => [n, {}])) });
-const act = (id: string, inputs: string[], outputs: string[] = [], name = id) => ({ id, name, inputs: props(...inputs), outputs: props(...outputs) });
+// outputs as the toolkits' manifest gives them: flat, by name
+const outs = (...names: string[]) => Object.fromEntries(names.map((n) => [n, { "x-ooa-type": "Any" }]));
+const act = (id: string, inputs: string[], outputs: string[] = [], name = id) => ({ id, name, inputs: props(...inputs), outputs: outs(...outputs) });
 const PACKAGES = [
   { id: "ooa.microsoft365", name: "Microsoft 365", version: "1", actions: [
     act("list_mail", ["access_token", "folder", "unread_only", "read_only", "from_contains", "subject_contains", "max_results", "mailbox"], ["table", "count"], "Find emails (Outlook)"),

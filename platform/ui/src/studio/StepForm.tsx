@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
+import { actionOutputs, type FieldSpec, type Flow, type FlowStep, type PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
 import { StepErrorFields } from "./ErrorPolicy";
@@ -94,7 +94,7 @@ export function StepForm({ step, packages, onArg, onNote }:
     else bySelectorAsked.add(step.id);
     redraw((n) => n + 1);
   }}>{bySelector ? "Capture the element instead" : "Use a selector instead"}</button> : null;
-  const outputs: [string, FieldSpec][] = Object.entries(spec?.outputs?.properties ?? {});
+  const outputs: [string, FieldSpec][] = Object.entries(actionOutputs(spec));
   const outcome = isElementAction(step.action) ? outcomeOf(String(step.args?.action ?? "click")) : null;
   if (outcome && !outputs.some(([n]) => n === "result")) outputs.push(["result", { "x-ooa-type": outcome.type, "x-ooa-label": "Result" }]);
 

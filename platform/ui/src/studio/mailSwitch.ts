@@ -1,4 +1,4 @@
-import type { Flow, FlowStep, PackageManifest } from "../api/client";
+import { actionOutputs, type Flow, type FlowStep, type PackageManifest } from "../api/client";
 
 /**
  * A2 (command review, batch 7): "Switch mail service" turns the mail steps of an agent from one service into another
@@ -142,7 +142,7 @@ function switchStep(step: FlowStep, from: MailService, to: MailService, packages
     if (spec?.inputs?.properties?.[n]) args[n] = v;
     else if (!["session", "access_token", "mailbox", "base_url", "endpoint_override"].includes(k)) dropped.push(k);
   }
-  const outputs = spec?.outputs?.properties ?? {};
+  const outputs = actionOutputs(spec);
   const out: Record<string, string> = {}, lostOut: string[] = [];
   for (const [k, v] of Object.entries(step.out ?? {})) {
     const n = k === "emails" && outputs.table ? "table" : k;
