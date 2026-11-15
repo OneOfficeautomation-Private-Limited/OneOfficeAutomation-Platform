@@ -148,6 +148,27 @@ class StudioServerRoutesTest {
      * from, a folder's contents with folders first, a file's own folder, and no hidden files; and a Credential field's
      * vault list, empty when Studio is not connected to One CommandCenter (item 6).
      */
+    /** Calculate and Set Yes/No (16 Nov 2026): a formula's result with the variables' values, or what it still needs. */
+    @SuppressWarnings("unchecked")
+    @Test void formulaPreviewWorksOutAFormulaWithTheVariablesValues() throws Exception {
+        Path root = Files.createTempDirectory("ooa-formula");
+        int port = StudioControlRoomTest.freePort();
+        new StudioServer(root, port, Path.of("../../examples/refund")).start();
+        String base = "http://127.0.0.1:" + port;
+
+        Map<String, Object> ok = call(base, "POST", "/api/formula/preview", Map.of("expr", "($price$ * $qty$) * (1 + $tax$ / 100)", "variables", Map.of("price", 12.5, "qty", 3, "tax", 18)));
+        assertEquals("44.25", ok.get("text"), "shown without trailing zeros");
+        assertEquals("Number", ok.get("type"));
+        assertEquals(List.of(), ok.get("missing"));
+        Map<String, Object> yes = call(base, "POST", "/api/formula/preview", Map.of("expr", "$total$ > 1000 and $country$ == 'IN'", "variables", Map.of("total", 1500, "country", "IN")));
+        assertEquals("true", yes.get("text"));
+        Map<String, Object> needs = call(base, "POST", "/api/formula/preview", Map.of("expr", "$price$ * $qty$", "variables", Map.of("price", 2)));
+        assertEquals(List.of("qty"), needs.get("missing"));
+        assertNull(needs.get("text"), "nothing is worked out while a variable has no value");
+        Map<String, Object> bad = call(base, "POST", "/api/formula/preview", Map.of("expr", "(1 +", "variables", Map.of()));
+        assertEquals("EXPR.INVALID", ((Map<String, Object>) bad.get("error")).get("code"));
+    }
+
     @SuppressWarnings("unchecked")
     @Test void browseThisComputerAndTheVaultList() throws Exception {
         Path root = Files.createTempDirectory("ooa-browse");

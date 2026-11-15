@@ -124,6 +124,7 @@ export type Problem = { stepId?: string; path?: string; message: string; suggest
 /** One thing a run reported: a step started, finished or failed, a log line, a variable set, the run ended. */
 export type RunEvent = { seq: number; type: string; stepId?: string | null; ts?: string; data?: Record<string, unknown> };
 export type RunError = { code: string; message: string; suggestedFix?: string | null; stepId?: string };
+export type FormulaPreview = { value?: unknown; text?: string; type?: string; missing?: string[]; error?: { code: string; message: string } };
 export type RunResult = { status: string; outputs?: Record<string, unknown>; error?: RunError | null; durationMs?: number; stepsExecuted?: number };
 /** Where a debugged run is stopped, and the values it holds there. */
 export type DebugState = { stepId: string; action: string; reason?: string; variables?: Record<string, unknown> };
@@ -255,6 +256,10 @@ export class StudioApi {
   }
   /** The problems the server finds in an agent, without saving it. */
   async validate(flow: Flow) { return (await this.call<{ problems?: Problem[] }>("POST", "validate", flow)).problems ?? []; }
+  /** A formula's result with the given variable values (Calculate, Set Yes/No); variables it needs that have no value are listed instead. */
+  formulaPreview(expr: string, variables: Record<string, unknown>) {
+    return this.call<FormulaPreview>("POST", "formula/preview", { expr, variables });
+  }
   /** Shows the file or folder in File Explorer (Windows). */
   async reveal(path: string) { await this.call("POST", "files/reveal", { path }); }
   /** Uploads a file into a folder as it is (a taken name gets " (2)"); gives where it went. */

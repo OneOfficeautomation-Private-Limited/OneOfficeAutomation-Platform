@@ -247,6 +247,28 @@ Calculations are worked out when the step runs.
 You can use `+ - * / %`, comparisons (`== != < > <= >=`), `&&` and `||`, and functions such as `round($x, 2)`,
 `toNumber($text)` and `upper($name)`.
 
+**Calculate (Number)** is the easy way to work out a number. Choose **Pick an operation** and pick add, subtract,
+multiply, divide, remainder, power, square root, absolute, negate, round, round up, round down, integer part, decimal
+part, minimum, maximum, sum, average, percent of (A percent of B) or percentage change (from A to B); or choose **Write a
+formula** and type it as in a spreadsheet: `($price$ * $qty$) * (1 + $tax$ / 100)`. Under the formula Studio shows its
+result with your variables' default values while you type, or says which variable needs a default first, or what is
+wrong with the formula. **Decimals** rounds the result. **Set Yes/No (Boolean)** works the same way for conditions:
+`$total$ > 1000 and $country$ == 'IN'`.
+
+Functions for numbers: `round(x, 2)`, `floor(x)`, `ceiling(x)`, `truncate(x, 2)`, `power(x, y)`, `sqrt(x)`, `mod(a, b)`,
+`abs(x)`, `min`, `max`, `sum($list)`, `average($list)` and `clamp(x, low, high)`. For text: `indexOf`, `left`, `right`,
+`repeat`, `padLeft`, `padRight`, `titleCase`, `normalizeSpace`, `upper`, `lower`, `trim`, `replace`, `substring`,
+`split` and `join`.
+
+Commands for the usual changes, without a formula:
+
+| Toolkit | Commands |
+| --- | --- |
+| Number | Calculate, List statistics (count, sum, average, minimum, maximum, median), Round to a step (0.05, 15 minutes, a pack of 12), Format as currency, percent or unit, Number to words (cheques; lakh and crore too); conditions Number is between, Compare numbers (with a tolerance) |
+| String | Join texts, Find all matches, Extract with pattern (named parts as a Dictionary), Remove characters (digits, letters, punctuation, accents ...), Normalize spaces, Insert text, Remove part of text, Repeat text, Mask text (cards, e-mail addresses), Shorten text, Count words and lines, Fill a template (`Dear {name}`), Encode or decode text (URL, HTML, XML, JSON, Base64), Change case (also camelCase, PascalCase, snake_case, kebab-case); conditions Starts with, Ends with, Contains, Is empty, Matches a pattern |
+| Boolean | Set Yes/No (from a value or a formula), Combine Yes/No values (all, any, exactly one, none), Number to Yes/No; conditions Is Yes, Is No |
+| Convert | Convert value: text, number, Yes/No, date, list, dictionary or JSON text into any other, with a date pattern (dd/MM/yyyy), a locale for numbers (de-DE reads 1.234,50), a list separator, and a fallback value instead of an error |
+
 ## 7. Conditions: the If builder
 
 **If**, **Else if**, **Wait for condition** and **Loop > While** use the same condition builder.

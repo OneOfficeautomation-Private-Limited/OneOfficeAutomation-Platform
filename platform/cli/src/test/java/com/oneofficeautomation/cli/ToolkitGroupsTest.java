@@ -62,6 +62,6 @@ class ToolkitGroupsTest {
         int inGroups = 0;
         for (ToolkitGroup g : ServiceLoader.load(ToolkitGroup.class)) inGroups += g.toolkits().size();
         assertEquals(FirstPartyPackages.CORE.size() + inGroups, all.size());
-        assertEquals(88, all.size(), "87 first-party toolkits and the runner's core package, as before the split");
+        assertEquals(89, all.size(), "87 first-party toolkits and the runner's core package, as before the split, plus Convert (16 Nov 2026)");
     }
 }

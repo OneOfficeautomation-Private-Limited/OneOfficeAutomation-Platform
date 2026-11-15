@@ -22,12 +22,13 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Azure AI services](ooa-azure_ai.md) | `ooa.azure_ai` | 8 | 0 | 0 | Read sentiment, entities and personal data in text with Azure AI Language, text, fields and tables from documents with Document Intelligence, and tags, captions and text in pictures with Image Analysis. |
 | [Azure DevOps](ooa-azure_devops.md) | `ooa.azure_devops` | 49 | 1 | 0 | Work with Azure DevOps: work items and WIQL queries, comments and attachments, Git repositories and pull requests, pipelines, builds and sprints. Works with the cloud service and Azure DevOps Server. |
 | [Azure VMs](ooa-azure_vm.md) | `ooa.azure_vm` | 8 | 0 | 0 | List Azure virtual machines, read their power state, start, stop (deallocate or power off) and restart them, and snapshot their disks. |
-| [Boolean](ooa-boolean.md) | `ooa.boolean` | 5 | 0 | 0 | Convert and invert true/false values. |
+| [Boolean](ooa-boolean.md) | `ooa.boolean` | 8 | 2 | 0 | Set, combine, check, convert and invert Yes/No (true/false) values. |
 | [Box](ooa-box.md) | `ooa.box` | 16 | 0 | 0 | Work with Box folders and files: upload, download, copy, move, search, share links and invite collaborators. |
 | [Browser](ooa-browser.md) | `ooa.browser` | 28 | 4 | 1 | Open web pages, click, type, select, read text and tables, run JavaScript, download files and take screenshots. |
 | [Business rules](ooa-rules.md) | `ooa.rules` | 1 | 0 | 0 | Decide with a decision table kept as a CSV file (or a table): conditions in in: columns, results in out: columns. |
 | [Coded agents](ooa-coded.md) | `ooa.coded` | 1 | 0 | 0 | Run an agent written in Python (main(inputs, ooa)) that calls toolkit commands through the run. |
 | [Communications mining](ooa-comms.md) | `ooa.comms` | 2 | 0 | 0 | Find the topics in many e-mails, tickets or messages, and route each message to a queue by keywords. |
+| [Convert](ooa-convert.md) | `ooa.convert` | 1 | 0 | 0 | Change a value from one type to another: text, number, Yes/No, date, list, dictionary or JSON. |
 | [Credential vault](ooa-vault.md) | `ooa.vault` | 2 | 1 | 0 | Save a credential's new value in One CommandCenter's vault, for example after a password reset, and check when a credential expires. |
 | [CSV/TXT](ooa-csv.md) | `ooa.csv` | 2 | 0 | 1 | Read and write delimited text files as tables. |
 | [Currency](ooa-currency.md) | `ooa.currency` | 3 | 0 | 0 | Convert amounts between currencies and look up exchange rates from the ECB, a JSON rates service or your own table. |
@@ -74,7 +75,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 102 | 0 | 1 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 21 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
 | [Network](ooa-network.md) | `ooa.network` | 7 | 2 | 0 | Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3. |
-| [Number](ooa-number.md) | `ooa.number` | 6 | 0 | 0 | Round, format and generate numbers with exact decimal arithmetic. |
+| [Number](ooa-number.md) | `ooa.number` | 11 | 2 | 0 | Calculate, round, format and generate numbers with exact decimal arithmetic. |
 | [OCR](ooa-ocr.md) | `ooa.ocr` | 8 | 1 | 0 | Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract, or the OCR built into Windows when Tesseract is not installed). |
 | [Okta](ooa-okta.md) | `ooa.okta` | 17 | 0 | 0 | Create and manage Okta users, change their status, reset passwords and manage group membership. |
 | [Open Excel and Word files (needs Office)](ooa-office_attach.md) | `ooa.office_attach` | 9 | 0 | 0 | Read, write and save an Excel workbook or Word document that is already open on the desktop, in the same window. |
@@ -98,7 +99,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Slack](ooa-slack.md) | `ooa.slack` | 10 | 0 | 0 | Post messages to Slack channels and users. |
 | [Snowflake](ooa-snowflake.md) | `ooa.snowflake` | 11 | 0 | 0 | Run SQL in Snowflake, read results into data tables, browse databases, schemas and tables, and load rows. |
 | [SOAP Web Service](ooa-soap.md) | `ooa.soap` | 2 | 0 | 0 | Read a service's WSDL, call SOAP 1.1/1.2 web services and read the response as a dictionary. |
-| [String](ooa-string.md) | `ooa.string` | 16 | 2 | 0 | Text manipulation: extract, replace, split, change case. |
+| [String](ooa-string.md) | `ooa.string` | 29 | 7 | 0 | Text manipulation: extract, replace, split, join, clean, mask, fill templates, encode and change case. |
 | [System](ooa-system.md) | `ooa.system` | 15 | 0 | 0 | Read environment variables and runner information; lock, sign out, restart or shut down the runner. |
 | [Terminal emulator (TN3270, TN5250, VT over SSH)](ooa-terminal.md) | `ooa.terminal` | 19 | 0 | 0 | Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. 3270 needs the free wc3270 engine on the runner (wc3270 installer); 5250 and SSH need nothing. |
 | [Trigger Loop](ooa-triggerloop.md) | `ooa.triggerloop` | 0 | 1 | 5 | Wait for events (new files, timer ticks, process starts, key presses, clicks) and run the loop's nested steps once per event. |
@@ -112,4 +113,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 101 toolkits, 1306 actions, 50 conditions and 18 loop types.
+In all: 102 toolkits, 1328 actions, 59 conditions and 18 loop types.

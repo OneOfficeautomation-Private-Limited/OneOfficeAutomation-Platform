@@ -336,6 +336,11 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-fieldset legend { font-weight: 600; padding: 0 4px; }
 .st-label { font-weight: 600; color: var(--ui-text); }
 .st-source { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* Calculate and Set Yes/No: the formula, its result with the variables' defaults, and what it may use */
+.st-formula { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.st-formula-result { margin: 0; font-size: 12px; color: var(--ui-text-2); }
+.st-formula-result b { color: var(--ui-text); font-weight: 600; }
+.st-formula-bad { color: var(--ui-error-text); }
 .st-seg { display: inline-flex; flex-wrap: wrap; flex-shrink: 0; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); overflow: hidden; align-self: flex-start; }
 .st-seg-btn { height: 28px; padding: 0 10px; border: 0; border-right: 1px solid var(--ui-accent); background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12.5px; cursor: pointer; }
 .st-seg-btn:last-child { border-right: 0; }

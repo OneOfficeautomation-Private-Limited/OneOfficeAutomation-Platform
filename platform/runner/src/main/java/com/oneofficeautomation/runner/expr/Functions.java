@@ -44,13 +44,13 @@ public final class Functions {
     private static int digits(List<Object> a) { return a.size() > 1 ? n(a, 1).intValue() : 0; }
 
     /** A number without trailing zeros after the point (4.0 -> 4, 2.50 -> 2.5), never in E notation. */
-    static BigDecimal plain(BigDecimal x) {
+    public static BigDecimal plain(BigDecimal x) {
         BigDecimal p = x.stripTrailingZeros();
         return p.scale() < 0 ? p.setScale(0) : p;
     }
 
     /** Whole powers up to 1000 exactly; other powers (negative, fractional) as a double, written the shortest way. */
-    static BigDecimal power(BigDecimal x, BigDecimal y) {
+    public static BigDecimal power(BigDecimal x, BigDecimal y) {
         boolean whole = y.signum() == 0 || y.stripTrailingZeros().scale() <= 0;
         if (whole && y.signum() >= 0 && y.compareTo(BigDecimal.valueOf(1000)) <= 0) return plain(x.pow(y.intValue()));
         double r = Math.pow(x.doubleValue(), y.doubleValue());
