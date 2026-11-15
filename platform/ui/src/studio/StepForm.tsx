@@ -284,10 +284,10 @@ export function StepForm({ step, packages, onArg, onNote }:
       {outputs.length > 0 && <>
         <h3 className="st-prop-section">Save results in</h3>
         <div className="st-prop-fields">
-          {outputs.map(([name, o]) => (
-            <Field key={step.id + ":out:" + name} label={o["x-ooa-label"] ?? name.replace(/_/g, " ")} layout="beside" info={o.description}>{() =>
-              <OutputChooser step={step} output={name} type={o["x-ooa-type"]} label={"Keep " + (o["x-ooa-label"] ?? name.replace(/_/g, " ")) + " in"} />}</Field>
-          ))}
+          {outputs.map(([name, o]) => { const label = o["x-ooa-label"] ?? outputLabel(name); return (
+            <Field key={step.id + ":out:" + name} label={label} layout="beside" info={o.description}>{() =>
+              <OutputChooser step={step} output={name} type={o["x-ooa-type"]} label={"Keep " + label + " in"} />}</Field>
+          ); })}
         </div>
       </>}
       {/* C3: what happens when this step fails, as UiPath's ContinueOnError and Retry Scope */}
@@ -322,6 +322,12 @@ export function chosenOption(g: Extract<PanelGroup, { choice: string }>, step: F
 }
 
 /** A choice (buttons, then the chosen option's fields) or a tick box (its fields when ticked), as the Classic Studio drew them. */
+/** An output's label when the toolkit gives none: its name as words, starting with a capital (result -> Result). */
+function outputLabel(name: string): string {
+  const words = name.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 function PanelGroupView({ group, step, props, shown, field, clear }: { group: PanelGroup; step: FlowStep; props: Record<string, FieldSpec>; shown: string[];
   field: (name: string) => ReactNode; clear: (fields: string[]) => void }) {
   const has = (f: string) => step.args?.[f] !== undefined && step.args[f] !== "";
