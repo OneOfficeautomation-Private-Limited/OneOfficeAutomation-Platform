@@ -103,6 +103,27 @@ class MailAccountsTest {
         assertEquals(List.of("UID MOVE 13 \"Processed\"", "CREATE \"Processed\"", "UID MOVE 13 \"Processed\""), moves, "the server said TRYCREATE: the folder is made, then the move done");
     }
 
+    @Test @SuppressWarnings("unchecked")
+    void tryingARuleOnAServerNobodyAnswersSaysSo() throws Exception {
+        int closed;
+        try (java.net.ServerSocket s = new java.net.ServerSocket(0)) { closed = s.getLocalPort(); }
+        Map<String, Object> made = call("POST", "/api/mail-accounts", Map.of("name", "Nobody home", "provider", "imap", "address", "nobody@acme.local",
+                "host", "127.0.0.1", "port", closed, "ssl", false, "secret_ref", "mail/scans/password"), token);
+        String id = (String) made.get("id");
+        Map<String, Object> empty = call("POST", "/api/mail-accounts/" + id + "/rules/try",
+                Map.of("conditions", Map.of("match", "all", "when", List.of(Map.of("field", "from", "op", "domain_in", "value", "")))), token);
+        assertTrue(String.valueOf(empty.get("_body")).contains("Give a value for From (condition 1)"), "the builder's names, not field ids: " + empty.get("_body"));
+
+        Map<String, Object> tried = call("POST", "/api/mail-accounts/" + id + "/rules/try",
+                Map.of("conditions", Map.of("match", "all", "when", List.of(Map.of("field", "from", "op", "domain_in", "value", "@acme.com")))), token);
+        assertEquals(400, tried.get("_status"), "an answer, never a dropped connection");
+        Map<String, Object> error = (Map<String, Object>) tried.get("error");
+        assertEquals("CR.MAIL_NOT_READ", error.get("code"), String.valueOf(tried.get("_body")));
+        assertTrue(String.valueOf(error.get("message")).startsWith("Could not read the mail account 'Nobody home'"), String.valueOf(error));
+        assertTrue(String.valueOf(error.get("suggestedFix")).contains("Test now"), String.valueOf(error));
+        assertEquals("failed", cr.mailAccounts.find(id).get("status"), "the failed look is the account's health too");
+    }
+
     @Test void theVendorIsFoundFromTheAddress() {
         MailProviders p = cr.mailAccounts.providers;
         assertEquals(Map.of("domain", "gmail.com", "provider", "gmail", "how", "domain"), p.detect("AP.Team@Gmail.com"));

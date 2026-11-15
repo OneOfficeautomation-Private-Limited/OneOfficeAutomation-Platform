@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CrApi, CrUser, MailAccount, MailConditions, MailCondition, MailDetect, MailProvider, MailRule, MailStatus, MailTry } from "../api/cr";
 import { Button, Dialog, Field, IconButton, MicrosoftSignInDialog, PrincipalPicker, principalDirectory, Select, TextInput, VaultPicker, vaultRefsFrom, type VaultRef } from "../components";
 import { RefreshButton, when } from "./ListParts";
+import "./mailAccounts.css";
 
 /**
  * Mail accounts (MA-3; the user's OK "Yes, build it", 15 Nov 2026), on Manage > Connections: each mailbox set up once

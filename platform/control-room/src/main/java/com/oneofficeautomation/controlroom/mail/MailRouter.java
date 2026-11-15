@@ -54,7 +54,8 @@ public final class MailRouter {
     /** An account's rules in order, with a sentence for each. */
     public Map<String, Object> rules(User by, String accountId) {
         Map<String, Object> a = cr.mailAccounts.row(accountId);
-        if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'");
+        if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'",
+                "Ask its owner (" + a.get("owner") + ") to add you to who may use it (Manage > Connections > Mail accounts).");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> r : cr.db.query("SELECT * FROM mail_rules WHERE account_id = ? ORDER BY position", a.get("id"))) out.add(view(r));
         Map<String, Object> m = new LinkedHashMap<>();
@@ -94,7 +95,8 @@ public final class MailRouter {
      */
     public Map<String, Object> saveRule(User by, String id, String accountId, Map<String, Object> in, String ip) {
         Map<String, Object> old = id == null ? null : rule(id);
-        if (old != null && !mayChange(by, old)) throw new OoaException("CR.FORBIDDEN", "Only " + old.get("owner") + ", who made this rule, or the mail account's owner can change it");
+        if (old != null && !mayChange(by, old)) throw new OoaException("CR.FORBIDDEN", "Only " + old.get("owner") + ", who made this rule, or the mail account's owner can change it",
+                "Ask " + old.get("owner") + " or the mail account's owner to change it.");
         Map<String, Object> a = cr.mailAccounts.row(accountId != null ? accountId : String.valueOf(old.get("account_id")));
         if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'",
                 "Ask its owner (" + a.get("owner") + ") to add you to who may use it.");
@@ -148,7 +150,7 @@ public final class MailRouter {
     void checkTarget(User by, String kind, String target) {
         if (kind.equals("trigger")) {
             Map<String, Object> t = cr.db.one("SELECT id, kind FROM triggers WHERE id = ?", target);
-            if (t == null) throw new OoaException("CR.NOT_FOUND", "Trigger " + target + " not found");
+            if (t == null) throw new OoaException("CR.NOT_FOUND", "Trigger " + target + " not found", "Choose a trigger that exists (Manage > Triggers).");
             cr.require(by, "triggers.manage", "send emails to triggers");
             return;
         }
@@ -157,7 +159,8 @@ public final class MailRouter {
 
     public void deleteRule(User by, String id, String ip) {
         Map<String, Object> r = rule(id);
-        if (!mayChange(by, r)) throw new OoaException("CR.FORBIDDEN", "Only " + r.get("owner") + ", who made this rule, or the mail account's owner can delete it");
+        if (!mayChange(by, r)) throw new OoaException("CR.FORBIDDEN", "Only " + r.get("owner") + ", who made this rule, or the mail account's owner can delete it",
+                "Ask " + r.get("owner") + " or the mail account's owner to delete it.");
         cr.db.update("DELETE FROM mail_rules WHERE id = ?", id);
         cr.audit.record(by.username(), "mail_rule.delete", "mail_rule", id, Map.of("account", r.get("account_id")), "ok", ip);
     }
@@ -185,7 +188,8 @@ public final class MailRouter {
     /** The order the account's rules are checked in (its owner or an administrator). */
     public void order(User by, String accountId, List<String> ids, String ip) {
         Map<String, Object> a = cr.mailAccounts.row(accountId);
-        if (!cr.mailAccounts.canChange(by, a)) throw new OoaException("CR.FORBIDDEN", "Only " + a.get("owner") + ", who owns the mail account, or an administrator can change the order of its rules");
+        if (!cr.mailAccounts.canChange(by, a)) throw new OoaException("CR.FORBIDDEN", "Only " + a.get("owner") + ", who owns the mail account, or an administrator can change the order of its rules",
+                "Ask " + a.get("owner") + " or an administrator to change the order.");
         Set<String> mine = new HashSet<>();
         for (Map<String, Object> r : cr.db.query("SELECT id FROM mail_rules WHERE account_id = ?", a.get("id"))) mine.add(String.valueOf(r.get("id")));
         if (!mine.equals(new HashSet<>(ids)) || ids.size() != mine.size()) throw MailRules.bad("Give every rule of the account once, in the new order");
@@ -211,14 +215,19 @@ public final class MailRouter {
      * Tries conditions on the latest emails of a folder (at most 200), reading nothing into any process: which match,
      * and how many an earlier rule already takes (when the account's first matching rule wins).
      */
-    public Map<String, Object> tryRule(User by, String accountId, Map<String, Object> in) throws IOException {
+    public Map<String, Object> tryRule(User by, String accountId, Map<String, Object> in) {
         Map<String, Object> a = cr.mailAccounts.row(accountId);
-        if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'");
+        if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'",
+                "Ask its owner (" + a.get("owner") + ") to add you to who may use it (Manage > Connections > Mail accounts).");
         Map<String, Object> cond = MailRules.check(in.get("conditions"));
         String folder = in.get("folder") instanceof String f && !f.isBlank() ? f : null;
         String except = in.get("rule") instanceof String r ? r : null;
-        MailSource src = cr.mailAccounts.open(a, by.username(), folder);
-        List<Map<String, Object>> recent = src.fetch(null, true).messages();
+        MailSource src;
+        List<Map<String, Object>> recent;
+        try {
+            src = cr.mailAccounts.open(a, by.username(), folder);
+            recent = src.fetch(null, true).messages();
+        } catch (IOException | RuntimeException e) { throw cr.mailAccounts.notRead(a, e); }
         if (recent.size() > 200) recent = recent.subList(recent.size() - 200, recent.size());
         List<Map<String, Object>> earlier = new ArrayList<>();
         // the rules before this one (a new rule goes after every rule that does not take every email)
@@ -229,14 +238,16 @@ public final class MailRouter {
                 if (((Number) r.get("position")).intValue() < before && !r.get("id").equals(except) && !MailRules.describe(conditions(r)).equals("Every email")) earlier.add(r);
         List<Map<String, Object>> matched = new ArrayList<>(), others = new ArrayList<>();
         int taken = 0;
-        for (Map<String, Object> msg : recent) {
-            Supplier<List<MailSource.Attachment>> files = files(src, msg);
-            if (MailRules.matches(cond, msg, files)) {
-                boolean earlierTakes = earlier.stream().anyMatch(r -> MailRules.matches(conditions(r), msg, files));
-                if (earlierTakes) taken++;
-                else matched.add(brief(msg));
-            } else if (others.size() < 20) others.add(brief(msg));
-        }
+        try {
+            for (Map<String, Object> msg : recent) {
+                Supplier<List<MailSource.Attachment>> files = files(src, msg);
+                if (MailRules.matches(cond, msg, files)) {
+                    boolean earlierTakes = earlier.stream().anyMatch(r -> MailRules.matches(conditions(r), msg, files));
+                    if (earlierTakes) taken++;
+                    else matched.add(brief(msg));
+                } else if (others.size() < 20) others.add(brief(msg));
+            }
+        } catch (OoaException e) { throw e; } catch (RuntimeException e) { throw cr.mailAccounts.notRead(a, e); }
         return Map.of("looked_at", recent.size(), "matched", matched, "taken_by_earlier", taken, "not_matched", others, "says", MailRules.describe(cond));
     }
 
@@ -264,7 +275,8 @@ public final class MailRouter {
     /** Check now, for a person who may use the account. */
     public Map<String, Object> readNow(User by, String accountId) {
         Map<String, Object> a = cr.mailAccounts.row(accountId);
-        if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'");
+        if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'",
+                "Ask its owner (" + a.get("owner") + ") to add you to who may use it (Manage > Connections > Mail accounts).");
         return readNow(String.valueOf(a.get("id")));
     }
 
@@ -349,7 +361,8 @@ public final class MailRouter {
         email.put("rule", r.get("name"));
         if (kind.equals("trigger")) {
             Map<String, Object> t = cr.db.one("SELECT * FROM triggers WHERE id = ?", target);
-            if (t == null) throw new OoaException("CR.NOT_FOUND", "Trigger " + target + " not found");
+            if (t == null) throw new OoaException("CR.NOT_FOUND", "Trigger " + target + " not found",
+                    "The trigger was deleted: remove this rule from the mail account's Mail rules, or choose another target.");
             if (!Boolean.TRUE.equals(t.get("enabled"))) return;
             Map<String, Object> ev = new LinkedHashMap<>(email);
             ev.put("kind", "mail");
@@ -406,24 +419,33 @@ public final class MailRouter {
     /** The emails no rule took, newest first. */
     public List<Map<String, Object>> unmatched(User by, String accountId) {
         Map<String, Object> a = cr.mailAccounts.row(accountId);
-        if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'");
+        if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'",
+                "Ask its owner (" + a.get("owner") + ") to add you to who may use it (Manage > Connections > Mail accounts).");
         return cr.db.query("SELECT id, received, sender, subject, status FROM mail_unmatched WHERE account_id = ? AND status = 'waiting' ORDER BY received DESC", a.get("id"));
     }
 
     /** Sends a not-matched email to a rule's target now, or ignores it (rule null). */
     @SuppressWarnings("unchecked")
-    public void handleUnmatched(User by, String unmatchedId, String ruleId, String ip) throws IOException {
+    public void handleUnmatched(User by, String unmatchedId, String ruleId, String ip) {
         Map<String, Object> u = cr.db.one("SELECT * FROM mail_unmatched WHERE id = ?", unmatchedId);
-        if (u == null) throw new OoaException("CR.NOT_FOUND", "That email is no longer in Not matched");
+        if (u == null) throw new OoaException("CR.NOT_FOUND", "That email is no longer in Not matched", "Open the mail account's Mail rules again to see the emails still waiting.");
         Map<String, Object> a = cr.mailAccounts.row(String.valueOf(u.get("account_id")));
-        if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'");
+        if (!cr.mailAccounts.canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'",
+                "Ask its owner (" + a.get("owner") + ") to add you to who may use it (Manage > Connections > Mail accounts).");
         if (ruleId != null) {
             Map<String, Object> r = rule(ruleId);
             if (!r.get("account_id").equals(a.get("id"))) throw MailRules.bad("Choose one of this account's rules");
             Map<String, Object> msg = (Map<String, Object>) JsonLite.parse(String.valueOf(u.get("message")));
             String folder = r.get("folder") == null || String.valueOf(r.get("folder")).isBlank() ? null : String.valueOf(r.get("folder"));
-            MailSource src = cr.mailAccounts.open(a, by.username(), folder);
-            deliver(a, r, msg, files(src, msg));
+            List<MailSource.Attachment> got;
+            try { got = files(cr.mailAccounts.open(a, by.username(), folder), msg).get(); }
+            catch (IOException e) { throw cr.mailAccounts.notRead(a, e); }
+            catch (UncheckedIOException e) { throw cr.mailAccounts.notRead(a, e.getCause()); }
+            try { deliver(a, r, msg, () -> got); }
+            catch (IOException e) {
+                throw new OoaException("CR.MAIL_NOT_SENT", "Could not hand the email to rule '" + r.get("name") + "': " + MailAccounts.message(e),
+                        "Check that what the rule sends emails to is running (a process needs Document Automation), then send the email again from Not matched.");
+            }
             firstTime("target:" + r.get("target_kind") + ":" + r.get("target"), key(msg));
         }
         cr.db.update("UPDATE mail_unmatched SET status = ? WHERE id = ?", ruleId == null ? "ignored" : "sent", unmatchedId);

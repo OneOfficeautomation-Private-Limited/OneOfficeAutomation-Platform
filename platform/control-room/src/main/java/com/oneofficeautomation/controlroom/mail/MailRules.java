@@ -38,6 +38,10 @@ public final class MailRules {
             "attachment_name", Set.of("matches"),
             "has_attachments", Set.of("is"),
             "received_after", Set.of("after"));
+    /** The names people see in the rule builder, used in messages. */
+    static final Map<String, String> LABELS = Map.of(
+            "from", "From", "to", "To or Cc", "subject", "Subject", "body", "Text", "attachment_type", "Attachment type",
+            "attachment_name", "Attachment name", "has_attachments", "Has attachments", "received_after", "Received after");
     static final Map<String, Set<String>> TYPES = Map.of(
             "pdf", Set.of("pdf"), "image", Set.of("png", "jpg", "jpeg", "tif", "tiff", "bmp", "gif", "webp", "heic"),
             "xml", Set.of("xml"), "office", Set.of("doc", "docx", "xls", "xlsx", "xlsm", "csv", "ppt", "pptx"),
@@ -66,15 +70,15 @@ public final class MailRules {
             if (!(o instanceof Map<?, ?> c)) throw bad("Each condition has field, op and value");
             String field = String.valueOf(c.get("field")), op = String.valueOf(c.get("op"));
             if (!OPS.containsKey(field)) throw bad("'" + field + "' is not something a rule can look at; use one of " + new TreeSet<>(OPS.keySet()));
-            if (!OPS.get(field).contains(op)) throw bad(field + " can be checked with " + String.join(", ", new TreeSet<>(OPS.get(field))) + ", not " + op);
+            if (!OPS.get(field).contains(op)) throw bad(LABELS.get(field) + " can be checked with " + String.join(", ", new TreeSet<>(OPS.get(field))) + ", not " + op);
             List<String> values = values(c.get("value"));
-            if (values.isEmpty()) throw bad("Give a value for " + field);
+            if (values.isEmpty()) throw bad("Give a value for " + LABELS.get(field) + " (condition " + (out.size() + 1) + ")");
             for (String v : values) {
                 if (v.length() > 300) throw bad("A value has at most 300 characters");
                 if (op.equals("regex")) try { Pattern.compile(v); } catch (PatternSyntaxException e) { throw bad("'" + v + "' is not a valid pattern: " + e.getDescription()); }
                 if (field.equals("attachment_type") && !v.equals("any") && !TYPES.containsKey(v)) throw bad("Attachment types are pdf, image, xml, office, zip or any");
-                if (field.equals("received_after")) try { LocalDate.parse(v); } catch (RuntimeException e) { throw bad("received_after is a date such as 2026-11-01"); }
-                if (field.equals("has_attachments") && !v.equals("true") && !v.equals("false")) throw bad("has_attachments is true or false");
+                if (field.equals("received_after")) try { LocalDate.parse(v); } catch (RuntimeException e) { throw bad("Received after is a date such as 2026-11-01"); }
+                if (field.equals("has_attachments") && !v.equals("true") && !v.equals("false")) throw bad("Has attachments is true or false");
             }
             out.add(new LinkedHashMap<>(Map.of("field", field, "op", op, "value", values.size() == 1 && !(c.get("value") instanceof List<?>) ? values.get(0) : values)));
         }

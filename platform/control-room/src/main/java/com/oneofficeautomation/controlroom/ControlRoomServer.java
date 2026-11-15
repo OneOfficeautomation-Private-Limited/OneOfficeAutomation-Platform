@@ -220,16 +220,24 @@ public final class ControlRoomServer {
             Map<String, Object> error = e.toMap();
             if (e.suggestedFix() == null || e.suggestedFix().isBlank()) error.put("suggestedFix", ServerFixes.forCode(e.code()));   // every error says what to do (E4)
             sendJson(ex, status, Map.of("error", error));
+        } catch (IOException e) {
+            // a server the request reached out to (a mail server, a web address) failed before any answer: still an answer,
+            // never a dropped connection. Once the answer had started, the client itself went away: nothing to say.
+            if (ex.getResponseCode() == -1) internalError(ex, e);
         } catch (RuntimeException | Error e) {
-            // Any failure still gets an answer, so a client never sees a dropped connection.
-            // error batch E8: a reference the person can give an administrator, who finds it in the log next to the details
-            String ref = "ERR-" + Long.toString(System.currentTimeMillis(), 36).toUpperCase(java.util.Locale.ROOT) + "-" + Integer.toString((int) (Math.random() * 1296), 36).toUpperCase(java.util.Locale.ROOT);
-            System.err.println("[" + ref + "] " + ex.getRequestMethod() + " " + ex.getRequestURI().getPath() + " failed:");
-            e.printStackTrace();
-            try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "One CommandCenter could not finish this request (reference " + ref + ")",
-                    "suggestedFix", "Try again; if it keeps happening, give an administrator the reference " + ref + ": the server log has the details next to it."))); }
-            catch (RuntimeException | IOException ignored) { /* the response had already started */ }
+            internalError(ex, e);
         } finally { ex.close(); }
+    }
+
+    /** Any failure still gets an answer, so a client never sees a dropped connection. */
+    private void internalError(HttpExchange ex, Throwable e) {
+        // error batch E8: a reference the person can give an administrator, who finds it in the log next to the details
+        String ref = "ERR-" + Long.toString(System.currentTimeMillis(), 36).toUpperCase(java.util.Locale.ROOT) + "-" + Integer.toString((int) (Math.random() * 1296), 36).toUpperCase(java.util.Locale.ROOT);
+        System.err.println("[" + ref + "] " + ex.getRequestMethod() + " " + ex.getRequestURI().getPath() + " failed:");
+        e.printStackTrace();
+        try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "One CommandCenter could not finish this request (reference " + ref + ")",
+                "suggestedFix", "Try again; if it keeps happening, give an administrator the reference " + ref + ": the server log has the details next to it."))); }
+        catch (RuntimeException | IOException ignored) { /* the response had already started */ }
     }
 
     /**

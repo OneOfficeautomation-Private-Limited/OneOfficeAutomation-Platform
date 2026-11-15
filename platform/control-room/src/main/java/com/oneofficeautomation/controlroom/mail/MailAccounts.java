@@ -150,7 +150,8 @@ public final class MailAccounts {
     public Map<String, Object> save(User by, String id, Map<String, Object> in, String ip) {
         Map<String, Object> old = id == null ? null : row(id);
         if (old == null) cr.require(by, "globals.manage", "make mail accounts");
-        else if (!canChange(by, old)) throw new OoaException("CR.FORBIDDEN", "Only " + old.get("owner") + ", who owns this mail account, or an administrator can change it");
+        else if (!canChange(by, old)) throw new OoaException("CR.FORBIDDEN", "Only " + old.get("owner") + ", who owns this mail account, or an administrator can change it",
+                "Ask " + old.get("owner") + " or an administrator to make the change.");
         String name = str(in, "name", old == null ? null : String.valueOf(old.get("name")));
         if (name == null || name.isBlank() || name.length() > 120) throw bad("A mail account needs a name of 1 to 120 characters");
         Map<String, Object> clash = cr.db.one("SELECT id FROM mail_accounts WHERE name = ?", name.trim());
@@ -237,7 +238,8 @@ public final class MailAccounts {
     /** Deletes an account that no rule uses any more (its owner or an administrator). */
     public void delete(User by, String id, String ip) {
         Map<String, Object> a = row(id);
-        if (!canChange(by, a)) throw new OoaException("CR.FORBIDDEN", "Only " + a.get("owner") + ", who owns this mail account, or an administrator can delete it");
+        if (!canChange(by, a)) throw new OoaException("CR.FORBIDDEN", "Only " + a.get("owner") + ", who owns this mail account, or an administrator can delete it",
+                "Ask " + a.get("owner") + " or an administrator to delete it.");
         int rules = cr.db.query("SELECT id FROM mail_rules WHERE account_id = ?", a.get("id")).size();
         if (rules > 0) throw new OoaException("CR.CONFLICT", "The mail account '" + a.get("name") + "' is used by " + rules + " rule" + (rules == 1 ? "" : "s"),
                 "Remove it from those processes, triggers and agents first (its page lists them).");
@@ -251,7 +253,8 @@ public final class MailAccounts {
     /** Reaches the mailbox now (its Inbox) and records the status: working, sign_in_expired, wrong_password or failed. */
     public Map<String, Object> test(User by, String id) {
         Map<String, Object> a = row(id);
-        if (!canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'");
+        if (!canUse(by, a)) throw new OoaException("CR.FORBIDDEN", "You may not use the mail account '" + a.get("name") + "'",
+                "Ask its owner (" + a.get("owner") + ") to add you to who may use it (Manage > Connections > Mail accounts).");
         Map<String, Object> out = new LinkedHashMap<>();
         try {
             MailSource.Batch b = open(a, by.username(), "inbox").fetch(null, false);
@@ -268,6 +271,22 @@ public final class MailAccounts {
             out.put("message", message(e));
         }
         return out;
+    }
+
+    /**
+     * The mail server could not be read for a person waiting on the answer (Try the rule, sending a not-matched email):
+     * recorded as the account's last look, and said as a message with what to do (never a dropped connection).
+     */
+    public OoaException notRead(Map<String, Object> a, Exception e) {
+        if (e instanceof OoaException o && !(o.code().equals("CR.MS_SIGNIN"))) return o;
+        String status = statusOf(e);
+        record(a, status, message(e));
+        String fix = switch (status) {
+            case "sign_in_expired" -> "Open the mail account (Manage > Connections > Mail accounts) and choose Sign in again.";
+            case "wrong_password" -> "Change the password in the vault entry the mail account uses, then choose Test now.";
+            default -> "Check the mail account's server, port and SSL (Manage > Connections > Mail accounts > Show advanced settings), then choose Test now.";
+        };
+        return new OoaException("CR.MAIL_NOT_READ", "Could not read the mail account '" + a.get("name") + "': " + message(e), fix);
     }
 
     /** Records how the last look at the mailbox went. */
