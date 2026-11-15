@@ -38,6 +38,35 @@ public final class Functions {
         ALL.put(name, a -> { need(a, min, max, name); return f.apply(a); });
     }
 
+    /** Spaces for titleCase and normalizeSpace: space, tab, line breaks, form feed, vertical tab and the no-break space of web pages (as the Python reference). */
+    static final String SPACES = " \t\n\r\f\u000b\u00a0";
+
+    private static int digits(List<Object> a) { return a.size() > 1 ? n(a, 1).intValue() : 0; }
+
+    /** A number without trailing zeros after the point (4.0 -> 4, 2.50 -> 2.5), never in E notation. */
+    static BigDecimal plain(BigDecimal x) {
+        BigDecimal p = x.stripTrailingZeros();
+        return p.scale() < 0 ? p.setScale(0) : p;
+    }
+
+    /** Whole powers up to 1000 exactly; other powers (negative, fractional) as a double, written the shortest way. */
+    static BigDecimal power(BigDecimal x, BigDecimal y) {
+        boolean whole = y.signum() == 0 || y.stripTrailingZeros().scale() <= 0;
+        if (whole && y.signum() >= 0 && y.compareTo(BigDecimal.valueOf(1000)) <= 0) return plain(x.pow(y.intValue()));
+        double r = Math.pow(x.doubleValue(), y.doubleValue());
+        if (Double.isNaN(r) || Double.isInfinite(r)) throw new OoaException("EXPR.INVALID", "power(" + x.toPlainString() + ", " + y.toPlainString() + ") has no number as its result",
+                "A negative number has no fractional power, and 0 has no negative one; check the values.");
+        return plain(BigDecimal.valueOf(r));
+    }
+
+    private static String pad(String x, int width, String with, boolean left) {
+        if (width > 1_000_000) throw new OoaException("EXPR.INVALID", "Width " + width + " is too large", "Pad to 1,000,000 characters at most.");
+        String c = with.isEmpty() ? " " : with.substring(0, 1);
+        if (x.length() >= width) return x;
+        String fill = c.repeat(width - x.length());
+        return left ? fill + x : x + fill;
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Object> listArg(List<Object> a) {
         return a.size() == 1 && a.get(0) instanceof List<?> l ? (List<Object>) l : a;
@@ -91,6 +120,54 @@ public final class Functions {
             if (a.get(0) instanceof Collection<?> c) for (Object x : c) t = t.add(Values.toNumber(x));
             return t;
         });
+        // Calculations made easy (16 Nov 2026): rounding down and up, powers, roots, remainders, averages and limits.
+        def("floor", 1, 2, a -> n(a, 0).setScale(digits(a), RoundingMode.FLOOR));
+        def("ceiling", 1, 2, a -> n(a, 0).setScale(digits(a), RoundingMode.CEILING));
+        def("truncate", 1, 2, a -> n(a, 0).setScale(digits(a), RoundingMode.DOWN));
+        def("power", 2, 2, a -> power(n(a, 0), n(a, 1)));
+        def("sqrt", 1, 1, a -> {
+            BigDecimal x = n(a, 0);
+            if (x.signum() < 0) throw new OoaException("EXPR.INVALID", "sqrt() of a negative number (" + x.toPlainString() + ")", "Give sqrt() zero or a positive number; abs() makes a number positive.");
+            return plain(BigDecimal.valueOf(Math.sqrt(x.doubleValue())));
+        });
+        def("mod", 2, 2, a -> {
+            BigDecimal d = n(a, 1);
+            if (d.signum() == 0) throw new OoaException("EXPR.INVALID", "mod() by zero", "Give mod() a divisor other than 0.");
+            return n(a, 0).remainder(d);
+        });
+        def("average", 1, 99, a -> {
+            List<Object> l = listArg(a);
+            if (l.isEmpty()) return null;
+            BigDecimal t = BigDecimal.ZERO;
+            for (Object x : l) t = t.add(Values.toNumber(x));
+            return plain(t.divide(BigDecimal.valueOf(l.size()), 10, RoundingMode.HALF_UP));
+        });
+        def("clamp", 3, 3, a -> n(a, 0).max(n(a, 1)).min(n(a, 2)));
+        // Text made easy (16 Nov 2026)
+        def("indexOf", 2, 3, a -> BigDecimal.valueOf(s(a, 0).indexOf(s(a, 1), a.size() > 2 ? Math.max(0, n(a, 2).intValue()) : 0)));
+        def("left", 2, 2, a -> { String x = s(a, 0); return x.substring(0, Math.max(0, Math.min(x.length(), n(a, 1).intValue()))); });
+        def("right", 2, 2, a -> { String x = s(a, 0); return x.substring(x.length() - Math.max(0, Math.min(x.length(), n(a, 1).intValue()))); });
+        def("repeat", 2, 2, a -> {
+            String x = s(a, 0);
+            int times = Math.max(0, n(a, 1).intValue());
+            if ((long) x.length() * times > 1_000_000) throw new OoaException("EXPR.INVALID", "repeat() would make more than 1,000,000 characters", "Repeat the text fewer times.");
+            return x.repeat(times);
+        });
+        def("padLeft", 2, 3, a -> pad(s(a, 0), n(a, 1).intValue(), a.size() > 2 ? s(a, 2) : " ", true));
+        def("padRight", 2, 3, a -> pad(s(a, 0), n(a, 1).intValue(), a.size() > 2 ? s(a, 2) : " ", false));
+        def("titleCase", 1, 1, a -> {
+            String x = s(a, 0);
+            StringBuilder sb = new StringBuilder(x.length());
+            boolean start = true;
+            for (int i = 0; i < x.length(); i++) {
+                char c = x.charAt(i);
+                boolean space = SPACES.indexOf(c) >= 0;
+                sb.append(space ? c : start ? Character.toUpperCase(c) : Character.toLowerCase(c));
+                start = space;
+            }
+            return sb.toString();
+        });
+        def("normalizeSpace", 1, 1, a -> s(a, 0).replaceAll("[" + SPACES + "]+", " ").replaceAll("^ | $", ""));
         def("now", 0, 0, a -> LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS));
         def("today", 0, 0, a -> LocalDate.now(ZoneOffset.UTC).atStartOfDay());
         def("dateAdd", 2, 3, a -> {

@@ -232,10 +232,20 @@ comparisons, `and`, `or`, `not`, `&&`, `||`, `!`) and calls to allow-listed func
 and no method call on objects. The functions (`Functions`) are:
 
 `upper lower trim len concat contains startsWith endsWith replace substring split join toNumber toString toBoolean
-round abs min max sum now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch
-regexExtract jsonParse jsonStringify if guid first last union intersection base64Encode base64Decode uriEncode uriDecode`
-regexExtract jsonParse jsonStringify if time timeSpan timeBetween totalSeconds totalMinutes totalHours totalDays
+indexOf left right repeat padLeft padRight titleCase normalizeSpace
+round floor ceiling truncate abs power sqrt mod min max sum average clamp
+now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch
+regexExtract jsonParse jsonStringify if guid first last union intersection base64Encode base64Decode uriEncode uriDecode
+time timeSpan timeBetween totalSeconds totalMinutes totalHours totalDays
 imageWidth imageHeight binaryLength toBase64 fromBase64`
+
+Calculations (16 Nov 2026): `floor`, `ceiling` and `truncate` take an optional number of decimals (`floor(2.349, 2)` is
+2.34); `power(x, y)` is exact for whole powers from 0 to 1000 and otherwise worked out as a double (`power(2, 0.5)`,
+`power(2, -2)`), as is `sqrt`; `mod(a, b)` keeps the sign of `a`; `average` takes a list or several values and keeps up to
+10 decimals; `clamp(x, low, high)` keeps a value inside a range. Text: `indexOf(text, find, start)` counts from 0 and
+gives -1 when not found; `left`/`right` take that many characters; `padLeft`/`padRight` fill to a width with a
+character (a space by default); `titleCase` starts each word with a capital; `normalizeSpace` turns every run of
+spaces, tabs, line breaks and no-break spaces into one space and trims the ends.
 
 `first`/`last` take a list, a Data Table (its rows) or a text (its characters); `union`/`intersection` keep the first
 list's order without repeats; `uriEncode` encodes as JavaScript's `encodeURIComponent` (a space is `%20`) and

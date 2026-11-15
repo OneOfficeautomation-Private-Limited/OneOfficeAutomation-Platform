@@ -1,0 +1,36 @@
+{
+  "name": "030_calc_and_text_functions",
+  "description": "Calculations and text made easy: floor, ceiling, truncate, power, sqrt, mod, average and clamp give the same numbers in every runner; indexOf, left, right, padLeft, titleCase and normalizeSpace the same text.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c30",
+    "name": "c30",
+    "variables": [
+      {"name": "prices", "type": "List", "default": [10, 20, 45]},
+      {"name": "invoice", "type": "String", "default": "  inv-2026   0042  "},
+      {"name": "total", "type": "Number", "direction": "output"},
+      {"name": "rounded", "type": "String", "direction": "output"},
+      {"name": "maths", "type": "String", "direction": "output"},
+      {"name": "code", "type": "String", "direction": "output"},
+      {"name": "name", "type": "String", "direction": "output"}
+    ],
+    "steps": [
+      {"id": "s1", "action": "core/set", "args": {"variable": "total", "value": {"expr": "clamp(average($prices) * 1.18, 0, 100)"}}},
+      {"id": "s2", "action": "core/set", "args": {"variable": "rounded", "value": "${floor(29.5)} ${ceiling(29.01)} ${truncate(-2.99, 1)}"}},
+      {"id": "s3", "action": "core/set", "args": {"variable": "maths", "value": "${power(2, 10)} ${sqrt(81)} ${mod(17, 5)} ${power(4, 0.5)}"}},
+      {"id": "s4", "action": "core/set", "args": {"variable": "code", "value": {"expr": "upper(left(normalizeSpace($invoice), 3)) + '-' + padLeft(right(normalizeSpace($invoice), 2), 6, '0') + '@' + indexOf($invoice, '2026')"}}},
+      {"id": "s5", "action": "core/set", "args": {"variable": "name", "value": {"expr": "titleCase('ACME trading co')"}}}
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "total": 29.5,
+      "rounded": "29 30 -2.9",
+      "maths": "1024 9 2 2",
+      "code": "INV-000042@6",
+      "name": "Acme Trading Co"
+    }
+  }
+}
