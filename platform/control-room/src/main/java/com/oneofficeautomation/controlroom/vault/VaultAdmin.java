@@ -436,6 +436,7 @@ public final class VaultAdmin {
 
     /** Decrypts every stored value with the current key and encrypts it with next (database in one transaction, then the config files). */
     private int reencryptAll(Vault next) {
+        // asked before the transaction: a read of a missing table would spoil it (PostgreSQL)
         int n = db.tx(() -> {
             int k = 0;
             for (Map<String, Object> c : db.query("SELECT locker, name, attribute, ciphertext FROM credentials")) {
@@ -485,6 +486,13 @@ public final class VaultAdmin {
                 db.update("UPDATE event_subscriptions SET secret = ? WHERE id = ?", next.encrypt(cr.vault.decrypt(v, bound), bound), s.get("id"));
                 k++;
             }
+            // "Sign in with Microsoft" for Microsoft 365 mailboxes (device codes, lasting sign-ins)
+            for (Map<String, Object> s : db.query("SELECT id, secret FROM ms_signins WHERE secret IS NOT NULL")) {
+                    if (!(s.get("secret") instanceof String v) || v.isEmpty()) continue;
+                    String bound = "ms-signin:" + s.get("id");
+                    db.update("UPDATE ms_signins SET secret = ? WHERE id = ?", next.encrypt(cr.vault.decrypt(v, bound), bound), s.get("id"));
+                    k++;
+                }
             return k;
         });
         // passwords in the configuration files (database, HTTPS certificate): each file is kept as .before-rotate first

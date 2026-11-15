@@ -240,7 +240,7 @@ class TenantMoveTest {
         Set<String> reviewed = Set.of(
             // the columns of TenantMove.SECRETS
             "ControlRoom.java", "vault/VaultAdmin.java", "DeviceLogin.java", "repository/AgentWrites.java", "runs/QueueTools.java", "auth/Mfa.java",
-            "ApprovalChannels.java", "EventSubscriptions.java",
+            "ApprovalChannels.java", "EventSubscriptions.java", "MicrosoftSignIn.java",
             // install values that stay with the install (settings evaluation_started, install_id; audit chain key in ControlRoom)
             "Licensing.java",
             // the region's catalog and configuration files: not tenant data
@@ -259,7 +259,7 @@ class TenantMoveTest {
         assertEquals(List.of(), unknown, "a new encrypted value: add it to TenantMove.SECRETS and VaultAdmin.reencryptAll, then to this list");
         Set<String> tables = new HashSet<>();
         for (TenantMove.Secret s : TenantMove.SECRETS) tables.add(s.table());
-        assertEquals(Set.of("credentials", "credential_user_values", "lockers", "queue_items", "settings", "users", "event_subscriptions"), tables);
+        assertEquals(Set.of("credentials", "credential_user_values", "lockers", "queue_items", "settings", "users", "event_subscriptions", "ms_signins"), tables);
     }
 
     /** The move file with its manifest changed (for the version test). */

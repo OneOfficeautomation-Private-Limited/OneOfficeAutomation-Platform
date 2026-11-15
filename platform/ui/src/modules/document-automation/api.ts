@@ -108,7 +108,13 @@ export interface EmailInbox {
   enabled: boolean; kind: "email" | "outlook"; host?: string; port?: number; ssl?: boolean; username?: string; password_ref?: string;
   mailbox?: string; tenant_id?: string; client_id?: string; client_secret_ref?: string; mail_folder?: string;
   from_contains?: string; subject_contains?: string; interval_seconds?: number;
+  /** DA-1: read with "Sign in with Microsoft": the sign-in's id, and the account Microsoft confirmed (set by the server). */
+  ms_signin?: string; ms_account?: string;
 }
+/** DA-1: a started "Sign in with Microsoft": the code the person types at Microsoft, where, and how often to ask. */
+export interface MsSignInStart { id: string; userCode: string; verificationUri: string; expiresIn: number; interval: number }
+/** Where a "Sign in with Microsoft" is. */
+export type MsSignInState = { status: "pending" } | { status: "signed_in"; account: string } | { status: "failed"; message: string };
 export interface ProcessSettings {
   inputFolder: string; pollSeconds: number; classifyMode: "single" | "auto"; split: boolean; extraction: string;
   fieldConfidence: number; slaHours: number; email: EmailInbox | null;
@@ -229,6 +235,43 @@ export interface TestSet {
   lastRun: SetRun | null; items?: TestSetItem[];
 }
 
+/**
+ * DA-1 item 5 (DocFlow 3.2.0): folders on DocFlow's server that processes may watch and save results in. An
+ * administrator lists them; people choose inside them instead of typing a network path.
+ */
+export type FolderAccess = "ok" | "read" | "missing" | "denied";
+export interface FolderUse { id: string; name: string }
+export interface FolderRoot { name: string; path: string; access: FolderAccess; usedBy: FolderUse[] }
+/** limited false: no list (or a DocFlow before 3.2.0), so any typed folder works. */
+export interface FolderRoots { limited: boolean; roots: FolderRoot[]; outside: { id: string; name: string; use: "watched" | "results"; path: string }[] }
+export interface FolderEntry { name: string; path: string; waiting: number; watchedBy: FolderUse[] }
+export interface FolderListing {
+  path: string; name: string; root: { name: string; path: string }; parent: string | null;
+  access: FolderAccess; waiting: number; watchedBy: FolderUse[]; folders: FolderEntry[]; truncated: boolean;
+}
+export const NO_FOLDER_LIST: FolderRoots = { limited: false, roots: [], outside: [] };
+/** A folder's own name: the last part of its path. */
+export const lastPart = (p: string) => p.trim().replace(/[\\/]+$/, "").split(/[\\/]/).pop() || p.trim();
+/** The list as DocFlow reads DOCAUTO_ALLOWED_FOLDERS: folders separated by ';', each optionally "Name=folder". */
+export function parseFolderList(list: string): { name: string; path: string }[] {
+  return list.split(";").map((x) => x.trim()).filter(Boolean).map((part) => {
+    const at = part.indexOf("=");
+    const name = at >= 0 ? part.slice(0, at).trim() : "";
+    if (at < 0 || /[\\/:]/.test(name)) return { name: lastPart(part), path: part };
+    const path = part.slice(at + 1).trim();
+    return { name: name || lastPart(path), path };
+  });
+}
+export function formatFolderList(rows: { name: string; path: string }[]): string {
+  return rows.map((r) => (r.name.trim() && r.name.trim() !== lastPart(r.path) ? `${r.name.trim()}=${r.path.trim()}` : r.path.trim())).join("; ");
+}
+/** Is path this folder or inside it? For showing only: case and \ or / do not matter here; DocFlow decides on real paths. */
+export function inFolder(path: string, folder: string): boolean {
+  const n = (p: string) => p.trim().replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase();
+  const p = n(path), f = n(folder);
+  return !!f && (p === f || p.startsWith(f + "/"));
+}
+
 /** docType is a document type id (DocType.id). */
 /** email: the person will set up the inbox next (in the builder's step 2, Document ingestion). */
 export interface NewProcess { name: string; docType: string; folder: string; watchedFolder?: string; pollSeconds?: number; email?: boolean; fromBot: boolean }
@@ -248,6 +291,24 @@ export interface DocFlowApi {
   createProcess(p: NewProcess): Promise<{ id: string }>;
   /** The platform folders a new process can go in (where the person may edit). */
   folders(): Promise<string[]>;
+  /** DA-1: the vault values the person may use (folder/credential/attribute), for pickers instead of typing references. */
+  vaultRefs(): Promise<{ ref: string; label: string }[]>;
+  /** DA-1: whether "Sign in with Microsoft" is offered for email inboxes (a Microsoft app is set up). */
+  msSignInReady(): Promise<boolean>;
+  /** Starts "Sign in with Microsoft": the person types the code at Microsoft; then ask msSignInPoll until it is done. */
+  msSignInStart(): Promise<MsSignInStart>;
+  msSignInPoll(id: string): Promise<MsSignInState>;
+  /** DA-1: the folders processes may use; NO_FOLDER_LIST when none are listed or DocFlow is older than 3.2.0. */
+  folderRoots(): Promise<FolderRoots>;
+  /** The folders inside one of them (never files). */
+  folderList(path: string): Promise<FolderListing>;
+  /** A new folder inside one of them; returns it. */
+  folderCreate(path: string, name: string): Promise<FolderListing>;
+  /** What a list being edited would give, saving nothing (administrators). */
+  folderPreview(list: string): Promise<FolderRoots>;
+  /** The saved list as one line ("Name=folder; folder"); null when DocFlow is older than 3.2.0 (administrators). */
+  allowedFolders(): Promise<string | null>;
+  saveAllowedFolders(list: string): Promise<void>;
   reviewTask(documentId: string): Promise<ReviewTask>;
   /** Saves the review; `next` is the next document waiting in the same process, if any. */
   completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject"): Promise<{ next?: string }>;
@@ -375,12 +436,12 @@ const LANGUAGES: Omit<Language, "offered">[] = [
 const REVIEW = SAMPLE_REVIEW;
 
 const ENGINES: EngineOption[] = [
-  { id: "onecore", name: "OneCore", description: "Open source, runs on this server, free", color: "#2f6fde", engines: [
+  { id: "onecore", name: "OneCore", description: "Free engines that read pages here; nothing leaves this server", color: "#2f6fde", engines: [
     { id: "tesseract", name: "Tesseract 5", does: "Reads every page · 13 languages", status: "ready", runs: "server", price: "Free", free: true, key: "—" },
     { id: "paddleocr", name: "PaddleOCR", does: "Retries weak pages · faxes, photos", status: "ready", runs: "server", price: "Free", free: true, key: "—" },
     { id: "pdf-text", name: "PDF text layer", does: "Digital PDFs, no OCR", status: "ready", runs: "server", price: "Free", free: true, key: "—" },
     { id: "builtin-rules", name: "Rules extractor", does: "Fields by labels and patterns", status: "ready", runs: "server", price: "Free", free: true, key: "—" }] },
-  { id: "oneconnect", name: "OneConnect", description: "Cloud OCR, for weak pages", color: "#8b6ae8", engines: [
+  { id: "oneconnect", name: "OneConnect", description: "Paid cloud services read weak pages again", color: "#8b6ae8", engines: [
     { id: "azure-di", name: "Azure Document Intelligence", does: "Read, layout, prebuilt invoice", status: "optin", runs: "cloud", price: "$1.50 · $10 prebuilt", free: false, key: "Vault: not set" },
     { id: "google-docai", name: "Google Document AI", does: "OCR, form parser", status: "optin", runs: "cloud", price: "$1.50", free: false, key: "Vault: not set" },
     { id: "aws-textract", name: "AWS Textract", does: "Text, tables, expenses", status: "optin", runs: "cloud", price: "$1.50 · $10 expenses", free: false, key: "Vault: not set" },
@@ -569,6 +630,45 @@ export class SampleApi implements DocFlowApi {
     return { processId: target };
   }
   async folders() { return ["Finance/Accounts payable", "Finance/Expenses", "Operations/Goods received", "Shared/Unsorted"]; }
+  async vaultRefs() { return [{ ref: "mail/invoices/password", label: "mail · invoices · password" }, { ref: "m365/app/secret", label: "m365 · app · secret" }]; }
+  private msPolls = 0;
+  async msSignInReady() { return true; }
+  async msSignInStart(): Promise<MsSignInStart> { this.msPolls = 0; return { id: "ms" + "0".repeat(24), userCode: "SAMPLE-01", verificationUri: "https://microsoft.com/devicelogin", expiresIn: 900, interval: 1 }; }
+  async msSignInPoll(): Promise<MsSignInState> { return ++this.msPolls < 2 ? { status: "pending" } : { status: "signed_in", account: "invoices@example.com" }; }
+  // DA-1: folders on DocFlow's server, as a small tree (folder -> the folders in it)
+  private allowed = "Scans=\\\\scan01\\scans; Accounts payable=D:\\AP";
+  private tree: Record<string, string[]> = { "\\\\scan01\\scans": ["invoices", "receipts"], "\\\\scan01\\scans\\invoices": ["2025", "jeddah", "riyadh"],
+    "\\\\scan01\\scans\\invoices\\2025": [], "\\\\scan01\\scans\\invoices\\jeddah": [], "\\\\scan01\\scans\\invoices\\riyadh": [], "\\\\scan01\\scans\\receipts": [], "D:\\AP": [] };
+  private waiting: Record<string, number> = { "\\\\scan01\\scans\\invoices\\riyadh": 12, "\\\\scan01\\scans\\invoices\\jeddah": 3 };
+  private watched: Record<string, FolderUse[]> = { "\\\\scan01\\scans\\invoices\\jeddah": [{ id: "credit-notes", name: "Supplier credit notes" }] };
+  private sampleRoots(list: string): FolderRoots {
+    const roots = parseFolderList(list).map((r) => ({ ...r, access: (r.path in this.tree ? "ok" : "missing") as FolderAccess,
+      usedBy: Object.entries(this.watched).filter(([p]) => inFolder(p, r.path)).flatMap(([, u]) => u) }));
+    const outside = Object.entries(this.watched).filter(([p]) => roots.length && !roots.some((r) => inFolder(p, r.path)))
+      .flatMap(([p, u]) => u.map((x) => ({ ...x, use: "watched" as const, path: p })));
+    return { limited: roots.length > 0, roots, outside };
+  }
+  async folderRoots() { return this.sampleRoots(this.allowed); }
+  async folderList(path: string): Promise<FolderListing> {
+    const root = parseFolderList(this.allowed).find((r) => inFolder(path, r.path));
+    if (!root) throw new Error(`'${path}' is not one of the folders processes may use`);
+    if (!(path in this.tree)) throw new Error(`Folder not found: ${path}`);
+    const atRoot = path === root.path;
+    return { path, name: atRoot ? root.name : path.slice(path.lastIndexOf("\\") + 1), root, parent: atRoot ? null : path.slice(0, path.lastIndexOf("\\")),
+      access: "ok", waiting: this.waiting[path] ?? 0, watchedBy: this.watched[path] ?? [], truncated: false,
+      folders: this.tree[path].map((n) => { const p = path + "\\" + n; return { name: n, path: p, waiting: this.waiting[p] ?? 0, watchedBy: this.watched[p] ?? [] }; }) };
+  }
+  async folderCreate(path: string, name: string) {
+    await this.folderList(path);
+    if (!name.trim() || /[\\/:*?"<>|]/.test(name)) throw new Error("Use a folder name without \\ / : * ? \" < > |");
+    if (this.tree[path].includes(name.trim())) throw new Error(`There is already a folder named '${name.trim()}' in ${path}`);
+    this.tree[path] = [...this.tree[path], name.trim()].sort((a, b) => a.localeCompare(b));
+    this.tree[path + "\\" + name.trim()] = [];
+    return this.folderList(path + "\\" + name.trim());
+  }
+  async folderPreview(list: string) { return this.sampleRoots(list); }
+  async allowedFolders(): Promise<string | null> { return this.allowed; }
+  async saveAllowedFolders(list: string) { this.allowed = list; }
   async createProcess(n: NewProcess) {
     const id = n.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "process";
     this.processesData.push({ id, name: n.name, folder: n.folder, docType: DOC_TYPES.find((t) => t.id === n.docType)?.name ?? n.docType, state: "draft", version: 1, today: 0, review: 0, processing: 0,

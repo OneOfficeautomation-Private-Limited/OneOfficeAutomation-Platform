@@ -235,6 +235,10 @@ class DocFlowProxyTest {
         assertEquals("docs.manage", DocFlowProxy.permission("POST", "df/flows/ap/documents"));
         assertEquals("docs.engines", DocFlowProxy.permission("GET", "admin/settings"));
         assertEquals("docs.engines", DocFlowProxy.permission("PUT", "admin/settings"));
+        // DA-1: the folder picker browses DocFlow's server for people who change processes; the list is the administrator's
+        assertEquals("docs.manage", DocFlowProxy.permission("GET", "df/folders"));
+        assertEquals("docs.manage", DocFlowProxy.permission("POST", "df/folders"));
+        assertEquals("docs.engines", DocFlowProxy.permission("POST", "df/folders/preview"));
         // test sets: everyone who sees Document Automation sees them; making and running them is changing it
         assertEquals("docs.view", DocFlowProxy.permission("GET", "df/testsets"));
         assertEquals("docs.view", DocFlowProxy.permission("GET", "df/testsets/seed-1/runs/r1"));
@@ -550,6 +554,32 @@ class DocFlowProxyTest {
         }
     }
 
+    @Test void theFolderPickerNamesOnlyProcessesThePersonMaySee() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        String fiona = sessionFor("fpfiona", "bot_creator"), mia = sessionFor("fpmia", "bot_creator"), rob = sessionFor("fprob", "bot_runner");
+        cr.folders.setPermissions(admin, "Finance/Accounts payable", List.of(Map.of("principal", "user:fpfiona", "access", "edit")), null);
+        flowsJson = "[{\"id\":\"ap\",\"name\":\"AP\",\"folder\":\"Finance / Accounts payable\",\"status\":\"live\"},{\"id\":\"open\",\"name\":\"Open\",\"folder\":\"\",\"status\":\"live\"}]";
+        String ap = "{\"id\":\"ap\",\"name\":\"AP\"}", open = "{\"id\":\"open\",\"name\":\"Open\"}";
+        canned.put("GET df/folders", new Object[]{200, "{\"limited\":true,\"path\":\"D:\\\\scans\",\"parent\":null,\"watchedBy\":[" + ap + "," + open + "],"
+                + "\"roots\":[{\"name\":\"Scans\",\"usedBy\":[" + ap + "]}],\"outside\":[{\"id\":\"ap\",\"name\":\"AP\",\"use\":\"watched\",\"path\":\"E:\\\\old\"}],"
+                + "\"folders\":[{\"name\":\"x\",\"waiting\":2,\"watchedBy\":[" + ap + "]}]}"});
+        try {
+            HttpResponse<String> r = as(mia, "GET", "/api/docflow/df/folders?path=D%3A%5Cscans", null, "application/json");
+            assertEquals(200, r.statusCode(), r.body());
+            assertTrue(seen.get(seen.size() - 1).get("uri").endsWith("/df/folders?path=D%3A%5Cscans"));          // the folder asked for reaches DocFlow
+            assertFalse(r.body().contains("\"AP\""), r.body());                                            // mia may not see the AP process
+            assertTrue(r.body().contains("\"Open\"") && r.body().contains("\"waiting\":2") && r.body().contains("\"parent\":null"), r.body());
+            assertTrue(as(fiona, "GET", "/api/docflow/df/folders", null, "application/json").body().contains("\"AP\""));
+            assertEquals(403, as(rob, "GET", "/api/docflow/df/folders", null, "application/json").statusCode());         // seeing processes is not browsing the server
+            assertEquals(403, as(fiona, "POST", "/api/docflow/df/folders/preview", "{\"folders\":\"D:\\\\scans\"}", "application/json").statusCode());   // the list is the administrator's
+            assertEquals(200, call("POST", "/api/docflow/df/folders/preview", "{\"folders\":\"D:\\\\scans\"}").statusCode());
+        } finally {
+            canned.clear();
+            flowsJson = "[]";
+            cr.folders.setPermissions(admin, "Finance/Accounts payable", List.of(), null);
+        }
+    }
+
     @Test void testSetsAreForwardedAndTakeOnlyDocumentsThePersonMaySee() throws Exception {
         ControlRoom.User admin = cr.session(token);
         String tess = sessionFor("tess", "bot_creator"), tom = sessionFor("tom", "bot_creator");
@@ -840,5 +870,167 @@ class DocFlowProxyTest {
         assertEquals("Finance/Accounts payable", DocFlowProxy.folderKey(" Finance / Accounts payable "));
         assertEquals("", DocFlowProxy.folderKey(null));
         assertEquals("Shared", DocFlowProxy.folderKey("/Shared/"));
+    }
+
+    // ------------------------------------------------------------------ DA-1: Sign in with Microsoft
+
+    /** What the fake Microsoft was asked: "METHOD path body Authorization". */
+    final List<String> microsoftSeen = Collections.synchronizedList(new ArrayList<>());
+    volatile boolean deviceDone, refreshRevoked;
+
+    /** A fake Microsoft: the device code and token endpoints (device code and refresh grants) and a Graph mailbox. */
+    HttpServer fakeMicrosoft() throws Exception {
+        String claims = Base64.getUrlEncoder().withoutPadding().encodeToString("{\"tid\":\"tenant-1\",\"preferred_username\":\"invoices@contoso.com\"}".getBytes(StandardCharsets.UTF_8));
+        String idToken = "eyJhbGciOiJub25lIn0." + claims + ".sig";
+        HttpServer ms = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        ms.createContext("/", ex -> {
+            String path = ex.getRequestURI().getPath(), body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            microsoftSeen.add(ex.getRequestMethod() + " " + path + " " + body + " " + ex.getRequestHeaders().getFirst("Authorization"));
+            int status = 200;
+            String out;
+            if (path.equals("/organizations/oauth2/v2.0/devicecode"))
+                out = "{\"device_code\":\"DEV-SECRET\",\"user_code\":\"ABCD-EFGH\",\"verification_uri\":\"https://microsoft.com/devicelogin\",\"expires_in\":900,\"interval\":1}";
+            else if (path.equals("/organizations/oauth2/v2.0/token") && !deviceDone) {
+                status = 400;
+                out = "{\"error\":\"authorization_pending\",\"error_description\":\"AADSTS70016: OAuth 2.0 device flow error. Authorization is pending.\\r\\nTrace ID: x\"}";
+            } else if (path.equals("/organizations/oauth2/v2.0/token"))
+                out = "{\"access_token\":\"access-1\",\"refresh_token\":\"refresh-1\",\"expires_in\":3600,\"id_token\":\"" + idToken + "\"}";
+            else if (path.equals("/tenant-1/oauth2/v2.0/token") && refreshRevoked) {
+                status = 400;
+                out = "{\"error\":\"invalid_grant\",\"error_description\":\"AADSTS50173: The provided grant has expired due to it being revoked.\\r\\nTrace ID: y\"}";
+            } else if (path.equals("/tenant-1/oauth2/v2.0/token"))
+                out = "{\"access_token\":\"access-2\",\"refresh_token\":\"refresh-2\",\"expires_in\":3600}";
+            else if (path.startsWith("/v1.0/users/"))
+                out = "{\"value\":[{\"id\":\"m1\",\"receivedDateTime\":\"2026-11-15T08:00:00Z\"}]}";
+            else { status = 404; out = "{}"; }
+            byte[] b = out.getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().set("Content-Type", "application/json");
+            ex.sendResponseHeaders(status, b.length);
+            ex.getResponseBody().write(b);
+            ex.close();
+        });
+        ms.start();
+        return ms;
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void signInWithMicrosoftKeepsTheSignInEncryptedAndTheInboxReadsWithIt() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        HttpServer ms = fakeMicrosoft();
+        String url = "http://127.0.0.1:" + ms.getAddress().getPort();
+        System.setProperty("ooa.microsoft.login.url", url);
+        System.setProperty("ooa.microsoft.graph.url", url + "/v1.0");
+        try {
+            // offered only when a Microsoft app is known (OOA's own, or Settings > Document Automation > Microsoft app ID)
+            assertTrue(call("GET", "/api/docflow/ms-signin", null).body().contains("\"ready\":false"));
+            assertTrue(call("POST", "/api/docflow/ms-signin", "{}").body().contains("not set up"));
+            assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, Map.of("microsoft_app_id", "not-an-id"), null)).code());
+            cr.platform.updateSettings(admin, Map.of("microsoft_app_id", "11111111-2222-3333-4444-555555555555"), null);
+            assertTrue(call("GET", "/api/docflow/ms-signin", null).body().contains("\"ready\":true"));
+
+            // the person gets a code to type at Microsoft; the device code stays on the server, encrypted
+            String startBody = call("POST", "/api/docflow/ms-signin", "{}").body();
+            Map<String, Object> started = (Map<String, Object>) JsonLite.parse(startBody);
+            String id = (String) started.get("id");
+            assertEquals("ABCD-EFGH", started.get("userCode"));
+            assertEquals("https://microsoft.com/devicelogin", started.get("verificationUri"));
+            assertFalse(startBody.contains("DEV-SECRET"));
+            assertFalse(String.valueOf(cr.db.one("SELECT secret FROM ms_signins WHERE id = ?", id).get("secret")).contains("DEV-SECRET"));
+            assertTrue(microsoftSeen.stream().anyMatch(s -> s.startsWith("POST /organizations/oauth2/v2.0/devicecode") && s.contains("client_id=11111111-2222-3333-4444-555555555555")
+                    && s.contains("Mail.Read.Shared") && s.contains("offline_access")));
+
+            // pending until the person has signed in at Microsoft, then signed in as the account Microsoft names
+            cr.db.update("UPDATE ms_signins SET next_poll = ? WHERE id = ?", java.time.Instant.now().minusSeconds(5), id);
+            assertTrue(call("GET", "/api/docflow/ms-signin/" + id, null).body().contains("\"pending\""));
+            deviceDone = true;
+            cr.db.update("UPDATE ms_signins SET next_poll = ? WHERE id = ?", java.time.Instant.now().minusSeconds(5), id);
+            String done = call("GET", "/api/docflow/ms-signin/" + id, null).body();
+            assertTrue(done.contains("\"signed_in\"") && done.contains("invoices@contoso.com"), done);
+            Map<String, Object> row = cr.db.one("SELECT * FROM ms_signins WHERE id = ?", id);
+            assertEquals("tenant-1", row.get("tenant"));
+            String firstRefresh = String.valueOf(row.get("secret"));          // now the lasting sign-in, not the device code
+            assertFalse(firstRefresh.contains("refresh-1"));                 // the lasting sign-in is encrypted
+
+            // saving the inbox: the account shown is the one Microsoft confirmed, not what the browser sent
+            seen.clear();
+            String inbox = "{\"name\":\"AP\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"outlook\",\"ms_signin\":\"" + id + "\",\"ms_account\":\"someone@else.example\"}}}";
+            assertEquals(200, call("PUT", "/api/docflow/df/flows/ap", inbox).statusCode());
+            String sent = got("PUT", "/api/docs/v1/df/flows/ap").get("body");
+            assertTrue(sent.contains("\"ms_account\":\"invoices@contoso.com\"") && !sent.contains("someone@else"), sent);
+
+            // another person can neither put this sign-in in a process nor follow it
+            String mia = sessionFor("mia", "bot_creator");
+            HttpResponse<String> r = as(mia, "PUT", "/api/docflow/df/flows/other", inbox, "application/json");
+            assertEquals(403, r.statusCode(), r.body());
+            assertEquals(404, as(mia, "GET", "/api/docflow/ms-signin/" + id, null, "application/json").statusCode());
+            // ...but may save a process that already reads with it, though not point it at another mailbox or folder
+            canned.put("GET df/flows/shared", new Object[] {200, "{\"id\":\"shared\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"outlook\",\"mailbox\":\"invoices@contoso.com\",\"ms_signin\":\"" + id + "\"}}}"});
+            String same = "{\"name\":\"Shared\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"outlook\",\"mailbox\":\"Invoices@contoso.com\",\"ms_signin\":\"" + id + "\",\"subject_contains\":\"invoice\"}}}";
+            assertEquals(200, as(mia, "PUT", "/api/docflow/df/flows/shared", same, "application/json").statusCode());
+            HttpResponse<String> moved = as(mia, "PUT", "/api/docflow/df/flows/shared", same.replace("Invoices@contoso.com", "ceo@contoso.com"), "application/json");
+            assertEquals(403, moved.statusCode(), moved.body());
+            assertTrue(moved.body().contains("can change which mailbox"), moved.body());
+            HttpResponse<String> folder = as(mia, "PUT", "/api/docflow/df/flows/shared", same.replace("\"subject_contains\"", "\"mail_folder\":\"sentitems\",\"subject_contains\""), "application/json");
+            assertEquals(403, folder.statusCode(), folder.body());
+            canned.remove("GET df/flows/shared");
+
+            // reading the inbox: an access token from the lasting sign-in (which Microsoft renews), for the shared mailbox
+            flowsJson = "[{\"id\":\"ms-ap\",\"status\":\"live\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"outlook\",\"mailbox\":\"invoices@contoso.com\",\"ms_signin\":\"" + id + "\",\"requestedBy\":\"admin\"}}}]";
+            cr.microsoft = new MicrosoftSignIn(cr);                                // as after a restart: no access token in memory
+            assertEquals(0, proxy(cr).pollMail());                                // the first check only marks where the inbox is
+            assertNull(cr.db.one("SELECT last_error FROM docflow_mail WHERE process_id = 'ms-ap'").get("last_error"));
+            assertTrue(microsoftSeen.stream().anyMatch(s -> s.startsWith("GET /v1.0/users/invoices@contoso.com/mailFolders/inbox/messages") && s.endsWith("Bearer access-2")));
+            row = cr.db.one("SELECT * FROM ms_signins WHERE id = ?", id);
+            assertNotNull(row.get("last_used"));
+            assertNotEquals(firstRefresh, String.valueOf(row.get("secret")));   // the renewed one is kept
+
+            // a vault key rotation re-encrypts the sign-in, and the inbox still reads with it (no token in memory: decrypted anew)
+            Map<String, Object> rotated = cr.vaultAdmin.rotate(admin, null);
+            assertTrue(((Number) rotated.get("re_encrypted")).intValue() >= 1, String.valueOf(rotated));
+            cr.db.update("UPDATE docflow_mail SET last_check = NULL WHERE process_id = 'ms-ap'");
+            cr.microsoft = new MicrosoftSignIn(cr);                                // no access token in memory: the lasting sign-in is used
+            proxy(cr).pollMail();
+            assertNull(cr.db.one("SELECT last_error FROM docflow_mail WHERE process_id = 'ms-ap'").get("last_error"));
+
+            // when Microsoft no longer accepts the sign-in, the inbox says to sign in again
+            refreshRevoked = true;
+            cr.db.update("UPDATE docflow_mail SET last_check = NULL WHERE process_id = 'ms-ap'");
+            cr.microsoft = new MicrosoftSignIn(cr);                                // no access token in memory: the lasting sign-in is used
+            proxy(cr).pollMail();
+            String err = String.valueOf(cr.db.one("SELECT last_error FROM docflow_mail WHERE process_id = 'ms-ap'").get("last_error"));
+            assertTrue(err.contains("invoices@contoso.com no longer works") && err.contains("revoked"), err);
+            assertEquals("expired", cr.db.one("SELECT status FROM ms_signins WHERE id = ?", id).get("status"));
+        } finally {
+            System.clearProperty("ooa.microsoft.login.url");
+            System.clearProperty("ooa.microsoft.graph.url");
+            ms.stop(0);
+            flowsJson = "[]";
+            cr.platform.updateSettings(admin, Map.of("microsoft_app_id", ""), null);
+        }
+    }
+
+    @Test void aSignInThatRanOutOrWasDeclinedSaysWhatToDo() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        HttpServer ms = fakeMicrosoft();
+        System.setProperty("ooa.microsoft.login.url", "http://127.0.0.1:" + ms.getAddress().getPort());
+        try {
+            cr.platform.updateSettings(admin, Map.of("microsoft_app_id", "11111111-2222-3333-4444-555555555555"), null);
+            @SuppressWarnings("unchecked") String id = (String) ((Map<String, Object>) JsonLite.parse(call("POST", "/api/docflow/ms-signin", "{}").body())).get("id");
+            cr.db.update("UPDATE ms_signins SET expires = ? WHERE id = ?", java.time.Instant.now().minusSeconds(1), id);
+            String body = call("GET", "/api/docflow/ms-signin/" + id, null).body();
+            assertTrue(body.contains("\"failed\"") && body.contains("The code ran out"), body);
+            // an unfinished sign-in cannot be put in a process
+            String inbox = "{\"name\":\"AP\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"outlook\",\"ms_signin\":\"" + id + "\"}}}";
+            HttpResponse<String> r = call("PUT", "/api/docflow/df/flows/ap", inbox);
+            assertTrue(r.statusCode() >= 400 && r.body().contains("not finished"), r.body());
+            // an inbox without a sign-in drops a stale account name
+            seen.clear();
+            assertEquals(200, call("PUT", "/api/docflow/df/flows/ap", "{\"name\":\"AP\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"outlook\",\"ms_signin\":\"\",\"ms_account\":\"x@y\"}}}").statusCode());
+            assertFalse(got("PUT", "/api/docs/v1/df/flows/ap").get("body").contains("ms_account"));
+        } finally {
+            System.clearProperty("ooa.microsoft.login.url");
+            ms.stop(0);
+            cr.platform.updateSettings(admin, Map.of("microsoft_app_id", ""), null);
+        }
     }
 }

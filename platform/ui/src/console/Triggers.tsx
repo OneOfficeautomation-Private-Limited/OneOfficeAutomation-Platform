@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CrApi, CrUser, Runner, Trigger } from "../api/cr";
-import { Button, Dialog, Field, HelpButton, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
+import { Button, Dialog, Field, HelpButton, MicrosoftSignInDialog, Select, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
-import { DOCUMENT_KINDS, KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
+import { ADVANCED_FIELDS, DOCUMENT_KINDS, KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
 
@@ -30,7 +30,7 @@ function details(t: Trigger) {
     + (c.element_name || c.element_type || c.automation_id ? " on " + [c.element_type, c.element_name, c.automation_id].filter(Boolean).join(" ") : "");
   if (c.process || c.service || c.hotkey) return String(c.process ?? c.service ?? c.hotkey);
   if (t.kind === "email") return c.username + " @ " + c.host + " / " + c.mail_folder + " every " + c.interval_seconds + " s";
-  if (t.kind === "outlook") return (c.mailbox || "the token's mailbox") + " / " + c.mail_folder + " every " + c.interval_seconds + " s";
+  if (t.kind === "outlook") return (c.mailbox || c.ms_account || "the token's mailbox") + " / " + c.mail_folder + " every " + c.interval_seconds + " s";
   if (t.kind === "servicenow") return c.instance_url + " " + c.table + (c.query ? " where " + c.query : "") + " every " + c.interval_seconds + " s";
   if (t.kind === "http_poll") return String(c.url ?? "") + " every " + c.interval_seconds + " s";
   if (DOCUMENT_KINDS.includes(t.kind)) return (c.process ? "Process " + c.process : "Any process") + (c.doc_type ? ", " + c.doc_type : "");
@@ -179,11 +179,19 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
   const [device, setDevice] = useState(runners[0]?.id ?? "");
   const [values, setValues] = useState<Record<string, string | boolean>>(preset ?? {});
   const [error, setError] = useState<string | null>(null);
+  // DA-1: an Outlook trigger signs in with Microsoft; your own app or a token reference is advanced (or shown when the sign-in is not offered)
+  const [ms, setMs] = useState<{ id: string; account: string } | null>(null);
+  const [msReady, setMsReady] = useState<boolean | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
   useEffect(() => { api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); setBot((o) => o || b[0]?.path || ""); }, (e) => reportMinor("the list of agents", e)); }, [api]);
-  const fields = KINDS[kind].fields;
+  useEffect(() => { if (kind === "outlook" && msReady === null) api.triggerMsSignInReady().then(setMsReady, () => setMsReady(false)); }, [api, kind, msReady]);
+  const hidden = ms || (msReady !== false && !advanced) ? ADVANCED_FIELDS[kind] ?? [] : [];
+  const fields = KINDS[kind].fields.filter((fd) => !hidden.includes(fd[0]));
   const val = (fd: F) => values[fd[0]] ?? (fd[4] === "check" ? !!fd[5] : fd[3] ?? "");
   const create = async () => {
     const b: Record<string, unknown> = { name: name.trim() || "Trigger", bot_path: bot, device_id: device, kind };
+    if (kind === "outlook" && ms) b.ms_signin = ms.id;
     for (const fd of fields) {
       const v = val(fd);
       if (fd[4] === "check") b[fd[0]] = !!v;
@@ -196,9 +204,22 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
       <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!bot || !device} onClick={create}>Create trigger</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <h3 className="cc-log-title">Event</h3>
-      <Field label="Event">{(id) => <select id={id} className="ui-input ui-select" value={kind} onChange={(e) => { setKind(e.target.value); setValues({}); }}>
+      <Field label="Event">{(id) => <select id={id} className="ui-input ui-select" value={kind} onChange={(e) => { setKind(e.target.value); setValues({}); setMs(null); }}>
         {GROUPS.map(([g, ks]) => <optgroup key={g} label={g}>{ks.map((k) => <option key={k} value={k}>{kindName(k)}</option>)}</optgroup>)}</select>}</Field>
       <p className="st-muted">{KINDS[kind].help}</p>
+      {kind === "outlook" && <div className="ui-ms-account" role="group" aria-label="Microsoft account">
+        <b>Microsoft account</b>
+        {ms ? <span className="ui-ms-account-row"><span className="cc-pill is-success">Signed in as {ms.account}</span>
+            <button type="button" className="st-link" onClick={() => setMs(null)}>Sign out</button></span>
+          : msReady === null ? <span className="st-muted">Checking…</span>
+          : msReady ? <span className="ui-ms-account-row"><Button kind="primary" onClick={() => setSigningIn(true)}>Sign in with Microsoft</Button>
+              <span className="st-muted">With the mailbox's account, or one that may read the shared mailbox. Your Microsoft 365 administrator approves One CommandCenter once.</span></span>
+          : <span className="st-muted">Sign in with Microsoft is not set up on this server: an administrator adds the Microsoft app ID in Administration &gt; Settings &gt; E-mail, proxy and SIEM. Until then, give your own app or a token reference below.</span>}
+        {!ms && msReady && <span><button type="button" className="st-link" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}>{advanced ? "Hide advanced settings" : "Show advanced settings"}</button>
+          {!advanced && <span className="st-muted"> · your own Microsoft app, or a Graph token</span>}</span>}
+      </div>}
+      {signingIn && <MicrosoftSignInDialog start={() => api.triggerMsSignInStart()} poll={(id) => api.triggerMsSignInPoll(id)} onClose={() => setSigningIn(false)}
+        onDone={(id, account) => { setSigningIn(false); setMs({ id, account }); }} />}
       <div className="cc-grid2">{fields.map((fd) => fd[4] === "check"
         ? <label key={fd[0]} className="st-check-line"><input type="checkbox" checked={!!val(fd)} onChange={(e) => setValues({ ...values, [fd[0]]: e.target.checked })} /> {fd[1]}</label>
         : <Field key={fd[0]} label={fd[1]}>{(id) => <TextInput id={id} type={fd[4] === "number" ? "number" : "text"} placeholder={fd[2]} value={String(val(fd))} onChange={(e) => setValues({ ...values, [fd[0]]: e.target.value })} />}</Field>)}</div>

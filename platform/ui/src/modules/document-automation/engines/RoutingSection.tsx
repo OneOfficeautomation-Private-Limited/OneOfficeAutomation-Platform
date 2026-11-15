@@ -1,7 +1,8 @@
 import { Button, Field, Select } from "../../../components";
 import { modelName, type ClaudeModels, type Engine, type Routing } from "../api";
 import { HINTS } from "../help";
-import { Chip } from "../ui";
+import { AdvancedToggle, Chip } from "../ui";
+import { useState } from "react";
 
 /** The retry thresholds offered, and the saved one when it is another (set in DocFlow), so the list shows what is saved. */
 const RETRY = [0.9, 0.85, 0.8, 0.75, 0.7];
@@ -15,10 +16,11 @@ const retryOptions = (saved: number) => [
 export function RoutingSection({ routing, cloudEngines, engines = [], saved, onChange, onSave, claude }:
   { routing: Routing; cloudEngines: Engine[]; engines?: Engine[]; saved: boolean; onChange: (r: Routing) => void; onSave: () => void; claude?: ClaudeModels }) {
   const pct = Math.round(routing.retryBelow * 100);
+  const [advanced, setAdvanced] = useState(false);
   const cloud = cloudEngines.find((e) => e.id === routing.cloudEngine);
   // each engine's real state from DocFlow; the built-in ones it does not list (PDF text, Rules) are always there
   const ready = (id: string) => (engines.find((e) => e.id === id)?.status ?? "ready") === "ready";
-  const chip = (id: string, label: string) => ready(id) ? <Chip tone="ok">{label} · Ready</Chip> : <Chip tone="warn">{label} · Not set up</Chip>;
+  const chip = (id: string, label: string) => ready(id) ? <Chip tone="ok">{label} · Ready</Chip> : <Chip tone="warn">{label} · Needs setting up</Chip>;
   const retry = routing.localRetry ? engines.find((e) => e.id === routing.localRetry)?.name ?? (routing.localRetry === "paddleocr" ? "PaddleOCR" : routing.localRetry) : "";
   const retryOn = !!routing.localRetry && ready(routing.localRetry);
   const steps = [
@@ -27,8 +29,8 @@ export function RoutingSection({ routing, cloudEngines, engines = [], saved, onC
     { n: retryOn ? "3 · LOCAL" : "3 · SKIPPED", title: `Retry pages under ${pct}%`, text: routing.localRetry && !retryOn ? `${retry} is not installed on DocFlow's server, so weak pages are not retried` : "The better read wins",
       chip: routing.localRetry ? chip(routing.localRetry, retry) : <Chip tone="mute">Off</Chip>, color: "#2f6fde", off: !retryOn },
     { n: routing.cloudOptIn && routing.cloudEngine ? "4 · CLOUD" : "4 · CLOUD · SKIPPED", title: "Still weak: cloud OCR", text: "Costs per page",
-      chip: !routing.cloudOptIn ? <Chip tone="mute">Needs cloud opt-in</Chip> : cloud
-        ? <Chip tone={cloud.status === "ready" ? "ok" : "warn"}>{cloud.name.split(" ")[0]} · {cloud.status === "ready" ? "Ready" : "not set up"}</Chip> : <Chip tone="mute">No engine chosen</Chip>,
+      chip: !routing.cloudOptIn ? <Chip tone="mute">Off: cloud not allowed</Chip> : cloud
+        ? <Chip tone={cloud.status === "ready" ? "ok" : "warn"}>{cloud.name.split(" ")[0]} · {cloud.status === "ready" ? "Ready" : "needs a key"}</Chip> : <Chip tone="mute">No engine chosen</Chip>,
       color: "#8b6ae8", off: !routing.cloudOptIn || !routing.cloudEngine },
     { n: "5 · LOCAL", title: "Read the fields", text: "Rules from the document type", chip: chip("builtin-rules", "Rules"), color: "#2f6fde" },
     { n: "6 · ALWAYS", title: "Checks and review", text: `Under ${pct}% or a failed check`, chip: <a className="df-chip df-info" href="#/inbox">Inbox</a>, color: "#4b5565" },
@@ -48,8 +50,9 @@ export function RoutingSection({ routing, cloudEngines, engines = [], saved, onC
       {claude && <p className="df-small" style={{ margin: 0 }} aria-label="Claude models">
         Processes that read fields with Claude: <b>{modelName(claude.model)}</b> reads them{claude.escalationModel
           ? <>; <b>{modelName(claude.escalationModel)}</b> re-reads a document that would otherwise go to review</> : "; no second model"}.
-        {" "}Change the models in <a href="#/engines/catalog/onemind">Engines, OneMind</a>, Claude, Configure.</p>}
-      <div className="df-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr)) auto", alignItems: "end", paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
+        {" "}Change the models in <a href="#/engines/catalog/onemind">Engines, AI reading</a>, Claude, Configure.</p>}
+      <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="when weak pages are read again, and by which engines" />
+      {advanced && <div className="df-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr)) auto", alignItems: "end", paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
         <Field label="Retry pages below" info={HINTS.retryBelow}>{(id) => <Select id={id} value={String(routing.retryBelow)} onChange={(e) => onChange({ ...routing, retryBelow: Number(e.target.value) })}
           options={retryOptions(routing.retryBelow)} />}</Field>
         <Field label="Local retry engine" info={HINTS.localRetry}>{(id) => <Select id={id} value={routing.localRetry} onChange={(e) => onChange({ ...routing, localRetry: e.target.value })}
@@ -57,7 +60,7 @@ export function RoutingSection({ routing, cloudEngines, engines = [], saved, onC
         <Field label="Cloud engine for pages still weak" info={HINTS.cloudEngine}>{(id) => <Select id={id} value={routing.cloudEngine} onChange={(e) => onChange({ ...routing, cloudEngine: e.target.value })}
           options={[{ value: "", label: "None" }, ...cloudEngines.map((e) => ({ value: e.id, label: e.name }))]} />}</Field>
         <Button kind="primary" onClick={onSave}>{saved ? "Saved" : "Save routing"}</Button>
-      </div>
+      </div>}
     </section>
   );
 }

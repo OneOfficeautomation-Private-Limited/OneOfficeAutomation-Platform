@@ -37,11 +37,14 @@ class DocumentAutomationModuleTest {
             assertNotNull(cr.modules.taskKind("document_review").completeElsewhere(), "a review closes on the review screen, not in the Task inbox");
             for (String kind : com.oneofficeautomation.modules.docauto.DocFlowProxy.DOCUMENT_EVENTS.values()) assertTrue(TriggerKinds.pushed(kind), kind);
             assertEquals("", cr.platform.setting("docflow_url"));
+            assertEquals("", cr.platform.setting("microsoft_app_id"), "Sign in with Microsoft uses OOA's own app unless one is set");
             assertEquals(1, ((Number) cr.platform.setting("mcp_documents")).intValue());
             assertEquals(1, cr.modules.mcpTools.size(), "its documents_ tools");
             assertEquals(1, cr.modules.templateParts.size());
-            // ooa db migrate also brings each module's own tables up to date (version 1, docflow_collected, made when the module started)
+            // ooa db migrate also brings each module's own tables up to date (version 1, docflow_collected; made when
+            // the module started); "Sign in with Microsoft" keeps its sign-ins in the kernel's ms_signins (version 47)
             assertTrue(Modules.migrateAll(db).contains(Map.of("module", "document-automation", "from", 1, "to", 1)));
+            assertEquals(0, db.query("SELECT id FROM ms_signins").size(), "the Microsoft sign-ins table is the kernel's");
             assertEquals(0, db.query("SELECT document_id FROM docflow_collected").size(), "its table is there");
         }
     }

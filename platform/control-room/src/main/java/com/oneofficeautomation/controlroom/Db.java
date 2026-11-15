@@ -799,9 +799,21 @@ public final class Db implements AutoCloseable {
         "CREATE TABLE module_schema (module VARCHAR(80) PRIMARY KEY, version INT NOT NULL, updated TIMESTAMP NOT NULL)",
     };
 
+    /**
+     * Version 47 (DA-1, 15 Nov 2026): ms_signins, "Sign in with Microsoft" for reading a Microsoft 365 mailbox
+     * (Document Automation's email inboxes and the Outlook trigger; MicrosoftSignIn): who signed in, the Microsoft
+     * account and directory, and one secret encrypted with the vault key (the device code while pending, then the
+     * lasting sign-in).
+     */
+    private static final String[] SCHEMA_V47 = {
+        "CREATE TABLE ms_signins (id VARCHAR(40) PRIMARY KEY, status VARCHAR(20) NOT NULL, started_by VARCHAR(80) NOT NULL, client_id VARCHAR(80) NOT NULL, "
+            + "account VARCHAR(320), tenant VARCHAR(80), secret VARCHAR(20000), poll_every INT, next_poll TIMESTAMP, "
+            + "expires TIMESTAMP, last_used TIMESTAMP, last_error VARCHAR(1000), created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 46;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44, SCHEMA_V45, SCHEMA_V46 };
+    public static final int LATEST = 47;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44, SCHEMA_V45, SCHEMA_V46, SCHEMA_V47 };
 
     /** A feature module's schema version recorded in module_schema (0 when it has none yet). */
     public int moduleVersion(String module) {
@@ -875,7 +887,7 @@ public final class Db implements AutoCloseable {
     }
 
     /** True when the table is there (read before an upgrade, outside its transaction: a failed read would spoil it). */
-    boolean hasTable(String table) {
+    public boolean hasTable(String table) {
         try { one("SELECT 1 AS x FROM " + table + " WHERE 1 = 0"); return true; }
         catch (OoaException e) { return false; }
     }

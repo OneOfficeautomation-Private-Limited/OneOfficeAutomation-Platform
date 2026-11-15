@@ -230,6 +230,74 @@ class TriggerApiTest {
         assertEquals("ERP main", in.get("trigger_click"), "else the window title");
     }
 
+    @Test @SuppressWarnings("unchecked")
+    void anOutlookTriggerSignsInWithMicrosoftAndReadsTheMailboxWithIt() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        List<String> seen = new CopyOnWriteArrayList<>();
+        String claims = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString("{\"tid\":\"t-9\",\"preferred_username\":\"ap@contoso.com\"}".getBytes(StandardCharsets.UTF_8));
+        HttpServer ms = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        ms.createContext("/", ex -> {
+            String path = ex.getRequestURI().getPath();
+            ex.getRequestBody().readAllBytes();
+            seen.add(path + " " + ex.getRequestHeaders().getFirst("Authorization"));
+            String out = path.endsWith("/devicecode") ? "{\"device_code\":\"DEV-9\",\"user_code\":\"WXYZ-1234\",\"expires_in\":900,\"interval\":1}"
+                    : path.equals("/organizations/oauth2/v2.0/token") ? "{\"access_token\":\"acc-1\",\"refresh_token\":\"ref-1\",\"expires_in\":3600,\"id_token\":\"x." + claims + ".y\"}"
+                    : path.equals("/t-9/oauth2/v2.0/token") ? "{\"access_token\":\"acc-2\",\"refresh_token\":\"ref-2\",\"expires_in\":3600}"
+                    : path.startsWith("/v1.0/me/") ? "{\"value\":[{\"id\":\"m1\",\"receivedDateTime\":\"2026-11-15T08:00:00Z\"}]}" : "{}";
+            byte[] b = out.getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().set("Content-Type", "application/json");
+            ex.sendResponseHeaders(200, b.length);
+            ex.getResponseBody().write(b);
+            ex.close();
+        });
+        ms.start();
+        String url = "http://127.0.0.1:" + ms.getAddress().getPort();
+        System.setProperty("ooa.microsoft.login.url", url);
+        System.setProperty("ooa.microsoft.graph.url", url + "/v1.0");
+        try {
+            // offered once a Microsoft app is known (OOA's own, or Settings > E-mail, proxy and SIEM > Microsoft app ID)
+            assertEquals(false, call("GET", "/api/triggers/ms-signin", null).body().get("ready"));
+            cr.platform.updateSettings(admin, Map.of("microsoft_app_id", "11111111-2222-3333-4444-555555555555"), null);
+            assertEquals(true, call("GET", "/api/triggers/ms-signin", null).body().get("ready"));
+            R started = call("POST", "/api/triggers/ms-signin", Map.of());
+            assertEquals("WXYZ-1234", started.body().get("userCode"));
+            assertFalse(JsonLite.write(started.body()).contains("DEV-9"), "the device code stays on the server");
+            String signIn = (String) started.body().get("id");
+            db.update("UPDATE ms_signins SET next_poll = ? WHERE id = ?", java.time.Instant.now().minusSeconds(5), signIn);
+            R done = call("GET", "/api/triggers/ms-signin/" + signIn, null);
+            assertEquals(Map.of("status", "signed_in", "account", "ap@contoso.com"), done.body());
+
+            // only the person who signed in may put the sign-in in a trigger
+            String temp = String.valueOf(cr.createUser(admin, "otto", "otto", "admin", null).get("temporary_password"));
+            String t0 = (String) cr.login("otto", temp, null).get("token");
+            cr.changePassword(cr.session(t0), temp, "Otto-Passw0rd-2026", t0, null);
+            String otto = (String) cr.login("otto", "Otto-Passw0rd-2026", null).get("token");
+            assertEquals(404, call("GET", "/api/triggers/ms-signin/" + signIn, null, Map.of("Authorization", "Bearer " + otto)).status(), "nor follow it");
+            R refused = call("POST", "/api/triggers", body("outlook", "ms_signin", signIn), Map.of("Authorization", "Bearer " + otto));
+            assertEquals(403, refused.status(), String.valueOf(refused.body()));
+            assertEquals(400, call("POST", "/api/triggers", body("outlook", "ms_signin", "not-a-sign-in")).status());
+
+            String id = create(body("outlook", "ms_signin", signIn));
+            Map<String, Object> cfg = (Map<String, Object>) listed(id).get("config");
+            assertEquals(signIn, cfg.get("ms_signin"));
+            assertEquals("ap@contoso.com", cfg.get("ms_account"));
+            assertFalse(JsonLite.write(listed(id)).contains("ref-1"), "the lasting sign-in is never shown");
+            R polled = call("POST", "/api/triggers/" + id + "/poll", null);
+            assertEquals(200, polled.status(), String.valueOf(polled.body()));
+            assertTrue(seen.stream().anyMatch(x -> x.startsWith("/v1.0/me/mailFolders/inbox/messages") && x.endsWith("Bearer acc-1")), String.valueOf(seen));
+            // the person who signed in leaves: the trigger says so instead of reading with their access
+            cr.db.update("UPDATE ms_signins SET started_by = 'otto' WHERE id = ?", signIn);
+            cr.db.update("UPDATE users SET enabled = FALSE WHERE username = 'otto'");
+            assertTrue(String.valueOf(call("POST", "/api/triggers/" + id + "/poll", null).body()).contains("is not an active user"));
+            cr.deleteTrigger(admin, id, null);
+        } finally {
+            System.clearProperty("ooa.microsoft.login.url");
+            System.clearProperty("ooa.microsoft.graph.url");
+            cr.platform.updateSettings(admin, Map.of("microsoft_app_id", ""), null);
+            ms.stop(0);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     @Test void universalPollerStartsOneRunPerNewItem() throws Exception {
         orders.clear();

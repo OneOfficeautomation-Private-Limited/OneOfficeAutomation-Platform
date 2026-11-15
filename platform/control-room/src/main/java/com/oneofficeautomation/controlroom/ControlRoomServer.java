@@ -1016,7 +1016,15 @@ public final class ControlRoomServer {
                 else notFound(ex);
             }
             case "triggers" -> {
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("triggers", cr.triggers(u)));
+                // DA-1: "Sign in with Microsoft" for the Outlook trigger: whether it is offered, start, and poll
+                if (seg.length >= 2 && seg[1].equals("ms-signin")) {
+                    cr.require(u, "triggers.manage", "manage triggers");
+                    if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("ready", cr.microsoft.ready()));
+                    else if (m.equals("POST") && seg.length == 2) sendJson(ex, 200, cr.microsoft.start(u));
+                    else if (m.equals("GET") && seg.length == 3) sendJson(ex, 200, cr.microsoft.poll(u, seg[2]));
+                    else notFound(ex);
+                }
+                else if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("triggers", cr.triggers(u)));
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.trigger(u, seg[1]));
                 else if (m.equals("PUT") && seg.length == 2) { cr.updateTrigger(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.createTrigger(u, map(body(ex)), ip));

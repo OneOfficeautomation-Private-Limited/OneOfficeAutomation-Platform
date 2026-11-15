@@ -1,6 +1,6 @@
 import {
-  INBOX_ID, RULE_KIND, ruleTest, stagesOf,
-  type Check, type Delivery, type DeliveryType, type DocFlowApi, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
+  INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots,
+  type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
   type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
   type ProcessRow, type ProcessSummary, type RefTable,
   type ReviewFlag, type ReviewTable, type ReviewTask, type ReviewValues, type Routing, type RefRow, type RuleType, type Source, type TestRun, modelName,
@@ -96,8 +96,8 @@ const ENGINE_NAMES: Record<string, string> = {
   "google-docai": "Google Document AI", "aws-textract": "AWS Textract", abbyy: "ABBYY", claude: "Claude (Anthropic)", "llm-cloud": "Cloud AI API", "llm-local": "Self-hosted model",
 };
 const OPTIONS: Omit<EngineOption, "engines">[] = [
-  { id: "onecore", name: "OneCore", description: "Open source, runs on this server, free", color: "#2f6fde" },
-  { id: "oneconnect", name: "OneConnect", description: "Cloud OCR, for weak pages", color: "#8b6ae8" },
+  { id: "onecore", name: "OneCore", description: "Free engines that read pages here; nothing leaves this server", color: "#2f6fde" },
+  { id: "oneconnect", name: "OneConnect", description: "Paid cloud services read weak pages again", color: "#8b6ae8" },
   { id: "onemind", name: "OneMind", description: "AI reads the fields of any document", color: "#b0307e" },
 ];
 const PACK_OPTION: Record<string, EngineOption["id"]> = { tier1_opensource: "onecore", tier2_cloud: "oneconnect", tier3_ai: "onemind" };
@@ -292,6 +292,35 @@ export class HttpDocFlowApi implements DocFlowApi {
     await this.call("POST", `/df/flows/${encodeURIComponent(target)}/documents`, form);
     return { processId: target };
   }
+
+  async vaultRefs(): Promise<{ ref: string; label: string }[]> {
+    // the platform's vault folders the person may use, with their credentials' attributes (never the values)
+    const r = await this.fetcher("/api/lockers", { credentials: "same-origin" });
+    if (!r.ok) return [];
+    const body = await r.json() as { lockers?: { name: string; credentials: { name: string; attribute: string }[] }[] };
+    return (body.lockers ?? []).flatMap((l) => l.credentials.map((c) => ({ ref: `${l.name}/${c.name}/${c.attribute}`, label: `${l.name} · ${c.name} · ${c.attribute}` })));
+  }
+
+  // DA-1: "Sign in with Microsoft" for an email inbox (the platform's /api/docflow/ms-signin)
+  async msSignInReady(): Promise<boolean> {
+    try { return (await this.call<{ ready: boolean }>("GET", "/ms-signin")).ready; } catch { return false; }
+  }
+  msSignInStart(): Promise<MsSignInStart> { return this.call<MsSignInStart>("POST", "/ms-signin"); }
+  msSignInPoll(id: string): Promise<MsSignInState> { return this.call<MsSignInState>("GET", `/ms-signin/${encodeURIComponent(id)}`); }
+
+  // DA-1 item 5: the folders processes may use (DocFlow 3.2.0); an older DocFlow, or no list, means any typed folder
+  async folderRoots(): Promise<FolderRoots> {
+    try { return await this.call<FolderRoots>("GET", "/df/folders"); } catch { return NO_FOLDER_LIST; }
+  }
+  folderList(path: string): Promise<FolderListing> { return this.call<FolderListing>("GET", `/df/folders?path=${encodeURIComponent(path)}`); }
+  folderCreate(path: string, name: string): Promise<FolderListing> { return this.call<FolderListing>("POST", "/df/folders", { path, name }); }
+  folderPreview(list: string): Promise<FolderRoots> { return this.call<FolderRoots>("POST", "/df/folders/preview", { folders: list }); }
+  async allowedFolders(): Promise<string | null> {
+    const s = await this.call<{ deployment?: DfSetting[] }>("GET", "/admin/settings");
+    const f = s.deployment?.find((x) => x.key === "DOCAUTO_ALLOWED_FOLDERS");
+    return f ? String(f.value ?? "") : null;
+  }
+  async saveAllowedFolders(list: string): Promise<void> { await this.call("PUT", "/admin/settings", { values: { DOCAUTO_ALLOWED_FOLDERS: list } }); }
 
   async folders(): Promise<string[]> {
     // the platform's own folders (the Agent repository's), with the person's access to each

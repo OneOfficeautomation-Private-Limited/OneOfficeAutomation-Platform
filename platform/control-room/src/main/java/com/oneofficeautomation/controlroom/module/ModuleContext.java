@@ -205,6 +205,32 @@ public interface ModuleContext {
     /** A Microsoft 365 mailbox through Microsoft Graph, signed in as an app with a client secret. */
     MailSource graphMailbox(String tenantId, String clientId, String clientSecret, String mailbox, String folder) throws IOException;
 
+    /**
+     * A Microsoft 365 mailbox through Microsoft Graph, read with a person's sign-in (an access token from "Sign in with
+     * Microsoft"): their own mailbox when mailbox is empty, or a shared mailbox they may read. Graph's address is
+     * graph.microsoft.com, or OOA_MICROSOFT_GRAPH_URL (national clouds such as graph.microsoft.us).
+     */
+    MailSource graphMailbox(String accessToken, String mailbox, String folder);
+
+    /** "Sign in with Microsoft" for Microsoft 365 mailboxes, shared with the kernel's Outlook trigger. */
+    MicrosoftSignIns microsoftSignIn();
+
+    /**
+     * The kernel's "Sign in with Microsoft" (device code flow; the sign-ins are kept in ms_signins, the lasting sign-in
+     * encrypted with the vault key): whether it is offered, starting and following a person's sign-in, a sign-in as
+     * kept (account, tenant, who started it, status; never the secret), and an access token for reading a mailbox.
+     */
+    interface MicrosoftSignIns {
+        boolean ready();
+        Map<String, Object> start(User u) throws IOException;
+        Map<String, Object> poll(User u, String id) throws IOException;
+        /** A sign-in as kept, or null. */
+        Map<String, Object> row(String id);
+        String accessToken(String id) throws IOException;
+        /** Unfinished and failed sign-ins are forgotten after a day. */
+        void cleanUp();
+    }
+
     // ------------------------------------------------------------------ HTTP helpers for routes
 
     /** Sends a JSON answer. */

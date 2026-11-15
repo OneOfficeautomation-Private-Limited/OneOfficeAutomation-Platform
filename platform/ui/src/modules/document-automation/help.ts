@@ -92,7 +92,7 @@ export const HELP: Record<HelpPage, { summary: string; steps: string[] }> = {
     steps: [
       "Leave Cloud opt-in off unless the client agreed to it.",
       "How pages are routed: choose when weak pages are read again, and by which engine.",
-      "Engines: click OneCore, OneConnect or OneMind, then Test or Configure an engine.",
+      "Engines: click On this server, Cloud reading or AI reading, then Test or Configure an engine.",
       "Languages: tick the languages people may choose for document types, then Save languages.",
       "Monthly cost: enter the client's volumes before turning the cloud on.",
     ],

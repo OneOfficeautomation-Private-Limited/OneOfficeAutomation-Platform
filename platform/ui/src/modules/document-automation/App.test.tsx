@@ -171,17 +171,41 @@ describe("Document Automation", () => {
     fireEvent.click(await screen.findByRole("button", { name: "New process" }));
     const dialog = await screen.findByRole("dialog", { name: "New process" });
     const create = within(dialog).getByRole("button", { name: "Create process" }) as HTMLButtonElement;
-    expect(create.disabled).toBe(true);
+    await waitFor(() => expect(create.disabled).toBe(false));                    // DA-1: the first template fills the name and type
+    expect((within(dialog).getByLabelText("Process name") as HTMLInputElement).value).toBe("Supplier invoices");
+    fireEvent.change(within(dialog).getByLabelText("Process name"), { target: { value: "" } });
+    expect(create.disabled).toBe(true);                                         // a name is needed
     fireEvent.change(within(dialog).getByLabelText("Process name"), { target: { value: "Supplier invoices KSA" } });
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Watched folder/ }));
     expect(create.disabled).toBe(true);                                         // a watched folder needs its path
-    fireEvent.change(within(dialog).getByLabelText("Folder path"), { target: { value: "\\\\scan01\\ksa" } });
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Browse for folder path" }));   // DA-1: from the allowed folders
+    const picker = await screen.findByRole("dialog", { name: "Choose the watched folder" });
+    fireEvent.click(await within(picker).findByRole("button", { name: "Open invoices" }));
+    fireEvent.click(await within(picker).findByRole("button", { name: "riyadh" }));
+    fireEvent.click(within(picker).getByRole("button", { name: "Use this folder" }));
+    expect((within(dialog).getByLabelText("Folder path") as HTMLInputElement).value).toBe("\\\\scan01\\scans\\invoices\\riyadh");
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Email inbox/ }));
     fireEvent.click(create);
     await waitFor(() => expect(location.hash).toBe("#/processes/supplier-invoices-ksa/intake"));   // email ticked: set the inbox up next
     const made = (await api.processes()).find((p) => p.name === "Supplier invoices KSA")!;
     expect(made.sources).toEqual(["upload", "folder", "email"]);
     expect(made.state).toBe("draft");
+  });
+
+  it("starts a new process from a template and tries it with a sample, saving nothing", async () => {
+    const api = start(); await go("#/inbox");
+    fireEvent.click(await screen.findByRole("button", { name: "New process" }));
+    const dialog = await screen.findByRole("dialog", { name: "New process" });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Receipts for expense claims/ }));
+    expect(within(dialog).getByRole("button", { name: /Receipts for expense claims/ }).getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() => expect((within(dialog).getByLabelText("Process name") as HTMLInputElement).value).toBe("Expense receipts"));
+    expect((within(dialog).getByLabelText("Document type") as HTMLSelectElement).value).toBe("receipt");
+    const before = (await api.processes()).length;
+    fireEvent.click(within(dialog).getByRole("button", { name: "Try it with a sample receipt" }));
+    expect(await within(dialog).findByRole("region", { name: "What the sample gave" })).toBeTruthy();
+    expect((await api.processes()).length).toBe(before);                       // a try saves nothing
+    fireEvent.click(within(dialog).getByRole("button", { name: /Start from scratch/ }));
+    expect(within(dialog).queryByRole("button", { name: /Try it with a sample/ })).toBeNull();
   });
 
   it("shows every document of a process, with filters on how it came in, engine and confidence", async () => {
@@ -327,6 +351,7 @@ describe("Document Automation", () => {
     fireEvent.click(einvoice);
     expect(einvoice.getAttribute("aria-checked")).toBe("false");
     fireEvent.click(screen.getByRole("tab", { name: /Human review/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));   // DA-1: thresholds per field are advanced
     const levels = screen.getByRole("region", { name: "Field thresholds" });
     fireEvent.click(within(levels).getByRole("button", { name: "Add field threshold" }));
     fireEvent.click(within(levels).getByRole("button", { name: "Add field threshold" }));
@@ -364,7 +389,10 @@ describe("Document Automation", () => {
     await go("#/engines/catalog");
     const options = await screen.findByRole("tablist", { name: "Engine options" });
     expect(screen.getByRole("region", { name: "OneCore engines" })).toBeTruthy();
-    fireEvent.click(within(options).getByRole("tab", { name: /OneMind/ }));
+    // DA-1: plain names first, the OneCore / OneConnect / OneMind labels beside them, and the state in words
+    expect(within(options).getByRole("tab", { name: /On this server.*OneCore.*Ready · 4 of 4/ })).toBeTruthy();
+    expect(within(options).getByRole("tab", { name: /Cloud reading.*OneConnect.*Off: cloud not allowed/ })).toBeTruthy();
+    fireEvent.click(within(options).getByRole("tab", { name: /AI reading.*OneMind/ }));
     await waitFor(() => expect(location.hash).toBe("#/engines/catalog/onemind"));
     await go("#/engines/catalog/onemind");
     const mind = await screen.findByRole("region", { name: "OneMind engines" });
@@ -398,6 +426,7 @@ describe("Document Automation", () => {
     const api = new SampleApi();
     await api.saveRouting({ ...(await api.engines()).routing, retryBelow: 0.65 });
     start(api); await go("#/engines/routing");
+    fireEvent.click(await screen.findByRole("button", { name: "Show advanced settings" }));
     const retry = await screen.findByRole("combobox", { name: "Retry pages below" }) as HTMLSelectElement;
     expect(retry.value).toBe("0.65");                                           // not the first choice, which Save would then store
     expect(screen.getByText("Retry pages under 65%")).toBeTruthy();
@@ -431,7 +460,14 @@ describe("Document Automation", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Export & integration/ }));
     fireEvent.click(screen.getByRole("button", { name: "Add delivery" }));
     const d = await screen.findByRole("dialog", { name: "Add delivery" });
-    fireEvent.change(within(d).getByLabelText("Excel file"), { target: { value: "D:\\AP\\register.xlsx" } });
+    // DA-1: the Excel file's folder is chosen from the folders processes may use, then the file is named
+    fireEvent.click(await within(d).findByRole("button", { name: "Browse for the Excel file's folder" }));
+    const picker = await screen.findByRole("dialog", { name: "Choose the folder for the Excel file" });
+    fireEvent.click(await within(picker).findByRole("button", { name: /Accounts payable/ }));
+    await waitFor(() => expect(within(picker).getByText(/^Chosen:/).parentElement!.textContent).toContain("D:\\AP"));
+    fireEvent.click(within(picker).getByRole("button", { name: "Use this folder" }));
+    expect((within(d).getByLabelText("Excel file: folder") as HTMLInputElement).value).toBe("D:\\AP");
+    expect((within(d).getByLabelText("File name") as HTMLInputElement).value).toBe("register.xlsx");
     fireEvent.click(within(d).getByRole("button", { name: "Save" }));
     expect(screen.getByText("Excel register · D:\\AP\\register.xlsx · when done with no review, approved by a reviewer")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
@@ -460,6 +496,9 @@ describe("Document Automation", () => {
     const run = await screen.findByRole("button", { name: "Run test" }) as HTMLButtonElement;
     expect(run.disabled).toBe(true);                                            // a document first
     fireEvent.change(screen.getByLabelText("Choose a document"), { target: { files: [new File(["x"], "fax_0931.png")] } });
+    expect(screen.queryByLabelText("Engine B")).toBeNull();                    // DA-1: one reading as live, engines are advanced
+    fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Compare two" }));
     fireEvent.change(screen.getByLabelText("Engine B"), { target: { value: "paddleocr" } });
     fireEvent.click(run);
     const results = await screen.findByRole("region", { name: "Field results" });
@@ -635,6 +674,7 @@ describe("Document Automation", () => {
     fireEvent.change(within(dialog).getByLabelText("Other labels on the page"), { target: { value: "Purchase order, PO No" } });
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Required/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    fireEvent.click(within(fields).getByRole("button", { name: "Show advanced settings" }));   // field names and learned labels
     expect(within(fields).getByText("po_number")).toBeTruthy();
     fireEvent.click(within(fields).getByRole("button", { name: 'Forget "Inv #"' }));
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
@@ -649,6 +689,7 @@ describe("Document Automation", () => {
   it("offers common formats for a field's format check, says what each accepts, and keeps an own pattern", async () => {
     const api = start(); await go("#/types");
     const fields = await screen.findByRole("region", { name: "Fields to read" });
+    fireEvent.click(within(fields).getByRole("button", { name: "Show advanced settings" }));   // the pattern column and field names
     fireEvent.click(within(fields).getByRole("button", { name: "Add field" }));
     const dialog = await screen.findByRole("dialog", { name: "Add field" });
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Due date" } });
@@ -684,11 +725,11 @@ describe("Document Automation", () => {
     const ok: Record<string, string[]> = {
       digits: ["004512"], amount: ["1,250.00", "99.50", "-12.30", "1250.00"], "date-iso": ["2026-11-14"], "date-dmy": ["14/11/2026"],
       email: ["name@example.com"], phone: ["+966 11 234 5678", "(022) 555-0101"], iban: ["SA0380000000608010167519", "SA03 8000 0000 6080 1016 7519"],
-      "ksa-vat": ["300012345600003"], gstin: ["29ABCDE1234F1Z5"], pan: ["ABCDE1234F"], "us-ein": ["12-3456789"], "invoice-number": ["INV-2026-0187", "PO1234"],
+      "ksa-vat": ["300012345600003"], "iban-sa": ["SA0380000000608010167519"], "ksa-vat-15": ["300012345600003"], "ksa-id": ["1012345678", "A1234567"], gstin: ["29ABCDE1234F1Z5"], pan: ["ABCDE1234F"], "us-ein": ["12-3456789"], "invoice-number": ["INV-2026-0187", "PO1234"],
     };
     const bad: Record<string, string[]> = {
       digits: ["12a"], amount: ["12.5", "1,25.00"], "date-iso": ["2026-13-01"], "date-dmy": ["2026-11-14"], email: ["name@"], phone: ["12"],
-      iban: ["sa03"], "ksa-vat": ["300012345600004"], gstin: ["29ABCDE1234F1A5"], pan: ["ABCD1234F"], "us-ein": ["123456789"], "invoice-number": ["2026-0187"],
+      iban: ["sa03"], "ksa-vat": ["300012345600004"], "iban-sa": ["GB12"], "ksa-vat-15": ["12345"], "ksa-id": ["ABC"], gstin: ["29ABCDE1234F1A5"], pan: ["ABCD1234F"], "us-ein": ["123456789"], "invoice-number": ["2026-0187"],
     };
     for (const f of FORMATS) {
       const re = new RegExp(f.pattern);
@@ -716,12 +757,98 @@ describe("Document Automation", () => {
     fireEvent.change(within(intake).getByLabelText("Mailbox kind"), { target: { value: "email" } });
     fireEvent.change(within(intake).getByLabelText("Mail server"), { target: { value: "imap.example.com" } });
     fireEvent.change(within(intake).getByLabelText("User name"), { target: { value: "invoices@example.com" } });
-    fireEvent.change(within(intake).getByLabelText("Password (vault reference)"), { target: { value: "mail/invoices/password" } });
+    await within(intake).findByRole("option", { name: "mail · invoices · password" });   // DA-1: a saved value, picked
+    fireEvent.change(within(intake).getByLabelText("Password"), { target: { value: "mail/invoices/password" } });
     fireEvent.change(within(intake).getByLabelText("Subject contains (optional)"), { target: { value: "invoice" } });
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     await screen.findByRole("button", { name: "Saved" });
     expect((await api.processDesign("supplier-invoices-ksa")).settings.email).toEqual({ enabled: true, kind: "email", host: "imap.example.com",
       username: "invoices@example.com", password_ref: "mail/invoices/password", subject_contains: "invoice" });
+  });
+
+  it("signs a Microsoft 365 inbox in with Microsoft: a code to type, then who is signed in (DA-1)", async () => {
+    const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
+    const intake = await screen.findByRole("region", { name: "Document ingestion" });
+    fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
+    expect((within(intake).getByLabelText("Mailbox kind") as HTMLSelectElement).value).toBe("outlook");
+    expect(within(intake).queryByLabelText("Directory (tenant) id")).toBeNull();          // your own app is advanced
+    fireEvent.click(await within(intake).findByRole("button", { name: "Sign in with Microsoft" }));
+    const dialog = await screen.findByRole("dialog", { name: "Sign in with Microsoft" });
+    expect(await within(dialog).findByText("SAMPLE-01")).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: "microsoft.com/devicelogin" }).getAttribute("href")).toBe("https://microsoft.com/devicelogin");
+    expect(await within(intake).findByText("Signed in as invoices@example.com", {}, { timeout: 4000 })).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Sign in with Microsoft" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("button", { name: "Saved" });
+    expect((await api.processDesign("supplier-invoices-ksa")).settings.email).toMatchObject({ enabled: true, kind: "outlook", ms_signin: "ms" + "0".repeat(24), ms_account: "invoices@example.com" });
+    // your own Microsoft app stays under Show advanced settings
+    fireEvent.click(within(intake).getByRole("button", { name: "Show advanced settings" }));
+    expect(within(intake).getByRole("group", { name: "Your own Microsoft app" })).toBeTruthy();
+    expect(within(intake).getByText(/Not used while signed in with Microsoft/)).toBeTruthy();
+    expect(within(intake).getByLabelText("Client secret").tagName).toBe("SELECT");          // a saved value, picked
+    fireEvent.click(within(intake).getByRole("button", { name: "Sign out" }));
+    expect(await within(intake).findByRole("button", { name: "Sign in with Microsoft" })).toBeTruthy();
+  }, 10000);
+
+  it("chooses the watched folder from the folders processes may use (DA-1)", async () => {
+    const api = start(); await go("#/processes/supplier-invoices-ksa/intake");
+    const intake = await screen.findByRole("region", { name: "Document ingestion" });
+    const field = await within(intake).findByLabelText("Watched folder") as HTMLInputElement;
+    await waitFor(() => expect(field.readOnly).toBe(true));                       // a list exists: choose, do not type
+    fireEvent.click(within(intake).getByRole("button", { name: "Browse for watched folder" }));
+    const picker = await screen.findByRole("dialog", { name: "Choose the watched folder" });
+    const allowed = within(picker).getByRole("group", { name: "Allowed folders" });
+    expect(within(allowed).getAllByRole("button").map((b) => b.textContent)).toEqual(["Scans\\\\scan01\\scans", "Accounts payableD:\\AP"]);
+    fireEvent.click(await within(picker).findByRole("button", { name: "Open invoices" }));
+    const riyadh = await within(picker).findByRole("button", { name: "riyadh" });
+    expect(within(picker).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["20250None", "jeddah3Supplier credit notes", "riyadh12None"]);
+    fireEvent.click(riyadh);
+    const chosen = within(picker).getByText(/^Chosen:/).parentElement!;
+    expect(chosen.textContent).toContain("\\\\scan01\\scans\\invoices\\riyadh");
+    expect(await within(picker).findByText("DocFlow can read and move files here")).toBeTruthy();
+    expect(within(picker).getByText(/12 files waiting/)).toBeTruthy();
+    fireEvent.click(within(picker).getByRole("button", { name: "jeddah" }));
+    expect(within(picker).getByText(/Already watched by Supplier credit notes/)).toBeTruthy();
+    // a new folder inside, chosen at once
+    fireEvent.click(within(picker).getByRole("button", { name: "New folder" }));
+    fireEvent.change(within(picker).getByLabelText("New folder name"), { target: { value: "returns" } });
+    fireEvent.click(within(picker).getByRole("button", { name: "Make folder" }));
+    await waitFor(() => expect(within(picker).getByText(/^Chosen:/).parentElement!.textContent).toContain("invoices\\returns"));
+    fireEvent.click(within(picker).getByRole("button", { name: "Use this folder" }));
+    expect(field.value).toBe("\\\\scan01\\scans\\invoices\\returns");
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("button", { name: "Saved" });
+    expect((await api.processDesign("supplier-invoices-ksa")).settings.inputFolder).toBe("\\\\scan01\\scans\\invoices\\returns");
+    // a folder outside the list says so; typing stays one click away
+    fireEvent.click(within(intake).getByRole("button", { name: "Type the path" }));
+    fireEvent.change(within(intake).getByLabelText("Watched folder"), { target: { value: "\\\\old\\scans" } });
+    fireEvent.click(within(intake).getByRole("button", { name: "Choose from the folders processes may use" }));
+    expect(within(intake).getByText(/Not one of the folders processes may use/)).toBeTruthy();
+    fireEvent.click(within(intake).getByRole("button", { name: "Clear" }));
+    expect((within(intake).getByLabelText("Watched folder") as HTMLInputElement).value).toBe("");
+  });
+
+  it("types the watched folder while no folders are listed", async () => {
+    const api = new SampleApi();
+    await api.saveAllowedFolders("");
+    start(api); await go("#/processes/supplier-invoices-ksa/intake");
+    const intake = await screen.findByRole("region", { name: "Document ingestion" });
+    await act(async () => { await api.folderRoots(); });
+    const field = within(intake).getByLabelText("Watched folder") as HTMLInputElement;
+    expect(field.readOnly).toBe(false);
+    expect(within(intake).queryByRole("button", { name: "Browse for watched folder" })).toBeNull();
+    fireEvent.change(field, { target: { value: "\\\\scan01\\ksa" } });
+    expect(field.value).toBe("\\\\scan01\\ksa");
+  });
+
+  it("says when Sign in with Microsoft is not set up on the server", async () => {
+    const api = new SampleApi();
+    api.msSignInReady = async () => false;
+    start(api); await go("#/processes/supplier-invoices-ksa/intake");
+    const intake = await screen.findByRole("region", { name: "Document ingestion" });
+    fireEvent.click(within(intake).getByRole("checkbox", { name: /Email inbox/ }));
+    expect(await within(intake).findByText(/Sign in with Microsoft is not set up on this server/)).toBeTruthy();
+    expect(within(intake).queryByRole("button", { name: "Sign in with Microsoft" })).toBeNull();
   });
 
   it("counts every document of a process in the Inbox, not only today's", async () => {

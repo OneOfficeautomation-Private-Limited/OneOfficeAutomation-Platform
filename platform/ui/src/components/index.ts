@@ -3,6 +3,7 @@ export { Button, IconButton, type ButtonKind } from "./Button";
 export { BrowseButton, PathRow, type BrowseSource } from "./BrowseButton";
 export { SidePanel } from "./Collapsible";
 export { Dialog } from "./Dialog";
+export { MicrosoftSignInDialog, type MsSignInStart, type MsSignInState } from "./MicrosoftSignIn";
 export { Field, TextInput, TextArea, Select } from "./Field";
 export { HelpButton, HelpPanel, HelpProvider, type HelpItem, type HelpTopic } from "./Help";
 export { Icon, IconTile, ICONS, type IconName } from "./Icon";

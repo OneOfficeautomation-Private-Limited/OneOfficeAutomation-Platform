@@ -91,7 +91,8 @@ public final class TenantMove {
         new Secret("queue_items", "data", "work items of encrypted queues, bound to queue-item:ID"),
         new Secret("settings", "json_value", "phone notification topics (push_topic:NAME), bound to their setting name"),
         new Secret("users", "mfa_secret", "two-step sign-in secrets, bound to mfa:USER-ID"),
-        new Secret("event_subscriptions", "secret", "event subscription signing secrets, bound to event-subscription:ID"));
+        new Secret("event_subscriptions", "secret", "event subscription signing secrets, bound to event-subscription:ID"),
+        new Secret("ms_signins", "secret", "Sign in with Microsoft for Microsoft 365 mailboxes (device code, then the lasting sign-in), bound to ms-signin:ID"));
 
     static String secretColumn(String table) {
         for (Secret s : SECRETS) if (s.table().equals(table)) return s.column();
@@ -108,6 +109,7 @@ public final class TenantMove {
             case "settings" -> String.valueOf(r.get("name"));
             case "users" -> "mfa:" + r.get("id");
             case "event_subscriptions" -> "event-subscription:" + r.get("id");
+            case "ms_signins" -> "ms-signin:" + r.get("id");
             default -> throw new IllegalArgumentException(table);
         };
     }

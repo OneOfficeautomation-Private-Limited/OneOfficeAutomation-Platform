@@ -200,3 +200,12 @@ body.ui-resizing * { cursor: inherit !important; }
 .ui-menu.is-compact .ui-menu-sep { margin: 3px 0; }
 .ui-menu-sub[data-state="open"] { background: var(--ui-selected); }
 .ui-menu-arrow { margin-left: auto; color: var(--ui-text-2); font-size: 11px; }
+/* Sign in with Microsoft (MicrosoftSignIn.tsx): the steps and the code to type at Microsoft */
+.ui-ms-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.ui-ms-code { font-family: ui-monospace, Consolas, monospace; font-size: 18px; font-weight: 700; letter-spacing: 1px; padding: 2px 8px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-soft); color: var(--ui-text); }
+.ui-ms-copy { border: 0; background: none; padding: 0; color: var(--ui-accent-text); font: inherit; font-weight: 600; cursor: pointer; }
+.ui-ms-copy:hover { text-decoration: underline; }
+.ui-ms-wait { margin: 0; font-size: 12.5px; color: var(--ui-text-2); }
+.ui-ms-problem { margin: 0; color: var(--ui-error-text); }
+.ui-ms-account { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg); margin: 0 0 10px; }
+.ui-ms-account-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

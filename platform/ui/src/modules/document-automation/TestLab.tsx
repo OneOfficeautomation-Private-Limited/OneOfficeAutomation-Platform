@@ -3,7 +3,7 @@ import { Button, Field, Select } from "../../components";
 import type { DocFlowApi, DocType, TestRun } from "./api";
 import { SetDetail } from "./testsets/SetDetail";
 import { SetList } from "./testsets/SetList";
-import { FilterBar, FilterSelect, Kpi, reportError, useLoad } from "./ui";
+import { AdvancedToggle, FilterBar, FilterSelect, Kpi, reportError, useLoad } from "./ui";
 
 export const TESTLAB_SECTIONS = [{ id: "try", label: "Try one document" }, { id: "sets", label: "Test sets" }] as const;
 
@@ -38,7 +38,8 @@ function TryOne({ api, initialType = "", embedded = false }: { api: DocFlowApi; 
   const picker = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState("");
-  const [compare, setCompare] = useState(true);
+  const [compare, setCompare] = useState(false);
+  const [advanced, setAdvanced] = useState(false);   // DA-1: engines and comparing are advanced
   const [a, setA] = useState("auto");
   const [b, setB] = useState("tesseract");
   const [result, setResult] = useState<TestRun | null>(null);
@@ -47,7 +48,7 @@ function TryOne({ api, initialType = "", embedded = false }: { api: DocFlowApi; 
   const types: DocType[] = setup?.[0] ?? [];
   const typeId = docType || types.find((t) => t.id === initialType || t.name === initialType)?.id || types[0]?.id || "";
   // engines that read pages and can run now, plus "as live" (the routing on the Engines page)
-  const engines = [{ value: "auto", label: "Routing (as live)" }, ...(setup?.[1].options ?? []).flatMap((o) => o.engines)
+  const engines = [{ value: "auto", label: "As the process would read it" }, ...(setup?.[1].options ?? []).flatMap((o) => o.engines)
     .filter((e) => e.status === "ready" && !["builtin-rules", "llm-local", "llm-cloud", "claude"].includes(e.id)).map((e) => ({ value: e.id, label: e.name }))];
   const name = (v: string) => engines.find((e) => e.value === v)?.label ?? v;
 
@@ -67,14 +68,14 @@ function TryOne({ api, initialType = "", embedded = false }: { api: DocFlowApi; 
       <div className="df-page-head">
         {!embedded && <div><h2>Test lab</h2><p>Try a document before it goes live. Nothing is saved to a process or sent to review.</p></div>}
         <span className="df-grow" />
-        <div className="df-seg" role="group" aria-label="Mode">
+        {advanced && <div className="df-seg" role="group" aria-label="Mode">
           <button type="button" aria-pressed={!compare} onClick={() => { setCompare(false); setResult(null); }}>One engine</button>
           <button type="button" aria-pressed={compare} onClick={() => { setCompare(true); setResult(null); }}>Compare two</button>
-        </div>
+        </div>}
       </div>
 
       <section className="df-card df-pad" aria-label="Set up the test">
-        <div className="df-grid" style={{ gridTemplateColumns: `minmax(0, 1.4fr) repeat(${compare ? 3 : 2}, minmax(0, 1fr)) auto`, alignItems: "end", gap: 12 }}>
+        <div className="df-grid" style={{ gridTemplateColumns: `minmax(0, 1.4fr) repeat(${advanced ? (compare ? 3 : 2) : 1}, minmax(0, 1fr)) auto`, alignItems: "end", gap: 12 }}>
           <div className="ui-field">
             <span className="ui-field-label">Document</span>
             <input ref={picker} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" aria-label="Choose a document"
@@ -82,9 +83,13 @@ function TryOne({ api, initialType = "", embedded = false }: { api: DocFlowApi; 
             <Button onClick={() => picker.current?.click()}>{file ? file.name : "Choose a document…"}</Button>
           </div>
           <Field label="Document type">{(id) => <Select id={id} value={typeId} onChange={(e) => setDocType(e.target.value)} options={types.map((t) => ({ value: t.id, label: t.name }))} />}</Field>
-          <Field label={compare ? "Engine A" : "Engine"}>{(id) => <Select id={id} value={a} onChange={(e) => setA(e.target.value)} options={engines} />}</Field>
-          {compare && <Field label="Engine B">{(id) => <Select id={id} value={b} onChange={(e) => setB(e.target.value)} options={engines} />}</Field>}
+          {advanced && <Field label={compare ? "Engine A" : "Engine"}>{(id) => <Select id={id} value={a} onChange={(e) => setA(e.target.value)} options={engines} />}</Field>}
+          {advanced && compare && <Field label="Engine B">{(id) => <Select id={id} value={b} onChange={(e) => setB(e.target.value)} options={engines} />}</Field>}
           <Button kind="primary" disabled={running || !file || !typeId} onClick={run}>{running ? "Reading…" : "Run test"}</Button>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <AdvancedToggle open={advanced} onToggle={() => { if (advanced) { setCompare(false); setA("auto"); } setAdvanced(!advanced); setResult(null); }}
+            what="choose the engine, or compare two engines side by side" />
         </div>
       </section>
 

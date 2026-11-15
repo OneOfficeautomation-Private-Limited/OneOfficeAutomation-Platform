@@ -1,3 +1,5 @@
+import type { MsSignInStart, MsSignInState } from "../components/MicrosoftSignIn";
+
 /**
  * The typed client for One CommandCenter API (the same routes today's console uses). The browser keeps the session
  * in an HttpOnly cookie; every change carries X-OOA-Request, which the server needs against cross-site requests.
@@ -433,6 +435,10 @@ export class CrApi {
   async pauseTrigger(id: string, pause: boolean) { await this.call("POST", "triggers/" + encodeURIComponent(id) + (pause ? "/pause" : "/resume")); }
   /** Checks One CommandCenter trigger now instead of waiting for its interval. */
   pollTrigger(id: string) { return this.call<{ fired?: number; error?: string }>("POST", "triggers/" + encodeURIComponent(id) + "/poll"); }
+  /** DA-1: "Sign in with Microsoft" for the Outlook trigger: whether it is offered, start, and poll. */
+  async triggerMsSignInReady() { return (await this.call<{ ready: boolean }>("GET", "triggers/ms-signin")).ready; }
+  triggerMsSignInStart() { return this.call<MsSignInStart>("POST", "triggers/ms-signin"); }
+  triggerMsSignInPoll(id: string) { return this.call<MsSignInState>("GET", "triggers/ms-signin/" + encodeURIComponent(id)); }
   async deleteTrigger(id: string) { await this.call("DELETE", "triggers/" + encodeURIComponent(id)); }
   // ---- Work queues: queues, their items, item models (AA's work item templates), members ----
   async queues() { return (await this.call<{ queues?: WorkQueue[] }>("GET", "queues")).queues ?? []; }

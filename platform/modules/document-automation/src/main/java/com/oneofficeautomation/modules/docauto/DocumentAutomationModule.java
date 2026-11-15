@@ -19,7 +19,8 @@ import java.util.Map;
  *   <li>/api/agent/docflow/documents, an agent's "Send document to process";</li>
  *   <li>/api/docflow-callback/start-bot and /events, DocFlow calling back with the service token;</li>
  *   <li>clock jobs: review tasks in the Task inbox (every 20 s) and the processes' email inboxes (every 30 s);</li>
- *   <li>the settings docflow_url, docflow_token_ref and mcp_documents;</li>
+ *   <li>the settings docflow_url, docflow_token_ref, docflow_autostart and mcp_documents;</li>
+ *   <li>/api/docflow/ms-signin: "Sign in with Microsoft" for email inboxes (the kernel's MicrosoftSignIn);</li>
  *   <li>the task kind document_review, the "On Document Automation" trigger kinds, the documents_ tools for AI
  *       assistants, and processes in templates.</li>
  * </ul>
@@ -27,7 +28,7 @@ import java.util.Map;
  */
 public final class DocumentAutomationModule implements CommandCenterModule {
     /** The module's own version: it changes when the module changes. */
-    public static final String VERSION = "1.1.0";
+    public static final String VERSION = "1.2.0";
 
     public String id() { return "document-automation"; }
     public String name() { return "Document Automation"; }
@@ -36,6 +37,7 @@ public final class DocumentAutomationModule implements CommandCenterModule {
     /**
      * The module's own tables. Version 1 (command review D1, 12 Nov 2026): docflow_collected, the documents an agent
      * marked collected, per collector name (agents sharing a name share the marks), with the process, run and person.
+     * ("Sign in with Microsoft" keeps its sign-ins in the kernel's ms_signins, version 47, shared with Outlook triggers.)
      */
     public java.util.List<java.util.List<String>> schema() {
         return java.util.List.of(java.util.List.of(

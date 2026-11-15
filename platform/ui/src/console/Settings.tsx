@@ -5,6 +5,10 @@ import { SETTING_HELP } from "./settingsHelp";
 import { ROLE_NAMES } from "./roleNames";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
+import { modulePart } from "../modules/pages";
+
+/** Document Automation's "Folders processes may use" (its module part), under that section when the module is installed. */
+const AllowedFolders = modulePart<{ onNotice: (t: string) => void; onError: (e: string) => void }>("allowed-folders");
 
 /**
  * Administration > Settings, built as AA's Settings (checked against AA's docs, UiPath's tenant and organisation
@@ -162,6 +166,8 @@ const SECTIONS: Section[] = [
       { key: "mail_smtp_password_ref", label: "Mail account password", hint: VAULT_REF, kind: "text", placeholder: "mail/smtp/password" },
       { key: "mail_from", label: "Sender address", kind: "text" },
       { key: "license_mail_to", label: "Also send licence reminders to", hint: "Addresses, separated by commas.", kind: "text" }] },
+    { title: "Microsoft 365 mailboxes", settings: [
+      { key: "microsoft_app_id", label: "Microsoft app ID", hint: "For Sign in with Microsoft (email inboxes, Outlook triggers). Empty: One CommandCenter's own app.", kind: "text", placeholder: "11111111-2222-3333-4444-555555555555" }] },
     { title: "Notifications", settings: [
       { key: "notify_run_failed", label: "E-mail people when a run they started fails", hint: "To the address on their account.", kind: "check" },
       { key: "notify_task_assigned", label: "E-mail people when a workflow gives them a task", hint: "Forms and approvals; not tasks for everyone.", kind: "check" }] },
@@ -408,6 +414,7 @@ function Extras({ api, section, form, saved, onNotice, onError }: { api: CrApi; 
         r.username + (r.display_name ? " (" + r.display_name + ")" : "") + " is in " + (r.groups?.length ? r.groups.join(", ") : "no group") + "; " + (r.role ? "they get the role " + r.role + "." : "no group gives a role, so they cannot sign in.")), fail)}>
         Test the directory</Button>
     </div>}
+    {section === "documents" && AllowedFolders && <AllowedFolders onNotice={onNotice} onError={onError} />}
     {section === "agents" && <Button kind="secondary" onClick={() => api.gitSync().then((r) => onNotice(r.changed ? "Pushed to Git." : "Git is up to date."), fail)}>Sync Git now</Button>}
     {section === "agents" && <Button kind="secondary" onClick={() => api.gitPull().then((r) => onNotice(pullNotice(r)), fail)}>Pull from Git</Button>}
     {section === "data" && <span className="cc-inline">

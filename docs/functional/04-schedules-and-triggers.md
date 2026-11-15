@@ -225,7 +225,7 @@ reason, which shows as the trigger's last error; when it can again, the error cl
 | Kind | Settings |
 | --- | --- |
 | New email (IMAP) | Host, SSL (default on), port (default 993 with SSL, 143 without), user name, password (vault reference), mail folder (default `INBOX`), optional "from contains" and "subject contains" filters |
-| New email (Microsoft 365 Outlook) | Either a Microsoft Graph token (vault reference), or app sign-in with tenant id, client id and client secret (vault reference) plus the mailbox to read; mail folder (default `inbox`); optional Graph and sign-in addresses; the same filters |
+| New email (Microsoft 365 Outlook) | **Sign in with Microsoft** (the person creating the trigger signs in at Microsoft with a short code; only they can use that sign-in, and the trigger stops with a clear error if they are no longer an active user), with the mailbox to read (blank: the signed-in account's own); or, under Show advanced settings, your own app (tenant id, client id and client secret vault reference, plus the mailbox) or a Microsoft Graph token (vault reference); mail folder (default `inbox`); optional Graph and sign-in addresses; the same filters. The Microsoft app is One CommandCenter's own, or Settings > E-mail, proxy and SIEM > Microsoft app ID |
 | ServiceNow record | Instance URL, table (such as `incident`), optional encoded query; user name and password reference, or a token reference. Fires for new or updated records |
 | Universal poller | URL to call, JSON path to the items (default `$`), the id field of each item, optional authorisation (vault reference) and headers (the `Authorization` header is not allowed as a plain header). Fires once per new id; up to 300 recent ids are remembered |
 

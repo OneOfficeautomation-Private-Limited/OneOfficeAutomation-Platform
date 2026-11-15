@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
 import { HINTS } from "./help";
-import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
+import { FolderField } from "./folderPicker";
+import { MicrosoftAccount } from "./msSignIn";
+import { AdvancedToggle } from "./ui";
+import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
 
@@ -27,19 +30,34 @@ const SEND_ON: [string, string][] = [
 
 type SetSettings = (patch: Partial<ProcessSettings>) => void;
 
-export function IntakeStage({ s, set, inbox, live }: { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean }) {
+export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId }:
+  { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null; api?: DocFlowApi; processId?: string }) {
   const email = s.email;
   const setEmail = (patch: Partial<EmailInbox>) => set({ email: { ...(email ?? { enabled: true, kind: "outlook" }), ...patch } as EmailInbox });
   const text = (key: keyof EmailInbox, label: string, placeholder = "", hint?: string) => (
     <Field label={label} hint={hint}>{(id) => <TextInput id={id} value={String(email?.[key] ?? "")} placeholder={placeholder}
       onChange={(e) => setEmail({ [key]: key === "port" ? Number(e.target.value) || undefined : e.target.value } as Partial<EmailInbox>)} />}</Field>
   );
+  // DA-1: a saved account from the vault, picked from the ones the person may use; typing the reference is advanced
+  const [typeRef, setTypeRef] = useState(false);
+  // DA-1: Microsoft 365 signs in with Microsoft; your own app (tenant, app id, secret) is advanced, or shown when already set
+  const ownApp = typeRef || (!email?.ms_signin && !!(email?.tenant_id || email?.client_id || email?.client_secret_ref));
+  const secret = (key: "password_ref" | "client_secret_ref", label: string, placeholder: string) => {
+    const value = String(email?.[key] ?? "");
+    const refs = vaultRefs ?? [];
+    const listed = !value || refs.some((r) => r.ref === value);
+    // for Microsoft 365 the advanced switch shows your own app (with its secret picked); for IMAP it types the reference
+    if ((typeRef && key === "password_ref") || !listed) return text(key, label + " (vault reference)", placeholder, "folder/credential/attribute; you must be allowed to use it");
+    return <Field label={label} hint={refs.length ? "Saved in the vault; only the ones you may use are listed." : "Nothing saved that you may use yet: ask your administrator to add it to the vault."}>
+      {(id) => <Select id={id} value={value} onChange={(e) => setEmail({ [key]: e.target.value } as Partial<EmailInbox>)}
+        options={[{ value: "", label: refs.length ? "Choose a saved value" : "None saved yet" }, ...refs.map((r) => ({ value: r.ref, label: r.label }))]} />}</Field>;
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <div className="df-grid df-g2">
-      <Field label="Watched folder" hint="DocFlow reads every new file put here. Empty: upload only.">
-        {(id) => <TextInput id={id} value={s.inputFolder} placeholder="\\scan01\invoices" onChange={(e) => set({ inputFolder: e.target.value })} />}
-      </Field>
+      {/* DA-1 item 5: chosen from the folders processes may use (DocFlow 3.2.0); typed while there is no list */}
+      <FolderField api={api} label="Watched folder" title="Choose the watched folder" hint="DocFlow reads every new file put here. Empty: upload only."
+        value={s.inputFolder} placeholder="\\scan01\invoices" empty="No folder chosen: upload only" processId={processId} onChange={(v) => set({ inputFolder: v })} />
       <Field label="Check the folder every">
         {(id) => <Select id={id} value={String(s.pollSeconds)} onChange={(e) => set({ pollSeconds: Number(e.target.value) })}
           options={[{ value: "30", label: "30 seconds" }, { value: "60", label: "1 minute" }, { value: "300", label: "5 minutes" }, { value: "900", label: "15 minutes" }]} />}
@@ -61,23 +79,31 @@ export function IntakeStage({ s, set, inbox, live }: { s: ProcessSettings; set: 
         <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "10px 0 0 24px" }}>
           <Field label="Mailbox kind">{(id) => <Select id={id} value={email.kind} onChange={(e) => setEmail({ kind: e.target.value as EmailInbox["kind"] })}
             options={[{ value: "outlook", label: "Microsoft 365 (Outlook)" }, { value: "email", label: "IMAP (any other mail server)" }]} />}</Field>
-          {email.kind === "outlook" ? (
+          {email.kind === "outlook" ? (<>
+            <MicrosoftAccount api={api} account={email.ms_account} signedIn={!!email.ms_signin}
+              onSignedIn={(id, account) => setEmail({ ms_signin: id, ms_account: account, tenant_id: "", client_id: "", client_secret_ref: "" })}
+              onSignOut={() => setEmail({ ms_signin: "", ms_account: "" })} />
             <div className="df-grid df-g2">
-              {text("mailbox", "Mailbox", "invoices@example.com")}
+              {text("mailbox", "Mailbox (optional)", "invoices@example.com", "Empty: the signed-in account's own mailbox. Or a shared mailbox it may read.")}
               {text("mail_folder", "Folder", "inbox")}
+            </div>
+            {ownApp && <div className="df-grid df-g2" role="group" aria-label="Your own Microsoft app">
+              <p className="df-small" style={{ gridColumn: "1 / -1", margin: 0 }}>Your own Microsoft app, signed in as the app (it needs the Mail.Read application permission).{email.ms_signin ? " Not used while signed in with Microsoft." : ""}</p>
               {text("tenant_id", "Directory (tenant) id")}
               {text("client_id", "Application (client) id")}
-              {text("client_secret_ref", "Client secret (vault reference)", "m365/app/secret", "folder/credential/attribute; you must be allowed to use it")}
-            </div>
-          ) : (
+              {secret("client_secret_ref", "Client secret", "m365/app/secret")}
+            </div>}
+          </>) : (
             <div className="df-grid df-g2">
               {text("host", "Mail server", "imap.example.com")}
               {text("port", "Port", "993")}
               {text("username", "User name", "invoices@example.com")}
-              {text("password_ref", "Password (vault reference)", "mail/invoices/password", "folder/credential/attribute; you must be allowed to use it")}
+              {secret("password_ref", "Password", "mail/invoices/password")}
               {text("mail_folder", "Folder", "INBOX")}
             </div>
           )}
+          <AdvancedToggle open={typeRef} onToggle={() => setTypeRef(!typeRef)}
+            what={email.kind === "outlook" ? "your own Microsoft app instead of Sign in with Microsoft" : "type a vault reference instead of choosing a saved value"} />
           <div className="df-grid df-g2">
             {text("from_contains", "Only from (optional)", "@supplier.com")}
             {text("subject_contains", "Subject contains (optional)", "invoice")}
@@ -109,10 +135,17 @@ export function ClassifyStage({ s, set }: { s: ProcessSettings; set: SetSettings
 }
 
 export function ExtractStage({ s, set }: { s: ProcessSettings; set: SetSettings }) {
+  const [advanced, setAdvanced] = useState(s.extraction !== "auto");   // a chosen engine is shown, not hidden
   return (
-    <Field label="Engine that reads the fields" hint="The fields themselves come from the document type.">
-      {(id) => <Select id={id} value={s.extraction} onChange={(e) => set({ extraction: e.target.value })} options={EXTRACTION} />}
-    </Field>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <p style={{ margin: 0 }}>The fields to read come from the document type. {s.extraction === "auto"
+        ? "They are read the way the Engines page says (on this server unless cloud reading is switched on)."
+        : "This process uses its own engine (below)."}</p>
+      <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="choose a different engine for this process" />
+      {advanced && <Field label="Engine that reads the fields" hint="Default engine: the one set on the Engines page.">
+        {(id) => <Select id={id} value={s.extraction} onChange={(e) => set({ extraction: e.target.value })} options={EXTRACTION} />}
+      </Field>}
+    </div>
   );
 }
 
@@ -122,10 +155,13 @@ const levelOptions = (saved: number) => [...new Set([...FIELD_LEVELS, saved])].s
   .map((v) => ({ value: String(v), label: Math.round(v * 100) + "%" }));
 
 export function ReviewStage({ s, set, fields }: { s: ProcessSettings; set: SetSettings; fields: { name: string; label: string }[] }) {
+  const own = Object.keys(s.fieldThresholds ?? {}).length > 0;
+  const [advanced, setAdvanced] = useState(own);   // thresholds already set are shown, not hidden
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <ReviewLevels s={s} set={set} />
-      <FieldThresholds s={s} set={set} fields={fields} />
+      <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="stricter checks for important fields, such as the total" />
+      {advanced && <FieldThresholds s={s} set={set} fields={fields} />}
     </div>
   );
 }
@@ -199,7 +235,8 @@ export function DeliverStage({ deliveries, onEdit, onRemove, onAdd }:
 
 const newId = (p: string) => p + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
 
-export function DeliveryDialog({ open, value, onClose, onSave }: { open: boolean; value: Delivery | null; onClose: () => void; onSave: (d: Delivery) => void }) {
+export function DeliveryDialog({ open, value, onClose, onSave, api, processId }:
+  { open: boolean; value: Delivery | null; onClose: () => void; onSave: (d: Delivery) => void; api?: DocFlowApi; processId?: string }) {
   const [d, setD] = useState<Delivery>(() => value ?? { id: newId("d"), type: "excel", name: "", enabled: true, target: "", on: ["success", "validated"] });
   const kind = DELIVERY_KIND[d.type];
   return (
@@ -210,9 +247,14 @@ export function DeliveryDialog({ open, value, onClose, onSave }: { open: boolean
           options={(Object.keys(DELIVERY_KIND) as DeliveryType[]).map((k) => ({ value: k, label: DELIVERY_KIND[k].label }))} />}</Field>
         <Field label="Name (optional)">{(id) => <TextInput id={id} value={d.name} placeholder={kind.label} onChange={(e) => setD({ ...d, name: e.target.value })} />}</Field>
       </div>
-      <Field label={kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
-        {(id) => <TextInput id={id} value={d.target} placeholder={kind.placeholder} onChange={(e) => setD({ ...d, target: e.target.value })} />}
-      </Field>
+      {d.type === "folder" || d.type === "excel"
+        ? <FolderField key={d.type} api={api} label={kind.target} title={d.type === "excel" ? "Choose the folder for the Excel file" : "Choose the folder for results"}
+            value={d.target} placeholder={kind.placeholder} file={d.type === "excel" ? "register.xlsx" : undefined} processId={processId}
+            hint={d.type === "folder" ? "Each document's values and file go in a folder named after its status (success, validated...)." : "One sheet per document type, a row for each document."}
+            onChange={(v) => setD({ ...d, target: v })} />
+        : <Field label={kind.target} hint={d.type === "start_bot" ? "The agent's path in the agent repository. It runs as you, with the document's values as inputs (document, document_id, or any field by its name)." : undefined}>
+            {(id) => <TextInput id={id} value={d.target} placeholder={kind.placeholder} onChange={(e) => setD({ ...d, target: e.target.value })} />}
+          </Field>}
       {d.type === "start_bot" && (
         <Field label="Runner pool (optional)" hint="Empty: your default runner.">
           {(id) => <TextInput id={id} value={d.pool ?? ""} placeholder="pool id" onChange={(e) => setD({ ...d, pool: e.target.value })} />}
