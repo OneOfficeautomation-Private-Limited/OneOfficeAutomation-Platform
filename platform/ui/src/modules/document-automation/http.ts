@@ -96,8 +96,8 @@ const ENGINE_NAMES: Record<string, string> = {
   "google-docai": "Google Document AI", "aws-textract": "AWS Textract", abbyy: "ABBYY", claude: "Claude (Anthropic)", "llm-cloud": "Cloud AI API", "llm-local": "Self-hosted model",
 };
 const OPTIONS: Omit<EngineOption, "engines">[] = [
-  { id: "onecore", name: "OneCore", description: "Open source, runs on this server, free", color: "#2f6fde" },
-  { id: "oneconnect", name: "OneConnect", description: "Cloud OCR, for weak pages", color: "#8b6ae8" },
+  { id: "onecore", name: "OneCore", description: "Free engines that read pages here; nothing leaves this server", color: "#2f6fde" },
+  { id: "oneconnect", name: "OneConnect", description: "Paid cloud services read weak pages again", color: "#8b6ae8" },
   { id: "onemind", name: "OneMind", description: "AI reads the fields of any document", color: "#b0307e" },
 ];
 const PACK_OPTION: Record<string, EngineOption["id"]> = { tier1_opensource: "onecore", tier2_cloud: "oneconnect", tier3_ai: "onemind" };

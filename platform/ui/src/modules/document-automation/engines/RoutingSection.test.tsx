@@ -12,11 +12,11 @@ const show = (engines: Engine[]) => render(<RoutingSection routing={routing} clo
 
 /** The routing card says what DocFlow really has, not "Ready" for every local engine. */
 describe("RoutingSection", () => {
-  it("shows an engine that is not installed as not set up, and its step as skipped", () => {
+  it("shows an engine that is not installed as needing setting up, and its step as skipped", () => {
     show([engine("tesseract", "Tesseract", "ready"), engine("paddleocr", "PaddleOCR", "setup")]);
     const card = screen.getByRole("region", { name: "How a page is routed" });
     expect(within(card).getByText("Tesseract · Ready")).toBeTruthy();
-    expect(within(card).getByText("PaddleOCR · Not set up")).toBeTruthy();
+    expect(within(card).getByText("PaddleOCR · Needs setting up")).toBeTruthy();
     expect(within(card).getByText("3 · SKIPPED")).toBeTruthy();
     expect(within(card).getByText(/PaddleOCR is not installed on DocFlow's server/)).toBeTruthy();
     expect(within(card).getByText("PDF text · Ready")).toBeTruthy();   // built in: always there
@@ -29,8 +29,8 @@ describe("RoutingSection", () => {
     expect(within(card).getByText("3 · LOCAL")).toBeTruthy();
   });
 
-  it("shows Tesseract as not set up when DocFlow says so", () => {
+  it("shows Tesseract as needing setting up when DocFlow says so", () => {
     show([engine("tesseract", "Tesseract", "setup")]);
-    expect(screen.getByText("Tesseract · Not set up")).toBeTruthy();
+    expect(screen.getByText("Tesseract · Needs setting up")).toBeTruthy();
   });
 });

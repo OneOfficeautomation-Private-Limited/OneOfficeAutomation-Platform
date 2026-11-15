@@ -384,7 +384,10 @@ describe("Document Automation", () => {
     await go("#/engines/catalog");
     const options = await screen.findByRole("tablist", { name: "Engine options" });
     expect(screen.getByRole("region", { name: "OneCore engines" })).toBeTruthy();
-    fireEvent.click(within(options).getByRole("tab", { name: /OneMind/ }));
+    // DA-1: plain names first, the OneCore / OneConnect / OneMind labels beside them, and the state in words
+    expect(within(options).getByRole("tab", { name: /On this server.*OneCore.*Ready · 4 of 4/ })).toBeTruthy();
+    expect(within(options).getByRole("tab", { name: /Cloud reading.*OneConnect.*Off: cloud not allowed/ })).toBeTruthy();
+    fireEvent.click(within(options).getByRole("tab", { name: /AI reading.*OneMind/ }));
     await waitFor(() => expect(location.hash).toBe("#/engines/catalog/onemind"));
     await go("#/engines/catalog/onemind");
     const mind = await screen.findByRole("region", { name: "OneMind engines" });

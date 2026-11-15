@@ -14,7 +14,7 @@ export function OptInSwitch({ on, onChange }: { on: boolean; onChange: (on: bool
       <span className="df-muted">{on ? "On" : "Off"}</span>
       <Dialog open={asking} onClose={() => setAsking(false)} title="Turn on cloud opt-in?" width={520}
         footer={<><Button onClick={() => setAsking(false)}>Cancel</Button><Button kind="primary" onClick={() => { setAsking(false); onChange(true); }}>Turn on</Button></>}>
-        <p style={{ margin: 0 }}>Weak pages and field extraction may then be sent to the cloud engines set up in OneConnect and OneMind.</p>
+        <p style={{ margin: 0 }}>Weak pages and field extraction may then be sent to the cloud engines set up under Cloud reading (OneConnect) and AI reading (OneMind).</p>
         <p style={{ margin: 0 }} className="df-text-warn"><b>Only turn this on for clients who agreed to it in their contract.</b></p>
       </Dialog>
     </div>

@@ -20,7 +20,7 @@ export function RoutingSection({ routing, cloudEngines, engines = [], saved, onC
   const cloud = cloudEngines.find((e) => e.id === routing.cloudEngine);
   // each engine's real state from DocFlow; the built-in ones it does not list (PDF text, Rules) are always there
   const ready = (id: string) => (engines.find((e) => e.id === id)?.status ?? "ready") === "ready";
-  const chip = (id: string, label: string) => ready(id) ? <Chip tone="ok">{label} · Ready</Chip> : <Chip tone="warn">{label} · Not set up</Chip>;
+  const chip = (id: string, label: string) => ready(id) ? <Chip tone="ok">{label} · Ready</Chip> : <Chip tone="warn">{label} · Needs setting up</Chip>;
   const retry = routing.localRetry ? engines.find((e) => e.id === routing.localRetry)?.name ?? (routing.localRetry === "paddleocr" ? "PaddleOCR" : routing.localRetry) : "";
   const retryOn = !!routing.localRetry && ready(routing.localRetry);
   const steps = [
@@ -29,8 +29,8 @@ export function RoutingSection({ routing, cloudEngines, engines = [], saved, onC
     { n: retryOn ? "3 · LOCAL" : "3 · SKIPPED", title: `Retry pages under ${pct}%`, text: routing.localRetry && !retryOn ? `${retry} is not installed on DocFlow's server, so weak pages are not retried` : "The better read wins",
       chip: routing.localRetry ? chip(routing.localRetry, retry) : <Chip tone="mute">Off</Chip>, color: "#2f6fde", off: !retryOn },
     { n: routing.cloudOptIn && routing.cloudEngine ? "4 · CLOUD" : "4 · CLOUD · SKIPPED", title: "Still weak: cloud OCR", text: "Costs per page",
-      chip: !routing.cloudOptIn ? <Chip tone="mute">Needs cloud opt-in</Chip> : cloud
-        ? <Chip tone={cloud.status === "ready" ? "ok" : "warn"}>{cloud.name.split(" ")[0]} · {cloud.status === "ready" ? "Ready" : "not set up"}</Chip> : <Chip tone="mute">No engine chosen</Chip>,
+      chip: !routing.cloudOptIn ? <Chip tone="mute">Off: cloud not allowed</Chip> : cloud
+        ? <Chip tone={cloud.status === "ready" ? "ok" : "warn"}>{cloud.name.split(" ")[0]} · {cloud.status === "ready" ? "Ready" : "needs a key"}</Chip> : <Chip tone="mute">No engine chosen</Chip>,
       color: "#8b6ae8", off: !routing.cloudOptIn || !routing.cloudEngine },
     { n: "5 · LOCAL", title: "Read the fields", text: "Rules from the document type", chip: chip("builtin-rules", "Rules"), color: "#2f6fde" },
     { n: "6 · ALWAYS", title: "Checks and review", text: `Under ${pct}% or a failed check`, chip: <a className="df-chip df-info" href="#/inbox">Inbox</a>, color: "#4b5565" },
@@ -50,7 +50,7 @@ export function RoutingSection({ routing, cloudEngines, engines = [], saved, onC
       {claude && <p className="df-small" style={{ margin: 0 }} aria-label="Claude models">
         Processes that read fields with Claude: <b>{modelName(claude.model)}</b> reads them{claude.escalationModel
           ? <>; <b>{modelName(claude.escalationModel)}</b> re-reads a document that would otherwise go to review</> : "; no second model"}.
-        {" "}Change the models in <a href="#/engines/catalog/onemind">Engines, OneMind</a>, Claude, Configure.</p>}
+        {" "}Change the models in <a href="#/engines/catalog/onemind">Engines, AI reading</a>, Claude, Configure.</p>}
       <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="when weak pages are read again, and by which engines" />
       {advanced && <div className="df-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr)) auto", alignItems: "end", paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
         <Field label="Retry pages below" info={HINTS.retryBelow}>{(id) => <Select id={id} value={String(routing.retryBelow)} onChange={(e) => onChange({ ...routing, retryBelow: Number(e.target.value) })}
