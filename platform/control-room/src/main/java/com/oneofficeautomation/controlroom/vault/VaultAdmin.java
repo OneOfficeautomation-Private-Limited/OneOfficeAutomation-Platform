@@ -436,6 +436,8 @@ public final class VaultAdmin {
 
     /** Decrypts every stored value with the current key and encrypts it with next (database in one transaction, then the config files). */
     private int reencryptAll(Vault next) {
+        // asked before the transaction: a read of a missing table would spoil it (PostgreSQL)
+        boolean signIns = db.hasTable("docflow_ms_signin");
         int n = db.tx(() -> {
             int k = 0;
             for (Map<String, Object> c : db.query("SELECT locker, name, attribute, ciphertext FROM credentials")) {
@@ -485,6 +487,14 @@ public final class VaultAdmin {
                 db.update("UPDATE event_subscriptions SET secret = ? WHERE id = ?", next.encrypt(cr.vault.decrypt(v, bound), bound), s.get("id"));
                 k++;
             }
+            // Document Automation's "Sign in with Microsoft" for email inboxes (device codes, lasting sign-ins), when installed
+            if (signIns)
+                for (Map<String, Object> s : db.query("SELECT id, secret FROM docflow_ms_signin WHERE secret IS NOT NULL")) {
+                    if (!(s.get("secret") instanceof String v) || v.isEmpty()) continue;
+                    String bound = "ms-signin:" + s.get("id");
+                    db.update("UPDATE docflow_ms_signin SET secret = ? WHERE id = ?", next.encrypt(cr.vault.decrypt(v, bound), bound), s.get("id"));
+                    k++;
+                }
             return k;
         });
         // passwords in the configuration files (database, HTTPS certificate): each file is kept as .before-rotate first

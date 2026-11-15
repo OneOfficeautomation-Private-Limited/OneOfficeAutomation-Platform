@@ -905,7 +905,7 @@ class DocFlowProxyTest {
             assertEquals("ABCD-EFGH", started.get("userCode"));
             assertEquals("https://microsoft.com/devicelogin", started.get("verificationUri"));
             assertFalse(startBody.contains("DEV-SECRET"));
-            assertFalse(String.valueOf(cr.db.one("SELECT device_code FROM docflow_ms_signin WHERE id = ?", id).get("device_code")).contains("DEV-SECRET"));
+            assertFalse(String.valueOf(cr.db.one("SELECT secret FROM docflow_ms_signin WHERE id = ?", id).get("secret")).contains("DEV-SECRET"));
             assertTrue(microsoftSeen.stream().anyMatch(s -> s.startsWith("POST /organizations/oauth2/v2.0/devicecode") && s.contains("client_id=11111111-2222-3333-4444-555555555555")
                     && s.contains("Mail.Read.Shared") && s.contains("offline_access")));
 
@@ -917,9 +917,8 @@ class DocFlowProxyTest {
             String done = call("GET", "/api/docflow/ms-signin/" + id, null).body();
             assertTrue(done.contains("\"signed_in\"") && done.contains("invoices@contoso.com"), done);
             Map<String, Object> row = cr.db.one("SELECT * FROM docflow_ms_signin WHERE id = ?", id);
-            assertNull(row.get("device_code"));
             assertEquals("tenant-1", row.get("tenant"));
-            String firstRefresh = String.valueOf(row.get("refresh_token"));
+            String firstRefresh = String.valueOf(row.get("secret"));          // now the lasting sign-in, not the device code
             assertFalse(firstRefresh.contains("refresh-1"));                 // the lasting sign-in is encrypted
 
             // saving the inbox: the account shown is the one Microsoft confirmed, not what the browser sent
@@ -952,7 +951,14 @@ class DocFlowProxyTest {
             assertTrue(microsoftSeen.stream().anyMatch(s -> s.startsWith("GET /v1.0/users/invoices@contoso.com/mailFolders/inbox/messages") && s.endsWith("Bearer access-2")));
             row = cr.db.one("SELECT * FROM docflow_ms_signin WHERE id = ?", id);
             assertNotNull(row.get("last_used"));
-            assertNotEquals(firstRefresh, String.valueOf(row.get("refresh_token")));   // the renewed one is kept
+            assertNotEquals(firstRefresh, String.valueOf(row.get("secret")));   // the renewed one is kept
+
+            // a vault key rotation re-encrypts the sign-in, and the inbox still reads with it (no token in memory: decrypted anew)
+            Map<String, Object> rotated = cr.vaultAdmin.rotate(admin, null);
+            assertTrue(((Number) rotated.get("re_encrypted")).intValue() >= 1, String.valueOf(rotated));
+            cr.db.update("UPDATE docflow_mail SET last_check = NULL WHERE process_id = 'ms-ap'");
+            proxy(cr).pollMail();
+            assertNull(cr.db.one("SELECT last_error FROM docflow_mail WHERE process_id = 'ms-ap'").get("last_error"));
 
             // when Microsoft no longer accepts the sign-in, the inbox says to sign in again
             refreshRevoked = true;

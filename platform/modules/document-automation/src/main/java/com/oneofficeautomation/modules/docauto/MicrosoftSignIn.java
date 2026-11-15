@@ -28,8 +28,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * microsoft_app_id); the first sign-in from an organisation asks its Microsoft administrator to approve the app once.
  * <p>
  * What is kept (table docflow_ms_signin, module schema version 2): who started the sign-in, the Microsoft account
- * and its directory (tenant), and the long-lived sign-in (refresh token) encrypted with the vault key, never shown
- * and renewed each time the inbox is read. The browser only ever sees the sign-in's id and the account's name; the
+ * and its directory (tenant), and one secret encrypted with the vault key (bound to ms-signin:ID): the device code
+ * while the sign-in is pending, then the long-lived sign-in (refresh token), never shown and renewed each time the
+ * inbox is read. Key rotation (VaultAdmin.reencryptAll) and tenant moves (TenantMove.SECRETS) carry it. The browser only ever sees the sign-in's id and the account's name; the
  * device code stays here too. Access tokens are kept in memory until a minute before they run out.
  * <p>
  * Microsoft's sign-in address is login.microsoftonline.com, or OOA_MICROSOFT_LOGIN_URL (national clouds such as
@@ -99,8 +100,8 @@ public final class MicrosoftSignIn {
         String id = "ms" + hex(12);
         Instant now = Instant.now();
         long expiresIn = number(a.json().get("expires_in"), 900), interval = Math.max(1, number(a.json().get("interval"), 5));
-        ctx.db().update("INSERT INTO docflow_ms_signin (id, status, started_by, client_id, device_code, poll_every, next_poll, expires, created, updated) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                id, "pending", u.username(), app, ctx.vault().encrypt(String.valueOf(a.json().get("device_code")), bound(id, "device")),
+        ctx.db().update("INSERT INTO docflow_ms_signin (id, status, started_by, client_id, secret, poll_every, next_poll, expires, created, updated) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                id, "pending", u.username(), app, ctx.vault().encrypt(String.valueOf(a.json().get("device_code")), bound(id)),
                 (int) interval, now.plusSeconds(interval), now.plusSeconds(expiresIn), now, now);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", id);
@@ -124,7 +125,7 @@ public final class MicrosoftSignIn {
         if (now.isBefore(instant(row.get("next_poll")))) return Map.of("status", "pending");
         int every = ((Number) row.get("poll_every")).intValue();
         Answer a = post("/organizations/oauth2/v2.0/token", Map.of("grant_type", DEVICE_GRANT, "client_id", String.valueOf(row.get("client_id")),
-                "device_code", ctx.vault().decrypt(String.valueOf(row.get("device_code")), bound(id, "device"))));
+                "device_code", ctx.vault().decrypt(String.valueOf(row.get("secret")), bound(id))));
         if (a.status() == 200) return signedIn(id, a);
         switch (a.error()) {
             case "authorization_pending" -> { ctx.db().update("UPDATE docflow_ms_signin SET next_poll = ?, updated = ? WHERE id = ?", now.plusSeconds(every), now, id); return Map.of("status", "pending"); }
@@ -142,14 +143,14 @@ public final class MicrosoftSignIn {
         String account = String.valueOf(claims.getOrDefault("preferred_username", claims.getOrDefault("email", claims.getOrDefault("name", "Microsoft account"))));
         String tenant = String.valueOf(claims.getOrDefault("tid", "organizations"));
         Instant now = Instant.now();
-        ctx.db().update("UPDATE docflow_ms_signin SET status = 'signed_in', account = ?, tenant = ?, refresh_token = ?, device_code = NULL, last_error = NULL, updated = ? WHERE id = ?",
-                cut(account, 320), cut(tenant, 80), ctx.vault().encrypt(String.valueOf(refresh), bound(id, "refresh")), now, id);
+        ctx.db().update("UPDATE docflow_ms_signin SET status = 'signed_in', account = ?, tenant = ?, secret = ?, last_error = NULL, updated = ? WHERE id = ?",
+                cut(account, 320), cut(tenant, 80), ctx.vault().encrypt(String.valueOf(refresh), bound(id)), now, id);
         if (a.json().get("access_token") != null) tokens.put(id, new Token(String.valueOf(a.json().get("access_token")), now.plusSeconds(number(a.json().get("expires_in"), 3600))));
         return Map.of("status", "signed_in", "account", account);
     }
 
     private Map<String, Object> fail(String id, String message) {
-        ctx.db().update("UPDATE docflow_ms_signin SET status = 'failed', device_code = NULL, last_error = ?, updated = ? WHERE id = ?", cut(message, 1000), Instant.now(), id);
+        ctx.db().update("UPDATE docflow_ms_signin SET status = 'failed', secret = NULL, last_error = ?, updated = ? WHERE id = ?", cut(message, 1000), Instant.now(), id);
         return Map.of("status", "failed", "message", message);
     }
 
@@ -168,7 +169,7 @@ public final class MicrosoftSignIn {
         if (!"signed_in".equals(row.get("status")))
             throw new OoaException("DOCS.MS_SIGNIN", "The Microsoft sign-in for " + account + " no longer works", "Open the process, step 1, and choose Sign in with Microsoft again.");
         Answer a = post("/" + URLEncoder.encode(String.valueOf(row.get("tenant")), StandardCharsets.UTF_8) + "/oauth2/v2.0/token", Map.of("grant_type", "refresh_token",
-                "client_id", String.valueOf(row.get("client_id")), "scope", SCOPE, "refresh_token", ctx.vault().decrypt(String.valueOf(row.get("refresh_token")), bound(id, "refresh"))));
+                "client_id", String.valueOf(row.get("client_id")), "scope", SCOPE, "refresh_token", ctx.vault().decrypt(String.valueOf(row.get("secret")), bound(id))));
         if (a.status() != 200 || a.json().get("access_token") == null) {
             if (a.error().equals("invalid_grant") || a.error().equals("interaction_required")) {
                 ctx.db().update("UPDATE docflow_ms_signin SET status = 'expired', last_error = ?, updated = ? WHERE id = ?", cut("Microsoft no longer accepts this sign-in: " + a.description(), 1000), now, id);
@@ -178,7 +179,7 @@ public final class MicrosoftSignIn {
             throw new IOException("Microsoft sign-in for " + account + " failed: " + a.description());
         }
         Object refresh = a.json().get("refresh_token");
-        if (refresh != null) ctx.db().update("UPDATE docflow_ms_signin SET refresh_token = ?, last_used = ?, updated = ? WHERE id = ?", ctx.vault().encrypt(String.valueOf(refresh), bound(id, "refresh")), now, now, id);
+        if (refresh != null) ctx.db().update("UPDATE docflow_ms_signin SET secret = ?, last_used = ?, updated = ? WHERE id = ?", ctx.vault().encrypt(String.valueOf(refresh), bound(id)), now, now, id);
         else ctx.db().update("UPDATE docflow_ms_signin SET last_used = ? WHERE id = ?", now, id);
         Token fresh = new Token(String.valueOf(a.json().get("access_token")), now.plusSeconds(number(a.json().get("expires_in"), 3600)));
         tokens.put(id, fresh);
@@ -235,7 +236,8 @@ public final class MicrosoftSignIn {
         } catch (IllegalArgumentException e) { return Map.of(); }
     }
 
-    private static String bound(String id, String what) { return "docflow_ms_signin/" + id + "/" + what; }
+    /** What a sign-in's secret is bound to (the same in TenantMove and VaultAdmin.reencryptAll). */
+    static String bound(String id) { return "ms-signin:" + id; }
     private static long number(Object o, long fallback) {
         if (o instanceof Number n) return n.longValue();
         try { return o == null ? fallback : Long.parseLong(String.valueOf(o)); } catch (NumberFormatException e) { return fallback; }

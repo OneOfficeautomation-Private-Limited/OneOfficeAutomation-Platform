@@ -875,7 +875,7 @@ public final class Db implements AutoCloseable {
     }
 
     /** True when the table is there (read before an upgrade, outside its transaction: a failed read would spoil it). */
-    boolean hasTable(String table) {
+    public boolean hasTable(String table) {
         try { one("SELECT 1 AS x FROM " + table + " WHERE 1 = 0"); return true; }
         catch (OoaException e) { return false; }
     }

@@ -38,8 +38,8 @@ public final class DocumentAutomationModule implements CommandCenterModule {
      * The module's own tables. Version 1 (command review D1, 12 Nov 2026): docflow_collected, the documents an agent
      * marked collected, per collector name (agents sharing a name share the marks), with the process, run and person.
      * Version 2 (DA-1, 15 Nov 2026): docflow_ms_signin, "Sign in with Microsoft" for email inboxes (MicrosoftSignIn):
-     * who signed in, the Microsoft account and directory, and the device code and lasting sign-in encrypted with the
-     * vault key.
+     * who signed in, the Microsoft account and directory, and one secret encrypted with the vault key (the device code
+     * while pending, then the lasting sign-in).
      */
     public java.util.List<java.util.List<String>> schema() {
         return java.util.List.of(java.util.List.of(
@@ -48,7 +48,7 @@ public final class DocumentAutomationModule implements CommandCenterModule {
                 "CREATE INDEX docflow_collected_process ON docflow_collected (process_id, collector)"),
                 java.util.List.of(
                 "CREATE TABLE docflow_ms_signin (id VARCHAR(40) PRIMARY KEY, status VARCHAR(20) NOT NULL, started_by VARCHAR(80) NOT NULL, client_id VARCHAR(80) NOT NULL, "
-                        + "account VARCHAR(320), tenant VARCHAR(80), device_code VARCHAR(20000), refresh_token VARCHAR(20000), poll_every INT, next_poll TIMESTAMP, "
+                        + "account VARCHAR(320), tenant VARCHAR(80), secret VARCHAR(20000), poll_every INT, next_poll TIMESTAMP, "
                         + "expires TIMESTAMP, last_used TIMESTAMP, last_error VARCHAR(1000), created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL)"));
     }
 
