@@ -1,6 +1,5 @@
 package com.oneofficeautomation.modules.docauto;
 
-import com.oneofficeautomation.controlroom.MicrosoftSignIn;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 import com.oneofficeautomation.controlroom.MailSource;
 import com.oneofficeautomation.controlroom.module.ModuleContext;
@@ -40,7 +39,7 @@ import java.util.regex.Pattern;
  * with docs.review; {@link #syncReviews}), and a process's "Start a bot" delivery calls
  * /api/docflow-callback/start-bot with the service token, which starts the bot as the person who set the delivery up.
  * And one more way in: a live process's email inbox (intake.email, IMAP or Microsoft 365) is read here, with the
- * mailbox's vault secret as the person who set it up, or with their "Sign in with Microsoft" ({@link MicrosoftSignIn},
+ * mailbox's vault secret as the person who set it up, or with their "Sign in with Microsoft" (the kernel's MicrosoftSignIn,
  * /api/docflow/ms-signin), and new PDF and image attachments go to the process ({@link #pollMail});
  * /api/docflow/mail-status says how each inbox's last check went.
  * <p>
@@ -71,7 +70,7 @@ public final class DocFlowProxy {
     private final ModuleContext ctx;
     private final HttpClient http;
     /** "Sign in with Microsoft" for email inboxes (tests point it at a fake Microsoft). */
-    public MicrosoftSignIn microsoft;
+    public ModuleContext.MicrosoftSignIns microsoft;
 
     public DocFlowProxy(ModuleContext ctx) {
         this.ctx = ctx;

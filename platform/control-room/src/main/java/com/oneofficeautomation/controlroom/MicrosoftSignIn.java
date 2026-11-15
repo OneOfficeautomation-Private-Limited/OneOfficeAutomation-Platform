@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Microsoft's sign-in address is login.microsoftonline.com, or OOA_MICROSOFT_LOGIN_URL (national clouds such as
  * login.microsoftonline.us, and tests).
  */
-public final class MicrosoftSignIn {
+public final class MicrosoftSignIn implements com.oneofficeautomation.controlroom.module.ModuleContext.MicrosoftSignIns {
     /** OOA's own Microsoft app (multi-tenant, public client flows on); empty until it is registered in Entra. */
     public static final String OOA_APP_ID = "";
     /** Reading the person's own and shared mailboxes, their name, and a lasting sign-in. */
