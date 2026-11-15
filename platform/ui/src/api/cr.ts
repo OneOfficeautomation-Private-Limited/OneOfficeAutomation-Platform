@@ -166,6 +166,20 @@ export type EnvironmentLock = { name: string; run_id: string; device_id?: string
   acquired: string; expires: string; comment?: string | null; run_status?: string | null; expired?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string | null; values?: Record<string, unknown>; credentials?: Record<string, string>; updated?: string; updated_by?: string };
 /** A toolkit that takes a connection, and the inputs one holds (credential: a vault reference). */
+/** Mail accounts (MA-3): a vendor from the catalogue (server, regions, how it signs in). */
+export type MailProvider = { id: string; name: string; kind: "graph" | "imap"; signIn: ("microsoft" | "microsoft_app" | "app_password" | "password")[]; audience?: string;
+  domains: string[]; folders?: string; imap?: { host: string; port: number; ssl: boolean }; regions?: { id: string; name: string; host: string }[]; appPasswordUrl?: string; help?: string };
+export type MailStatus = "new" | "working" | "sign_in_expired" | "wrong_password" | "failed";
+export type MailAccount = { id: string; name: string; provider: string; provider_name: string; address: string; sign_in: string; settings: Record<string, unknown>;
+  secret_ref?: string | null; ms_signin?: string | null; signed_in_as?: string | null; owner: string; allowed: string[]; rule_mode: "first" | "every"; interval_seconds: number;
+  status: MailStatus; last_check?: string | null; last_error?: string | null; last_mail?: string | null; can_use: boolean; can_change: boolean;
+  used_by: { kind: string; target: string }[]; updated?: string; updated_by?: string };
+export type MailDetect = { domain: string; provider: string | null; how: "domain" | "mx" | "none"; region?: string; mx?: string };
+export type MailCondition = { field: string; op: string; value: string | string[] };
+export type MailConditions = { match: "all" | "any"; when: MailCondition[]; except: MailCondition[] };
+export type MailRule = { id: string; account_id: string; position: number; name: string; enabled: boolean; folder?: string | null; conditions: MailConditions; says: string;
+  target_kind: string; target: string; target_name: string; read_what: "attachments" | "email" | "both"; after_read: string; owner: string; matched: number; last_matched?: string | null };
+export type MailTry = { looked_at: number; matched: { subject: string; from: string; date: string }[]; taken_by_earlier: number; not_matched: { subject: string; from: string; date: string }[]; says: string };
 export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[]; sign_in?: boolean };
 export type Toolkit = { id: string; name: string; version?: string; versions?: string[]; description?: string | null; publisher?: string | null; actions: number; conditions?: number;
   enabled: boolean; used_by: number; custom?: boolean };
@@ -486,6 +500,26 @@ export class CrApi {
   async setMyGlobal(name: string, value: unknown) { await this.call("PUT", "globals/" + encodeURIComponent(name) + "/mine", { value }); }
   async clearMyGlobal(name: string) { await this.call("DELETE", "globals/" + encodeURIComponent(name) + "/mine"); }
   // ---- Saved connections: a connector's address and sign-in kept once; secrets are vault references ----
+  // ---- Mail accounts (MA-3): mailboxes set up once, their rules and Not matched ----
+  async mailAccounts() { return this.call<{ accounts: MailAccount[]; providers: MailProvider[] }>("GET", "mail-accounts"); }
+  mailDetect(address: string) { return this.call<MailDetect>("GET", "mail-accounts/detect?address=" + encodeURIComponent(address)); }
+  saveMailAccount(id: string | null, b: Record<string, unknown>) { return this.call<MailAccount>(id ? "PUT" : "POST", "mail-accounts" + (id ? "/" + encodeURIComponent(id) : ""), b); }
+  async deleteMailAccount(id: string) { await this.call("DELETE", "mail-accounts/" + encodeURIComponent(id)); }
+  testMailAccount(id: string) { return this.call<{ ok: boolean; status: MailStatus; message: string }>("POST", "mail-accounts/" + encodeURIComponent(id) + "/test"); }
+  async mailSignInReady() { return (await this.call<{ ready: boolean }>("GET", "mail-accounts/ms-signin")).ready; }
+  mailSignInStart(audience: string) { return this.call<MsSignInStart>("POST", "mail-accounts/ms-signin?audience=" + encodeURIComponent(audience)); }
+  mailSignInPoll(id: string) { return this.call<MsSignInState>("GET", "mail-accounts/ms-signin/" + encodeURIComponent(id)); }
+  mailRules(account: string) { return this.call<{ rules: MailRule[]; rule_mode: "first" | "every"; can_order: boolean }>("GET", "mail-accounts/" + encodeURIComponent(account) + "/rules"); }
+  saveMailRule(account: string, id: string | null, b: Record<string, unknown>) {
+    return this.call<MailRule>(id ? "PUT" : "POST", id ? "mail-rules/" + encodeURIComponent(id) : "mail-accounts/" + encodeURIComponent(account) + "/rules", b);
+  }
+  async deleteMailRule(id: string) { await this.call("DELETE", "mail-rules/" + encodeURIComponent(id)); }
+  async orderMailRules(account: string, ids: string[]) { await this.call("PUT", "mail-accounts/" + encodeURIComponent(account) + "/rules/order", { ids }); }
+  tryMailRule(account: string, b: { conditions: MailConditions; folder?: string; rule?: string }) { return this.call<MailTry>("POST", "mail-accounts/" + encodeURIComponent(account) + "/rules/try", b); }
+  readMailAccount(account: string) { return this.call<{ read: number; delivered: number; unmatched: number; problems?: string[]; error?: string }>("POST", "mail-accounts/" + encodeURIComponent(account) + "/read"); }
+  async mailUnmatched(account: string) { return (await this.call<{ emails: { id: string; received: string; sender: string; subject: string }[] }>("GET", "mail-accounts/" + encodeURIComponent(account) + "/unmatched")).emails; }
+  async sendUnmatched(id: string, rule: string) { await this.call("POST", "mail-unmatched/" + encodeURIComponent(id) + "/send", { rule }); }
+  async ignoreUnmatched(id: string) { await this.call("POST", "mail-unmatched/" + encodeURIComponent(id) + "/ignore"); }
   async savedConnections() { return (await this.call<{ connections?: SavedConnection[] }>("GET", "saved-connections")).connections ?? []; }
   async connectionKinds() { return (await this.call<{ kinds?: ConnectionKind[] }>("GET", "connection-kinds")).kinds ?? []; }
   async saveConnection(name: string, b: { package: string; description: string; values: Record<string, string>; credentials: Record<string, string> }) {

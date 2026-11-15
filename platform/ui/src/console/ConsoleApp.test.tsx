@@ -27,6 +27,18 @@ const runs = [
   { id: "r4", bot_path: "HR/Onboard.flow.json", version: 1, device_id: "d1", device_name: "Runner A", status: "success", requested_by: "vic", source: "trigger:t1",
     created: "2026-10-29T07:00:00Z", started: "2026-10-29T07:00:02Z", finished: "2026-10-29T07:00:32Z", duration_ms: 30000, steps: 5 }];
 
+const MAIL_ACCOUNT = { id: "mail_1", name: "AP invoices mailbox", provider: "microsoft365", provider_name: "Microsoft 365", address: "invoices@contoso.com", sign_in: "microsoft",
+  settings: { sign_in: "microsoft" }, ms_signin: "ms" + "1".repeat(24), signed_in_as: "invoices@contoso.com", owner: "admin", allowed: ["team:finance"], rule_mode: "first",
+  interval_seconds: 60, status: "working", last_check: "2026-11-15T10:58:00Z", can_use: true, can_change: true, used_by: [{ kind: "process", target: "ap" }, { kind: "trigger", target: "trg_1" }] };
+const MAIL_PROVIDERS = [
+  { id: "microsoft365", name: "Microsoft 365", kind: "graph", signIn: ["microsoft", "microsoft_app"], audience: "organizations", domains: [] },
+  { id: "gmail", name: "Gmail, Google Workspace", kind: "graph", signIn: ["app_password"], domains: ["gmail.com"], imap: { host: "imap.gmail.com", port: 993, ssl: true },
+    appPasswordUrl: "https://myaccount.google.com/apppasswords", help: "Google needs an app password for mail programs." },
+  { id: "zoho", name: "Zoho Mail", kind: "imap", signIn: ["app_password", "password"], domains: ["zoho.com"], imap: { host: "imap.zoho.com", port: 993, ssl: true },
+    regions: [{ id: "com", name: "zoho.com (United States)", host: "imap.zoho.com" }, { id: "in", name: "zoho.in (India)", host: "imap.zoho.in" }] },
+  { id: "imap", name: "Other mail server", kind: "imap", signIn: ["password"], domains: [], imap: { host: "", port: 993, ssl: true } },
+];
+
 function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mfa = false, studio = true, plugins = [] as unknown[], sso = false, notice = false } = {}) {
   let user = signedIn;
   let logsAsked = false;
@@ -259,6 +271,19 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "toolkits/excel/update-agents") return ok({ results: [{ path: "Finance/Invoice intake.flow.json", status: "updated", version: 4 }] });
     if (route === "toolkits/publishers" && (init.method ?? "GET") === "GET") return ok({ publishers: [{ publisher: "acme", public_key: "MCowBQYDK2VwAyEA", added_by: "admin" }] });
     if (/^toolkits\/[\w.]+$/.test(route)) return ok({ ok: true });
+    if (route === "mail-accounts/detect") return ok(String(url).includes("acme-trading") ? { domain: "acme-trading.com", provider: "gmail", how: "mx", mx: "aspmx.l.google.com" } : { domain: "x.example", provider: null, how: "none" });
+    if (route === "mail-accounts" && init.method === "POST") return ok({ ...MAIL_ACCOUNT, id: "mail_2", name: body.name, provider: body.provider, provider_name: "Gmail, Google Workspace", address: body.address, status: "new", sign_in: "app_password", secret_ref: body.secret_ref });
+    if (route === "mail-accounts") return ok({ accounts: [MAIL_ACCOUNT], providers: MAIL_PROVIDERS });
+    if (route === "mail-accounts/mail_1/test") return ok({ ok: true, status: "working", message: "Reached the Inbox of invoices@contoso.com." });
+    if (route === "mail-accounts/mail_1/rules") return ok({ rule_mode: "first", can_order: true, rules: [
+      { id: "mrule_1", account_id: "mail_1", position: 1, name: "Supplier invoices", enabled: true, conditions: { match: "all", when: [], except: [] }, says: "from @acme.com · has a PDF file",
+        target_kind: "process", target: "ap", target_name: "ap", read_what: "attachments", after_read: "none", owner: "admin", matched: 18 },
+      { id: "mrule_2", account_id: "mail_1", position: 2, name: "Credit notes", enabled: true, conditions: { match: "all", when: [], except: [] }, says: "subject has credit note",
+        target_kind: "trigger", target: "trg_1", target_name: "Tell AP lead", read_what: "attachments", after_read: "read", owner: "admin", matched: 3 }] });
+    if (route === "mail-accounts/mail_1/rules/order") return ok({ ok: true });
+    if (route === "mail-accounts/mail_1/unmatched") return ok({ emails: [{ id: "mun_1", received: "2026-11-15T11:00:00Z", sender: "sales@hooli.com", subject: "Quotation Q-2041" }] });
+    if (route === "mail-accounts/mail_1/read") return ok({ read: 2, delivered: 1, unmatched: 1 });
+    if (/^mail-unmatched\//.test(route)) return ok({ ok: true });
     if (route === "saved-connections") return ok({ connections: [{ name: "SNOW prod", package: "servicenow", description: "Incidents", values: { instance_url: "https://acme.service-now.com" },
       credentials: { password: "snow/api/password" }, updated: "2026-10-30T08:00:00Z", updated_by: "admin" }] });
     if (route === "connection-kinds") return ok({ kinds: [{ package: "servicenow", name: "ServiceNow", inputs: [{ name: "instance_url" }, { name: "username" }, { name: "password", credential: true }] },
@@ -2163,10 +2188,59 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "globals/retries", body: { value: 3, changeable: false, type: "number" } }));  // the server checks the type too
   });
 
+  it("keeps mail accounts once: health and details, Test now, the vendor from the address, the password from the vault, rules and Not matched (MA-3)", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "globals.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    await go("Connections");
+    const list = await screen.findByRole("table", { name: "Mail accounts" });
+    expect(within(list).getByText("Working")).toBeTruthy();
+    const detail = screen.getByRole("complementary", { name: "Mail account AP invoices mailbox" });
+    expect(within(detail).getByText("Microsoft 365 · Sign in with Microsoft")).toBeTruthy();
+    expect(within(detail).getByText("team:finance")).toBeTruthy();
+    expect(within(detail).getByText("Process ap, Trigger trg_1")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(detail).getByRole("button", { name: "Test now" })); });
+    expect(await screen.findByText("Reached the Inbox of invoices@contoso.com.")).toBeTruthy();
+
+    // its rules in order, how they apply, and Not matched sent on by hand
+    fireEvent.click(within(detail).getByRole("button", { name: "Mail rules" }));
+    const rules = await screen.findByRole("dialog", { name: "Mail rules: AP invoices mailbox" });
+    const order = await within(rules).findByRole("table", { name: "Rules in order" });
+    expect(within(order).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["1Supplier invoicesfrom @acme.com · has a PDF fileProcess ap18", "2Credit notessubject has credit noteTrigger Tell AP lead3"]);
+    await act(async () => { fireEvent.click(within(order).getByRole("button", { name: "Move Credit notes up" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "mail-accounts/mail_1/rules/order", body: { ids: ["mrule_2", "mrule_1"] } }));
+    const waiting = within(rules).getByRole("region", { name: "Not matched" });
+    fireEvent.change(within(waiting).getByLabelText("Send Quotation Q-2041 to"), { target: { value: "mrule_1" } });
+    await act(async () => { fireEvent.click(within(waiting).getByRole("button", { name: "Send" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "mail-unmatched/mun_1/send", body: { rule: "mrule_1" } }));
+    await act(async () => { fireEvent.click(within(rules).getByRole("button", { name: "Check now" })); });
+    expect(await screen.findByText("2 new emails, 1 sent on, 1 not matched.")).toBeTruthy();
+    fireEvent.click(within(rules).getByRole("button", { name: "Done" }));
+
+    // a new account: the address finds the vendor; the app password comes from the vault
+    fireEvent.click(screen.getByRole("button", { name: "New mail account" }));
+    const d = await screen.findByRole("dialog", { name: "New mail account" });
+    const add = within(d).getByRole("button", { name: "Add mail account" }) as HTMLButtonElement;
+    fireEvent.change(within(d).getByLabelText("Email address"), { target: { value: "invoices@acme-trading.com" } });
+    await waitFor(() => expect(within(d).getByRole("button", { name: /Gmail, Google Workspace/ }).getAttribute("aria-pressed")).toBe("true"), { timeout: 2000 });
+    expect(within(d).getByText(/Found: Gmail, Google Workspace, from where acme-trading.com's mail goes \(aspmx.l.google.com\)/)).toBeTruthy();
+    expect(within(d).getByRole("link", { name: /Make an app password at Gmail, Google Workspace/ })).toBeTruthy();
+    expect(within(d).getByText(/Server imap.gmail.com, port 993, SSL\/TLS/)).toBeTruthy();
+    expect(add.disabled).toBe(true);                                                     // no password chosen yet
+    fireEvent.change(await within(d).findByLabelText("Vault folder"), { target: { value: "finance" } });
+    fireEvent.change(within(d).getByLabelText("Credential"), { target: { value: "erp" } });
+    fireEvent.change(within(d).getByLabelText("Attribute"), { target: { value: "password" } });
+    expect(add.disabled).toBe(false);
+    await act(async () => { fireEvent.click(add); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "mail-accounts",
+      body: expect.objectContaining({ name: "invoices@acme-trading.com", provider: "gmail", address: "invoices@acme-trading.com", sign_in: "app_password", secret_ref: "finance/erp/password" }) }));
+    expect(await screen.findByText("Added the mail account invoices@acme-trading.com.")).toBeTruthy();
+  });
+
   it("shows Connections with settings and vault references, and creates one by its toolkit's inputs", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "globals.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
     await go("Connections");
+    fireEvent.click(await screen.findByRole("tab", { name: "Toolkit connections" }));   // MA-3: mail accounts come first
     const list = await screen.findByRole("table", { name: "Connections list" });
     expect(await within(list).findByText("password → snow/api/password")).toBeTruthy();
     // one line per connection, its description on hover; a menu per connection with Delete asked first
