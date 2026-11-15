@@ -3,7 +3,13 @@ import { Button, Dialog, Field, Select, TextInput } from "../../components";
 import type { DocFlowApi, DocType, DocTypeField, FieldType } from "./api";
 import { FORMATS, formatOf } from "./formats";
 import { LanguagePicker } from "./languages";
-import { Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError, useLoad } from "./ui";
+
+/** A field's check in words: a known check by its name, the field's kind otherwise, or "Own pattern" (shown under Advanced). */
+export function checkText(f: Pick<DocTypeField, "regex" | "type">): string {
+  if (f.regex) return formatOf(f.regex)?.label ?? "Own pattern (see Advanced)";
+  return ({ Date: "A date", Amount: "An amount", Number: "A number", Choice: "One of the choices" } as Record<string, string>)[f.type] ?? "None";
+}
+import { AdvancedToggle, Chip, FilterBar, FilterSelect, Loading, SearchBox, matches, reportError, useLoad } from "./ui";
 
 const TYPES: FieldType[] = ["Text", "Date", "Amount", "Number", "Choice", "Table"];
 const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
@@ -81,6 +87,7 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
   const [type, setType] = useState("all");
   const [req, setReq] = useState<"all" | "required" | "optional">("all");
   const [editing, setEditing] = useState<DocTypeField | "new" | null>(addField ? "new" : null);
+  const [advanced, setAdvanced] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -123,16 +130,18 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
         </FilterBar>
         <div className="df-table-wrap">
           <table className="df-table">
-            <thead><tr><th>Field</th><th>Labels on the page</th><th>Type</th><th>Required</th><th>Format check</th><th title="Labels learned from reviews">Learned labels</th><th><span className="sr-only">Actions</span></th></tr></thead>
+            <thead><tr><th>What to read</th><th>Words next to it on the page</th><th>Kind</th><th>Must be there</th><th>Check</th>
+              {advanced && <><th>Pattern</th><th title="Labels learned from reviews">Learned labels</th></>}<th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>
               {fields.map((f) => (
                 <tr key={f.key}>
-                  <td><b>{f.label}</b><div className="df-small ui-mono">{f.key}</div></td>
-                  <td className="df-muted">{[...new Set([f.label, ...f.aliases])].join(", ")}</td><td>{f.type}</td><td>{f.required ? "Required" : "Optional"}</td>
-                  {formatOf(f.regex) ? <td title={f.regex}>{formatOf(f.regex)!.label}</td> : <td className="ui-mono">{f.regex || "—"}</td>}
+                  <td><b>{f.label}</b>{advanced && <div className="df-small ui-mono">{f.key}</div>}</td>
+                  <td className="df-muted">{[...new Set([f.label, ...f.aliases])].join(", ")}</td><td>{f.type}</td><td>{f.required ? "Yes" : "No"}</td>
+                  <td title={formatOf(f.regex)?.accepts}>{checkText(f)}</td>
+                  {advanced && <><td className="ui-mono">{f.regex || "—"}</td>
                   <td className="df-muted">{f.learned.length ? f.learned.map((l) => (
                     <span key={l} className="df-learned">"{l}"<button type="button" className="df-link" aria-label={`Forget "${l}"`}
-                      onClick={() => set({ fields: t.fields.map((x) => x.key === f.key ? { ...x, learned: x.learned.filter((y) => y !== l) } : x) })}>×</button></span>)) : "—"}</td>
+                      onClick={() => set({ fields: t.fields.map((x) => x.key === f.key ? { ...x, learned: x.learned.filter((y) => y !== l) } : x) })}>×</button></span>)) : "—"}</td></>}
                   <td className="df-right" style={{ whiteSpace: "nowrap" }}>
                     <Button kind="plain" onClick={() => setEditing(f)}>Edit</Button>
                     <Button kind="plain" aria-label={"Remove " + f.label} onClick={() => set({ fields: t.fields.filter((x) => x.key !== f.key) })}>Remove</Button>
@@ -143,6 +152,9 @@ export function DocTypeEditor({ api, value, onSaved, onDiscard, onDeleted, addFi
           </table>
           {!t.fields.length && <div className="df-empty">No fields yet. Add them, or use Teach from samples.</div>}
           {t.fields.length > 0 && !fields.length && <div className="df-empty">No field matches these filters.</div>}
+        </div>
+        <div className="df-pad" style={{ paddingTop: 8, paddingBottom: 10 }}>
+          <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="the pattern behind each check, field names and labels learned from reviews" />
         </div>
       </section>
 

@@ -7,6 +7,19 @@ import type { DocStatus } from "./api";
 export type Tone = "ok" | "warn" | "bad" | "info" | "mute" | "ai";
 
 /** A status pill: always a dot and words, so the state never relies on colour alone (DESIGN_SYSTEM.md). */
+/**
+ * DA-1 (plan B, 15 Nov 2026): every section shows its basics in plain words; "Show advanced settings" opens the
+ * technical part of that section only (patterns, thresholds, engine choices). Closed by default, not remembered.
+ */
+export function AdvancedToggle({ open, onToggle, what }: { open: boolean; onToggle: () => void; what: string }) {
+  return (
+    <div className="df-adv">
+      <button type="button" className="df-link" aria-expanded={open} onClick={onToggle}>{open ? "Hide advanced settings" : "Show advanced settings"}</button>
+      {!open && <span className="df-small"> · {what}</span>}
+    </div>
+  );
+}
+
 export function Chip({ tone, children, dot = true }: { tone: Tone; children: ReactNode; dot?: boolean }) {
   return <span className={`df-chip df-${tone}`}>{dot && <span className="df-dot" aria-hidden="true" />}{children}</span>;
 }

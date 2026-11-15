@@ -23,6 +23,10 @@ export const FORMATS: FieldFormat[] = [
     accepts: "15 characters: 2 digits, the 10-character PAN, a digit or letter, Z, and a check character, such as 29ABCDE1234F1Z5." },
   { id: "pan", label: "Indian PAN", pattern: "^[A-Z]{5}\\d{4}[A-Z]$", accepts: "5 capital letters, 4 digits and a capital letter, such as ABCDE1234F." },
   { id: "us-ein", label: "US EIN", pattern: "^\\d{2}-\\d{7}$", accepts: "2 digits, a dash and 7 digits, such as 12-3456789." },
+  // the patterns DocFlow's built-in document types use, so they read in words too
+  { id: "iban-sa", label: "Saudi IBAN", pattern: "SA\\d{2}[A-Z0-9]{18}", accepts: "SA, 2 digits and 18 capital letters or digits, such as SA0380000000608010167519." },
+  { id: "ksa-vat-15", label: "Saudi VAT number (15 digits, starts with 3)", pattern: "3\\d{14}", accepts: "15 digits starting with 3, such as 300012345600003." },
+  { id: "ksa-id", label: "Saudi ID or passport number", pattern: "[12]\\d{9}|[A-Z]\\d{7,8}", accepts: "A 10-digit national ID starting with 1 or 2, or a letter and 7 or 8 digits." },
   { id: "invoice-number", label: "Invoice number (letters and digits)", pattern: "^[A-Za-z]{1,6}(?:[-/]?\\d+)+$",
     accepts: "1 to 6 letters, then digits, with dashes or slashes between groups allowed, such as INV-2026-0187 or PO1234." },
 ];

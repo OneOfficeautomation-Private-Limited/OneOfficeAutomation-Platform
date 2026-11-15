@@ -1,7 +1,8 @@
 import { Button, Field, Select } from "../../../components";
 import { modelName, type ClaudeModels, type Engine, type Routing } from "../api";
 import { HINTS } from "../help";
-import { Chip } from "../ui";
+import { AdvancedToggle, Chip } from "../ui";
+import { useState } from "react";
 
 /** The retry thresholds offered, and the saved one when it is another (set in DocFlow), so the list shows what is saved. */
 const RETRY = [0.9, 0.85, 0.8, 0.75, 0.7];
@@ -15,6 +16,7 @@ const retryOptions = (saved: number) => [
 export function RoutingSection({ routing, cloudEngines, engines = [], saved, onChange, onSave, claude }:
   { routing: Routing; cloudEngines: Engine[]; engines?: Engine[]; saved: boolean; onChange: (r: Routing) => void; onSave: () => void; claude?: ClaudeModels }) {
   const pct = Math.round(routing.retryBelow * 100);
+  const [advanced, setAdvanced] = useState(false);
   const cloud = cloudEngines.find((e) => e.id === routing.cloudEngine);
   // each engine's real state from DocFlow; the built-in ones it does not list (PDF text, Rules) are always there
   const ready = (id: string) => (engines.find((e) => e.id === id)?.status ?? "ready") === "ready";
@@ -49,7 +51,8 @@ export function RoutingSection({ routing, cloudEngines, engines = [], saved, onC
         Processes that read fields with Claude: <b>{modelName(claude.model)}</b> reads them{claude.escalationModel
           ? <>; <b>{modelName(claude.escalationModel)}</b> re-reads a document that would otherwise go to review</> : "; no second model"}.
         {" "}Change the models in <a href="#/engines/catalog/onemind">Engines, OneMind</a>, Claude, Configure.</p>}
-      <div className="df-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr)) auto", alignItems: "end", paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
+      <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="when weak pages are read again, and by which engines" />
+      {advanced && <div className="df-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr)) auto", alignItems: "end", paddingTop: 14, borderTop: "1px solid var(--ui-divider)" }}>
         <Field label="Retry pages below" info={HINTS.retryBelow}>{(id) => <Select id={id} value={String(routing.retryBelow)} onChange={(e) => onChange({ ...routing, retryBelow: Number(e.target.value) })}
           options={retryOptions(routing.retryBelow)} />}</Field>
         <Field label="Local retry engine" info={HINTS.localRetry}>{(id) => <Select id={id} value={routing.localRetry} onChange={(e) => onChange({ ...routing, localRetry: e.target.value })}
@@ -57,7 +60,7 @@ export function RoutingSection({ routing, cloudEngines, engines = [], saved, onC
         <Field label="Cloud engine for pages still weak" info={HINTS.cloudEngine}>{(id) => <Select id={id} value={routing.cloudEngine} onChange={(e) => onChange({ ...routing, cloudEngine: e.target.value })}
           options={[{ value: "", label: "None" }, ...cloudEngines.map((e) => ({ value: e.id, label: e.name }))]} />}</Field>
         <Button kind="primary" onClick={onSave}>{saved ? "Saved" : "Save routing"}</Button>
-      </div>
+      </div>}
     </section>
   );
 }

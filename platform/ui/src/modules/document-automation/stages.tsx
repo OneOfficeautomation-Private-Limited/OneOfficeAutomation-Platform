@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
 import { HINTS } from "./help";
+import { AdvancedToggle } from "./ui";
 import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
 
 /** The process builder's stage forms and its check and delivery dialogs. */
@@ -109,10 +110,17 @@ export function ClassifyStage({ s, set }: { s: ProcessSettings; set: SetSettings
 }
 
 export function ExtractStage({ s, set }: { s: ProcessSettings; set: SetSettings }) {
+  const [advanced, setAdvanced] = useState(s.extraction !== "auto");   // a chosen engine is shown, not hidden
   return (
-    <Field label="Engine that reads the fields" hint="The fields themselves come from the document type.">
-      {(id) => <Select id={id} value={s.extraction} onChange={(e) => set({ extraction: e.target.value })} options={EXTRACTION} />}
-    </Field>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <p style={{ margin: 0 }}>The fields to read come from the document type. {s.extraction === "auto"
+        ? "They are read the way the Engines page says (on this server unless cloud reading is switched on)."
+        : "This process uses its own engine (below)."}</p>
+      <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="choose a different engine for this process" />
+      {advanced && <Field label="Engine that reads the fields" hint="Default engine: the one set on the Engines page.">
+        {(id) => <Select id={id} value={s.extraction} onChange={(e) => set({ extraction: e.target.value })} options={EXTRACTION} />}
+      </Field>}
+    </div>
   );
 }
 
@@ -122,10 +130,13 @@ const levelOptions = (saved: number) => [...new Set([...FIELD_LEVELS, saved])].s
   .map((v) => ({ value: String(v), label: Math.round(v * 100) + "%" }));
 
 export function ReviewStage({ s, set, fields }: { s: ProcessSettings; set: SetSettings; fields: { name: string; label: string }[] }) {
+  const own = Object.keys(s.fieldThresholds ?? {}).length > 0;
+  const [advanced, setAdvanced] = useState(own);   // thresholds already set are shown, not hidden
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <ReviewLevels s={s} set={set} />
-      <FieldThresholds s={s} set={set} fields={fields} />
+      <AdvancedToggle open={advanced} onToggle={() => setAdvanced(!advanced)} what="stricter checks for important fields, such as the total" />
+      {advanced && <FieldThresholds s={s} set={set} fields={fields} />}
     </div>
   );
 }

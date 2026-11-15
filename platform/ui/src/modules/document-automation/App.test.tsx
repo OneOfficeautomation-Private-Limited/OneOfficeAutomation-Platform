@@ -327,6 +327,7 @@ describe("Document Automation", () => {
     fireEvent.click(einvoice);
     expect(einvoice.getAttribute("aria-checked")).toBe("false");
     fireEvent.click(screen.getByRole("tab", { name: /Human review/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));   // DA-1: thresholds per field are advanced
     const levels = screen.getByRole("region", { name: "Field thresholds" });
     fireEvent.click(within(levels).getByRole("button", { name: "Add field threshold" }));
     fireEvent.click(within(levels).getByRole("button", { name: "Add field threshold" }));
@@ -398,6 +399,7 @@ describe("Document Automation", () => {
     const api = new SampleApi();
     await api.saveRouting({ ...(await api.engines()).routing, retryBelow: 0.65 });
     start(api); await go("#/engines/routing");
+    fireEvent.click(await screen.findByRole("button", { name: "Show advanced settings" }));
     const retry = await screen.findByRole("combobox", { name: "Retry pages below" }) as HTMLSelectElement;
     expect(retry.value).toBe("0.65");                                           // not the first choice, which Save would then store
     expect(screen.getByText("Retry pages under 65%")).toBeTruthy();
@@ -460,6 +462,9 @@ describe("Document Automation", () => {
     const run = await screen.findByRole("button", { name: "Run test" }) as HTMLButtonElement;
     expect(run.disabled).toBe(true);                                            // a document first
     fireEvent.change(screen.getByLabelText("Choose a document"), { target: { files: [new File(["x"], "fax_0931.png")] } });
+    expect(screen.queryByLabelText("Engine B")).toBeNull();                    // DA-1: one reading as live, engines are advanced
+    fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Compare two" }));
     fireEvent.change(screen.getByLabelText("Engine B"), { target: { value: "paddleocr" } });
     fireEvent.click(run);
     const results = await screen.findByRole("region", { name: "Field results" });
@@ -635,6 +640,7 @@ describe("Document Automation", () => {
     fireEvent.change(within(dialog).getByLabelText("Other labels on the page"), { target: { value: "Purchase order, PO No" } });
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Required/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    fireEvent.click(within(fields).getByRole("button", { name: "Show advanced settings" }));   // field names and learned labels
     expect(within(fields).getByText("po_number")).toBeTruthy();
     fireEvent.click(within(fields).getByRole("button", { name: 'Forget "Inv #"' }));
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
@@ -649,6 +655,7 @@ describe("Document Automation", () => {
   it("offers common formats for a field's format check, says what each accepts, and keeps an own pattern", async () => {
     const api = start(); await go("#/types");
     const fields = await screen.findByRole("region", { name: "Fields to read" });
+    fireEvent.click(within(fields).getByRole("button", { name: "Show advanced settings" }));   // the pattern column and field names
     fireEvent.click(within(fields).getByRole("button", { name: "Add field" }));
     const dialog = await screen.findByRole("dialog", { name: "Add field" });
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Due date" } });
@@ -684,11 +691,11 @@ describe("Document Automation", () => {
     const ok: Record<string, string[]> = {
       digits: ["004512"], amount: ["1,250.00", "99.50", "-12.30", "1250.00"], "date-iso": ["2026-11-14"], "date-dmy": ["14/11/2026"],
       email: ["name@example.com"], phone: ["+966 11 234 5678", "(022) 555-0101"], iban: ["SA0380000000608010167519", "SA03 8000 0000 6080 1016 7519"],
-      "ksa-vat": ["300012345600003"], gstin: ["29ABCDE1234F1Z5"], pan: ["ABCDE1234F"], "us-ein": ["12-3456789"], "invoice-number": ["INV-2026-0187", "PO1234"],
+      "ksa-vat": ["300012345600003"], "iban-sa": ["SA0380000000608010167519"], "ksa-vat-15": ["300012345600003"], "ksa-id": ["1012345678", "A1234567"], gstin: ["29ABCDE1234F1Z5"], pan: ["ABCDE1234F"], "us-ein": ["12-3456789"], "invoice-number": ["INV-2026-0187", "PO1234"],
     };
     const bad: Record<string, string[]> = {
       digits: ["12a"], amount: ["12.5", "1,25.00"], "date-iso": ["2026-13-01"], "date-dmy": ["2026-11-14"], email: ["name@"], phone: ["12"],
-      iban: ["sa03"], "ksa-vat": ["300012345600004"], gstin: ["29ABCDE1234F1A5"], pan: ["ABCD1234F"], "us-ein": ["123456789"], "invoice-number": ["2026-0187"],
+      iban: ["sa03"], "ksa-vat": ["300012345600004"], "iban-sa": ["GB12"], "ksa-vat-15": ["12345"], "ksa-id": ["ABC"], gstin: ["29ABCDE1234F1A5"], pan: ["ABCD1234F"], "us-ein": ["123456789"], "invoice-number": ["2026-0187"],
     };
     for (const f of FORMATS) {
       const re = new RegExp(f.pattern);
