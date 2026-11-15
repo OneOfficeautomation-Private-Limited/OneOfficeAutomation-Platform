@@ -84,6 +84,8 @@ set for the whole DocFlow server.
 - **Watched folder**: a process's Intake stage; DocFlow reads new files there while the process is live, and moves
   each file it read to the folder's `processed` folder. People choose it with **Browse…** from the folders an
   administrator allowed (section 3.2); folder and Excel results are chosen the same way.
+- **Mail accounts** (preferred): a process's Intake stage takes emails from mail accounts set up once in Manage >
+  Connections, each by a rule (which emails, after reading). See [MAIL_ACCOUNTS.md](MAIL_ACCOUNTS.md).
 - **Email inbox**: a process's Intake stage. Microsoft 365 with **Sign in with Microsoft** (section 3.1), or your own
   Microsoft app (an app registration with the Mail.Read application permission, under Show advanced settings), or IMAP.
   A password or client secret is a saved value from the vault that the person setting it up must be allowed to use.
