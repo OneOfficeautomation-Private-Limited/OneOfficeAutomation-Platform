@@ -35,31 +35,26 @@ pick the first phase whose status is not **Done**, follow its list, and update i
 
 Done (15 Nov 2026, the user chose plan B: "Show advanced settings" per section, no page-wide switch): items 1-3 (advanced
 sections on Document types, steps 4 and 6, the routing card and the Test lab; checks in words, the built-in Saudi
-patterns named), item 4 in part (the vault picker for the mailbox secret), items 6-7 (templates and Try it with a
-sample), item 8 (Engines: "On this server", "Cloud reading", "AI reading" with the OneCore / OneConnect / OneMind
-labels; "Ready", "Off: cloud not allowed", "Needs a key", "Needs setting up"). Commits 0375dc67, de22f01d, f8120b1c,
-2cf943a5. Checked in the browser against DocFlow 3.1.2; UI tests 491/491.
-Left: item 4's **Sign in with Microsoft** and item 5 (a watched-folder picker: needs a folder-browse endpoint on
-DocFlow's server, limited to allowed folders).
+patterns named), item 4 (the vault picker for mailbox secrets, and **Sign in with Microsoft**), items 6-7 (templates
+and Try it with a sample), item 8 (Engines: "On this server", "Cloud reading", "AI reading" with the OneCore /
+OneConnect / OneMind labels; "Ready", "Off: cloud not allowed", "Needs a key", "Needs setting up"). Commits 0375dc67,
+de22f01d, f8120b1c, 2cf943a5, 03fbf3f1. Checked in the browser against DocFlow 3.1.2 (Sign in with Microsoft against a
+fake Microsoft); UI tests 493/493, module tests green.
+Left: item 5 (a watched-folder picker: needs a folder-browse endpoint on DocFlow's server, limited to allowed
+folders); and the user registering OOA's Microsoft app in Entra, then its Application (client) ID goes into
+`MicrosoftSignIn.OOA_APP_ID` (until then an administrator sets Settings > Document Automation > Microsoft app ID).
 
-**Sign in with Microsoft: the user chose "One OOA app" (15 Nov 2026).** The email inbox is read by the platform
-(DocFlowProxy.pollMail through ctx.graphMailbox, the same code as Microsoft 365 email triggers), not by DocFlow, so
-this needs no DocFlow release. Proposed steps (waiting for the user's OK on the list):
-1. The user registers one multi-tenant app in OOA's own Microsoft Entra: "Accounts in any organizational directory",
-   "Allow public client flows" = Yes (sign-in with a code: no web address and no secret, so it works for servers inside
-   a customer's network), Microsoft Graph delegated permissions Mail.Read, Mail.Read.Shared, offline_access, User.Read.
-   The Application (client) ID is not a secret. Later, optionally: publisher verification (a Microsoft partner ID).
-2. A setting "Microsoft app (client) ID" with OOA's ID built in; a customer may put their own app's ID there.
-3. Step 1, email inbox, Microsoft 365: a **Sign in with Microsoft** button shows a short code and the
-   microsoft.com/devicelogin link; the person signs in with the mailbox's account (or one allowed to read a shared
-   mailbox); the screen then says "Signed in as ..." with Sign out. The first sign-in from a customer asks that
-   customer's Microsoft administrator to approve the app once.
-4. The long-lived sign-in (refresh token) is kept encrypted with the vault key (ctx.vault().encrypt), never shown,
-   renewed on each use; when it stops working the inbox says "Sign in again".
-5. The inbox reader uses that sign-in (delegated Graph token); tenant ID / client ID / client secret stay under
-   Show advanced settings for customers with their own app.
-6. Optionally the same button on Microsoft 365 email triggers (same mailbox code).
-7. Java tests with a fake Microsoft sign-in server, UI tests, a browser check, and an admin page in the docs.
+**Sign in with Microsoft: built (user chose "One OOA app", 15 Nov 2026; commit 03fbf3f1).** The platform reads the
+inbox (DocFlowProxy.pollMail), so DocFlow needed no change. OAuth device code flow with a multi-tenant public app;
+MicrosoftSignIn keeps the device code and refresh token encrypted with the vault key (table docflow_ms_signin, module
+schema 2); only the person who signed in can put the sign-in in a process or change its mailbox or folder;
+ModuleContext.graphMailbox(accessToken, mailbox, folder); OOA_MICROSOFT_LOGIN_URL / OOA_MICROSOFT_GRAPH_URL for
+national clouds; docs/DOCUMENT_AUTOMATION.md 3.1. Not done: the same button on Microsoft 365 email triggers (step 6,
+optional).
+App registration for the user (Microsoft Entra admin centre > App registrations > New registration): name "One
+CommandCenter"; "Accounts in any organizational directory (multitenant)"; no redirect URI; Authentication > "Allow
+public client flows" = Yes; API permissions > Microsoft Graph > Delegated: Mail.Read, Mail.Read.Shared, User.Read,
+offline_access. Later, optionally, publisher verification (Microsoft partner ID).
 
 Designs on the canvas first, then:
 1. A **Simple / Advanced** switch on the Document Automation screens (remembered per person; Simple for new users if
