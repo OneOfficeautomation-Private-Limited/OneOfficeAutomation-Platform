@@ -1880,7 +1880,8 @@ public final class ControlRoom {
                     "inputs", JsonLite.parse((String) run.get("inputs")), "principal", principal, "global_values", globals));
             job.put("mode", run.get("run_mode") == null ? "unattended" : run.get("run_mode"));
             job.put("model_connections", platform.connectionsForJob(rolesOf(String.valueOf(principal), role)));
-            Map<String, Object> saved = connectionsForJob();
+            Map<String, Object> saved = new LinkedHashMap<>(mailAccounts.forJob());   // mail accounts, as the Email toolkit's connections (MA-4)
+        saved.putAll(connectionsForJob());                                     // a saved connection of the same name wins
             if (!saved.isEmpty()) job.put("connections", saved);
             if (!files.isEmpty()) job.put("files", files);
             moduleParts.forEach((k, v) -> { if (v != null && !v.isEmpty()) job.put(k, v); });
@@ -2657,6 +2658,9 @@ public final class ControlRoom {
         String kind = String.valueOf(t.get("kind"));
         TriggerKinds.kind(kind);
         Map<String, Object> config = TriggerKinds.validate(kind, t);
+        // New email (any mail account): the account must be one the person may use; the trigger's rule says which emails
+        Map<String, Object> mailAccount = kind.equals("mail") ? mailAccounts.requireUse(by, String.valueOf(config.get("mail_account"))) : null;
+        if (mailAccount != null) { config.put("mail_account", mailAccount.get("id")); config.put("mail_account_name", mailAccount.get("name")); }
         // an Outlook trigger that signs in with Microsoft reads the mailbox with that person's access: only they may use it
         if (config.get("ms_signin") instanceof String signIn) config.put("ms_account", microsoft.accountFor(by, signIn));
         content(String.valueOf(t.get("bot_path")), "production");
@@ -2674,6 +2678,13 @@ public final class ControlRoom {
         String runAs = t.get("run_as") instanceof String ra && !ra.isBlank() ? ra : null;
         if (runAs != null) checkRunAs(runAs, false);
         db.update("UPDATE triggers SET config = ?, fire_count = 0, run_as = ? WHERE id = ?", JsonLite.write(config), runAs, tid);
+        if (mailAccount != null) {
+            Map<String, Object> rule = new LinkedHashMap<>(Map.of("name", name, "target_kind", "trigger", "target", tid));
+            if (t.get("conditions") != null) rule.put("conditions", t.get("conditions"));
+            if (config.get("folder") != null) rule.put("folder", config.get("folder"));
+            try { mailRouter.saveRule(by, null, String.valueOf(mailAccount.get("id")), rule, ip); }
+            catch (OoaException e) { db.update("DELETE FROM triggers WHERE id = ?", tid); throw e; }
+        }
         audit.record(by.username(), "trigger.create", "trigger", tid, Map.of("kind", kind, "bot", t.get("bot_path")), "ok", ip);
         Map<String, Object> out = new LinkedHashMap<>(Map.of("id", tid));
         if (secret != null) { out.put("secret", secret); out.put("url", "/api/hooks/" + tid); }
@@ -2732,6 +2743,7 @@ public final class ControlRoom {
     public void deleteTrigger(User by, String tid, String ip) {
         require(by, "triggers.manage", "manage triggers");
         if (db.update("DELETE FROM triggers WHERE id = ?", tid) == 0) throw notFound("Trigger");
+        mailRouter.forgetTarget("trigger", tid);   // its mail rule, if it was a New email (any mail account) trigger
         audit.record(by.username(), "trigger.delete", "trigger", tid, null, "ok", ip);
     }
 
@@ -2958,6 +2970,8 @@ public final class ControlRoom {
         if (r0.get("run_as") != null) r.put("requested_by", r0.get("run_as"));
         String[] p = ref == null ? new String[0] : ref.split("/");
         String actor = "agent:" + d.get("name") + " for " + r.get("requested_by");
+        if (ref != null && ref.startsWith("mail:") && "running".equals(r.get("status")))   // a mail account's password (MA-4), for a run's user it is lent to
+            return mailAccounts.forRun(String.valueOf(r.get("requested_by")), ref.substring(5));
         if (!"running".equals(r.get("status")) || p.length != 3) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "denied", null); throw new OoaException("VAULT.DENIED", "Credentials are only available to running agents", "Read credentials from a step of a running agent, not from outside a run."); }
         Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", p[0]);
         Map<String, Object> u = db.one("SELECT role FROM users WHERE username = ?", r.get("requested_by"));

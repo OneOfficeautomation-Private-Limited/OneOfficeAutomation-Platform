@@ -281,6 +281,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       { id: "mrule_2", account_id: "mail_1", position: 2, name: "Credit notes", enabled: true, conditions: { match: "all", when: [], except: [] }, says: "subject has credit note",
         target_kind: "trigger", target: "trg_1", target_name: "Tell AP lead", read_what: "attachments", after_read: "read", owner: "admin", matched: 3 }] });
     if (route === "mail-accounts/mail_1/rules/order") return ok({ ok: true });
+    if (route === "mail-accounts/mail_1/rules/try") return ok({ looked_at: 120, says: "subject has statement", taken_by_earlier: 0, matched: [{ subject: "Your statement for October", from: "bank@hdfc.example", date: "2026-11-15" }], not_matched: [] });
     if (route === "mail-accounts/mail_1/unmatched") return ok({ emails: [{ id: "mun_1", received: "2026-11-15T11:00:00Z", sender: "sales@hooli.com", subject: "Quotation Q-2041" }] });
     if (route === "mail-accounts/mail_1/read") return ok({ read: 2, delivered: 1, unmatched: 1 });
     if (/^mail-unmatched\//.test(route)) return ok({ ok: true });
@@ -2004,6 +2005,27 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "triggers", body: { name: "Orders hook", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", kind: "webhook" } }));
     const hook = await screen.findByRole("dialog", { name: "Webhook created" });
     expect(within(hook).getByText("whsec-1")).toBeTruthy();
+  });
+
+  it("starts an agent from a mail account's emails: New email (any mail account) with its rule and Try the rule (MA-4)", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "triggers.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    await go("Triggers");
+    await screen.findByRole("table", { name: "Triggers list" });
+    fireEvent.click(screen.getByRole("button", { name: "Create trigger" }));
+    const c = await screen.findByRole("dialog", { name: "Create trigger" });
+    fireEvent.change(within(c).getByLabelText("Event"), { target: { value: "mail" } });
+    const box = within(c).getByRole("group", { name: "Mail account and rule" });
+    await waitFor(() => expect((within(box).getByLabelText("Mail account") as HTMLSelectElement).value).toBe("mail_1"));
+    fireEvent.click(within(box).getByRole("button", { name: "Condition" }));
+    fireEvent.change(within(box).getByLabelText("condition 1 field"), { target: { value: "subject" } });
+    fireEvent.change(within(box).getByLabelText("condition 1 value"), { target: { value: "statement" } });
+    await act(async () => { fireEvent.click(within(box).getByRole("button", { name: "Try on the latest emails" })); });
+    expect(await within(box).findByText("Your statement for October")).toBeTruthy();
+    fireEvent.change(within(c).getByLabelText("Name"), { target: { value: "Statements in" } });
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create trigger" })); });
+    expect(calls.find((x) => x.method === "POST" && x.route === "triggers")?.body).toMatchObject({ kind: "mail", name: "Statements in", mail_account: "mail_1",
+      conditions: { match: "all", when: [{ field: "subject", op: "contains", value: "statement" }], except: [] } });
   });
 
   it("signs an Outlook trigger in with Microsoft; your own app and a token reference are advanced (DA-1)", async () => {

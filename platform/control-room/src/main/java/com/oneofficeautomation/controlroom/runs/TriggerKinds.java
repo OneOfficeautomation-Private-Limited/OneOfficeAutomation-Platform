@@ -55,6 +55,7 @@ public final class TriggerKinds {
                 new Kind("mouse_clicked", Where.RUNNER, "Mouse click on an element or window", true),
                 new Kind("email", Where.SERVER, "New email (IMAP)", false),
                 new Kind("outlook", Where.SERVER, "New email (Microsoft 365 Outlook)", false),
+                new Kind("mail", Where.SERVER, "New email (any mail account)", false),
                 new Kind("servicenow", Where.SERVER, "ServiceNow record", false),
                 new Kind("http_poll", Where.SERVER, "Universal poller (HTTP)", false),
                 new Kind("webhook", Where.WEBHOOK, "Webhook", false)))
@@ -214,6 +215,10 @@ public final class TriggerKinds {
                 out.put("interval_seconds", interval(in));
             }
             case "webhook" -> { }
+            case "mail" -> {   // Mail accounts (MA-4): the account is read once for all its rules; this trigger's rule says which emails
+                out.put("mail_account", need(in, "mail_account", "Choose the mail account to read"));
+                if (str(in, "folder") != null) out.put("folder", str(in, "folder"));
+            }
             default -> {
                 ModuleContext.TriggerKind rules = MODULE_KINDS.get(kind);
                 if (rules == null) throw bad("Unknown trigger kind '" + kind + "'");

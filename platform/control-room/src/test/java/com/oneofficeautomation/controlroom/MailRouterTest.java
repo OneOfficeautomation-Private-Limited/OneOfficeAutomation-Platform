@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Mail rules (MA-2): one reader per mailbox, rules in order, every match, forwarded copies once, Not matched, Try the rule. */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)   // one mailbox for all: its read position moves on from test to test
 class MailRouterTest {
     static final HttpClient HTTP = HttpClient.newHttpClient();
     Db db; ControlRoom cr; ControlRoomServer server; HttpServer ms; String base, token, account;
@@ -134,7 +135,7 @@ class MailRouterTest {
         return Map.of("match", "all", "when", w);
     }
 
-    @Test @SuppressWarnings("unchecked")
+    @Test @Order(1) @SuppressWarnings("unchecked")
     void eachEmailGoesWhereItsRulesSayOnce() throws Exception {
         Map<String, Object> invoices = rule("Supplier invoices", Map.of("match", "all",
                 "when", List.of(Map.of("field", "from", "op", "domain_in", "value", List.of("@acme.com", "@globex.com")), Map.of("field", "attachment_type", "op", "is_one_of", "value", List.of("pdf", "xml"))),
@@ -195,7 +196,40 @@ class MailRouterTest {
         assertEquals(List.of(), delivered);
     }
 
-    @Test void rulesAreCheckedWhenSaved() throws Exception {
+    @Test @Order(2) @SuppressWarnings("unchecked")
+    void aNewEmailTriggerOnAMailAccountStartsItsAgent() throws Exception {
+        ControlRoom.User admin = cr.session(token);
+        Map<String, Object> flow = (Map<String, Object>) JsonLite.parse("{\"kind\":\"TaskBot\",\"id\":\"on_mail\",\"name\":\"On mail\",\"description\":\"Reacts to emails\","
+                + "\"variables\":[{\"name\":\"trigger_email\",\"type\":\"Dictionary\",\"direction\":\"input\"},{\"name\":\"note\",\"type\":\"String\",\"direction\":\"output\"}],"
+                + "\"steps\":[{\"id\":\"1\",\"action\":\"core/set\",\"args\":{\"variable\":\"note\",\"value\":\"ok\"}}]}");
+        cr.checkin(admin, "Ops/On mail.flow.json", flow, "first", true, null);
+        String device = String.valueOf(cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-9", "pc-9", "Windows 11", "0.2.0", null).get("device_id"));
+        Map<String, Object> made = call("POST", "/api/triggers", Map.of("name", "Statements in", "kind", "mail", "bot_path", "Ops/On mail.flow.json", "device_id", device,
+                "mail_account", "AP invoices mailbox", "conditions", when("subject", "contains", "statement")), token);
+        assertEquals(200, made.get("_status"), String.valueOf(made.get("_body")));
+        String tid = String.valueOf(made.get("id"));
+        List<Map<String, Object>> rules = (List<Map<String, Object>>) call("GET", "/api/mail-rules?target_kind=trigger&target=" + tid, null, token).get("rules");
+        assertEquals(1, rules.size());
+        assertEquals("Statements in", rules.get(0).get("target_name"));
+        assertEquals("subject has statement", rules.get(0).get("says"));
+        assertEquals("AP invoices mailbox", rules.get(0).get("account_name"));
+        assertEquals(400, call("POST", "/api/triggers", Map.of("name", "No account", "kind", "mail", "bot_path", "Ops/On mail.flow.json", "device_id", device), token).get("_status"));
+        assertEquals(404, call("POST", "/api/triggers", Map.of("name", "Unknown", "kind", "mail", "bot_path", "Ops/On mail.flow.json", "device_id", device, "mail_account", "Nope"), token).get("_status"));
+
+        call("POST", "/api/mail-accounts/" + account + "/read", null, token);                  // where the mailbox is now
+        mail("s1", "23:00", "bank@hdfc.example", "Your statement for October", List.of("statement.pdf"), null);
+        Map<String, Object> checked = call("POST", "/api/triggers/" + tid + "/poll", null, token);   // Check now reads the account
+        assertEquals(200, checked.get("_status"), String.valueOf(checked.get("_body")));
+        List<Map<String, Object>> runs = db.query("SELECT inputs, source FROM runs WHERE bot_path = ?", "Ops/On mail.flow.json");
+        assertEquals(1, runs.size(), String.valueOf(checked));
+        assertTrue(String.valueOf(runs.get(0).get("inputs")).contains("Your statement for October"));
+        assertTrue(String.valueOf(runs.get(0).get("source")).startsWith("mail-rule:"), String.valueOf(runs.get(0).get("source")));
+
+        assertEquals(200, call("DELETE", "/api/triggers/" + tid, null, token).get("_status"));
+        assertEquals(List.of(), call("GET", "/api/mail-rules?target_kind=trigger&target=" + tid, null, token).get("rules"), "its rule goes with it");
+    }
+
+    @Test @Order(3) void rulesAreCheckedWhenSaved() throws Exception {
         assertEquals(400, call("POST", "/api/mail-accounts/" + account + "/rules", Map.of("name", "Bad", "conditions", when("colour", "is", "red"), "target_kind", "box", "target", "x"), token).get("_status"));
         assertEquals(400, call("POST", "/api/mail-accounts/" + account + "/rules", Map.of("name", "Bad", "conditions", when("subject", "regex", "(unclosed"), "target_kind", "box", "target", "x"), token).get("_status"));
         assertEquals(400, call("POST", "/api/mail-accounts/" + account + "/rules", Map.of("name", "Bad", "conditions", when("subject", "contains", "x"), "target_kind", "nowhere", "target", "x"), token).get("_status"));

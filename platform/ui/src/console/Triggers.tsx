@@ -5,6 +5,8 @@ import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { ADVANCED_FIELDS, DOCUMENT_KINDS, KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
+import { EMPTY_CONDITIONS, RuleBuilder, RuleTry } from "./MailAccounts";
+import type { MailAccount, MailConditions } from "../api/cr";
 
 /**
  * Manage > Triggers, built as AA's event triggers (checked against AA's docs, UiPath's queue and Integration Service
@@ -30,6 +32,7 @@ function details(t: Trigger) {
     + (c.element_name || c.element_type || c.automation_id ? " on " + [c.element_type, c.element_name, c.automation_id].filter(Boolean).join(" ") : "");
   if (c.process || c.service || c.hotkey) return String(c.process ?? c.service ?? c.hotkey);
   if (t.kind === "email") return c.username + " @ " + c.host + " / " + c.mail_folder + " every " + c.interval_seconds + " s";
+  if (t.kind === "mail") return String(c.mail_account_name ?? c.mail_account) + (c.folder ? " / " + c.folder : "") + ": its rule (Mail rules) decides which emails";
   if (t.kind === "outlook") return (c.mailbox || c.ms_account || "the token's mailbox") + " / " + c.mail_folder + " every " + c.interval_seconds + " s";
   if (t.kind === "servicenow") return c.instance_url + " " + c.table + (c.query ? " where " + c.query : "") + " every " + c.interval_seconds + " s";
   if (t.kind === "http_poll") return String(c.url ?? "") + " every " + c.interval_seconds + " s";
@@ -184,6 +187,15 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
   const [msReady, setMsReady] = useState<boolean | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  // MA-4: New email (any mail account): an account set up once, a folder, and this trigger's rule
+  const [mailAccounts, setMailAccounts] = useState<MailAccount[] | null>(null);
+  const [mailAccount, setMailAccount] = useState("");
+  const [mailFolder, setMailFolder] = useState("");
+  const [conditions, setConditions] = useState<MailConditions>(EMPTY_CONDITIONS);
+  useEffect(() => {
+    if (kind !== "mail" || mailAccounts) return;
+    api.mailAccounts().then((d) => { const usable = d.accounts.filter((a) => a.can_use); setMailAccounts(usable); setMailAccount((cur) => cur || usable[0]?.id || ""); }, () => setMailAccounts([]));
+  }, [api, kind, mailAccounts]);
   useEffect(() => { api.liveAgents().then((b) => { setAgents(b.map((x) => x.path)); setBot((o) => o || b[0]?.path || ""); }, (e) => reportMinor("the list of agents", e)); }, [api]);
   useEffect(() => { if (kind === "outlook" && msReady === null) api.triggerMsSignInReady().then(setMsReady, () => setMsReady(false)); }, [api, kind, msReady]);
   const hidden = ms || (msReady !== false && !advanced) ? ADVANCED_FIELDS[kind] ?? [] : [];
@@ -192,6 +204,7 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
   const create = async () => {
     const b: Record<string, unknown> = { name: name.trim() || "Trigger", bot_path: bot, device_id: device, kind };
     if (kind === "outlook" && ms) b.ms_signin = ms.id;
+    if (kind === "mail") { b.mail_account = mailAccount; b.conditions = conditions; if (mailFolder.trim()) b.folder = mailFolder.trim(); }
     for (const fd of fields) {
       const v = val(fd);
       if (fd[4] === "check") b[fd[0]] = !!v;
@@ -201,7 +214,7 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
   };
   return (
     <Dialog open title="Create trigger" width={680} onClose={onClose} help={<HelpLinks k="dialog:trigger" label="Triggers" />} footer={<>
-      <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!bot || !device} onClick={create}>Create trigger</Button></>}>
+      <Button kind="plain" onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!bot || !device || (kind === "mail" && !mailAccount)} onClick={create}>Create trigger</Button></>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <h3 className="cc-log-title">Event</h3>
       <Field label="Event">{(id) => <select id={id} className="ui-input ui-select" value={kind} onChange={(e) => { setKind(e.target.value); setValues({}); setMs(null); }}>
@@ -217,6 +230,15 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
           : <span className="st-muted">Sign in with Microsoft is not set up on this server: an administrator adds the Microsoft app ID in Administration &gt; Settings &gt; E-mail, proxy and SIEM. Until then, give your own app or a token reference below.</span>}
         {!ms && msReady && <span><button type="button" className="st-link" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}>{advanced ? "Hide advanced settings" : "Show advanced settings"}</button>
           {!advanced && <span className="st-muted"> · your own Microsoft app, or a Graph token</span>}</span>}
+      </div>}
+      {kind === "mail" && <div className="mail-trigger" role="group" aria-label="Mail account and rule">
+        <div className="cc-grid2">
+          <Field label="Mail account">{(id) => <Select id={id} value={mailAccount} onChange={(e) => setMailAccount(e.target.value)}
+            options={mailAccounts?.length ? mailAccounts.map((a) => ({ value: a.id, label: a.name + " · " + a.address })) : [{ value: "", label: mailAccounts ? "No mail account you may use yet" : "Loading…" }]} />}</Field>
+          <Field label="Folder (optional)">{(id) => <TextInput id={id} value={mailFolder} placeholder="Inbox" onChange={(e) => setMailFolder(e.target.value)} />}</Field>
+        </div>
+        <RuleBuilder value={conditions} onChange={setConditions} />
+        <RuleTry disabled={!mailAccount} tryRule={() => api.tryMailRule(mailAccount, { conditions, folder: mailFolder.trim() || undefined })} />
       </div>}
       {signingIn && <MicrosoftSignInDialog start={() => api.triggerMsSignInStart()} poll={(id) => api.triggerMsSignInPoll(id)} onClose={() => setSigningIn(false)}
         onDone={(id, account) => { setSigningIn(false); setMs({ id, account }); }} />}

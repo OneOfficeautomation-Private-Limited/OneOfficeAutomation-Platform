@@ -963,3 +963,4 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
 .mail-unmatched h3 { margin: 0; font-size: 13px; display: flex; gap: 6px; align-items: center; }
 .mail-waiting { display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid var(--ui-divider); padding-bottom: 6px; }
 @media (max-width: 900px) { .mail-split, .mail-rules-grid { grid-template-columns: 1fr; } .mail-cond { grid-template-columns: 1fr 1fr; } }
+.mail-trigger { display: flex; flex-direction: column; gap: 8px; margin: 0 0 10px; }

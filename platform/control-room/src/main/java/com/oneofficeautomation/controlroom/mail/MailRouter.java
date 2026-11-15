@@ -159,6 +159,21 @@ public final class MailRouter {
         cr.audit.record(by.username(), "mail_rule.delete", "mail_rule", id, Map.of("account", r.get("account_id")), "ok", ip);
     }
 
+    /** The rules that send emails to a target (a process's or a trigger's), on accounts the person may use. */
+    public List<Map<String, Object>> rulesFor(User by, String kind, String target) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : cr.db.query("SELECT * FROM mail_rules WHERE target_kind = ? AND target = ? ORDER BY created", kind, target)) {
+            Map<String, Object> a = cr.mailAccounts.find(String.valueOf(r.get("account_id")));
+            if (a == null || !(cr.mailAccounts.canUse(by, a) || by.username().equals(r.get("owner")))) continue;
+            Map<String, Object> v = view(r);
+            v.put("account_name", a.get("name"));
+            v.put("account_address", a.get("address"));
+            v.put("account_status", a.get("status"));
+            out.add(v);
+        }
+        return out;
+    }
+
     /** Removes the rules that send emails to a target (its trigger or process was deleted). */
     public void forgetTarget(String kind, String target) {
         cr.db.update("DELETE FROM mail_rules WHERE target_kind = ? AND target = ?", kind, target);

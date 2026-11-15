@@ -4,6 +4,7 @@
  * signed-in user) with the same shapes, so the screens do not change when it is wired.
  */
 
+import type { MailConditions, MailTry } from "../../api/cr";
 import { SAMPLE_REVIEW } from "./sampleReview";
 
 export type DocStatus = "processing" | "done" | "review" | "failed" | "split";
@@ -250,6 +251,11 @@ export interface FolderListing {
   access: FolderAccess; waiting: number; watchedBy: FolderUse[]; folders: FolderEntry[]; truncated: boolean;
 }
 export const NO_FOLDER_LIST: FolderRoots = { limited: false, roots: [], outside: [] };
+
+/** Mail accounts (MA-4): mailboxes set up once (Manage > Connections); a process takes emails from them by rules. */
+export interface MailAccountBrief { id: string; name: string; address: string; provider_name: string; status: string; can_use: boolean }
+export interface ProcessMailRule { id: string; account_id: string; account_name: string; account_address: string; account_status: string; name: string; says: string;
+  conditions: MailConditions; matched: number; enabled: boolean }
 /** A folder's own name: the last part of its path. */
 export const lastPart = (p: string) => p.trim().replace(/[\\/]+$/, "").split(/[\\/]/).pop() || p.trim();
 /** The list as DocFlow reads DOCAUTO_ALLOWED_FOLDERS: folders separated by ';', each optionally "Name=folder". */
@@ -309,6 +315,12 @@ export interface DocFlowApi {
   /** The saved list as one line ("Name=folder; folder"); null when DocFlow is older than 3.2.0 (administrators). */
   allowedFolders(): Promise<string | null>;
   saveAllowedFolders(list: string): Promise<void>;
+  /** MA-4: the mail accounts the person may use, the rules sending emails to a process, saving one, and trying conditions. */
+  mailAccounts(): Promise<MailAccountBrief[]>;
+  processMailRules(processId: string): Promise<ProcessMailRule[]>;
+  saveProcessMailRule(account: string, id: string | null, rule: { name: string; conditions: MailConditions; target: string }): Promise<void>;
+  deleteMailRule(id: string): Promise<void>;
+  tryMailRule(account: string, conditions: MailConditions, rule?: string): Promise<MailTry>;
   reviewTask(documentId: string): Promise<ReviewTask>;
   /** Saves the review; `next` is the next document waiting in the same process, if any. */
   completeReview(documentId: string, fields: ReviewValues, decision: "approve" | "reject"): Promise<{ next?: string }>;
@@ -669,6 +681,29 @@ export class SampleApi implements DocFlowApi {
   async folderPreview(list: string) { return this.sampleRoots(list); }
   async allowedFolders(): Promise<string | null> { return this.allowed; }
   async saveAllowedFolders(list: string) { this.allowed = list; }
+  // MA-4: two sample mail accounts and the rules that send emails to processes
+  private mailRulesData: ProcessMailRule[] = [{ id: "mrule_1", account_id: "mail_1", account_name: "AP invoices mailbox", account_address: "invoices@contoso.com", account_status: "working",
+    name: "Supplier invoices KSA", says: "from @acme.com · has a PDF file", conditions: { match: "all", when: [{ field: "from", op: "domain_in", value: "@acme.com" }, { field: "attachment_type", op: "is_one_of", value: "pdf" }], except: [] },
+    matched: 18, enabled: true }];
+  private mailTargets: Record<string, string> = { mrule_1: "supplier-invoices-ksa" };
+  async mailAccounts(): Promise<MailAccountBrief[]> {
+    return [{ id: "mail_1", name: "AP invoices mailbox", address: "invoices@contoso.com", provider_name: "Microsoft 365", status: "working", can_use: true },
+      { id: "mail_2", name: "Supplier Gmail", address: "suppliers.acme@gmail.com", provider_name: "Gmail, Google Workspace", status: "working", can_use: true }];
+  }
+  async processMailRules(processId: string) { return copy(this.mailRulesData.filter((r) => this.mailTargets[r.id] === processId)); }
+  async saveProcessMailRule(account: string, id: string | null, rule: { name: string; conditions: MailConditions; target: string }) {
+    const a = (await this.mailAccounts()).find((x) => x.id === account)!;
+    const says = rule.conditions.when.length ? rule.conditions.when.map((c) => c.field + " " + (Array.isArray(c.value) ? c.value.join(" or ") : c.value)).join(" · ") : "Every email";
+    const row: ProcessMailRule = { id: id ?? "mrule_" + (this.mailRulesData.length + 1), account_id: a.id, account_name: a.name, account_address: a.address, account_status: a.status,
+      name: rule.name, says, conditions: rule.conditions, matched: 0, enabled: true };
+    this.mailRulesData = id ? this.mailRulesData.map((r) => (r.id === id ? { ...row, matched: r.matched } : r)) : [...this.mailRulesData, row];
+    this.mailTargets[row.id] = rule.target;
+  }
+  async deleteMailRule(id: string) { this.mailRulesData = this.mailRulesData.filter((r) => r.id !== id); }
+  async tryMailRule(): Promise<MailTry> {
+    return { looked_at: 200, says: "", taken_by_earlier: 3, matched: [{ subject: "INV-2026-0042.pdf", from: "billing@acme.com", date: "2026-11-15T09:00:00Z" }],
+      not_matched: [{ subject: "Payment received", from: "noreply@globex.com", date: "2026-11-15T08:00:00Z" }] };
+  }
   async createProcess(n: NewProcess) {
     const id = n.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "process";
     this.processesData.push({ id, name: n.name, folder: n.folder, docType: DOC_TYPES.find((t) => t.id === n.docType)?.name ?? n.docType, state: "draft", version: 1, today: 0, review: 0, processing: 0,

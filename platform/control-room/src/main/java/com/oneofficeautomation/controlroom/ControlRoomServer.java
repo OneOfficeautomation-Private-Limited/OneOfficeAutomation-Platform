@@ -1098,7 +1098,8 @@ public final class ControlRoomServer {
                 else notFound(ex);
             }
             case "mail-rules" -> {
-                if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.mailRouter.saveRule(u, seg[1], null, map(body(ex)), ip));
+                if (m.equals("GET") && seg.length == 1) { Map<String, String> qq = query(ex); sendJson(ex, 200, Map.of("rules", cr.mailRouter.rulesFor(u, qq.getOrDefault("target_kind", ""), qq.getOrDefault("target", "")))); }
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.mailRouter.saveRule(u, seg[1], null, map(body(ex)), ip));
                 else if (m.equals("DELETE") && seg.length == 2) { cr.mailRouter.deleteRule(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }

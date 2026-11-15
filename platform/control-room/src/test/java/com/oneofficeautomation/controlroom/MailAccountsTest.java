@@ -128,7 +128,7 @@ class MailAccountsTest {
         assertEquals(true, tested.get("ok"), String.valueOf(tested));
         Map<String, Object> listed = call("GET", "/api/mail-accounts", null, token);
         assertFalse(String.valueOf(listed.get("_body")).contains("right-pw"), "the password never leaves the vault");
-        Map<String, Object> row = ((List<Map<String, Object>>) listed.get("accounts")).get(0);
+        Map<String, Object> row = ((List<Map<String, Object>>) listed.get("accounts")).stream().filter(x -> x.get("id").equals(id)).findFirst().orElseThrow();
         assertEquals("working", row.get("status"));
         assertEquals("Other mail server", row.get("provider_name"));
         assertTrue(((List<?>) listed.get("providers")).size() >= 12);
@@ -168,6 +168,27 @@ class MailAccountsTest {
 
         assertEquals(200, call("DELETE", "/api/mail-accounts/" + gmail.get("id"), null, token).get("_status"));
         assertNull(cr.mailAccounts.find("Supplier Gmail"));
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void agentsUseImapAccountsAsTheEmailToolkitsConnectionsWhenLentToTheirUser() throws Exception {
+        Map<String, Object> made = call("POST", "/api/mail-accounts", Map.of("name", "Agents' Zoho", "provider", "zoho", "address", "ap@kerala-traders.in",
+                "region", "in", "secret_ref", "mail/scans/password"), token);
+        assertEquals(200, made.get("_status"), String.valueOf(made.get("_body")));
+        String id = String.valueOf(made.get("id"));
+        Map<String, Object> conn = (Map<String, Object>) cr.mailAccounts.forJob().get("Agents' Zoho");
+        assertEquals("ooa.email", conn.get("package"));
+        Map<String, Object> values = (Map<String, Object>) conn.get("values");
+        assertEquals(List.of("imap.zoho.in", 993, "ap@kerala-traders.in", "ssl", "imap"),
+                List.of(values.get("imap_host"), ((Number) values.get("port")).intValue(), values.get("user"), values.get("security"), values.get("protocol")));
+        assertEquals(Map.of("password", "mail:" + id), conn.get("credentials"), "the password is fetched for the run, never put in the job");
+        assertEquals("right-pw", cr.mailAccounts.forRun("admin", id));
+        sessionFor("otto", "bot_runner");
+        assertEquals("VAULT.DENIED", assertThrows(OoaException.class, () -> cr.mailAccounts.forRun("otto", id)).code(), "only the people the account is lent to");
+        call("PUT", "/api/mail-accounts/" + id, Map.of("allowed", List.of("user:otto")), token);
+        assertEquals("right-pw", cr.mailAccounts.forRun("otto", id));
+        assertTrue(JsonLite.write(call("GET", "/api/audit?q=mail-account:" + id, null, token)).contains("for otto"), "audited as the account, for the run's user");
+        call("DELETE", "/api/mail-accounts/" + id, null, token);
     }
 
     @Test @SuppressWarnings("unchecked")

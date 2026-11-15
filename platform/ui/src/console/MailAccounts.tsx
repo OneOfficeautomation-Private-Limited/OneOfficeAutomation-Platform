@@ -248,17 +248,17 @@ export function RuleBuilder({ value, onChange }: { value: MailConditions; onChan
 }
 
 /** Tries conditions on the latest emails: which match, and how many an earlier rule takes first. Reads nothing in. */
-export function RuleTry({ api, account, conditions, rule }: { api: CrApi; account: string; conditions: MailConditions; rule?: string }) {
+export function RuleTry({ tryRule, disabled }: { tryRule: () => Promise<MailTry>; disabled?: boolean }) {
   const [r, setR] = useState<MailTry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const run = async () => {
     setBusy(true); setError(null);
-    try { setR(await api.tryMailRule(account, { conditions, rule })); } catch (e) { setError(message(e)); } finally { setBusy(false); }
+    try { setR(await tryRule()); } catch (e) { setError(message(e)); } finally { setBusy(false); }
   };
   return (
     <section className="mail-try" aria-label="Try the rule">
-      <div className="cc-inline"><b>Try the rule</b><Button kind="secondary" disabled={busy || !account} onClick={() => void run()}>{busy ? "Reading the latest emails…" : "Try on the latest emails"}</Button></div>
+      <div className="cc-inline"><b>Try the rule</b><Button kind="secondary" disabled={busy || disabled} onClick={() => void run()}>{busy ? "Reading the latest emails…" : "Try on the latest emails"}</Button></div>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {r && <>
         <p><span className="cc-pill is-success">{r.matched.length} match</span> {r.taken_by_earlier > 0 && <span className="cc-pill is-pending">{r.taken_by_earlier} taken by an earlier rule</span>} <span className="st-muted">of the last {r.looked_at} emails · nothing was read in</span></p>

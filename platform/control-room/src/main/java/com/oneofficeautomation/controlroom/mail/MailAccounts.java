@@ -315,6 +315,40 @@ public final class MailAccounts {
         }
     }
 
+    /**
+     * For a running agent (credential reference mail:ID): the account's password for the run's user, who must be
+     * allowed to use the account. Only accounts read over IMAP can be used by the Email toolkit's steps.
+     */
+    public String forRun(String runUser, String accountId) {
+        Map<String, Object> a = find(accountId);
+        if (a == null) throw new OoaException("CR.NOT_FOUND", "Mail account '" + accountId + "' not found", "Choose another mail account on the step.");
+        if (!canUse(runUser, a)) throw new OoaException("VAULT.DENIED", "'" + runUser + "' may not use the mail account '" + a.get("name") + "'",
+                "Ask its owner (" + a.get("owner") + ") to add the run's user, team or role to who may use it.");
+        String how = signIn(a);
+        if (!how.equals("app_password") && !how.equals("password"))
+            throw new OoaException("CR.BAD_INPUT", "The mail account '" + a.get("name") + "' signs in with Microsoft: the Email toolkit's steps read mail over IMAP",
+                    "Use the Microsoft 365 toolkit's steps for it, or a mail account with an app password.");
+        return secret(a, runUser);
+    }
+
+    /** Mail accounts as the Email toolkit's saved connections for a run's job: their server and user, the password as mail:ID. */
+    public Map<String, Object> forJob() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map<String, Object> a : cr.db.query("SELECT * FROM mail_accounts ORDER BY name")) {
+            String how = signIn(a);
+            if (!how.equals("app_password") && !how.equals("password")) continue;
+            Map<String, Object> s = settings(a);
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("imap_host", s.get("host"));
+            values.put("port", s.get("port"));
+            values.put("user", s.get("user"));
+            values.put("security", Boolean.FALSE.equals(s.get("ssl")) ? "none" : "ssl");
+            values.put("protocol", "imap");
+            out.put(String.valueOf(a.get("name")), Map.of("package", "ooa.email", "values", values, "credentials", Map.of("password", "mail:" + a.get("id"))));
+        }
+        return out;
+    }
+
     /** The account's vault secret, read as its owner (who must still be a consumer of the vault folder). */
     String secret(Map<String, Object> a, String forUser) {
         String ref = String.valueOf(a.get("secret_ref"));

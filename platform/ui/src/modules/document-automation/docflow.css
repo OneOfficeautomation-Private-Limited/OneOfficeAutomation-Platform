@@ -288,3 +288,7 @@
   .df-folder-roots { border-right: 0; border-bottom: 1px solid var(--ui-border); max-height: 150px; }
   .df-folder-list { max-height: 260px; }
 }
+/* MA-4: a process's mail accounts (mailRules.tsx) */
+.df-mail-rules { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg); }
+.df-mail-rule { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--ui-divider); }
+.df-mail-rule-main { flex: 1; min-width: 0; overflow-wrap: anywhere; }
