@@ -73,6 +73,10 @@ public final class TriggerPollers {
         Map<String, Object> t = cr.db.one("SELECT * FROM triggers WHERE id = ?", id);
         if (t == null) throw ControlRoom.notFound("Trigger");
         String kind = (String) t.get("kind");
+        if (kind.equals("mail")) {   // its mail account is read for all its rules: Check now reads the account now
+            Map<String, Object> r = cr.mailRouter.readNow(String.valueOf(config(t).get("mail_account")));
+            return Map.of("fired", r.getOrDefault("delivered", 0), "error", String.valueOf(r.getOrDefault("error", "")));
+        }
         if (TriggerKinds.pushed(kind))
             throw new OoaException("CR.BAD_TRIGGER", "Trigger " + id + " starts when its module reports the event: there is nothing to check", "Nothing to check by hand; the trigger starts when the module reports the event.");
         Map<String, Object> cfg = config(t);

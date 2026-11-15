@@ -1,3 +1,4 @@
+import { MailAccountsPanel } from "./MailAccounts";
 import { SignInFields, type SignInBags } from "../studio/SignInFields";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConnectionKind, CrApi, CrUser, SavedConnection } from "../api/cr";
@@ -38,6 +39,8 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
   const [q, setQ] = useState("");
   const [kind, setKind] = useState("");
   const [dialog, setDialog] = useState<null | { c: SavedConnection | null }>(null);
+  // MA-3: mail accounts (mailboxes chosen by name everywhere) beside the toolkits' connections
+  const [tab, setTab] = useState<"mail" | "toolkit">("mail");
   const manage = user.permissions.includes("globals.manage");
   const [ask, setAsk] = useState<SavedConnection | null>(null);   // a connection to delete, asked first
   const load = useCallback(async () => {
@@ -61,10 +64,15 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
       <header className="cc-list-head">
         <h1 id="cc-conn-title">Connections</h1>
         <HelpButton topic={HELP} /><PageIntro k="page:savedconn" />
-        {list && <span className="cc-list-count">{list.length} connection{list.length === 1 ? "" : "s"}</span>}
+        {tab === "toolkit" && list && <span className="cc-list-count">{list.length} connection{list.length === 1 ? "" : "s"}</span>}
         <span className="ov-fill" />
-        {manage && <Button kind="primary" disabled={!kinds.length} onClick={() => setDialog({ c: null })}>Create connection</Button>}
+        {tab === "toolkit" && manage && <Button kind="primary" disabled={!kinds.length} onClick={() => setDialog({ c: null })}>Create connection</Button>}
       </header>
+      <div className="mail-tabs" role="tablist" aria-label="Kinds of connection">
+        <button type="button" role="tab" aria-selected={tab === "mail"} className={tab === "mail" ? "is-on" : undefined} onClick={() => setTab("mail")}>Mail accounts</button>
+        <button type="button" role="tab" aria-selected={tab === "toolkit"} className={tab === "toolkit" ? "is-on" : undefined} onClick={() => setTab("toolkit")}>Toolkit connections</button>
+      </div>
+      {tab === "mail" ? <MailAccountsPanel api={api} user={user} onNotice={onNotice} /> : <>
       {error && <PageError text={error} />}
       <div className="cc-list-tools">
       <div className="cc-list-filters" role="group" aria-label="Filters">
@@ -98,6 +106,7 @@ export function Connections({ api, user, onNotice }: { api: CrApi; user: CrUser;
       </div>
         {list && <div className="cc-list-pager"><span>{shown.length} of {list.length}</span></div>}</div>
       {dialog && <ConnectionForm key={dialog.c?.name ?? "new"} api={api} c={dialog.c} kinds={kinds} onClose={() => setDialog(null)} onSaved={(t) => { onNotice(t); setDialog(null); load(); }} />}
+      </>}
     </section>
   );
 }

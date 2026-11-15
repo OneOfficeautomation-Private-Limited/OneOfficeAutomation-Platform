@@ -177,6 +177,7 @@ error and polls One CommandCenter trigger again soon. Over the API: `POST /api/t
 | `key_pressed` | Key pressed in a window | Runner | Yes (needs the Window toolkit) |
 | `mouse_clicked` | Mouse click on an element or window | Runner | Yes (needs the Window toolkit) |
 | `email` | New email (IMAP) | One CommandCenter | No |
+| `mail` | New email (any mail account) | One CommandCenter | No |
 | `outlook` | New email (Microsoft 365 Outlook) | One CommandCenter | No |
 | `servicenow` | ServiceNow record | One CommandCenter | No |
 | `http_poll` | Universal poller (HTTP) | One CommandCenter | No |

@@ -243,6 +243,7 @@ public final class Modules {
             return new GraphMailSource(null, mailbox, folder, GraphMailSource.clientCredentialsToken(null, tenantId, clientId, clientSecret));
         }
         public MicrosoftSignIn microsoftSignIn() { return cr.microsoft; }
+        public void mailTarget(String kind, MailTarget target) { cr.mailRouter.target(kind, target); }
         public MailSource graphMailbox(String accessToken, String mailbox, String folder) {
             String graph = System.getProperty("ooa.microsoft.graph.url", System.getenv("OOA_MICROSOFT_GRAPH_URL"));
             return new GraphMailSource(graph == null || graph.isBlank() ? null : graph, mailbox, folder, accessToken);

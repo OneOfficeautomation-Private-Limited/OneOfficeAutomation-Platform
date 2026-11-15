@@ -72,6 +72,11 @@ public final class DocumentAutomationModule implements CommandCenterModule {
         });
 
         DocFlowProxy docflow = new DocFlowProxy(ctx);
+        // Mail accounts (MA-2): a mail rule can send emails to a process; its readable attachments become documents there
+        ctx.mailTarget("process", new ModuleContext.MailTarget() {
+            public String check(com.oneofficeautomation.controlroom.ControlRoom.User u, String target) { return docflow.checkMailTarget(u, target); }
+            public void deliver(ModuleContext.MailDelivery d) { docflow.deliverMail(d); }
+        });
         ctx.route("docflow", (ex, u, method, route, ip) -> docflow.forward(ex, u, method, route));
         ctx.agentRoute("docflow/documents", docflow::fromBot);
         ctx.agentRoute("docflow/results", docflow::resultsForBot);

@@ -1,5 +1,6 @@
+import type { MailConditions, MailTry } from "../../api/cr";
 import {
-  INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots,
+  INBOX_ID, NO_FOLDER_LIST, RULE_KIND, ruleTest, stagesOf, type FolderListing, type FolderRoots, type MailAccountBrief, type ProcessMailRule,
   type Check, type Delivery, type DeliveryType, type DocFlowApi, type MsSignInStart, type MsSignInState, type DocStatus, type DocType, type DocTypeField, type DocumentRow, type Engine,
   type EInvoice, type EmailInbox, type EngineField, type EngineOption, type InboxStatus, type Language, type NewProcess, type Overview, type Place, type ProcessDesign,
   type ProcessRow, type ProcessSummary, type RefTable,
@@ -321,6 +322,30 @@ export class HttpDocFlowApi implements DocFlowApi {
     return f ? String(f.value ?? "") : null;
   }
   async saveAllowedFolders(list: string): Promise<void> { await this.call("PUT", "/admin/settings", { values: { DOCAUTO_ALLOWED_FOLDERS: list } }); }
+
+  // MA-4: mail accounts and rules live in One CommandCenter itself (/api/mail-accounts, /api/mail-rules), not in DocFlow
+  private async kernel<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const r = await this.fetcher("/api/" + path, { method, credentials: "same-origin",
+      headers: { "X-OOA-Request": "1", ...(body !== undefined ? { "Content-Type": "application/json" } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const t = await r.text();
+    const data = t ? JSON.parse(t) : null;
+    if (!r.ok) throw new HttpError(r.status, (data?.error?.message as string) || `One CommandCenter answered ${r.status}`);
+    return data as T;
+  }
+  async mailAccounts(): Promise<MailAccountBrief[]> {
+    try { return (await this.kernel<{ accounts: MailAccountBrief[] }>("GET", "mail-accounts")).accounts.filter((a) => a.can_use); } catch { return []; }
+  }
+  async processMailRules(processId: string): Promise<ProcessMailRule[]> {
+    try { return (await this.kernel<{ rules: ProcessMailRule[] }>("GET", `mail-rules?target_kind=process&target=${encodeURIComponent(processId)}`)).rules; } catch { return []; }
+  }
+  async saveProcessMailRule(account: string, id: string | null, rule: { name: string; conditions: MailConditions; target: string; after_read?: string }): Promise<void> {
+    await this.kernel(id ? "PUT" : "POST", id ? `mail-rules/${encodeURIComponent(id)}` : `mail-accounts/${encodeURIComponent(account)}/rules`,
+      { account_id: account, name: rule.name, conditions: rule.conditions, target_kind: "process", target: rule.target, after_read: rule.after_read ?? "none" });
+  }
+  async deleteMailRule(id: string): Promise<void> { await this.kernel("DELETE", `mail-rules/${encodeURIComponent(id)}`); }
+  tryMailRule(account: string, conditions: MailConditions, rule?: string): Promise<MailTry> {
+    return this.kernel<MailTry>("POST", `mail-accounts/${encodeURIComponent(account)}/rules/try`, { conditions, rule });
+  }
 
   async folders(): Promise<string[]> {
     // the platform's own folders (the Agent repository's), with the person's access to each

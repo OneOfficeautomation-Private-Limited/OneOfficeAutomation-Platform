@@ -215,6 +215,25 @@ public interface ModuleContext {
     /** "Sign in with Microsoft" for Microsoft 365 mailboxes, shared with the kernel's Outlook trigger. */
     MicrosoftSignIns microsoftSignIn();
 
+    /** Where mail rules can send emails besides the kernel's triggers (Mail accounts): Document Automation registers "process". */
+    void mailTarget(String kind, MailTarget target);
+
+    /** A place mail rules send emails to, such as a Document Automation process. */
+    interface MailTarget {
+        /** On saving a rule: checks the person may send emails to this target (throws when not); returns its name for people. */
+        String check(User u, String target);
+        /** One email for the target, as the rule's owner (asUser). */
+        void deliver(MailDelivery d) throws IOException;
+    }
+
+    /**
+     * One email a mail rule sends: the account and rule it came through, the person it acts as (the rule's owner), the
+     * target, the email (from, to, subject, date, message_id, body_preview, mail_account, rule), its attachments, and
+     * what the target reads (attachments, email or both).
+     */
+    record MailDelivery(String accountId, String accountName, String ruleId, String ruleName, String asUser, String target,
+                        Map<String, Object> email, List<MailSource.Attachment> attachments, String readWhat) {}
+
     /**
      * The kernel's "Sign in with Microsoft" (device code flow; the sign-ins are kept in ms_signins, the lasting sign-in
      * encrypted with the vault key): whether it is offered, starting and following a person's sign-in, a sign-in as

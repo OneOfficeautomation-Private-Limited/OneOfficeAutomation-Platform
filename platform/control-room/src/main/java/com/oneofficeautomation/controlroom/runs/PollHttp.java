@@ -29,6 +29,14 @@ public final class PollHttp {
                 .header("Accept", "application/json").POST(HttpRequest.BodyPublishers.ofString(j.toString())).build(), url);
     }
 
+    /** A JSON request (PATCH, POST) with headers; the answer as JSON, or null when it has no body. */
+    public static Object json(String method, String url, Map<String, String> headers, Object body) throws IOException {
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(60)).header("Content-Type", "application/json").header("Accept", "application/json")
+                .method(method, HttpRequest.BodyPublishers.ofString(JsonLite.write(body)));
+        headers.forEach(b::header);
+        return send(b.build(), url);
+    }
+
     public static String enc(String s) { return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20"); }
 
     private static Object send(HttpRequest req, String url) throws IOException {

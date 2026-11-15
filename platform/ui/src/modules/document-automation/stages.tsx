@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
 import { HINTS } from "./help";
 import { FolderField } from "./folderPicker";
+import { ProcessMailAccounts } from "./mailRules";
 import { MicrosoftAccount } from "./msSignIn";
 import { AdvancedToggle } from "./ui";
 import { RULE_KIND, ruleTest, type Check, type Delivery, type DeliveryType, type DocFlowApi, type EmailInbox, type InboxStatus, type ProcessDesign, type ProcessSettings, type RefTable, type RuleType } from "./api";
@@ -30,8 +31,8 @@ const SEND_ON: [string, string][] = [
 
 type SetSettings = (patch: Partial<ProcessSettings>) => void;
 
-export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId }:
-  { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null; api?: DocFlowApi; processId?: string }) {
+export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId, processName }:
+  { s: ProcessSettings; set: SetSettings; inbox?: InboxStatus | null; live?: boolean; vaultRefs?: { ref: string; label: string }[] | null; api?: DocFlowApi; processId?: string; processName?: string }) {
   const email = s.email;
   const setEmail = (patch: Partial<EmailInbox>) => set({ email: { ...(email ?? { enabled: true, kind: "outlook" }), ...patch } as EmailInbox });
   const text = (key: keyof EmailInbox, label: string, placeholder = "", hint?: string) => (
@@ -70,6 +71,7 @@ export function IntakeStage({ s, set, inbox, live, vaultRefs, api, processId }:
       <span><b id="df-einvoice-label">Read e-invoice data first (ZATCA XML, QR codes)</b>
         <span className="df-small" style={{ display: "block" }}>{HINTS.einvoiceFirst}</span></span>
     </div>
+    {api && processId && <ProcessMailAccounts api={api} processId={processId} processName={processName} />}
     <div className={`df-way${email?.enabled ? " is-on" : ""}`}>
       <label style={{ display: "flex", gap: 10 }}>
         <input type="checkbox" checked={!!email?.enabled} onChange={(e) => setEmail({ enabled: e.target.checked })} />

@@ -80,6 +80,46 @@ public final class ImapMailSource implements MailSource {
         }
     }
 
+    @Override public void markRead(Map<String, Object> message) throws IOException {
+        long uid = Long.parseLong(String.valueOf(message.get("uid")));
+        session(c -> c.ok("UID STORE " + uid + " +FLAGS (\\Seen)", "Marking the email read failed"));
+    }
+
+    /** Moves with MOVE when the server has it, else copies and marks the original deleted; makes the folder when needed. */
+    @Override public void move(Map<String, Object> message, String target) throws IOException {
+        long uid = Long.parseLong(String.valueOf(message.get("uid")));
+        session(c -> {
+            boolean canMove = c.command("CAPABILITY").untagged().stream().anyMatch(u -> (u.text + " ").toUpperCase(Locale.ROOT).contains(" MOVE "));
+            String verb = canMove ? "UID MOVE " : "UID COPY ";
+            Resp r = c.command(verb + uid + " " + quote(target));
+            if (!r.status().toUpperCase(Locale.ROOT).startsWith("OK")) {
+                if (!r.status().toUpperCase(Locale.ROOT).contains("TRYCREATE")) throw new IOException("Moving the email to '" + target + "' failed: " + r.status());
+                c.ok("CREATE " + quote(target), "The folder '" + target + "' cannot be made");
+                c.ok(verb + uid + " " + quote(target), "Moving the email to '" + target + "' failed");
+            }
+            if (!canMove) c.ok("UID STORE " + uid + " +FLAGS (\\Deleted)", "Removing the email from '" + folder + "' failed");
+            return null;
+        });
+    }
+
+    interface Work { Object run(Conn c) throws IOException; }
+
+    /** Signs in, opens the folder (read-write), does the work, and signs out. */
+    private void session(Work work) throws IOException {
+        SocketFactory f = ssl ? SSLSocketFactory.getDefault() : SocketFactory.getDefault();
+        try (Socket s = f.createSocket()) {
+            s.connect(new InetSocketAddress(host, port), timeoutMs);
+            s.setSoTimeout(timeoutMs);
+            Conn c = new Conn(new BufferedInputStream(s.getInputStream()), s.getOutputStream());
+            String greet = c.line();
+            if (greet == null || !greet.startsWith("* OK")) throw new IOException("Not an IMAP server: " + greet);
+            c.ok("LOGIN " + quote(user) + " " + quote(password), "Sign-in to the mailbox failed");
+            c.ok("SELECT " + quote(folder), "Mailbox folder '" + folder + "' cannot be opened");
+            work.run(c);
+            c.logout();
+        }
+    }
+
     /** The attached files of a raw MIME message (parts with a file name, any depth), decoded. */
     static List<Attachment> attachmentsOf(byte[] raw) {
         List<Attachment> out = new ArrayList<>();

@@ -54,6 +54,9 @@ export const KINDS: Record<string, { label: string; fields: F[]; help: string }>
     ...MAIL_FILTERS, INTERVAL],
     help: "Checked by One CommandCenter through Microsoft Graph. Sign in with Microsoft with the mailbox's account (or one that may read the shared mailbox); "
       + "your own Microsoft app or a token reference is under Show advanced settings. Input: trigger_email." },
+  mail: { label: "New email (any mail account)", fields: [],
+    help: "Checked by One CommandCenter: the mail account (Manage > Connections) is read once for all its rules, and this trigger's rule says which emails start the agent. "
+      + "Microsoft 365, Gmail, Zoho, Yahoo or any mail server, set up once. Input: trigger_email." },
   servicenow: { label: "ServiceNow record new or updated", fields: [["instance_url", "Instance URL", "https://yourcompany.service-now.com"], ["table", "Table", "incident", "incident"],
     ["query", "Encoded query (optional)", "active=true^priority=1"], ["username", "User name", "integration.user"], ["password_ref", "Password (vault reference)", "snow/api/password"],
     ["token_ref", "Or OAuth token (vault reference)"], INTERVAL],
@@ -67,5 +70,5 @@ export const KINDS: Record<string, { label: string; fields: F[]; help: string }>
 /** DA-1: settings shown only under Show advanced settings (the Outlook trigger signs in with Microsoft instead). */
 export const ADVANCED_FIELDS: Record<string, string[]> = { outlook: ["tenant_id", "client_id", "client_secret_ref", "token_ref"] };
 export const TRIGGER_GROUPS: [string, string[]][] = [["On the runner", ["file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "window_opened", "window_closed", "process_started", "process_stopped", "service_started", "service_stopped", "hotkey", "key_pressed", "mouse_clicked"]],
-  ["On One CommandCenter", ["email", "outlook", "servicenow", "http_poll", "webhook"]],
+  ["On One CommandCenter", ["mail", "email", "outlook", "servicenow", "http_poll", "webhook"]],
   ["On Document Automation", DOCUMENT_KINDS]];
