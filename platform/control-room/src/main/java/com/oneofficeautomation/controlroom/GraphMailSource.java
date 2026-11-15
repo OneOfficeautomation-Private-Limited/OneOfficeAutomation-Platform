@@ -30,6 +30,35 @@ public final class GraphMailSource implements MailSource {
         return String.valueOf(t);
     }
 
+    private String owner() { return base + (mailbox == null || mailbox.isBlank() ? "/me" : "/users/" + PollHttp.enc(mailbox)); }
+
+    /** After reading: marks the message read (needs Mail.ReadWrite). */
+    @Override public void markRead(Map<String, Object> message) throws IOException {
+        PollHttp.json("PATCH", owner() + "/messages/" + PollHttp.enc(String.valueOf(message.get("id"))), Map.of("Authorization", "Bearer " + token), Map.of("isRead", true));
+    }
+
+    /** Well-known folders Microsoft Graph takes by name. */
+    static final Set<String> WELL_KNOWN = Set.of("inbox", "archive", "deleteditems", "junkemail", "drafts", "sentitems");
+
+    /** After reading: moves the message to a folder by its name (a well-known one, one at the top or under the Inbox, else made at the top). */
+    @Override @SuppressWarnings("unchecked")
+    public void move(Map<String, Object> message, String target) throws IOException {
+        Map<String, String> auth = Map.of("Authorization", "Bearer " + token);
+        String dest = WELL_KNOWN.contains(target.toLowerCase(Locale.ROOT)) ? target.toLowerCase(Locale.ROOT) : null;
+        String q = "?$filter=" + PollHttp.enc("displayName eq '" + target.replace("'", "''") + "'") + "&$select=id,displayName";
+        for (String where : new String[]{"/mailFolders", "/mailFolders/inbox/childFolders"}) {
+            if (dest != null) break;
+            Object r = PollHttp.getJson(owner() + where + q, auth);
+            if (r instanceof Map<?, ?> m && m.get("value") instanceof List<?> l && !l.isEmpty()) dest = String.valueOf(((Map<String, Object>) l.get(0)).get("id"));
+        }
+        if (dest == null) {
+            Object made = PollHttp.json("POST", owner() + "/mailFolders", auth, Map.of("displayName", target));
+            dest = made instanceof Map<?, ?> m ? String.valueOf(m.get("id")) : null;
+            if (dest == null) throw new IOException("The folder '" + target + "' cannot be made");
+        }
+        PollHttp.json("POST", owner() + "/messages/" + PollHttp.enc(String.valueOf(message.get("id"))) + "/move", auth, Map.of("destinationId", dest));
+    }
+
     private String messagesUrl() {
         return base + (mailbox == null || mailbox.isBlank() ? "/me" : "/users/" + PollHttp.enc(mailbox)) + "/mailFolders/" + PollHttp.enc(folder) + "/messages";
     }

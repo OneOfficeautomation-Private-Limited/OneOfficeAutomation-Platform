@@ -158,7 +158,7 @@ const SECTIONS: Section[] = [
       { key: "docflow_token_ref", label: "Service token", hint: VAULT_REF, kind: "text", placeholder: "docflow/service/token" }] },
   ] },
   { id: "connections", title: "E-mail, proxy and SIEM", mark: "E", colour: "#b45309", about: "One CommandCenter's own e-mail, its proxy to the internet, and audit forwarding to your SIEM.", groups: [
-    { title: "E-mail", settings: [
+    { title: "Outgoing e-mail", settings: [
       { key: "mail_smtp_host", label: "Outgoing mail server", kind: "text", placeholder: "smtp.office365.com" },
       { key: "mail_smtp_port", label: "Port", hint: "1 to 65535.", kind: "number", min: 1, max: 65535 },
       { key: "mail_smtp_security", label: "Security", kind: "select", options: [["starttls", "STARTTLS (port 587)"], ["ssl", "SSL/TLS (port 465)"], ["none", "None (trusted network only)"]] },
@@ -166,7 +166,7 @@ const SECTIONS: Section[] = [
       { key: "mail_smtp_password_ref", label: "Mail account password", hint: VAULT_REF, kind: "text", placeholder: "mail/smtp/password" },
       { key: "mail_from", label: "Sender address", kind: "text" },
       { key: "license_mail_to", label: "Also send licence reminders to", hint: "Addresses, separated by commas.", kind: "text" }] },
-    { title: "Microsoft 365 mailboxes", settings: [
+    { title: "Sign in with Microsoft", settings: [
       { key: "microsoft_app_id", label: "Microsoft app ID", hint: "For Sign in with Microsoft (email inboxes, Outlook triggers). Empty: One CommandCenter's own app.", kind: "text", placeholder: "11111111-2222-3333-4444-555555555555" }] },
     { title: "Notifications", settings: [
       { key: "notify_run_failed", label: "E-mail people when a run they started fails", hint: "To the address on their account.", kind: "check" },

@@ -5,7 +5,7 @@ import { RefreshButton, RowMenu, rowClick, when } from "./ListParts";
 import { ADVANCED_FIELDS, DOCUMENT_KINDS, KINDS, TRIGGER_GROUPS as GROUPS, type F } from "../shell/triggerKinds";
 import { PageIntro } from "../shell/PageIntro";
 import { HelpLinks } from "../shell/HelpLinks";
-import { EMPTY_CONDITIONS, RuleBuilder, RuleTry } from "./MailAccounts";
+import { AfterReading, EMPTY_CONDITIONS, RuleBuilder, RuleTry } from "./MailAccounts";
 import type { MailAccount, MailConditions } from "../api/cr";
 
 /**
@@ -192,6 +192,7 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
   const [mailAccount, setMailAccount] = useState("");
   const [mailFolder, setMailFolder] = useState("");
   const [conditions, setConditions] = useState<MailConditions>(EMPTY_CONDITIONS);
+  const [afterRead, setAfterRead] = useState("none");
   useEffect(() => {
     if (kind !== "mail" || mailAccounts) return;
     api.mailAccounts().then((d) => { const usable = d.accounts.filter((a) => a.can_use); setMailAccounts(usable); setMailAccount((cur) => cur || usable[0]?.id || ""); }, () => setMailAccounts([]));
@@ -204,7 +205,7 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
   const create = async () => {
     const b: Record<string, unknown> = { name: name.trim() || "Trigger", bot_path: bot, device_id: device, kind };
     if (kind === "outlook" && ms) b.ms_signin = ms.id;
-    if (kind === "mail") { b.mail_account = mailAccount; b.conditions = conditions; if (mailFolder.trim()) b.folder = mailFolder.trim(); }
+    if (kind === "mail") { b.mail_account = mailAccount; b.conditions = conditions; b.after_read = afterRead; if (mailFolder.trim()) b.folder = mailFolder.trim(); }
     for (const fd of fields) {
       const v = val(fd);
       if (fd[4] === "check") b[fd[0]] = !!v;
@@ -238,6 +239,7 @@ function NewTrigger({ api, runners, event, agent, preset, onClose, onCreated }: 
           <Field label="Folder (optional)">{(id) => <TextInput id={id} value={mailFolder} placeholder="Inbox" onChange={(e) => setMailFolder(e.target.value)} />}</Field>
         </div>
         <RuleBuilder value={conditions} onChange={setConditions} />
+        <AfterReading value={afterRead} onChange={setAfterRead} canWrite={!!mailAccounts?.find((a) => a.id === mailAccount)?.can_write} />
         <RuleTry disabled={!mailAccount} tryRule={() => api.tryMailRule(mailAccount, { conditions, folder: mailFolder.trim() || undefined })} />
       </div>}
       {signingIn && <MicrosoftSignInDialog start={() => api.triggerMsSignInStart()} poll={(id) => api.triggerMsSignInPoll(id)} onClose={() => setSigningIn(false)}

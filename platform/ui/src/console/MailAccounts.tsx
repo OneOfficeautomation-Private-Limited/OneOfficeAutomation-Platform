@@ -116,6 +116,9 @@ export function MailAccountDialog({ api, account, providers, onClose, onSaved }:
   const [refs, setRefs] = useState<VaultRef[] | null | undefined>(undefined);
   const [ms, setMs] = useState<{ id: string; account: string } | null>(account?.ms_signin ? { id: account.ms_signin, account: account.signed_in_as ?? account.address } : null);
   const [signing, setSigning] = useState(false);
+  const [write, setWrite] = useState(!!account?.can_write && account?.sign_in === "microsoft");
+  const [msReady, setMsReady] = useState<boolean | null>(null);
+  useEffect(() => { api.mailSignInReady().then(setMsReady, () => setMsReady(false)); }, [api]);
   const [shared, setShared] = useState(String(s.mailbox && s.mailbox !== account?.address ? s.mailbox : ""));
   const [tenant, setTenant] = useState(String(s.tenant_id ?? ""));
   const [client, setClient] = useState(String(s.client_id ?? ""));
@@ -172,8 +175,10 @@ export function MailAccountDialog({ api, account, providers, onClose, onSaved }:
       {p && <div className="mail-signin">
         {p.signIn.length > 1 && <Field label="Sign in with">{(id) => <Select id={id} value={method} onChange={(e) => setSignIn(e.target.value)} options={p.signIn.map((m) => ({ value: m, label: SIGN_IN[m] }))} />}</Field>}
         {method === "microsoft" && <>
+          {msReady === false && <p className="st-alert" role="status">Sign in with Microsoft is not set up on this server: an administrator adds the Microsoft app ID in Administration &gt; Settings &gt; E-mail, proxy and SIEM.</p>}
           <div className="cc-inline">{ms ? <><span className="cc-pill is-success">Signed in as {ms.account}</span><button type="button" className="st-link" onClick={() => setSigning(true)}>Sign in again</button></>
-            : <Button kind="primary" onClick={() => setSigning(true)}>Sign in with Microsoft</Button>}</div>
+            : <Button kind="primary" disabled={msReady === false} onClick={() => setSigning(true)}>Sign in with Microsoft</Button>}</div>
+          <label className="st-check-line"><input type="checkbox" checked={write} onChange={(e) => setWrite(e.target.checked)} /> Allow mail rules to mark emails read and move them (Microsoft asks for permission to change the mailbox; sign in again after changing this)</label>
           {p.audience !== "consumers" && <Field label="A shared mailbox (optional)" hint="Leave empty to read the signed-in account's own mailbox.">{(id) => <TextInput id={id} value={shared} placeholder="accounts@example.com" onChange={(e) => setShared(e.target.value)} />}</Field>}
         </>}
         {method === "microsoft_app" && <div className="cc-grid2">
@@ -196,7 +201,7 @@ export function MailAccountDialog({ api, account, providers, onClose, onSaved }:
       </div>}
       <Field label="Who may use it" hint="They can choose it in processes, triggers and agents. Only you (the owner) and administrators change it.">
         {(id) => <PrincipalPicker id={id} value={allowed} onChange={setAllowed} source={who} />}</Field>
-      {signing && p && <MicrosoftSignInDialog start={() => api.mailSignInStart(p.audience ?? "organizations")} poll={(id) => api.mailSignInPoll(id)} onClose={() => setSigning(false)}
+      {signing && p && <MicrosoftSignInDialog start={() => api.mailSignInStart(p.audience ?? "organizations", write)} poll={(id) => api.mailSignInPoll(id)} onClose={() => setSigning(false)}
         onDone={(id, who2) => { setSigning(false); setMs({ id, account: who2 }); }} />}
     </Dialog>
   );
@@ -215,6 +220,20 @@ const FIELDS: Record<string, { label: string; ops: [string, string][]; hint?: st
   received_after: { label: "Received after", ops: [["after", "is after"]] },
 };
 export const EMPTY_CONDITIONS: MailConditions = { match: "all", when: [], except: [] };
+
+/** What happens to an email after a rule took it: left as it is, marked read, or moved to a folder (made when missing). */
+export function AfterReading({ value, onChange, canWrite }: { value: string; onChange: (v: string) => void; canWrite: boolean }) {
+  const kind = value.startsWith("move:") ? "move" : value === "read" ? "read" : "none";
+  return (
+    <div className="mail-after" role="group" aria-label="After reading">
+      <Field label="After reading the email" hint={canWrite ? undefined : "This account may not change its mailbox: its owner signs in again and allows it, in Manage > Connections."}>
+        {(id) => <Select id={id} value={canWrite ? kind : "none"} disabled={!canWrite} onChange={(e) => onChange(e.target.value === "move" ? "move:Processed" : e.target.value)}
+          options={[{ value: "none", label: "Leave it as it is" }, { value: "read", label: "Mark it as read" }, { value: "move", label: "Move it to a folder" }]} />}</Field>
+      {canWrite && kind === "move" && <Field label="Folder">{(id) => <TextInput id={id} value={value.slice(5)} placeholder="Processed" onChange={(e) => onChange("move:" + e.target.value)} />}</Field>}
+    </div>
+  );
+}
+export const AFTER_READ = (v: string) => (v === "read" ? "Mark as read" : v.startsWith("move:") ? "Move to \"" + v.slice(5) + "\"" : "Leave it");
 
 /** A rule's conditions: All of these or Any of these, then Except when…, each a field, how, and the words. */
 export function RuleBuilder({ value, onChange }: { value: MailConditions; onChange: (c: MailConditions) => void }) {
@@ -300,7 +319,7 @@ export function MailRulesDialog({ api, account, onClose, onNotice }: { api: CrAp
       </div>
       <div className="mail-rules-grid">
         <table className="st-table" aria-label="Rules in order">
-          <thead><tr><th scope="col">Order</th><th scope="col">Rule</th><th scope="col">Emails that match</th><th scope="col">Goes to</th><th scope="col">Matched</th></tr></thead>
+          <thead><tr><th scope="col">Order</th><th scope="col">Rule</th><th scope="col">Emails that match</th><th scope="col">Goes to</th><th scope="col">After reading</th><th scope="col">Matched</th></tr></thead>
           <tbody>{(data?.rules ?? []).map((r, i) => (
             <tr key={r.id} className={r.enabled ? undefined : "is-off"}>
               <td className="mail-order"><span>{i + 1}</span>{data?.can_order && <>
@@ -309,9 +328,10 @@ export function MailRulesDialog({ api, account, onClose, onNotice }: { api: CrAp
               <td><b>{r.name}</b>{!r.enabled && <span className="st-muted"> (off)</span>}</td>
               <td>{r.says}</td>
               <td>{r.target_kind === "process" ? "Process " : r.target_kind === "trigger" ? "Trigger " : r.target_kind + " "}{r.target_name}</td>
+              <td>{AFTER_READ(r.after_read ?? "none")}</td>
               <td>{r.matched}</td>
             </tr>))}
-            {data && !data.rules.length && <tr><td colSpan={5} className="st-muted">No rules yet: choose this account in a process's email step or in an email trigger.</td></tr>}
+            {data && !data.rules.length && <tr><td colSpan={6} className="st-muted">No rules yet: choose this account in a process's email step or in an email trigger.</td></tr>}
           </tbody>
         </table>
         <section className="mail-unmatched" aria-label="Not matched">

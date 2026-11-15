@@ -172,7 +172,7 @@ export type MailProvider = { id: string; name: string; kind: "graph" | "imap"; s
 export type MailStatus = "new" | "working" | "sign_in_expired" | "wrong_password" | "failed";
 export type MailAccount = { id: string; name: string; provider: string; provider_name: string; address: string; sign_in: string; settings: Record<string, unknown>;
   secret_ref?: string | null; ms_signin?: string | null; signed_in_as?: string | null; owner: string; allowed: string[]; rule_mode: "first" | "every"; interval_seconds: number;
-  status: MailStatus; last_check?: string | null; last_error?: string | null; last_mail?: string | null; can_use: boolean; can_change: boolean;
+  status: MailStatus; last_check?: string | null; last_error?: string | null; last_mail?: string | null; can_use: boolean; can_change: boolean; can_write: boolean;
   used_by: { kind: string; target: string }[]; updated?: string; updated_by?: string };
 export type MailDetect = { domain: string; provider: string | null; how: "domain" | "mx" | "none"; region?: string; mx?: string };
 export type MailCondition = { field: string; op: string; value: string | string[] };
@@ -507,7 +507,7 @@ export class CrApi {
   async deleteMailAccount(id: string) { await this.call("DELETE", "mail-accounts/" + encodeURIComponent(id)); }
   testMailAccount(id: string) { return this.call<{ ok: boolean; status: MailStatus; message: string }>("POST", "mail-accounts/" + encodeURIComponent(id) + "/test"); }
   async mailSignInReady() { return (await this.call<{ ready: boolean }>("GET", "mail-accounts/ms-signin")).ready; }
-  mailSignInStart(audience: string) { return this.call<MsSignInStart>("POST", "mail-accounts/ms-signin?audience=" + encodeURIComponent(audience)); }
+  mailSignInStart(audience: string, write = false) { return this.call<MsSignInStart>("POST", "mail-accounts/ms-signin?audience=" + encodeURIComponent(audience) + (write ? "&write=true" : "")); }
   mailSignInPoll(id: string) { return this.call<MsSignInState>("GET", "mail-accounts/ms-signin/" + encodeURIComponent(id)); }
   mailRules(account: string) { return this.call<{ rules: MailRule[]; rule_mode: "first" | "every"; can_order: boolean }>("GET", "mail-accounts/" + encodeURIComponent(account) + "/rules"); }
   saveMailRule(account: string, id: string | null, b: Record<string, unknown>) {

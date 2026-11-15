@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { MailConditions } from "../../api/cr";
 import { Button, Dialog, Field, Select, TextInput } from "../../components";
-import { EMPTY_CONDITIONS, RuleBuilder, RuleTry } from "../../console/MailAccounts";
+import { AfterReading, EMPTY_CONDITIONS, RuleBuilder, RuleTry } from "../../console/MailAccounts";
 import type { DocFlowApi, MailAccountBrief, ProcessMailRule } from "./api";
 import { Chip, reportError } from "./ui";
 
@@ -45,10 +45,11 @@ function MailRuleDialog({ api, processId, processName, accounts, rule, onClose, 
   const [account, setAccount] = useState(rule?.account_id ?? accounts[0]?.id ?? "");
   const [name, setName] = useState(rule?.name ?? processName);
   const [conditions, setConditions] = useState<MailConditions>(rule?.conditions ?? { ...EMPTY_CONDITIONS, when: [{ field: "attachment_type", op: "is_one_of", value: "pdf, image, xml" }] });
+  const [afterRead, setAfterRead] = useState(rule?.after_read ?? "none");
   const [saving, setSaving] = useState(false);
   const save = async () => {
     setSaving(true);
-    try { await api.saveProcessMailRule(account, rule?.id ?? null, { name: name.trim(), conditions, target: processId }); onSaved(); }
+    try { await api.saveProcessMailRule(account, rule?.id ?? null, { name: name.trim(), conditions, target: processId, after_read: afterRead }); onSaved(); }
     catch (e) { reportError(e); } finally { setSaving(false); }
   };
   return (
@@ -62,6 +63,7 @@ function MailRuleDialog({ api, processId, processName, accounts, rule, onClose, 
       </div>
       <RuleBuilder value={conditions} onChange={setConditions} />
       <p className="df-small" style={{ margin: 0 }}>PDF, image and XML attachments become documents. Reading the email itself comes later.</p>
+      <AfterReading value={afterRead} onChange={setAfterRead} canWrite={!!accounts.find((a) => a.id === account)?.can_write} />
       <RuleTry disabled={!account} tryRule={() => api.tryMailRule(account, conditions, rule?.id)} />
     </Dialog>
   );

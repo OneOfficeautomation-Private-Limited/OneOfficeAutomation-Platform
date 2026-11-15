@@ -1073,7 +1073,7 @@ public final class ControlRoomServer {
                 if (seg.length >= 2 && seg[1].equals("ms-signin")) {   // Sign in with Microsoft for a mail account (work or personal)
                     cr.require(u, "globals.manage", "make mail accounts");
                     if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("ready", cr.microsoft.ready()));
-                    else if (m.equals("POST") && seg.length == 2) sendJson(ex, 200, cr.microsoft.start(u, query(ex).getOrDefault("audience", "organizations")));
+                    else if (m.equals("POST") && seg.length == 2) sendJson(ex, 200, cr.microsoft.start(u, query(ex).getOrDefault("audience", "organizations"), "true".equals(query(ex).get("write"))));
                     else if (m.equals("GET") && seg.length == 3) sendJson(ex, 200, cr.microsoft.poll(u, seg[2]));
                     else notFound(ex);
                 }

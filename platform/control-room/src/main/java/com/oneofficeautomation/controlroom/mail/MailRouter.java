@@ -110,6 +110,9 @@ public final class MailRouter {
         if (!Set.of("attachments", "email", "both").contains(read)) throw MailRules.bad("read_what is attachments, email or both");
         String after = Objects.requireNonNullElse(text(in, "after_read", old, 300), "none");
         if (!after.equals("none") && !after.equals("read") && !after.matches("move:[^\\r\\n]{1,200}")) throw MailRules.bad("after_read is none, read, or move:FOLDER");
+        if (!after.equals("none") && !cr.mailAccounts.canWrite(a))
+            throw new OoaException("CR.BAD_INPUT", "The mail account '" + a.get("name") + "' may not change its mailbox, so it cannot mark emails read or move them",
+                    "Its owner opens it (Manage > Connections), signs in again with Microsoft and allows changing the mailbox; or leave emails as they are.");
         boolean enabled = in.containsKey("enabled") ? !Boolean.FALSE.equals(in.get("enabled")) && !"false".equals(String.valueOf(in.get("enabled"))) : old == null || Boolean.TRUE.equals(old.get("enabled"));
         Instant now = Instant.now();
         String rid = old == null ? ControlRoom.id("mrule") : String.valueOf(old.get("id"));
@@ -299,9 +302,11 @@ public final class MailRouter {
                 read++;
                 Supplier<List<MailSource.Attachment>> files = files(src, msg);
                 boolean taken = false;
+                String after = null;   // what the first matching rule with an action does to the email afterwards
                 for (Map<String, Object> r : folder.getValue()) {
                     if (!MailRules.matches(conditions(r), msg, files)) continue;
                     taken = true;
+                    if (after == null && r.get("after_read") instanceof String ar && !ar.equals("none")) after = ar;
                     try {
                         if (firstTime("target:" + r.get("target_kind") + ":" + r.get("target"), key)) {
                             deliver(a, r, msg, files);
@@ -314,6 +319,10 @@ public final class MailRouter {
                     if (!every) break;
                 }
                 if (!taken) { keepUnmatched(a, msg); unmatched++; }
+                if (after != null) {
+                    try { if (after.equals("read")) src.markRead(msg); else if (after.startsWith("move:")) src.move(msg, after.substring(5)); }
+                    catch (Exception e) { problems.add("After reading \"" + msg.get("subject") + "\": " + MailAccounts.message(e)); }
+                }
             }
             cursors.put(folder.getKey(), batch.cursor());
         }
@@ -387,7 +396,8 @@ public final class MailRouter {
     // ------------------------------------------------------------------ not matched
 
     void keepUnmatched(Map<String, Object> a, Map<String, Object> msg) {
-        cr.db.update("INSERT INTO mail_unmatched (id, account_id, received, sender, subject, message, status) VALUES (?,?,?,?,?,?,?)", ControlRoom.id("mun"), a.get("id"), Instant.now(),
+        Instant received = MailRules.received(msg).orElse(Instant.now());   // when the email came, so the list reads in mailbox order
+        cr.db.update("INSERT INTO mail_unmatched (id, account_id, received, sender, subject, message, status) VALUES (?,?,?,?,?,?,?)", ControlRoom.id("mun"), a.get("id"), received,
                 cut(String.valueOf(msg.getOrDefault("from", "")), 400), cut(String.valueOf(msg.getOrDefault("subject", "")), 500), JsonLite.write(msg), "waiting");
         List<Map<String, Object>> old = cr.db.query("SELECT id FROM mail_unmatched WHERE account_id = ? ORDER BY received DESC", a.get("id"));
         for (int i = UNMATCHED_KEPT; i < old.size(); i++) cr.db.update("DELETE FROM mail_unmatched WHERE id = ?", old.get(i).get("id"));

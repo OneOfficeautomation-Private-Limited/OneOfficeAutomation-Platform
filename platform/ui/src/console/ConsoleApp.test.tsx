@@ -2227,7 +2227,7 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(within(detail).getByRole("button", { name: "Mail rules" }));
     const rules = await screen.findByRole("dialog", { name: "Mail rules: AP invoices mailbox" });
     const order = await within(rules).findByRole("table", { name: "Rules in order" });
-    expect(within(order).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["1Supplier invoicesfrom @acme.com · has a PDF fileProcess ap18", "2Credit notessubject has credit noteTrigger Tell AP lead3"]);
+    expect(within(order).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["1Supplier invoicesfrom @acme.com · has a PDF fileProcess apLeave it18", "2Credit notessubject has credit noteTrigger Tell AP leadMark as read3"]);
     await act(async () => { fireEvent.click(within(order).getByRole("button", { name: "Move Credit notes up" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "mail-accounts/mail_1/rules/order", body: { ids: ["mrule_2", "mrule_1"] } }));
     const waiting = within(rules).getByRole("region", { name: "Not matched" });

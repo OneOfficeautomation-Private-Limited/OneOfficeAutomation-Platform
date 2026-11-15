@@ -338,9 +338,9 @@ export class HttpDocFlowApi implements DocFlowApi {
   async processMailRules(processId: string): Promise<ProcessMailRule[]> {
     try { return (await this.kernel<{ rules: ProcessMailRule[] }>("GET", `mail-rules?target_kind=process&target=${encodeURIComponent(processId)}`)).rules; } catch { return []; }
   }
-  async saveProcessMailRule(account: string, id: string | null, rule: { name: string; conditions: MailConditions; target: string }): Promise<void> {
+  async saveProcessMailRule(account: string, id: string | null, rule: { name: string; conditions: MailConditions; target: string; after_read?: string }): Promise<void> {
     await this.kernel(id ? "PUT" : "POST", id ? `mail-rules/${encodeURIComponent(id)}` : `mail-accounts/${encodeURIComponent(account)}/rules`,
-      { account_id: account, name: rule.name, conditions: rule.conditions, target_kind: "process", target: rule.target });
+      { account_id: account, name: rule.name, conditions: rule.conditions, target_kind: "process", target: rule.target, after_read: rule.after_read ?? "none" });
   }
   async deleteMailRule(id: string): Promise<void> { await this.kernel("DELETE", `mail-rules/${encodeURIComponent(id)}`); }
   tryMailRule(account: string, conditions: MailConditions, rule?: string): Promise<MailTry> {

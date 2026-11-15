@@ -253,9 +253,9 @@ export interface FolderListing {
 export const NO_FOLDER_LIST: FolderRoots = { limited: false, roots: [], outside: [] };
 
 /** Mail accounts (MA-4): mailboxes set up once (Manage > Connections); a process takes emails from them by rules. */
-export interface MailAccountBrief { id: string; name: string; address: string; provider_name: string; status: string; can_use: boolean }
+export interface MailAccountBrief { id: string; name: string; address: string; provider_name: string; status: string; can_use: boolean; can_write?: boolean }
 export interface ProcessMailRule { id: string; account_id: string; account_name: string; account_address: string; account_status: string; name: string; says: string;
-  conditions: MailConditions; matched: number; enabled: boolean }
+  conditions: MailConditions; matched: number; enabled: boolean; after_read?: string }
 /** A folder's own name: the last part of its path. */
 export const lastPart = (p: string) => p.trim().replace(/[\\/]+$/, "").split(/[\\/]/).pop() || p.trim();
 /** The list as DocFlow reads DOCAUTO_ALLOWED_FOLDERS: folders separated by ';', each optionally "Name=folder". */
@@ -318,7 +318,7 @@ export interface DocFlowApi {
   /** MA-4: the mail accounts the person may use, the rules sending emails to a process, saving one, and trying conditions. */
   mailAccounts(): Promise<MailAccountBrief[]>;
   processMailRules(processId: string): Promise<ProcessMailRule[]>;
-  saveProcessMailRule(account: string, id: string | null, rule: { name: string; conditions: MailConditions; target: string }): Promise<void>;
+  saveProcessMailRule(account: string, id: string | null, rule: { name: string; conditions: MailConditions; target: string; after_read?: string }): Promise<void>;
   deleteMailRule(id: string): Promise<void>;
   tryMailRule(account: string, conditions: MailConditions, rule?: string): Promise<MailTry>;
   reviewTask(documentId: string): Promise<ReviewTask>;
@@ -687,15 +687,15 @@ export class SampleApi implements DocFlowApi {
     matched: 18, enabled: true }];
   private mailTargets: Record<string, string> = { mrule_1: "supplier-invoices-ksa" };
   async mailAccounts(): Promise<MailAccountBrief[]> {
-    return [{ id: "mail_1", name: "AP invoices mailbox", address: "invoices@contoso.com", provider_name: "Microsoft 365", status: "working", can_use: true },
-      { id: "mail_2", name: "Supplier Gmail", address: "suppliers.acme@gmail.com", provider_name: "Gmail, Google Workspace", status: "working", can_use: true }];
+    return [{ id: "mail_1", name: "AP invoices mailbox", address: "invoices@contoso.com", provider_name: "Microsoft 365", status: "working", can_use: true, can_write: false },
+      { id: "mail_2", name: "Supplier Gmail", address: "suppliers.acme@gmail.com", provider_name: "Gmail, Google Workspace", status: "working", can_use: true, can_write: true }];
   }
   async processMailRules(processId: string) { return copy(this.mailRulesData.filter((r) => this.mailTargets[r.id] === processId)); }
-  async saveProcessMailRule(account: string, id: string | null, rule: { name: string; conditions: MailConditions; target: string }) {
+  async saveProcessMailRule(account: string, id: string | null, rule: { name: string; conditions: MailConditions; target: string; after_read?: string }) {
     const a = (await this.mailAccounts()).find((x) => x.id === account)!;
     const says = rule.conditions.when.length ? rule.conditions.when.map((c) => c.field + " " + (Array.isArray(c.value) ? c.value.join(" or ") : c.value)).join(" · ") : "Every email";
     const row: ProcessMailRule = { id: id ?? "mrule_" + (this.mailRulesData.length + 1), account_id: a.id, account_name: a.name, account_address: a.address, account_status: a.status,
-      name: rule.name, says, conditions: rule.conditions, matched: 0, enabled: true };
+      name: rule.name, says, conditions: rule.conditions, matched: 0, enabled: true, after_read: rule.after_read ?? "none" };
     this.mailRulesData = id ? this.mailRulesData.map((r) => (r.id === id ? { ...row, matched: r.matched } : r)) : [...this.mailRulesData, row];
     this.mailTargets[row.id] = rule.target;
   }

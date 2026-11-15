@@ -817,7 +817,7 @@ public final class Db implements AutoCloseable {
      * how often it is read, its health and where reading has got to per folder); mail_rules, which emails of an account
      * go to which process, trigger or agent, in order; mail_seen, the emails already handled (per account, and per
      * target so a forwarded copy is handled once); mail_unmatched, emails no rule took. ms_signins gains audience
-     * (organizations, or consumers for personal Microsoft accounts).
+     * (organizations, or consumers for personal Microsoft accounts) and scopes (what the sign-in asked for).
      */
     private static final String[] SCHEMA_V48 = {
         "CREATE TABLE mail_accounts (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL UNIQUE, provider VARCHAR(40) NOT NULL, address VARCHAR(320) NOT NULL, "
@@ -835,6 +835,7 @@ public final class Db implements AutoCloseable {
             + "message VARCHAR(20000) NOT NULL, status VARCHAR(20) NOT NULL)",
         "CREATE INDEX mail_unmatched_account ON mail_unmatched (account_id, received)",
         "ALTER TABLE ms_signins ADD COLUMN audience VARCHAR(20)",
+        "ALTER TABLE ms_signins ADD COLUMN scopes VARCHAR(600)",
     };
 
     /** The schema version this release needs. */

@@ -94,6 +94,15 @@ class MailAccountsTest {
         assertTrue(ids.containsAll(Set.of("microsoft365", "outlook_com", "gmail", "zoho", "yahoo", "aol", "icloud", "gmx", "fastmail", "rediffmail", "exchange", "imap")));
     }
 
+    @Test void imapMarksReadAndMovesMakingTheFolderWhenNeeded() throws Exception {
+        ImapMailSource src = new ImapMailSource("127.0.0.1", imap.port(), false, "ann", "right-pw", "INBOX", 5000);
+        src.markRead(Map.of("uid", 12));
+        src.move(Map.of("uid", 13), "Processed");
+        assertTrue(imap.seen.stream().anyMatch(l -> l.endsWith("UID STORE 12 +FLAGS (\\Seen)")), String.valueOf(imap.seen));
+        List<String> moves = imap.seen.stream().filter(l -> l.contains("UID MOVE 13") || l.contains("CREATE")).map(l -> l.substring(l.indexOf(' ') + 1)).toList();
+        assertEquals(List.of("UID MOVE 13 \"Processed\"", "CREATE \"Processed\"", "UID MOVE 13 \"Processed\""), moves, "the server said TRYCREATE: the folder is made, then the move done");
+    }
+
     @Test void theVendorIsFoundFromTheAddress() {
         MailProviders p = cr.mailAccounts.providers;
         assertEquals(Map.of("domain", "gmail.com", "provider", "gmail", "how", "domain"), p.detect("AP.Team@Gmail.com"));
@@ -247,6 +256,7 @@ class MailAccountsTest {
     static final class FakeImap implements Closeable {
         final ServerSocket ss;
         final List<String> seen = new CopyOnWriteArrayList<>();
+        final Set<String> folders = java.util.concurrent.ConcurrentHashMap.newKeySet();
         final String password;
 
         FakeImap(String password) throws IOException {
@@ -271,6 +281,10 @@ class MailAccountsTest {
                         if (cmd.startsWith("LOGIN")) write(out, cmd.contains("\"" + password + "\"") ? tag + " OK logged in\r\n" : tag + " NO [AUTHENTICATIONFAILED] Invalid credentials\r\n");
                         else if (cmd.startsWith("SELECT")) write(out, "* 3 EXISTS\r\n* OK [UIDVALIDITY 77] ok\r\n* OK [UIDNEXT 12] ok\r\n" + tag + " OK [READ-WRITE] done\r\n");
                         else if (cmd.startsWith("UID SEARCH")) write(out, "* SEARCH\r\n" + tag + " OK done\r\n");
+                        else if (cmd.startsWith("CAPABILITY")) write(out, "* CAPABILITY IMAP4rev1 MOVE UIDPLUS\r\n" + tag + " OK done\r\n");
+                        else if (cmd.startsWith("UID STORE")) write(out, tag + " OK stored\r\n");
+                        else if (cmd.startsWith("CREATE")) { folders.add(cmd.substring(7).replace("\"", "")); write(out, tag + " OK created\r\n"); }
+                        else if (cmd.startsWith("UID MOVE")) write(out, folders.stream().anyMatch(cmd::contains) ? tag + " OK moved\r\n" : tag + " NO [TRYCREATE] no such folder\r\n");
                         else if (cmd.startsWith("LOGOUT")) { write(out, "* BYE\r\n" + tag + " OK bye\r\n"); break; }
                         else write(out, tag + " BAD unknown\r\n");
                     }

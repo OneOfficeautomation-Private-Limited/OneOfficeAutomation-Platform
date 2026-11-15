@@ -42,6 +42,9 @@ public final class MicrosoftSignIn implements com.oneofficeautomation.controlroo
     public static final String OOA_APP_ID = "";
     /** Reading the person's own and shared mailboxes, their name, and a lasting sign-in. */
     static final String SCOPE = "openid profile offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Read.Shared";
+    /** With permission to change the mailbox (mark read, move): asked only when a mail account turns it on. */
+    static final String WRITE = " https://graph.microsoft.com/Mail.ReadWrite";
+    static final String WRITE_SHARED = " https://graph.microsoft.com/Mail.ReadWrite.Shared";
     /** Personal Microsoft accounts (Outlook.com, Hotmail) have no shared mailboxes. */
     static final String SCOPE_PERSONAL = "openid profile offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.Read";
     /** Work and school accounts (organizations) or personal ones (consumers): which Microsoft accounts may sign in. */
@@ -97,22 +100,26 @@ public final class MicrosoftSignIn implements com.oneofficeautomation.controlroo
     public Map<String, Object> start(User u) throws IOException { return start(u, "organizations"); }
 
     /** Starts a sign-in for work and school accounts (organizations) or personal Microsoft accounts (consumers). */
-    public Map<String, Object> start(User u, String audience) throws IOException {
+    public Map<String, Object> start(User u, String audience) throws IOException { return start(u, audience, false); }
+
+    /** write: also asks for permission to change the mailbox (Mail.ReadWrite), for mail rules that mark emails read or move them. */
+    public Map<String, Object> start(User u, String audience, boolean write) throws IOException {
         if (!AUDIENCES.contains(audience)) throw new OoaException("CR.BAD_INPUT", "audience is organizations (work and school accounts) or consumers (personal Microsoft accounts)");
         if (!ready()) throw new OoaException("CR.MS_SIGNIN", "Sign in with Microsoft is not set up on this server",
                 "An administrator puts the Microsoft app ID in Administration > Settings > E-mail, proxy and SIEM; or use your own app under Show advanced settings.");
         cleanUp();
         String app = appId();
-        Answer a = post("/" + audience + "/oauth2/v2.0/devicecode", Map.of("client_id", app, "scope", scope(audience)));
+        String scope = scope(audience) + (write ? WRITE + (audience.equals("consumers") ? "" : WRITE_SHARED) : "");
+        Answer a = post("/" + audience + "/oauth2/v2.0/devicecode", Map.of("client_id", app, "scope", scope));
         if (a.status() != 200 || a.json().get("device_code") == null)
             throw new OoaException("CR.MS_SIGNIN", "Microsoft did not start the sign-in: " + a.description(),
                     "Check that the Microsoft app ID in Settings is right and that the app allows public client flows.");
         String id = "ms" + hex(12);
         Instant now = Instant.now();
         long expiresIn = number(a.json().get("expires_in"), 900), interval = Math.max(1, number(a.json().get("interval"), 5));
-        cr.db.update("INSERT INTO ms_signins (id, status, started_by, client_id, secret, poll_every, next_poll, expires, created, updated, audience) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        cr.db.update("INSERT INTO ms_signins (id, status, started_by, client_id, secret, poll_every, next_poll, expires, created, updated, audience, scopes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 id, "pending", u.username(), app, cr.vault.encrypt(String.valueOf(a.json().get("device_code")), bound(id)),
-                (int) interval, now.plusSeconds(interval), now.plusSeconds(expiresIn), now, now, audience);
+                (int) interval, now.plusSeconds(interval), now.plusSeconds(expiresIn), now, now, audience, scope);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", id);
         out.put("userCode", a.json().get("user_code"));
@@ -181,7 +188,7 @@ public final class MicrosoftSignIn implements com.oneofficeautomation.controlroo
         boolean personal = audienceOf(row).equals("consumers");
         String authority = personal ? "consumers" : URLEncoder.encode(String.valueOf(row.get("tenant")), StandardCharsets.UTF_8);
         Answer a = post("/" + authority + "/oauth2/v2.0/token", Map.of("grant_type", "refresh_token",
-                "client_id", String.valueOf(row.get("client_id")), "scope", personal ? SCOPE_PERSONAL : SCOPE, "refresh_token", cr.vault.decrypt(String.valueOf(row.get("secret")), bound(id))));
+                "client_id", String.valueOf(row.get("client_id")), "scope", row.get("scopes") instanceof String sc && !sc.isBlank() ? sc : personal ? SCOPE_PERSONAL : SCOPE, "refresh_token", cr.vault.decrypt(String.valueOf(row.get("secret")), bound(id))));
         if (a.status() != 200 || a.json().get("access_token") == null) {
             if (a.error().equals("invalid_grant") || a.error().equals("interaction_required")) {
                 cr.db.update("UPDATE ms_signins SET status = 'expired', last_error = ?, updated = ? WHERE id = ?", cut("Microsoft no longer accepts this sign-in: " + a.description(), 1000), now, id);
@@ -263,6 +270,11 @@ public final class MicrosoftSignIn implements com.oneofficeautomation.controlroo
     }
 
     static String scope(String audience) { return audience.equals("consumers") ? SCOPE_PERSONAL : SCOPE; }
+    /** Whether a sign-in may change the mailbox (it asked for Mail.ReadWrite). */
+    public boolean canWrite(String id) {
+        Map<String, Object> r = row(id);
+        return r != null && String.valueOf(r.get("scopes")).contains("Mail.ReadWrite");
+    }
     /** A sign-in's audience (sign-ins from before personal accounts were offered are work or school ones). */
     static String audienceOf(Map<String, Object> row) { return "consumers".equals(row.get("audience")) ? "consumers" : "organizations"; }
 

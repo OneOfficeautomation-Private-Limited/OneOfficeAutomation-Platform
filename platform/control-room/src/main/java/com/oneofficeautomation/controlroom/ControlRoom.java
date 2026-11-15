@@ -2682,6 +2682,7 @@ public final class ControlRoom {
             Map<String, Object> rule = new LinkedHashMap<>(Map.of("name", name, "target_kind", "trigger", "target", tid));
             if (t.get("conditions") != null) rule.put("conditions", t.get("conditions"));
             if (config.get("folder") != null) rule.put("folder", config.get("folder"));
+            if (t.get("after_read") != null) rule.put("after_read", t.get("after_read"));
             try { mailRouter.saveRule(by, null, String.valueOf(mailAccount.get("id")), rule, ip); }
             catch (OoaException e) { db.update("DELETE FROM triggers WHERE id = ?", tid); throw e; }
         }

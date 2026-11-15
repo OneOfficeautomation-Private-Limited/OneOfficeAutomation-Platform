@@ -78,6 +78,7 @@ public final class MailAccounts {
             Map<String, Object> s = cr.microsoft.row(sid);
             m.put("signed_in_as", s == null ? null : s.get("account"));
         }
+        m.put("can_write", canWrite(a));
         m.put("can_use", canUse(by, a));
         m.put("can_change", canChange(by, a));
         m.put("used_by", usedBy(String.valueOf(a.get("id"))));
@@ -112,6 +113,11 @@ public final class MailAccounts {
         if (canChange(u, a)) return true;
         List<String> mine = cr.teams.principalsOf(u.username(), u.role());
         return ControlRoom.csv(a.get("allowed")).stream().anyMatch(mine::contains);
+    }
+
+    /** Whether mail rules may change the mailbox (mark emails read, move them): Microsoft sign-ins only when they asked for it. */
+    public boolean canWrite(Map<String, Object> a) {
+        return !signIn(a).equals("microsoft") || (a.get("ms_signin") instanceof String sid && cr.microsoft.canWrite(sid));
     }
 
     /** The owner, or an administrator (users.manage). */

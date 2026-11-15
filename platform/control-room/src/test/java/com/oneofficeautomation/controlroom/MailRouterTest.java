@@ -30,6 +30,7 @@ class MailRouterTest {
     Db db; ControlRoom cr; ControlRoomServer server; HttpServer ms; String base, token, account;
     final List<Map<String, Object>> inbox = new CopyOnWriteArrayList<>();
     final List<String> delivered = new CopyOnWriteArrayList<>();
+    final List<String> changes = new CopyOnWriteArrayList<>();
 
     @BeforeAll void start() throws Exception {
         Path data = Files.createTempDirectory("ooa-mail-router");
@@ -58,6 +59,11 @@ class MailRouterTest {
             String out;
             if (path.endsWith("/devicecode")) out = "{\"device_code\":\"D\",\"user_code\":\"CODE-1\",\"expires_in\":900,\"interval\":1}";
             else if (path.endsWith("/token")) out = "{\"access_token\":\"acc\",\"refresh_token\":\"ref\",\"expires_in\":3600,\"id_token\":\"x." + claims + ".y\"}";
+            else if (path.endsWith("/move") || ex.getRequestMethod().equals("PATCH") || (path.endsWith("/mailFolders") && ex.getRequestMethod().equals("POST"))) {
+                changes.add(ex.getRequestMethod() + " " + path);
+                out = path.endsWith("/mailFolders") ? "{\"id\":\"folder-processed\"}" : "{\"id\":\"x\"}";
+            }
+            else if (path.endsWith("/mailFolders") || path.endsWith("/childFolders")) out = "{\"value\":[]}";
             else if (path.endsWith("/attachments")) {
                 String id = path.split("/")[path.split("/").length - 2];
                 Map<String, Object> m = inbox.stream().filter(x -> x.get("id").equals(id)).findFirst().orElse(Map.of());
@@ -227,6 +233,34 @@ class MailRouterTest {
 
         assertEquals(200, call("DELETE", "/api/triggers/" + tid, null, token).get("_status"));
         assertEquals(List.of(), call("GET", "/api/mail-rules?target_kind=trigger&target=" + tid, null, token).get("rules"), "its rule goes with it");
+    }
+
+    @Test @Order(4) @SuppressWarnings("unchecked")
+    void afterReadingAnEmailIsMarkedReadOrMovedWhenTheSignInAllowsIt() throws Exception {
+        Map<String, Object> rule = Map.of("name", "Remittances", "conditions", when("subject", "contains", "remittance"), "target_kind", "box", "target", "rem", "after_read", "move:Processed");
+        Map<String, Object> refused = call("POST", "/api/mail-accounts/" + account + "/rules", rule, token);
+        assertEquals(400, refused.get("_status"));
+        assertTrue(String.valueOf(refused.get("_body")).contains("may not change its mailbox"), String.valueOf(refused.get("_body")));
+        // the owner signs in again, allowing changes to the mailbox
+        String sid = (String) call("POST", "/api/mail-accounts/ms-signin?write=true", Map.of(), token).get("id");
+        assertTrue(String.valueOf(db.one("SELECT scopes FROM ms_signins WHERE id = ?", sid).get("scopes")).contains("Mail.ReadWrite"));
+        db.update("UPDATE ms_signins SET next_poll = ? WHERE id = ?", java.time.Instant.now().minusSeconds(5), sid);
+        call("GET", "/api/mail-accounts/ms-signin/" + sid, null, token);
+        Map<String, Object> changed = call("PUT", "/api/mail-accounts/" + account, Map.of("ms_signin", sid), token);
+        assertEquals(true, changed.get("can_write"), String.valueOf(changed.get("_body")));
+        assertEquals(200, call("POST", "/api/mail-accounts/" + account + "/rules", rule, token).get("_status"));
+        assertEquals(200, call("POST", "/api/mail-accounts/" + account + "/rules", Map.of("name", "Receipts", "conditions", when("subject", "contains", "receipt"), "target_kind", "box", "target", "rcp", "after_read", "read"), token).get("_status"));
+
+        call("POST", "/api/mail-accounts/" + account + "/read", null, token);
+        delivered.clear();
+        changes.clear();
+        mail("r1", "23:40", "ap@initech.com", "Remittance advice 778", List.of("remit.pdf"), null);
+        mail("r2", "23:41", "shop@umbrella.com", "Your receipt", List.of(), null);
+        Map<String, Object> read = call("POST", "/api/mail-accounts/" + account + "/read", null, token);
+        assertEquals(List.of(), read.get("problems"), String.valueOf(read));
+        assertEquals(List.of("rem:Remittance advice 778:[remit.pdf]:admin", "rcp:Your receipt:[]:admin"), delivered);
+        assertEquals(List.of("POST /v1.0/users/invoices@contoso.com/mailFolders", "POST /v1.0/users/invoices@contoso.com/messages/r1/move", "PATCH /v1.0/users/invoices@contoso.com/messages/r2"), changes,
+                "Processed was made, then the email moved; the receipt marked read");
     }
 
     @Test @Order(3) void rulesAreCheckedWhenSaved() throws Exception {

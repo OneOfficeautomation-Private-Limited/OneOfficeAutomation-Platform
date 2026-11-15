@@ -835,13 +835,17 @@ describe("Document Automation", () => {
     expect(within(mail).getByText(/from @acme.com · has a PDF file · 18 so far/)).toBeTruthy();
     fireEvent.click(within(mail).getByRole("button", { name: "Add a mail account" }));
     const d = await screen.findByRole("dialog", { name: "Add a mail account" });
+    expect((within(d).getByLabelText("After reading the email") as HTMLSelectElement).disabled).toBe(true);   // AP invoices mailbox may not change its mailbox
     fireEvent.change(within(d).getByLabelText("Mail account"), { target: { value: "mail_2" } });
+    fireEvent.change(within(d).getByLabelText("After reading the email"), { target: { value: "move" } });
+    expect((within(d).getByLabelText("Folder") as HTMLInputElement).value).toBe("Processed");
     expect((within(d).getByLabelText("Rule name") as HTMLInputElement).value).toBe("Supplier invoices KSA");
     expect((within(d).getByLabelText("condition 1 value") as HTMLInputElement).value).toBe("pdf, image, xml");    // attachments DocFlow reads, by default
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Try on the latest emails" })); });
     expect(await within(d).findByText("3 taken by an earlier rule")).toBeTruthy();
     await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save" })); });
     await waitFor(async () => expect((await api.processMailRules("supplier-invoices-ksa")).map((r) => r.account_name)).toEqual(["AP invoices mailbox", "Supplier Gmail"]));
+    expect((await api.processMailRules("supplier-invoices-ksa"))[1].after_read).toBe("move:Processed");
     expect(await within(mail).findByText("Supplier Gmail")).toBeTruthy();
   });
 

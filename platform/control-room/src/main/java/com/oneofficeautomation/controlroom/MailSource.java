@@ -23,6 +23,12 @@ public interface MailSource {
     /** The files attached to a message from {@link #fetch} (Document Automation's email inbox reads them). */
     default List<Attachment> attachments(Map<String, Object> message) throws IOException { return List.of(); }
 
+    /** After reading (mail rules): marks the message read. */
+    default void markRead(Map<String, Object> message) throws IOException { throw new IOException("This mailbox cannot mark emails read"); }
+
+    /** After reading (mail rules): moves the message to a folder (made when it does not exist). */
+    default void move(Map<String, Object> message, String folder) throws IOException { throw new IOException("This mailbox cannot move emails"); }
+
     /** True when the message passes the trigger's from and subject filters (case-insensitive "contains"). */
     static boolean matches(Map<String, Object> msg, Map<String, Object> config) {
         return contains(msg.get("from"), config.get("from_contains")) && contains(msg.get("subject"), config.get("subject_contains"));
