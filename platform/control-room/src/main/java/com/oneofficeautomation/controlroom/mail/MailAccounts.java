@@ -227,9 +227,10 @@ public final class MailAccounts {
                     + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", aid, name.trim(), providerId, address, JsonLite.write(s), secretRef, msSignIn, by.username(),
                     String.join(",", allowed), mode, interval, status, now, by.username(), now, by.username());
         else
+            // the last error is computed here, not with CASE WHEN ? (SQL Server takes no true/false value as a condition)
             cr.db.update("UPDATE mail_accounts SET name = ?, provider = ?, address = ?, settings = ?, secret_ref = ?, ms_signin = ?, allowed = ?, rule_mode = ?, interval_seconds = ?, status = ?, "
-                    + "last_error = CASE WHEN ? THEN NULL ELSE last_error END, updated = ?, updated_by = ? WHERE id = ?", name.trim(), providerId, address, JsonLite.write(s), secretRef, msSignIn,
-                    String.join(",", allowed), mode, interval, status, reach, now, by.username(), aid);
+                    + "last_error = ?, updated = ?, updated_by = ? WHERE id = ?", name.trim(), providerId, address, JsonLite.write(s), secretRef, msSignIn,
+                    String.join(",", allowed), mode, interval, status, reach ? null : old.get("last_error"), now, by.username(), aid);
         cr.audit.record(by.username(), old == null ? "mail_account.create" : "mail_account.update", "mail_account", aid,
                 Map.of("name", name.trim(), "provider", providerId, "address", address, "sign_in", signIn), "ok", ip);
         return view(by, row(aid));
