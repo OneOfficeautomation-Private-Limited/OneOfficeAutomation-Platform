@@ -19,8 +19,8 @@ import java.util.Map;
  *   <li>/api/agent/docflow/documents, an agent's "Send document to process";</li>
  *   <li>/api/docflow-callback/start-bot and /events, DocFlow calling back with the service token;</li>
  *   <li>clock jobs: review tasks in the Task inbox (every 20 s) and the processes' email inboxes (every 30 s);</li>
- *   <li>the settings docflow_url, docflow_token_ref, docflow_autostart, microsoft_app_id and mcp_documents;</li>
- *   <li>/api/docflow/ms-signin: "Sign in with Microsoft" for email inboxes ({@link MicrosoftSignIn});</li>
+ *   <li>the settings docflow_url, docflow_token_ref, docflow_autostart and mcp_documents;</li>
+ *   <li>/api/docflow/ms-signin: "Sign in with Microsoft" for email inboxes (the kernel's MicrosoftSignIn);</li>
  *   <li>the task kind document_review, the "On Document Automation" trigger kinds, the documents_ tools for AI
  *       assistants, and processes in templates.</li>
  * </ul>
@@ -37,19 +37,13 @@ public final class DocumentAutomationModule implements CommandCenterModule {
     /**
      * The module's own tables. Version 1 (command review D1, 12 Nov 2026): docflow_collected, the documents an agent
      * marked collected, per collector name (agents sharing a name share the marks), with the process, run and person.
-     * Version 2 (DA-1, 15 Nov 2026): docflow_ms_signin, "Sign in with Microsoft" for email inboxes (MicrosoftSignIn):
-     * who signed in, the Microsoft account and directory, and one secret encrypted with the vault key (the device code
-     * while pending, then the lasting sign-in).
+     * ("Sign in with Microsoft" keeps its sign-ins in the kernel's ms_signins, version 47, shared with Outlook triggers.)
      */
     public java.util.List<java.util.List<String>> schema() {
         return java.util.List.of(java.util.List.of(
                 "CREATE TABLE docflow_collected (document_id VARCHAR(80) NOT NULL, collector VARCHAR(120) NOT NULL, process_id VARCHAR(120), run_id VARCHAR(40), "
                         + "collected_by VARCHAR(80), collected TIMESTAMP NOT NULL, PRIMARY KEY (document_id, collector))",
-                "CREATE INDEX docflow_collected_process ON docflow_collected (process_id, collector)"),
-                java.util.List.of(
-                "CREATE TABLE docflow_ms_signin (id VARCHAR(40) PRIMARY KEY, status VARCHAR(20) NOT NULL, started_by VARCHAR(80) NOT NULL, client_id VARCHAR(80) NOT NULL, "
-                        + "account VARCHAR(320), tenant VARCHAR(80), secret VARCHAR(20000), poll_every INT, next_poll TIMESTAMP, "
-                        + "expires TIMESTAMP, last_used TIMESTAMP, last_error VARCHAR(1000), created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL)"));
+                "CREATE INDEX docflow_collected_process ON docflow_collected (process_id, collector)"));
     }
 
     public void start(ModuleContext ctx) {
@@ -71,12 +65,6 @@ public final class DocumentAutomationModule implements CommandCenterModule {
         // Settings > Document Automation > Start with One CommandCenter: 1 starts this computer's DocFlow with the platform
         ctx.defineSetting("docflow_autostart", 1, (v, saas) -> {
             if (!v.equals("0") && !v.equals("1")) throw new OoaException("CR.BAD_INPUT", "Setting 'docflow_autostart' must be 0 or 1");
-        });
-        // Settings > Document Automation > Microsoft app ID: the app "Sign in with Microsoft" uses for email inboxes
-        // (empty: OOA's own multi-tenant app); a customer may register their own, with public client flows on
-        ctx.defineSetting("microsoft_app_id", "", (v, saas) -> {
-            if (!v.isEmpty() && !v.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))
-                throw new OoaException("CR.BAD_INPUT", "The Microsoft app ID is the app's Application (client) ID, such as 11111111-2222-3333-4444-555555555555");
         });
         // Settings > AI assistants (MCP) > Document Automation tools: 1 offers the documents_ tools, 0 does not
         ctx.defineSetting("mcp_documents", 1, (v, saas) -> {

@@ -1,5 +1,6 @@
 package com.oneofficeautomation.modules.docauto;
 
+import com.oneofficeautomation.controlroom.MicrosoftSignIn;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 import com.oneofficeautomation.controlroom.MailSource;
 import com.oneofficeautomation.controlroom.module.ModuleContext;
@@ -77,7 +78,7 @@ public final class DocFlowProxy {
         // DocFlow runs next to the Command Center: never through the outbound proxy for internet traffic
         // and over HTTP/1.1: DocFlow (uvicorn) does not take the HTTP/2 upgrade and logged a warning for every request
         this.http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(5)).proxy(HttpClient.Builder.NO_PROXY).build();
-        this.microsoft = new MicrosoftSignIn(ctx);
+        this.microsoft = ctx.microsoftSignIn();
     }
 
     /** The permission a request needs. */

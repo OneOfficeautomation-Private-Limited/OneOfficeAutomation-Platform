@@ -152,11 +152,25 @@ public final class TriggerPollers {
             return new ImapMailSource((String) m.get("host"), ((Number) m.get("port")).intValue(), !Boolean.FALSE.equals(m.get("ssl")), (String) m.get("username"),
                     (String) m.get("password"), (String) m.getOrDefault("mail_folder", "INBOX"), 30_000);
         String token = (String) m.get("token");
+        if (token == null && m.get("ms_signin") instanceof String signIn) token = signedIn(signIn);
         if (token == null) {
             try { token = GraphMailSource.clientCredentialsToken((String) m.get("login_url"), (String) m.get("tenant_id"), (String) m.get("client_id"), (String) m.get("client_secret")); }
             catch (IOException e) { throw new OoaException("CR.TRIGGER_SIGN_IN", "Microsoft sign-in failed: " + e.getMessage(), "Sign in to Microsoft again in the trigger's connection, or check that the app may still read the mailbox."); }
         }
-        return new GraphMailSource((String) m.get("graph_url"), (String) m.get("mailbox"), (String) m.get("mail_folder"), token);
+        // national clouds (and tests) give Microsoft Graph's address once for the server: OOA_MICROSOFT_GRAPH_URL
+        String graph = m.get("graph_url") instanceof String g && !g.isBlank() ? g : System.getProperty("ooa.microsoft.graph.url", System.getenv("OOA_MICROSOFT_GRAPH_URL"));
+        return new GraphMailSource(graph == null || graph.isBlank() ? null : graph, (String) m.get("mailbox"), (String) m.get("mail_folder"), token);
+    }
+
+    /** A token from the trigger's "Sign in with Microsoft", while the person who signed in is still an active user. */
+    private String signedIn(String signIn) {
+        Map<String, Object> row = cr.microsoft.row(signIn);
+        if (row == null) throw new OoaException("CR.MS_SIGNIN", "This trigger's Microsoft sign-in is not known", "Make the trigger again and choose Sign in with Microsoft.");
+        if (cr.db.one("SELECT id FROM users WHERE username = ? AND enabled = TRUE", row.get("started_by")) == null)
+            throw new OoaException("CR.MS_SIGNIN", "'" + row.get("started_by") + "', who signed in with Microsoft for this trigger, is not an active user",
+                    "Make the trigger again and sign in with Microsoft as someone who is.");
+        try { return cr.microsoft.accessToken(signIn); }
+        catch (IOException e) { throw new OoaException("CR.TRIGGER_SIGN_IN", e.getMessage(), "Check that this server can reach Microsoft; the trigger tries again at its next check."); }
     }
 
     // ---------- pollers (static, tested with fakes) ----------

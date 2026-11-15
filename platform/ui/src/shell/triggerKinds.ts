@@ -48,10 +48,12 @@ export const KINDS: Record<string, { label: string; fields: F[]; help: string }>
   email: { label: "New email (IMAP mailbox)", fields: [["host", "IMAP server", "imap.example.com"], ["port", "Port", "993", "993", "number"], ["ssl", "Use SSL/TLS", "", "", "check", true],
     ["username", "User name", "invoices@example.com"], ["password_ref", "Password (vault reference)", "mail/imap/password"], ["mail_folder", "Mailbox folder", "INBOX", "INBOX"], ...MAIL_FILTERS, INTERVAL],
     help: "Checked by One CommandCenter. Each new message starts the agent once, with from, to, subject, date and a text preview in trigger_email." },
-  outlook: { label: "New email (Microsoft 365 Outlook)", fields: [["token_ref", "Graph access token (vault reference)", "m365/graph/token"], ["mailbox", "Mailbox (blank for the token's own)", "invoices@contoso.com"],
-    ["tenant_id", "Or app sign-in: tenant id"], ["client_id", "Application (client) id"], ["client_secret_ref", "Client secret (vault reference)", "m365/app/secret"],
-    ["mail_folder", "Mail folder", "inbox", "inbox"], ...MAIL_FILTERS, INTERVAL],
-    help: "Checked by One CommandCenter through Microsoft Graph. Give a token reference, or tenant id, client id, client secret reference and mailbox. Input: trigger_email." },
+  outlook: { label: "New email (Microsoft 365 Outlook)", fields: [["mailbox", "Mailbox (blank: the signed-in account's own)", "invoices@contoso.com"],
+    ["mail_folder", "Mail folder", "inbox", "inbox"], ["tenant_id", "Your own app: tenant id"], ["client_id", "Your own app: application (client) id"],
+    ["client_secret_ref", "Your own app: client secret (vault reference)", "m365/app/secret"], ["token_ref", "Or a Graph access token (vault reference)", "m365/graph/token"],
+    ...MAIL_FILTERS, INTERVAL],
+    help: "Checked by One CommandCenter through Microsoft Graph. Sign in with Microsoft with the mailbox's account (or one that may read the shared mailbox); "
+      + "your own Microsoft app or a token reference is under Show advanced settings. Input: trigger_email." },
   servicenow: { label: "ServiceNow record new or updated", fields: [["instance_url", "Instance URL", "https://yourcompany.service-now.com"], ["table", "Table", "incident", "incident"],
     ["query", "Encoded query (optional)", "active=true^priority=1"], ["username", "User name", "integration.user"], ["password_ref", "Password (vault reference)", "snow/api/password"],
     ["token_ref", "Or OAuth token (vault reference)"], INTERVAL],
@@ -62,6 +64,8 @@ export const KINDS: Record<string, { label: string; fields: F[]; help: string }>
   webhook: { label: "Webhook (HTTP call)", fields: [], help: "The agent receives the request body in an input named payload. You get the address and secret after creating it." },
   ...documentKinds(),
 };
+/** DA-1: settings shown only under Show advanced settings (the Outlook trigger signs in with Microsoft instead). */
+export const ADVANCED_FIELDS: Record<string, string[]> = { outlook: ["tenant_id", "client_id", "client_secret_ref", "token_ref"] };
 export const TRIGGER_GROUPS: [string, string[]][] = [["On the runner", ["file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "window_opened", "window_closed", "process_started", "process_stopped", "service_started", "service_stopped", "hotkey", "key_pressed", "mouse_clicked"]],
   ["On One CommandCenter", ["email", "outlook", "servicenow", "http_poll", "webhook"]],
   ["On Document Automation", DOCUMENT_KINDS]];

@@ -292,6 +292,9 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "queues/q1/items/purge") return ok({ deleted: 4 });
     if (route === "queues/q1/items/copy" || route === "queues/q1/items/move") return ok({ count: 1, skipped: 0 });
     if (/^queues\/q1\/(start|stop|items\/(retry|defer|delete|tag)|items\/i\d\/validate)$/.test(route)) return ok({ ok: true, changed: ["total"] });
+    if (route === "triggers/ms-signin" && init.method === "POST") return ok({ id: "ms" + "1".repeat(24), userCode: "TRIG-0001", verificationUri: "https://microsoft.com/devicelogin", expiresIn: 900, interval: 1 });
+    if (route === "triggers/ms-signin") return ok({ ready: true });
+    if (route.startsWith("triggers/ms-signin/")) return ok({ status: "signed_in", account: "ap@contoso.com" });
     if (route === "triggers" && init.method === "POST") return ok(body.kind === "webhook" ? { id: "t9", url: "/api/hooks/t9", secret: "whsec-1" } : { id: "t8" });
     if (route === "triggers") return ok({ triggers: [
       { id: "g1", name: "New invoices", kind: "file", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", enabled: true, evaluated_on: "runner", folder: "C:\\In", pattern: "*.pdf", fire_count: 3, last_fired: "2026-10-31T08:00:00Z", created_by: "admin" },
@@ -1976,6 +1979,34 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "triggers", body: { name: "Orders hook", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", kind: "webhook" } }));
     const hook = await screen.findByRole("dialog", { name: "Webhook created" });
     expect(within(hook).getByText("whsec-1")).toBeTruthy();
+  });
+
+  it("signs an Outlook trigger in with Microsoft; your own app and a token reference are advanced (DA-1)", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "triggers.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    await go("Triggers");
+    await screen.findByRole("table", { name: "Triggers list" });
+    fireEvent.click(screen.getByRole("button", { name: "Create trigger" }));
+    const c = await screen.findByRole("dialog", { name: "Create trigger" });
+    fireEvent.change(within(c).getByLabelText("Event"), { target: { value: "outlook" } });
+    const account = within(c).getByRole("group", { name: "Microsoft account" });
+    const signInButton = await within(account).findByRole("button", { name: "Sign in with Microsoft" });
+    expect(within(c).queryByLabelText("Your own app: tenant id")).toBeNull();
+    fireEvent.click(within(account).getByRole("button", { name: "Show advanced settings" }));
+    expect(within(c).getByLabelText("Your own app: tenant id")).toBeTruthy();
+    expect(within(c).getByLabelText("Or a Graph access token (vault reference)")).toBeTruthy();
+    fireEvent.click(within(account).getByRole("button", { name: "Hide advanced settings" }));
+    fireEvent.click(signInButton);
+    const signIn = await screen.findByRole("dialog", { name: "Sign in with Microsoft" });
+    expect(await within(signIn).findByText("TRIG-0001")).toBeTruthy();
+    expect(await within(account).findByText("Signed in as ap@contoso.com", {}, { timeout: 3000 })).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Sign in with Microsoft" })).toBeNull();
+    expect(within(account).queryByRole("button", { name: "Show advanced settings" })).toBeNull();
+    fireEvent.change(within(c).getByLabelText("Name"), { target: { value: "AP mail" } });
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create trigger" })); });
+    const sent = calls.find((x) => x.method === "POST" && x.route === "triggers")!;
+    expect(sent.body).toMatchObject({ kind: "outlook", name: "AP mail", ms_signin: "ms" + "1".repeat(24), mail_folder: "inbox" });
+    expect(Object.keys(sent.body as object)).not.toContain("tenant_id");
   });
 
   it("shows Work queues as AA's: counts, items past the service level; a queue's own page with status chips, one line per item, details and members; retry, validate, start processing", async () => {

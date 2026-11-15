@@ -71,6 +71,8 @@ public final class ControlRoom {
     public final RepoFiles repoFiles;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
+    /** "Sign in with Microsoft" for Microsoft 365 mailboxes (email inboxes, Outlook triggers); tests point it at a fake Microsoft. */
+    public MicrosoftSignIn microsoft = new MicrosoftSignIn(this);
     /** Shared values and credentials a running agent changes, checked as the run's user (gap G30). */
     public final AgentWrites agentWrites = new AgentWrites(this);
     private final FlowValidator validator;
@@ -2651,6 +2653,8 @@ public final class ControlRoom {
         String kind = String.valueOf(t.get("kind"));
         TriggerKinds.kind(kind);
         Map<String, Object> config = TriggerKinds.validate(kind, t);
+        // an Outlook trigger that signs in with Microsoft reads the mailbox with that person's access: only they may use it
+        if (config.get("ms_signin") instanceof String signIn) config.put("ms_account", microsoft.accountFor(by, signIn));
         content(String.valueOf(t.get("bot_path")), "production");
         folders.require(by, String.valueOf(t.get("bot_path")), "run", "set triggers for agents");
         if (db.one("SELECT id FROM devices WHERE id = ?", t.get("device_id")) == null) throw notFound("Runner");

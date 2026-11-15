@@ -122,7 +122,8 @@ needs to reach One CommandCenter.
   signed-in person may read, their name, and to stay signed in). To use your own app instead, register one in Microsoft
   Entra (App registrations > New registration; Authentication > **Allow public client flows: Yes**; API permissions >
   Microsoft Graph > delegated **Mail.Read**, **Mail.Read.Shared**, **User.Read**, **offline_access**) and put its
-  Application (client) ID in Administration > Settings > Document Automation > **Microsoft app ID**.
+  Application (client) ID in Administration > Settings > E-mail, proxy and SIEM > **Microsoft app ID**. The same
+  sign-in is offered for the **New email (Microsoft 365 Outlook)** trigger (Manage > Triggers).
 - **What is kept.** The Microsoft account's name and directory, and the lasting sign-in, encrypted with the vault key
   and never shown. It is renewed each time the inbox is read. Only the person who signed in can put that sign-in in a
   process; others who may change the process can save it unchanged.
@@ -242,7 +243,7 @@ after installing.
 | A Start-a-bot delivery fails with "DOCAUTO_PLATFORM_URL is not set" | Set it in DocFlow's `config/local.env` and restart DocFlow. |
 | Email inbox: "The mail server … is not known" / "does not answer" | Check the server name and port (993 for IMAP over TLS). |
 | Email inbox: VAULT.DENIED | Make the person who set up the inbox a consumer of the vault folder, then save the process again. |
-| Email inbox: "Sign in with Microsoft is not set up on this server" | Put a Microsoft app ID in Settings > Document Automation (section 3.1), or use your own app under Show advanced settings. |
+| Email inbox: "Sign in with Microsoft is not set up on this server" | Put a Microsoft app ID in Settings > E-mail, proxy and SIEM (section 3.1), or use your own app under Show advanced settings. |
 | Email inbox: "The Microsoft sign-in for … no longer works" | Open the process, step Document ingestion, choose Sign in with Microsoft again, and save. |
 | Sign in with Microsoft: "declined" or an administrator's approval is needed | Ask your Microsoft 365 administrator to approve One CommandCenter once (or your own app), then sign in again. |
 | Saving an inbox: "This Microsoft sign-in was made by …" | Only the person who signed in can put a sign-in in a process: choose Sign in with Microsoft and sign in yourself. |

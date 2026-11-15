@@ -161,15 +161,20 @@ public final class TriggerKinds {
             }
             case "outlook" -> {
                 String tok = vaultRef(in, "token_ref", "", false), secret = vaultRef(in, "client_secret_ref", "", false);
-                String mailbox = str(in, "mailbox");
-                if (tok != null) out.put("token_ref", tok);
+                String mailbox = str(in, "mailbox"), signIn = str(in, "ms_signin");
+                // DA-1: "Sign in with Microsoft" (MicrosoftSignIn); createTrigger checks the person saving made it
+                if (signIn != null) {
+                    if (!signIn.matches("ms[0-9a-f]{24}")) throw bad("Choose Sign in with Microsoft again: this sign-in is not known");
+                    out.put("ms_signin", signIn);
+                }
+                else if (tok != null) out.put("token_ref", tok);
                 else if (secret != null) {
                     out.put("tenant_id", need(in, "tenant_id", "App sign-in needs the Microsoft Entra tenant id"));
                     out.put("client_id", need(in, "client_id", "App sign-in needs the application (client) id"));
                     out.put("client_secret_ref", secret);
                     if (mailbox == null) throw bad("App sign-in needs the mailbox to read, such as invoices@contoso.com");
                     if (str(in, "login_url") != null) out.put("login_url", httpsUrl(in, "login_url", "login_url", true));
-                } else throw bad("An Outlook trigger needs a Microsoft Graph token_ref, or tenant_id, client_id and client_secret_ref (vault references)");
+                } else throw bad("An Outlook trigger needs Sign in with Microsoft, or your own app (tenant_id, client_id and client_secret_ref), or a Microsoft Graph token_ref");
                 if (mailbox != null) out.put("mailbox", mailbox);
                 out.put("mail_folder", Objects.requireNonNullElse(str(in, "mail_folder"), "inbox"));
                 if (str(in, "graph_url") != null) out.put("graph_url", httpsUrl(in, "graph_url", "graph_url", true));

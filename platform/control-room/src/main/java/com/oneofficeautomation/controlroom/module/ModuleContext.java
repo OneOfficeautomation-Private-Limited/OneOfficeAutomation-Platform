@@ -212,6 +212,9 @@ public interface ModuleContext {
      */
     MailSource graphMailbox(String accessToken, String mailbox, String folder);
 
+    /** "Sign in with Microsoft" for Microsoft 365 mailboxes, shared with the kernel's Outlook trigger. */
+    com.oneofficeautomation.controlroom.MicrosoftSignIn microsoftSignIn();
+
     // ------------------------------------------------------------------ HTTP helpers for routes
 
     /** Sends a JSON answer. */

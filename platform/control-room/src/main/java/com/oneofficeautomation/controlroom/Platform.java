@@ -60,6 +60,9 @@ public final class Platform {
         DEFAULTS.put("hourly_cost", 0);   // what an hour of the manual work costs, for money saved (Value)
         DEFAULTS.put("currency", "");     // its currency, ISO 4217 (INR, USD, EUR)
         DEFAULTS.put("public_url", "");
+        // Settings > Connections > Microsoft app ID: the app "Sign in with Microsoft" uses for Microsoft 365 mailboxes
+        // (email inboxes, Outlook triggers); empty: OOA's own multi-tenant app. A customer may register their own.
+        DEFAULTS.put("microsoft_app_id", "");
         DEFAULTS.put("sso_issuer", "");
         DEFAULTS.put("sso_client_id", "");
         DEFAULTS.put("sso_client_secret_ref", "");
@@ -341,6 +344,8 @@ public final class Platform {
                     throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be a web address starting with https:// (or http:// on a test system)");
                 if (k.equals("git_remote_url") && !s.isEmpty() && !s.matches("(?i)(https?://[^\\s]+|file:[^\\s]+)"))
                     throw new OoaException("CR.BAD_INPUT", "The Git remote is an https:// address, for example https://github.com/acme/agents.git");
+                if (k.equals("microsoft_app_id") && !s.isEmpty() && !s.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))
+                    throw new OoaException("CR.BAD_INPUT", "The Microsoft app ID is the app's Application (client) ID, such as 11111111-2222-3333-4444-555555555555");
                 if (k.equals("currency") && !s.isEmpty() && !s.matches("[A-Z]{3}")) throw new OoaException("CR.BAD_INPUT", "The currency is a three-letter code, for example INR, USD or EUR");
                 if (k.equals("git_branch") && !s.isEmpty() && !s.matches("[A-Za-z0-9._/-]{1,100}") ) throw new OoaException("CR.BAD_INPUT", "Not a branch name: " + s);
                 if (k.equals("git_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The token is a vault reference: vault folder/credential/attribute");

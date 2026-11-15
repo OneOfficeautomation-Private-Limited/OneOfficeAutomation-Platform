@@ -935,18 +935,18 @@ class DocFlowProxyTest {
             assertEquals("ABCD-EFGH", started.get("userCode"));
             assertEquals("https://microsoft.com/devicelogin", started.get("verificationUri"));
             assertFalse(startBody.contains("DEV-SECRET"));
-            assertFalse(String.valueOf(cr.db.one("SELECT secret FROM docflow_ms_signin WHERE id = ?", id).get("secret")).contains("DEV-SECRET"));
+            assertFalse(String.valueOf(cr.db.one("SELECT secret FROM ms_signins WHERE id = ?", id).get("secret")).contains("DEV-SECRET"));
             assertTrue(microsoftSeen.stream().anyMatch(s -> s.startsWith("POST /organizations/oauth2/v2.0/devicecode") && s.contains("client_id=11111111-2222-3333-4444-555555555555")
                     && s.contains("Mail.Read.Shared") && s.contains("offline_access")));
 
             // pending until the person has signed in at Microsoft, then signed in as the account Microsoft names
-            cr.db.update("UPDATE docflow_ms_signin SET next_poll = ? WHERE id = ?", java.time.Instant.now().minusSeconds(5), id);
+            cr.db.update("UPDATE ms_signins SET next_poll = ? WHERE id = ?", java.time.Instant.now().minusSeconds(5), id);
             assertTrue(call("GET", "/api/docflow/ms-signin/" + id, null).body().contains("\"pending\""));
             deviceDone = true;
-            cr.db.update("UPDATE docflow_ms_signin SET next_poll = ? WHERE id = ?", java.time.Instant.now().minusSeconds(5), id);
+            cr.db.update("UPDATE ms_signins SET next_poll = ? WHERE id = ?", java.time.Instant.now().minusSeconds(5), id);
             String done = call("GET", "/api/docflow/ms-signin/" + id, null).body();
             assertTrue(done.contains("\"signed_in\"") && done.contains("invoices@contoso.com"), done);
-            Map<String, Object> row = cr.db.one("SELECT * FROM docflow_ms_signin WHERE id = ?", id);
+            Map<String, Object> row = cr.db.one("SELECT * FROM ms_signins WHERE id = ?", id);
             assertEquals("tenant-1", row.get("tenant"));
             String firstRefresh = String.valueOf(row.get("secret"));          // now the lasting sign-in, not the device code
             assertFalse(firstRefresh.contains("refresh-1"));                 // the lasting sign-in is encrypted
@@ -976,10 +976,11 @@ class DocFlowProxyTest {
 
             // reading the inbox: an access token from the lasting sign-in (which Microsoft renews), for the shared mailbox
             flowsJson = "[{\"id\":\"ms-ap\",\"status\":\"live\",\"intake\":{\"email\":{\"enabled\":true,\"kind\":\"outlook\",\"mailbox\":\"invoices@contoso.com\",\"ms_signin\":\"" + id + "\",\"requestedBy\":\"admin\"}}}]";
+            cr.microsoft = new MicrosoftSignIn(cr);                                // as after a restart: no access token in memory
             assertEquals(0, proxy(cr).pollMail());                                // the first check only marks where the inbox is
             assertNull(cr.db.one("SELECT last_error FROM docflow_mail WHERE process_id = 'ms-ap'").get("last_error"));
             assertTrue(microsoftSeen.stream().anyMatch(s -> s.startsWith("GET /v1.0/users/invoices@contoso.com/mailFolders/inbox/messages") && s.endsWith("Bearer access-2")));
-            row = cr.db.one("SELECT * FROM docflow_ms_signin WHERE id = ?", id);
+            row = cr.db.one("SELECT * FROM ms_signins WHERE id = ?", id);
             assertNotNull(row.get("last_used"));
             assertNotEquals(firstRefresh, String.valueOf(row.get("secret")));   // the renewed one is kept
 
@@ -987,16 +988,18 @@ class DocFlowProxyTest {
             Map<String, Object> rotated = cr.vaultAdmin.rotate(admin, null);
             assertTrue(((Number) rotated.get("re_encrypted")).intValue() >= 1, String.valueOf(rotated));
             cr.db.update("UPDATE docflow_mail SET last_check = NULL WHERE process_id = 'ms-ap'");
+            cr.microsoft = new MicrosoftSignIn(cr);                                // no access token in memory: the lasting sign-in is used
             proxy(cr).pollMail();
             assertNull(cr.db.one("SELECT last_error FROM docflow_mail WHERE process_id = 'ms-ap'").get("last_error"));
 
             // when Microsoft no longer accepts the sign-in, the inbox says to sign in again
             refreshRevoked = true;
             cr.db.update("UPDATE docflow_mail SET last_check = NULL WHERE process_id = 'ms-ap'");
+            cr.microsoft = new MicrosoftSignIn(cr);                                // no access token in memory: the lasting sign-in is used
             proxy(cr).pollMail();
             String err = String.valueOf(cr.db.one("SELECT last_error FROM docflow_mail WHERE process_id = 'ms-ap'").get("last_error"));
             assertTrue(err.contains("invoices@contoso.com no longer works") && err.contains("revoked"), err);
-            assertEquals("expired", cr.db.one("SELECT status FROM docflow_ms_signin WHERE id = ?", id).get("status"));
+            assertEquals("expired", cr.db.one("SELECT status FROM ms_signins WHERE id = ?", id).get("status"));
         } finally {
             System.clearProperty("ooa.microsoft.login.url");
             System.clearProperty("ooa.microsoft.graph.url");
@@ -1013,7 +1016,7 @@ class DocFlowProxyTest {
         try {
             cr.platform.updateSettings(admin, Map.of("microsoft_app_id", "11111111-2222-3333-4444-555555555555"), null);
             @SuppressWarnings("unchecked") String id = (String) ((Map<String, Object>) JsonLite.parse(call("POST", "/api/docflow/ms-signin", "{}").body())).get("id");
-            cr.db.update("UPDATE docflow_ms_signin SET expires = ? WHERE id = ?", java.time.Instant.now().minusSeconds(1), id);
+            cr.db.update("UPDATE ms_signins SET expires = ? WHERE id = ?", java.time.Instant.now().minusSeconds(1), id);
             String body = call("GET", "/api/docflow/ms-signin/" + id, null).body();
             assertTrue(body.contains("\"failed\"") && body.contains("The code ran out"), body);
             // an unfinished sign-in cannot be put in a process
