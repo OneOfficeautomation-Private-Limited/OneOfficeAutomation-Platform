@@ -31,7 +31,7 @@ pick the first phase whose status is not **Done**, follow its list, and update i
 | Use | Agents get a typed Document; document events start agents; MCP tools; One Chat questions; Excel, webhooks, business systems |
 | Governance | Residency and cloud opt-in per customer, approved models, personal data masked before cloud models, every AI call in the platform's audit (`ai_calls`), costs to licensing and billing |
 
-## DA-1 Ease of use (platform UI) — status: Built, waiting for merge and the DocFlow 3.2.0 release (branch `docauto/da1-ease-of-use`, not merged)
+## DA-1 Ease of use (platform UI) — status: Built, waiting for merge (branch `docauto/da1-ease-of-use`, not merged; DocFlow 3.2.0 released)
 
 Done (15 Nov 2026, the user chose plan B: "Show advanced settings" per section, no page-wide switch): items 1-3 (advanced
 sections on Document types, steps 4 and 6, the routing card and the Test lab; checks in words, the built-in Saudi
@@ -41,8 +41,9 @@ reading" with the OneCore / OneConnect / OneMind labels; "Ready", "Off: cloud no
 setting up"). Platform commits 0375dc67, de22f01d, f8120b1c, 2cf943a5, 03fbf3f1, 2f8840e9, d177d067 and the Outlook
 trigger commit. Checked in the browser against DocFlow 3.1.2, and the folder picker against DocFlow 3.2.0 from its
 branch (Sign in with Microsoft against a fake Microsoft).
-Left: merging (the user's OK); releasing DocFlow 3.2.0 (branch `da1-folder-picker` in oneoffice-docauto, the user's OK)
-and then moving the platform's pin to it; and the user registering OOA's Microsoft app in Entra, then its Application
+DocFlow 3.2.0 released with the user's OK (15 Nov 2026): main f2e9e24, tag v3.2.0 (zip and installer); the platform pins it
+(f6bd6353: pinned 3.2.0, ref v3.2.0, minimum still 3.1.0).
+Left: merging (the user's OK); and the user registering OOA's Microsoft app in Entra, then its Application
 (client) ID goes into `MicrosoftSignIn.OOA_APP_ID` (until then an administrator sets Settings > E-mail, proxy and SIEM >
 Microsoft app ID).
 
