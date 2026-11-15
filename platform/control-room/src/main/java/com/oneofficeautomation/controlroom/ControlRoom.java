@@ -73,6 +73,8 @@ public final class ControlRoom {
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
     /** "Sign in with Microsoft" for Microsoft 365 mailboxes (email inboxes, Outlook triggers); tests point it at a fake Microsoft. */
     public MicrosoftSignIn microsoft = new MicrosoftSignIn(this);
+    /** Mail accounts: mailboxes set up once and chosen by name (Manage > Connections). */
+    public final com.oneofficeautomation.controlroom.mail.MailAccounts mailAccounts = new com.oneofficeautomation.controlroom.mail.MailAccounts(this);
     /** Shared values and credentials a running agent changes, checked as the run's user (gap G30). */
     public final AgentWrites agentWrites = new AgentWrites(this);
     private final FlowValidator validator;

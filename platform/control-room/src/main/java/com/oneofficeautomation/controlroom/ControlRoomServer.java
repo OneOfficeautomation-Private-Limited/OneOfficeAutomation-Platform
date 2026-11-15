@@ -1066,6 +1066,24 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("kinds", cr.connectionKinds(u)));
                 else notFound(ex);
             }
+            case "mail-accounts" -> {   // Mail accounts (MA-1): mailboxes set up once and chosen by name
+                var mail = cr.mailAccounts;
+                if (seg.length >= 2 && seg[1].equals("ms-signin")) {   // Sign in with Microsoft for a mail account (work or personal)
+                    cr.require(u, "globals.manage", "make mail accounts");
+                    if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, Map.of("ready", cr.microsoft.ready()));
+                    else if (m.equals("POST") && seg.length == 2) sendJson(ex, 200, cr.microsoft.start(u, query(ex).getOrDefault("audience", "organizations")));
+                    else if (m.equals("GET") && seg.length == 3) sendJson(ex, 200, cr.microsoft.poll(u, seg[2]));
+                    else notFound(ex);
+                }
+                else if (m.equals("GET") && seg.length == 1) { cr.require(u, "globals.view", "see mail accounts"); sendJson(ex, 200, Map.of("accounts", mail.list(u), "providers", mail.providers.list())); }
+                else if (m.equals("GET") && seg.length == 2 && seg[1].equals("detect")) { cr.require(u, "globals.view", "see mail accounts"); sendJson(ex, 200, mail.providers.detect(query(ex).get("address"))); }
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, mail.save(u, null, map(body(ex)), ip));
+                else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, mail.get(u, seg[1]));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, mail.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { mail.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("test")) sendJson(ex, 200, mail.test(u, seg[1]));
+                else notFound(ex);
+            }
             case "saved-connections" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("connections", cr.connections(u)));
                 else if (m.equals("PUT") && seg.length == 2) { cr.saveConnection(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }

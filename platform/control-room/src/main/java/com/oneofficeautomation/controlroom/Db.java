@@ -811,9 +811,35 @@ public final class Db implements AutoCloseable {
             + "expires TIMESTAMP, last_used TIMESTAMP, last_error VARCHAR(1000), created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL)",
     };
 
+    /**
+     * Version 48 (Mail accounts, 15 Nov 2026): mail_accounts, a mailbox set up once and chosen by name (vendor, address,
+     * settings as JSON, the vault reference or Microsoft sign-in it uses, its owner and who may use it, how rules apply,
+     * how often it is read, its health and where reading has got to per folder); mail_rules, which emails of an account
+     * go to which process, trigger or agent, in order; mail_seen, the emails already handled (per account, and per
+     * target so a forwarded copy is handled once); mail_unmatched, emails no rule took. ms_signins gains audience
+     * (organizations, or consumers for personal Microsoft accounts).
+     */
+    private static final String[] SCHEMA_V48 = {
+        "CREATE TABLE mail_accounts (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL UNIQUE, provider VARCHAR(40) NOT NULL, address VARCHAR(320) NOT NULL, "
+            + "settings VARCHAR(4000) NOT NULL, secret_ref VARCHAR(300), ms_signin VARCHAR(40), owner VARCHAR(80) NOT NULL, allowed VARCHAR(2000), "
+            + "rule_mode VARCHAR(10) NOT NULL, interval_seconds INT NOT NULL, status VARCHAR(20) NOT NULL, last_check TIMESTAMP, last_error VARCHAR(1000), "
+            + "last_mail TIMESTAMP, cursors VARCHAR(20000), created TIMESTAMP NOT NULL, created_by VARCHAR(80), updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "CREATE TABLE mail_rules (id VARCHAR(40) PRIMARY KEY, account_id VARCHAR(40) NOT NULL, position INT NOT NULL, name VARCHAR(200) NOT NULL, enabled BOOLEAN NOT NULL, "
+            + "folder VARCHAR(200), conditions VARCHAR(20000) NOT NULL, target_kind VARCHAR(20) NOT NULL, target VARCHAR(400) NOT NULL, read_what VARCHAR(20) NOT NULL, "
+            + "after_read VARCHAR(300), owner VARCHAR(80) NOT NULL, matched INT NOT NULL, last_matched TIMESTAMP, created TIMESTAMP NOT NULL, "
+            + "updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "CREATE INDEX mail_rules_account ON mail_rules (account_id, position)",
+        "CREATE TABLE mail_seen (scope VARCHAR(120) NOT NULL, message_key VARCHAR(300) NOT NULL, seen TIMESTAMP NOT NULL, PRIMARY KEY (scope, message_key))",
+        "CREATE INDEX mail_seen_time ON mail_seen (seen)",
+        "CREATE TABLE mail_unmatched (id VARCHAR(40) PRIMARY KEY, account_id VARCHAR(40) NOT NULL, received TIMESTAMP NOT NULL, sender VARCHAR(400), subject VARCHAR(500), "
+            + "message VARCHAR(20000) NOT NULL, status VARCHAR(20) NOT NULL)",
+        "CREATE INDEX mail_unmatched_account ON mail_unmatched (account_id, received)",
+        "ALTER TABLE ms_signins ADD COLUMN audience VARCHAR(20)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 47;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44, SCHEMA_V45, SCHEMA_V46, SCHEMA_V47 };
+    public static final int LATEST = 48;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33, SCHEMA_V34, SCHEMA_V35, SCHEMA_V36, SCHEMA_V37, SCHEMA_V38, SCHEMA_V39, SCHEMA_V40, SCHEMA_V41, SCHEMA_V42, SCHEMA_V43, SCHEMA_V44, SCHEMA_V45, SCHEMA_V46, SCHEMA_V47, SCHEMA_V48 };
 
     /** A feature module's schema version recorded in module_schema (0 when it has none yet). */
     public int moduleVersion(String module) {
