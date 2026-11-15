@@ -13,7 +13,7 @@ import {
   connectionInputs, EACH_KINDS, elementFields, helpText, isElementAction, LOOP_LABELS, loopIsMore, loopMode, outcomeOf, shownWhen, TIMEOUT_FIELDS,
   TIMEOUT_LABELS, valueLabel, type LoopMode,
 } from "./stepKinds";
-import { AssignmentsEditor, AssignValue, CommitInput, FormulaValue, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
+import { AssignmentsEditor, AssignValue, CommitInput, FORMULA_HELP, FormulaValue, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
 import { BoolField, CollectionField, CredentialField, DateField, FileField, isFolderField, MODEL_STEPS, ModelConnectionField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
 import { pickerFor } from "./Pickers";
@@ -121,7 +121,7 @@ export function StepForm({ step, packages, onArg, onNote }:
     if (step.action === "core/set" && name === "value") return <Field key={step.id + ":value"} label={"Value" + (req(name) ? " *" : "")} info={props[name]?.description}>{() =>
       <AssignValue step={step} />}</Field>;
     if ((step.action === "ooa.number/calculate" || step.action === "ooa.boolean/set") && name === "formula") return <Field key={step.id + ":formula"} label={"Formula" + (req(name) ? " *" : "")}
-      info={props[name]?.description}>{() => <FormulaValue step={step} name="formula" want={step.action === "ooa.boolean/set" ? "Boolean" : "Number"} />}</Field>;
+      info={(props[name]?.description ?? "") + " " + FORMULA_HELP[step.action === "ooa.boolean/set" ? "Boolean" : "Number"]}>{() => <FormulaValue step={step} name="formula" want={step.action === "ooa.boolean/set" ? "Boolean" : "Number"} />}</Field>;
     if (step.action === "core/set_many" && name === "assignments") return <Field key={step.id + ":assignments"} label={"Assignments" + (req(name) ? " *" : "")}
       info={props[name]?.description}>{() => <AssignmentsEditor step={step} />}</Field>;
     if (step.action === "core/run_bot" && name === "automation") return <RunAgentFields key={step.id + ":agent"} step={step} />;

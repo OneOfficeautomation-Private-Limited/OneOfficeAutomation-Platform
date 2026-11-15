@@ -83,9 +83,12 @@ Deleting a block asks "Delete this step and the n step(s) inside?".
 
 ## 3. The Action settings panel
 
-Select a step to see its settings on the right. From top to bottom:
+Select a step to see its settings on the right. The panel is compact: 26 px rows, the boxes across the whole width, and
+every field's help behind its ⓘ. From top to bottom:
 
-1. **Title**: the action's icon, name, toolkit and address (for example `ooa.excel/open`), then its description.
+1. **Title** on one line: the toolkit's mark (its own colour and symbol, such as Aa for text or 123 for numbers), the
+   action's name, its toolkit and line, and **Docs** and **Video**; then its description on one line, with **more** for
+   the rest.
 2. **Inputs**: the fields the action needs.
 3. **Outputs**: where to keep what the action returns.
 4. Extra sections for some blocks: **Else if branches** (If), **Catch blocks** and **Finally** (Try), **Case** and
@@ -105,8 +108,8 @@ Select a step to see its settings on the right. From top to bottom:
 | true / false drop-down | For Boolean fields. |
 | File or folder box with **Browse…** on its right | Type a path or a `$variable$`, or click **Browse…**. A file field asks where the file comes from: **This computer** (choose it in a folder list) or **One CommandCenter** (a file kept there; the agent takes it along, so the runner gets it at the same path). A folder field opens the folder list straight away: open the folder and click **Use this folder**. The same **Browse…** is on file and folder fields in conditions (File exists, Folder exists), loop types (Each file in folder), the file trigger's **Folder**, and a File variable's default. |
 | "(choose a … variable)" list | For Table, List, Dictionary and Record fields: pick a variable of that type, **+ New … variable**, or **Enter a value or expression…**. |
-| **{x} Insert value** button | Opens **Insert a value** (also F2 or Ctrl+Space, or typing `$`): a preview of the field with the value in it, **Your variables** (with their types) first, then **System values** (each with what it holds) and **Shared Global values**. Click one to put it at the cursor. **New variable** makes one of the field's type; from a field its button is **Create and use**. |
-| ⓘ | Hover or focus it for the field's help, allowed range and an example. |
+| **{x}** inside the box (on its right) | Opens **Insert a value** (also F2 or Ctrl+Space, or typing `$`): a preview of the field with the value in it, **Your variables** (with their types) first, then **System values** (each with what it holds) and **Shared Global values**. Click one to put it at the cursor. **New variable** makes one of the field's type; from a field its button is **Create and use**. |
+| ⓘ beside the label | Hover or focus it for the field's help, allowed range and an example; click it to show the help under the field. |
 
 A required field that is still empty is marked with ***** and says **Required** under it, before you even validate.
 

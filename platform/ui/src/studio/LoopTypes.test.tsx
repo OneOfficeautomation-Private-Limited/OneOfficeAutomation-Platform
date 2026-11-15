@@ -38,7 +38,8 @@ describe("For each offers the toolkits' loop types (command review C2)", () => {
 
   it("shows a loop type's own settings instead of JSON", () => {
     const { onArg } = show({ id: "s1", action: "core/loop", args: { iterator: "ooa.file/files_in_folder", iterator_args: { pattern: "*.pdf" }, as: "file" } });
-    expect(screen.getByText("Yield each file path in a folder.")).toBeTruthy();
+    // its help is behind the (i) beside the label in the compact Details (16 Nov 2026)
+    expect(screen.getAllByRole("button", { name: /^About / }).some((b) => b.getAttribute("title")?.includes("Yield each file path in a folder."))).toBe(true);
     expect(screen.queryByText("Iterator settings")).toBeNull();
     const folder = screen.getByRole("textbox", { name: "Folder *" });
     fireEvent.change(folder, { target: { value: "C:/In" } });

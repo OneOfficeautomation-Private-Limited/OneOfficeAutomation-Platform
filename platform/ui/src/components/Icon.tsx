@@ -57,11 +57,49 @@ export const ICONS = {
   menu: "M4 6h16M4 12h16M4 18h16",
   // Quick map (a value on each side, matched): two arrows passing each other
   swap: "M4 8h14l-3-3M20 16H6l3 3",
+  // Toolkit marks (command observations, 16 Nov 2026): one meaningful symbol per toolkit. "text:" draws letters.
+  textAa: "text:Aa",
+  text123: "text:123",
+  textBraces: "text:{ }",
+  textTag: "text:</>",
+  textCsv: "text:a,b",
+  toggle: "M3 8h18v8H3zM7 8a4 4 0 0 0 0 8M16 12h.01",
+  calendar: "M4 5h16v15H4zM4 10h16M8 3v4M16 3v4",
+  list: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01",
+  keyValue: "M4 7h4M11 7h9M4 12h4M11 12h9M4 17h4M11 17h9",
+  table: "M3 4h18v16H3zM3 9h18M3 14h18M9 4v16",
+  sheet: "M4 4h16v16H4zM8.5 8.5l7 7M15.5 8.5l-7 7",
+  wordDoc: "M6 3h9l4 4v14H6zM15 3v4h4M8.5 11l1.5 6 2-4.5 2 4.5 1.5-6",
+  slides: "M3 4h18v12H3zM12 16v4M8 20h8M7 13l3-3 3 2 4-4",
+  pdfDoc: "M6 3h9l4 4v14H6zM15 3v4h4M9 12h6M9 15h6M9 18h4",
+  arrows: "M4 9h13l-3-3M20 15H7l3 3",
+  key: "M8 11a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM11 12l9-9M17 6l2 2M15 8l2 2",
+  scan: "M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 12h8",
+  window: "M3 5h18v14H3zM3 9h18M6 7h.01",
+  keyboard: "M2 7h20v10H2zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10",
+  terminal: "M3 4h18v16H3zM7 9l3 3-3 3M12 15h5",
+  cloud: "M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.5 1.5A3.5 3.5 0 0 0 7 18z",
+  shield: "M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6zM9 12l2 2 4-4",
+  calc: "M5 3h14v18H5zM8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18h.01M12 18h4",
+  clipboard: "M7 4h10v17H7zM9 4V2h6v2M10 10h4M10 14h4",
+  sound: "M4 10h4l5-4v12l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11",
+  mouse: "M7 4h10v16H7zM12 4v6M7 10h10",
+  image: "M3 5h18v14H3zM8 9.5a1.5 1.5 0 1 0 0 .1zM21 15l-5-5-9 9",
+  stars: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18 16l.8 2.2L21 19l-2.2.8L18 22l-.8-2.2L15 19l2.2-.8z",
 } as const;
 
 export type IconName = keyof typeof ICONS;
 
 export function Icon({ name, size = 16, stroke = 2, filled = false }: { name: IconName; size?: number; stroke?: number; filled?: boolean }) {
+  const d: string = ICONS[name];
+  if (d.startsWith("text:")) {
+    const t = d.slice(5);
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+        <text x="12" y="16.5" textAnchor="middle" fill="currentColor" fontWeight={700} fontFamily="Segoe UI, Arial, sans-serif" fontSize={t.length > 2 ? 9.5 : 12.5}>{t}</text>
+      </svg>
+    );
+  }
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill={filled ? "currentColor" : "none"}
       stroke={filled ? "none" : "currentColor"} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">

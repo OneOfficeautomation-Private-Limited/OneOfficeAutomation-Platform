@@ -219,12 +219,15 @@ export function FormulaValue({ step, name, want }: { step: FlowStep; name: strin
         placeholder={want === "Number" ? "($price$ * $qty$) * (1 + $tax$ / 100)" : "$total$ > 1000 and $country$ == 'IN'"}
         onCommit={set} apply={(t, f) => setArg(f, step.id, name, { expr: t.trim() })} />
       {result && <p className="st-formula-result" aria-live="polite">{result}</p>}
-      <p className="ui-field-hint">{want === "Number"
-        ? "+ - * / and % (remainder), brackets, and functions: round(x, 2), floor, ceiling, truncate, power(x, y), sqrt, abs, min, max, sum, average($list$), clamp(x, low, high)."
-        : "Comparisons (== != > >= < <=), and, or, not, brackets, and functions such as contains($subject$, 'urgent'), isEmpty($x$), startsWith, regexMatch."}</p>
     </div>
   );
 }
+
+/** What a formula may use, behind the (i) of the Formula field. */
+export const FORMULA_HELP = {
+  Number: "Use + - * / and % (remainder), brackets, and functions: round(x, 2), floor, ceiling, truncate, power(x, y), sqrt, abs, min, max, sum, average($list$), clamp(x, low, high).",
+  Boolean: "Use comparisons (== != > >= < <=), and, or, not, brackets, and functions such as contains($subject$, 'urgent'), isEmpty($x$), startsWith and regexMatch.",
+};
 
 type Assignment = { variable?: string; value?: unknown };
 
