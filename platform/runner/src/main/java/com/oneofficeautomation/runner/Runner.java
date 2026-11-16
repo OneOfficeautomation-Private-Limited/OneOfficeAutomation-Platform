@@ -573,7 +573,11 @@ public final class Runner {
                         throw new OoaException("RUN.INPUT_INVALID", "Input '" + name + "' must be one of " + en, "Give one of the values the message lists.");
                     scope.set(name, val);
                 } else if (v.containsKey("default")) {
-                    scope.set(name, Values.deepCopy(v.get("default")));
+                    Object d = Values.deepCopy(v.get("default"));
+                    // a Credential variable's default is a vault reference (real-world tests finding 7): fetched from the
+                    // vault and masked as the run starts, as a vault reference given as an input is
+                    if ("Credential".equals(v.get("type")) && d != null) d = credentialArg(name, d);
+                    scope.set(name, d);
                 } else if (isInput && Boolean.TRUE.equals(v.get("required"))) {
                     throw new OoaException("RUN.INPUT_MISSING", "Required input '" + name + "' has no value",
                             v.get("description") != null ? (String) v.get("description") : "Provide a " + v.get("type") + " value for '" + name + "'.");

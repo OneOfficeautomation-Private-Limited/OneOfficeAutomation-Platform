@@ -203,9 +203,12 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
     if len(declared) != len(flow.get("variables", [])):
         add("Duplicate variable names", fix="Give every variable a unique name.")
     for v in flow.get("variables", []):
-        if v["type"] == "Credential" and "default" in v:
-            add(f"Credential variable '{v['name']}' must not have a default value", path=f"variables/{v['name']}",
-                fix="Remove the default; supply a vault reference at run time.")
+        # a Credential variable may default to one vault reference, fetched as the run starts; never to the secret itself
+        d = v.get("default")
+        if v["type"] == "Credential" and "default" in v and not (
+                isinstance(d, dict) and set(d) == {"$credential"} and isinstance(d["$credential"], str) and d["$credential"].strip()):
+            add(f"Credential variable '{v['name']}' can only default to a vault reference", path=f"variables/{v['name']}",
+                fix='Write the default as {"$credential": "locker/credential/attribute"}, or remove it and give a vault reference when the agent runs.')
 
     requires = (flow.get("requires") or {}).get("packages", {})
     caps = set((flow.get("requires") or {}).get("capabilities", []))

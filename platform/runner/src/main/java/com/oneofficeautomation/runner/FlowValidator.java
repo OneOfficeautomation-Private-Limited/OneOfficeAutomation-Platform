@@ -54,9 +54,11 @@ public final class FlowValidator {
             String name = (String) v.get("name");
             if (declared.put(name, v) != null) p.add(null, "variables/" + name, "Duplicate variable name '" + name + "'", "Give every variable a unique name.");
             if (Runner.RESERVED.contains(name)) p.add(null, "variables/" + name, "'" + name + "' is a reserved built-in variable name", "Choose another name; $sys and $global are provided automatically.");
-            if ("Credential".equals(v.get("type")) && v.containsKey("default"))
-                p.add(null, "variables/" + name, "Credential variable '" + name + "' must not have a default value",
-                        "Remove the default; supply a vault reference at run time.");
+            // a Credential variable may default to one vault reference, fetched as the run starts (real-world tests finding 7);
+            // never to the secret itself
+            if ("Credential".equals(v.get("type")) && v.containsKey("default") && !isVaultReference(v.get("default")))
+                p.add(null, "variables/" + name, "Credential variable '" + name + "' can only default to a vault reference",
+                        "Write the default as {\"$credential\": \"locker/credential/attribute\"}, or remove it and give a vault reference when the agent runs.");
             try { checkDefault(p, name, OoaType.fromFlowName(String.valueOf(v.get("type"))), v); }
             catch (IllegalArgumentException e) { p.add(null, "variables/" + name, "Unknown type '" + v.get("type") + "'", null); }
         }
@@ -436,6 +438,11 @@ public final class FlowValidator {
      * The default of a Time or TimeSpan variable must read as one (14:30, 2h 15m); an Image or Binary default is a file
      * path (read when the run starts) or {"$binary": Base64}. Defaults of the other types are not checked here.
      */
+    /** {"$credential": "locker/credential/attribute"} and nothing else. */
+    static boolean isVaultReference(Object v) {
+        return v instanceof Map<?, ?> m && m.size() == 1 && m.get("$credential") instanceof String r && !r.isBlank();
+    }
+
     private static void checkDefault(P p, String name, OoaType t, Map<String, Object> v) {
         Object d = v.get("default");
         if (d == null) return;

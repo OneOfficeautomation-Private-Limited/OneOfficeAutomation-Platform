@@ -233,7 +233,15 @@ class _Run:
                     raise OoaError(f"Input '{name}' must be one of {v['enum']}", code="RUN.INPUT_INVALID")
                 self.scope.set(name, val)
             elif "default" in v:
-                self.scope.set(name, copy.deepcopy(v["default"]))
+                val = copy.deepcopy(v["default"])
+                # a Credential variable's default is a vault reference: fetched and masked as the run starts
+                if v.get("type") == "Credential" and isinstance(val, dict) and set(val) == {"$credential"}:
+                    vault = self.r.services.get("vault")
+                    if vault is None:
+                        raise OoaError("No vault configured for credential inputs", code="VAULT.UNAVAILABLE")
+                    val = vault.get_secret(val["$credential"], principal=self.r.principal)
+                    self.secrets.append(val.reveal())
+                self.scope.set(name, val)
             elif v.get("direction") == "input" and v.get("required"):
                 raise OoaError(f"Required input '{name}' is missing", code="RUN.INPUT_MISSING",
                                suggested_fix=v.get("description") or f"Provide a {v['type']} value for '{name}'.")
