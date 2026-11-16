@@ -216,13 +216,19 @@ def qa(h: H, m, path, q):
         run = h.body().get("run_id", "")
         removed = 0
         with LOCK:
-            for coll in ("servicenow", "salesforce", "jira", "shopify", "sap", "approvals", "workday", "graph_directory"):
+            for coll in ("servicenow", "salesforce", "jira", "shopify", "sap", "approvals", "workday", "graph_directory", "carrier"):
                 store = STATE.get(coll, {})
                 for name, recs in list(store.items()):
                     if isinstance(recs, list):
                         keep = [r for r in recs if not (run and run in json.dumps(r) and r.get("_created"))]
                         removed += len(recs) - len(keep)
                         store[name] = keep
+            # stock levels are a fixture: put them back as seeded, so the next run starts from the same stock
+            with open(os.path.join(BASE, "standin", "seed.json"), encoding="utf-8") as fh:
+                seeded = json.load(fh).get("shopify", {})
+            if "shopify" in STATE and seeded:
+                STATE["shopify"]["inventory"] = seeded.get("inventory", {})
+                STATE["shopify"]["conflict_once"] = seeded.get("conflict_once", [])
         return h.send(200, {"removed": removed, "run_id": run})
     if path == "/qa/state":
         return h.send(200, STATE)
@@ -662,6 +668,144 @@ def sap(h: H, m, path, q):
     raise KeyError(path)
 
 
+def shopify(h: H, m, path, q):
+    """Shopify development store (RW04): products, draft orders, inventory levels and a reservation API with versions.
+    Payments, refunds, transactions and product writes are refused: the workbook forbids charging cards and catalogue changes."""
+    store = STATE.setdefault("shopify", {})
+    for k in ("products", "draft_orders", "reservations", "conflict_once"):
+        store.setdefault(k, [])
+    store.setdefault("inventory", {})
+    p = re.sub(r"^/admin/api/[\d-]+", "", path)
+    if re.search(r"/(transactions|refunds|payments|capture)", p) or (p.startswith("/products") and m in ("POST", "PUT", "DELETE")):
+        return h.send(403, {"errors": "QA store: payments, refunds and product changes are forbidden in the real-world tests"})
+    with LOCK:
+        if p == "/products.json":
+            tag = q.get("tag", "")
+            return h.send(200, {"products": [x for x in store["products"] if not tag or tag in x.get("tags", "")]})
+        if p == "/products/count.json":
+            return h.send(200, {"count": len(store["products"])})
+        mp = re.match(r"/products/(\d+)\.json$", p)
+        if mp:
+            x = next((x for x in store["products"] if str(x["id"]) == mp.group(1)), None)
+            return h.send(200, {"product": x}) if x else h.send(404, {"errors": "Not Found"})
+        if p == "/draft_orders.json":
+            tag = q.get("tag", "")
+            return h.send(200, {"draft_orders": [x for x in store["draft_orders"] if not tag or tag in x.get("tags", "")]})
+        md = re.match(r"/draft_orders/(\d+)\.json$", p)
+        if md:
+            x = next((x for x in store["draft_orders"] if str(x["id"]) == md.group(1)), None)
+            if x is None:
+                return h.send(404, {"errors": "Not Found"})
+            if m == "PUT":   # only the note and tags of a draft order may change
+                b = h.body().get("draft_order", {})
+                x.update({k: v for k, v in b.items() if k in ("note", "tags")})
+            return h.send(200, {"draft_order": x})
+        if p == "/inventory_levels.json":
+            sku = q.get("sku", "")
+            return h.send(200, {"inventory_levels": [dict(v, sku=k.split("|")[0], location=k.split("|")[1]) for k, v in store["inventory"].items()
+                                                     if not sku or k.split("|")[0] == sku]})
+        if p in ("/inventory/reserve.json", "/inventory/release.json") and m == "POST":
+            b = h.body()
+            key = "%s|%s" % (b.get("sku"), b.get("location"))
+            lvl = store["inventory"].get(key)
+            if lvl is None:
+                return h.send(404, {"errors": "No stock record " + key})
+            if p.endswith("reserve.json") and key in store["conflict_once"]:
+                store["conflict_once"].remove(key)
+                lvl["version"] += 1      # another channel reserved first
+                return h.send(409, {"errors": "Version conflict: stock %s changed (now version %d)" % (key, lvl["version"])})
+            if int(b.get("version", -1)) != lvl["version"]:
+                return h.send(409, {"errors": "Version conflict: stock %s is at version %d" % (key, lvl["version"])})
+            qty = int(b.get("quantity", 0))
+            if p.endswith("reserve.json"):
+                if qty > lvl["available"]:
+                    return h.send(422, {"errors": "Only %d available" % lvl["available"]})
+                lvl["available"] -= qty
+                lvl["reserved"] += qty
+                store["reservations"].append({"order": b.get("order"), "key": key, "quantity": qty, "run": b.get("run", ""), "_created": True})
+            else:
+                lvl["available"] += qty
+                lvl["reserved"] -= qty
+            lvl["version"] += 1
+            return h.send(200, dict(lvl, sku=b.get("sku"), location=b.get("location")))
+    raise KeyError(path)
+
+
+def carrier(h: H, m, path, q):
+    """Shipping carrier stub (RW04-B5): test shipments with tracking numbers, and delivery events."""
+    store = STATE.setdefault("carrier", {"shipments": []})
+    with LOCK:
+        if path == "/carrier/health":
+            return h.send(200, {"carrier": "OOA-QA-CARRIER", "mode": "test"})
+        if path == "/carrier/shipments" and m == "POST":
+            b = h.body()
+            if not str(b.get("ship_to", {}).get("email", "")).endswith("@ooa-qa.test"):
+                return h.send(422, {"error": "QA carrier: test shipments go to QA addresses only"})
+            sh = {"id": "SHP-" + uuid.uuid4().hex[:8].upper(), "tracking": "1ZQA" + uuid.uuid4().hex[:12].upper(), "status": "label_created",
+                  "created": now_iso(), **b, "_created": True}
+            store["shipments"].append(sh)
+            return h.send(201, {k: v for k, v in sh.items() if not k.startswith("_")})
+        me = re.match(r"/carrier/shipments/([^/]+)/events$", path)
+        if me:
+            sh = next((x for x in store["shipments"] if x["id"] == me.group(1)), None)
+            if sh is None:
+                return h.send(404, {"error": "no shipment"})
+            return h.send(200, {"events": [{"status": "label_created", "at": sh["created"]}, {"status": "in_transit", "at": now_iso()},
+                                           {"status": "delivered", "at": now_iso()}]})
+    raise KeyError(path)
+
+
+def kafka(h: H, m, path, q):
+    """Kafka REST proxy (v3 produce, v2 consumers) for RW04-B3 and RW07-B1; topics live in memory."""
+    store = STATE.setdefault("kafka", {"topics": {}, "groups": {}})
+    with LOCK:
+        if path == "/kafka/v3/clusters":
+            return h.send(200, {"data": [{"cluster_id": "qa-cluster"}]})
+        mt = re.match(r"/kafka/v3/clusters/[^/]+/topics(?:/([^/]+))?(/records)?$", path)
+        if mt:
+            topic, rec = mt.groups()
+            if topic is None:
+                if m == "POST":
+                    store["topics"].setdefault(h.body().get("topic_name"), [])
+                    return h.send(201, {})
+                return h.send(200, {"data": [{"topic_name": t, "partitions_count": 1, "replication_factor": 1, "is_internal": False} for t in store["topics"]]})
+            msgs = store["topics"].setdefault(topic, [])
+            if rec and m == "POST":
+                b = h.body()
+                msgs.append({"key": (b.get("key") or {}).get("data"), "value": (b.get("value") or {}).get("data"), "offset": len(msgs)})
+                return h.send(200, {"error_code": 200, "partition_id": 0, "offset": len(msgs) - 1, "timestamp": now_iso()})
+            return h.send(200, {"topic_name": topic, "partitions_count": 1})
+        mg = re.match(r"/kafka/consumers/([^/]+)(?:/instances/([^/]+))?(/subscription|/records|/offsets)?$", path)
+        if mg:
+            group, inst, sub = mg.groups()
+            g = store["groups"].setdefault(group, {"offsets": {}, "instances": {}})
+            if inst is None and m == "POST":
+                iid = "i-" + uuid.uuid4().hex[:6]
+                g["instances"][iid] = {"topics": [], "sent": False, "read": {}}
+                return h.send(200, {"instance_id": iid, "base_uri": "http://127.0.0.1:%d/kafka/consumers/%s/instances/%s" % (PORT, group, iid)})
+            it = g["instances"].get(inst, {"topics": [], "sent": True, "read": {}})
+            if sub == "/subscription":
+                it["topics"] = h.body().get("topics", [])
+                return h.send(204)
+            if sub == "/records":
+                out = []
+                if not it["sent"]:
+                    for t in it["topics"]:
+                        start = g["offsets"].get(t, 0)
+                        out += [{"topic": t, "partition": 0, "offset": x["offset"], "key": x["key"], "value": x["value"]} for x in store["topics"].get(t, [])[start:]]
+                        it["read"][t] = len(store["topics"].get(t, []))
+                    it["sent"] = True
+                return h.send(200, out, ctype="application/vnd.kafka.json.v2+json")
+            if sub == "/offsets":
+                for t, n in it["read"].items():
+                    g["offsets"][t] = n
+                return h.send(200, {})
+            if m == "DELETE":
+                g["instances"].pop(inst, None)
+                return h.send(204)
+    raise KeyError(path)
+
+
 AI_LABELS = {"supplier": "Supplier", "invoice_number": "Invoice number", "invoice_date": "Invoice date", "po_number": "PO number",
              "currency": "Currency", "net": "Net", "tax": "Tax", "total": "Total"}
 
@@ -714,11 +858,11 @@ def soap(h: H, m, path, q):
     return h.send(status, env, ctype="text/xml")
 
 
-SERVICES = ["servicenow", "salesforce", "jira", "graph", "workday", "approvals", "sap", "ai", "soap"]
+SERVICES = ["servicenow", "salesforce", "jira", "graph", "workday", "approvals", "sap", "ai", "soap", "shopify", "carrier", "kafka"]
 ROUTES = [
     ("/qa/", qa, None), ("/kb/", kb, None),
     ("/api/now/", servicenow, "servicenow"), ("/services/", salesforce, "salesforce"), ("/rest/api/", jira, "jira"),
-    ("/graph/v1.0/", graph, "graph"), ("/ccx/", workday, "workday"), ("/approvals/", approvals, "approvals"), ("/sap/", sap, "sap"), ("/v1/", ai, "ai"), ("/soap/", soap, "soap"),
+    ("/graph/v1.0/", graph, "graph"), ("/ccx/", workday, "workday"), ("/approvals/", approvals, "approvals"), ("/sap/", sap, "sap"), ("/v1/", ai, "ai"), ("/soap/", soap, "soap"), ("/admin/api/", shopify, "shopify"), ("/carrier/", carrier, "carrier"), ("/kafka/", kafka, "kafka"),
 ]
 
 

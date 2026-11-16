@@ -1,0 +1,11 @@
+key,status,note,time
+O01,done,reserved,04:09:42
+O02,done,"held, case 500QA60D01E89809A4",04:09:42
+O03,done,"partial, case 500QAEFFF1BD5706F4",04:09:42
+O04,done,split shipment,04:09:42
+O05,done,"backorder, case 500QA408A05DB362E4",04:09:42
+O06,done,"cancelled, released",04:09:42
+O07,done,"held, case 500QA2932368F72D54",04:09:42
+O08,done,"held, case 500QA95C8C36377394",04:09:42
+O09,done,"held, case 500QAC39B2678AA1B4",04:09:42
+O10,done,split shipment,04:09:42

@@ -1,0 +1,11 @@
+key,account_id,order_record,created,status,case_id,notes
+O01,001QA0000000001,500QAE9B2918D46AA4,true,reserved,,Delivery: reserved
+O02,001QA0000000001,500QA023DB1E351B04,true,held,500QA60D01E89809A4,ROUTE.HOLD: #D102: duplicate of an earlier order (key IK-1001)
+O03,001QA0000000002,500QAF53A6A2D742C4,true,partial,500QAEFFF1BD5706F4,Delivery: partial
+O04,001QA0000000003,500QADAB1004519D64,true,split shipment,,Delivery: split shipment
+O05,001QA0000000004,500QA66F28E66B78F4,true,backorder,500QA408A05DB362E4,Delivery: backorder
+O06,001QA0000000005,500QAF017731179734,true,"cancelled, released",,"Delivery: cancelled, released"
+O07,001QA0000000002,500QAB0C62D3E89F24,true,held,500QA2932368F72D54,ROUTE.HOLD: #D107: currency GBP differs from the store currency USD
+O08,001QA0000000003,500QAF03C40E493C34,true,held,500QA95C8C36377394,ROUTE.HOLD: #D108: price of QA-SKU-01 changed since the cart (24.99 vs 29.99)
+O09,001QA0000000004,500QACF4B8D5222254,true,held,500QAC39B2678AA1B4,ROUTE.HOLD: #D109: impossible address: postcode ABCDE for US
+O10,001QA0000000005,500QA73BAD6781FB94,true,split shipment,,Delivery: split shipment

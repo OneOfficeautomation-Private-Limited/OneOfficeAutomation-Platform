@@ -159,7 +159,7 @@ def save_evidence(f: Flow):
 class Main:
     """A main agent: runs its six child agents (in order, or two at a time), cleans up and sums up."""
 
-    def __init__(self, test_id, title, process, children, folder, parallel_group=(1, 3)):
+    def __init__(self, test_id, title, process, children, folder, parallel_group=(1, 3), credential_inputs=None):
         self.test_id, self.children, self.parallel_group = test_id, children, parallel_group
         self.f = Flow(f"{test_id.lower()}_main", f"{test_id} Main - {title}",
                       f"{test_id} real-world test: {process} Runs its six child agents, then cleans up the run's test records and sums up.")
@@ -167,6 +167,8 @@ class Main:
         f.tags = ["real-world-test", test_id, "main"]
         common_inputs(f)
         f.var("concurrency", "Number", "input", 1, "1 runs the children one after another (to watch); 2 or 3 runs children whose inputs are ready together.")
+        for name, why in (credential_inputs or {}).items():      # vault references given at run time and passed on to a child
+            f.var(name, "Credential", "input", None, why)
         for name, typ, default in [("info", "Dictionary", None), ("out_dir", "String", ""), ("log_file", "String", ""),
                                    ("files", "List", None), ("file", "String", ""), ("text", "String", ""), ("canary", "String", ""),
                                    ("leaks", "Number", 0), ("failed", "Number", 0), ("handled", "Number", 0), ("routed", "Number", 0),
@@ -175,7 +177,7 @@ class Main:
         f.var("status", "String", "output", "not_run", "success when every child agent finished.")
         f.var("summary_file", "String", "output", "", "One row per child agent.")
 
-    def run_child(self, flow_id, code, title, n=""):
+    def run_child(self, flow_id, code, title, extra=None, n=""):
         """Run one child; n gives parallel branches their own variables, so branches never overwrite each other's."""
         f = self.f
         child, status, error = "child" + n, "child_status" + n, "child_error" + n
@@ -185,7 +187,7 @@ class Main:
         f.box(f"Next: {code} {title}", title=f"{self.test_id} main", seconds=2)
         f.act("core/run_bot", desc=f"Run {code} {title}", automation=flow_id, fail_on_error=False,
               inputs={"base": "$base$", "run_id": "$run_id$", "standin": "$standin$", "watch": "$watch$",
-                      "pause_seconds": "$pause_seconds$", "fault_profile": "$fault_profile$"},
+                      "pause_seconds": "$pause_seconds$", "fault_profile": "$fault_profile$", **(extra or {})},
               out={"outputs": child, "status": status, "error": error})
         f.act("ooa.datatable/add_row", desc=f"Note how {code} went", table="$summary$",
               values={"agent": code, "status": "$" + status + "$", "handled": "${" + child + ".processed}", "exceptions": "${" + child + ".exceptions}",

@@ -1,0 +1,1428 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw04_b5",
+  "name": "RW04-B5 Fulfilment and customer notice",
+  "description": "RW04-B5 (RW04 real-world test). For each reserved order: moves it through the warehouse states (picked, packed, shipped) with checks, confirms the carrier stub is the test one, creates the test shipment, writes the packing slip (Word), drafts the notice, asks for approval before an exception notice (backorder or split), sends to the QA address only, records the message, reconciles the delivery event and never calls payment or refund.",
+  "tags": [
+    "real-world-test",
+    "RW04"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "b2",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "carrier",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "states",
+      "type": "List",
+      "direction": "local",
+      "default": [
+        "reserved",
+        "picked",
+        "packed",
+        "shipped"
+      ]
+    },
+    {
+      "name": "st",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "prev",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "email",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "total",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ship",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "slip",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "lines",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "body",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "needs_ok",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "req",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ans",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "tries",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "subject",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "seen",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "seen_n",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "msg_id",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "events",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "delivered",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "shipment",
+          "tracking",
+          "packing_slip",
+          "approval",
+          "message_id",
+          "delivered"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: For each reserved order: moves it through the warehouse states (picked, packed, shipped) with checks, confirms the carrier stub is the test one, creates the test shipment, writes the packing slip (Word), drafts the notice, asks for approval before an exception notice (backorder or split), sends to the QA address only, records the message, reconciles the delivery event and never calls payment or refund. It works through 10 shipments (the reserved ones) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW04-B5"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW04-B5 Fulfilment and customer notice started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW04-B5 starts",
+                "message": "RW04-B5 Fulfilment and customer notice\n\nFor each reserved order: moves it through the warehouse states (picked, packed, shipped) with checks, confirms the carrier stub is the test one, creates the test shipment, writes the packing slip (Word), drafts the notice, asks for approval before an exception notice (backorder or split), sends to the QA address only, records the message, reconciles the delivery event and never calls payment or refund.\n\nRecords: 10 shipments (the reserved ones)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Only reserved orders ship (cancelled and fully backordered do not); check the carrier is the test stub."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "carrier",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s17",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B3/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B3/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW04-B3 evidence"
+            }
+          ],
+          "description": "RW04-B3 ran in this run?",
+          "else": [
+            {
+              "id": "s19",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW04-B3's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW04/fixtures/RW04-B3-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW04-B3 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.datatable/filter",
+          "args": {
+            "table": "$records$",
+            "column": "reserved",
+            "operator": "gt",
+            "value": 0,
+            "more_conditions": [
+              {
+                "column": "state",
+                "operator": "ne",
+                "value": "cancelled, released"
+              }
+            ],
+            "match": "all"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Orders that ship"
+        },
+        {
+          "id": "s22",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s23",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B2/evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW04-B2 evidence"
+            }
+          ],
+          "description": "RW04-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s24",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW04-B2's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s25",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW04/fixtures/RW04-B2-evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW04-B2 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s26",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin}/carrier/health"
+          },
+          "out": {
+            "json": "carrier"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "2. Verify the carrier stub (test mode)"
+        },
+        {
+          "id": "s27",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$carrier.mode$",
+              "right": "test"
+            }
+          },
+          "children": [
+            {
+              "id": "s28",
+              "action": "core/throw",
+              "args": {
+                "code": "CARRIER.NOT_TEST",
+                "message": "The carrier answered mode ${carrier.mode}; only the test carrier may be used"
+              },
+              "description": "Stop"
+            }
+          ],
+          "description": "Not the test carrier?"
+        },
+        {
+          "id": "s29",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "${out_dir}/slips"
+          },
+          "description": "Folder for the packing slips"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s30",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s31",
+          "action": "core/comment",
+          "args": {
+            "text": "Per shipment: warehouse states, test shipment, packing slip, notice (approval first for exceptions), QA-only send, message id, delivery event."
+          }
+        },
+        {
+          "id": "s32",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s33",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s34",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s35",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b2$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "email",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "email"
+                  },
+                  "description": "Customer email"
+                },
+                {
+                  "id": "s36",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b2$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "total",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "total"
+                  },
+                  "description": "Order total"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "prev",
+                    "value": ""
+                  },
+                  "description": "Start of the state machine"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$states$",
+                    "as": "st"
+                  },
+                  "children": [
+                    {
+                      "id": "s39",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$prev$ == 'packed' and $st$ == 'shipped' and isEmpty($email$)"
+                      },
+                      "children": [
+                        {
+                          "id": "s40",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "STATE.ILLEGAL",
+                            "message": "${rec.key}: cannot ship without a recipient"
+                          },
+                          "description": "Illegal transition"
+                        }
+                      ],
+                      "description": "Ship without a recipient?"
+                    },
+                    {
+                      "id": "s41",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "message": "${rec.key}: ${if(isEmpty($prev$), 'start', $prev$)} -> ${st}"
+                      },
+                      "description": "Transition"
+                    },
+                    {
+                      "id": "s42",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "prev",
+                        "value": "$st$"
+                      },
+                      "description": "Now in this state"
+                    }
+                  ],
+                  "description": "1. Warehouse states, in order"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not endsWith(lower($email$), '@ooa-qa.test')"
+                  },
+                  "children": [
+                    {
+                      "id": "s44",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "NOTIFY.EXTERNAL",
+                        "message": "${rec.key}: ${email} is not a QA address"
+                      },
+                      "description": "Never send outside QA"
+                    }
+                  ],
+                  "description": "7. Not a QA address?"
+                },
+                {
+                  "id": "s45",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "POST",
+                    "url": "${standin}/carrier/shipments",
+                    "json": {
+                      "order": "$rec.key$",
+                      "ship_to": {
+                        "email": "$email$"
+                      },
+                      "locations": "$rec.locations$",
+                      "run": "$run_id$"
+                    }
+                  },
+                  "out": {
+                    "json": "ship"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "3. Create the test shipment"
+                },
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "slip",
+                    "value": "${out_dir}/slips/${rec.key}-packing-slip.docx"
+                  },
+                  "description": "4. Packing slip file"
+                },
+                {
+                  "id": "s47",
+                  "action": "ooa.word/create_document",
+                  "args": {
+                    "path": "$slip$",
+                    "overwrite": true,
+                    "session": "slip"
+                  },
+                  "description": "4. Packing slip (Word)"
+                },
+                {
+                  "id": "s48",
+                  "action": "ooa.word/add_paragraph",
+                  "args": {
+                    "text": "OOA-QA packing slip ${rec.key}",
+                    "style": "Heading1",
+                    "session": "slip"
+                  },
+                  "description": "Title"
+                },
+                {
+                  "id": "s49",
+                  "action": "ooa.word/add_paragraph",
+                  "args": {
+                    "text": "Shipment ${ship.id}, tracking ${ship.tracking}, from ${rec.locations}. Test order: no payment taken.",
+                    "session": "slip"
+                  },
+                  "description": "Shipment"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "lines",
+                    "value": {
+                      "columns": [
+                        "reserved",
+                        "backordered",
+                        "state"
+                      ],
+                      "rows": [
+                        [
+                          "$rec.reserved$",
+                          "$rec.backordered$",
+                          "$rec.state$"
+                        ]
+                      ]
+                    }
+                  },
+                  "description": "The quantities as a table"
+                },
+                {
+                  "id": "s51",
+                  "action": "ooa.word/add_table",
+                  "args": {
+                    "table": "$lines$",
+                    "session": "slip"
+                  },
+                  "description": "The reserved quantities"
+                },
+                {
+                  "id": "s52",
+                  "action": "ooa.word/save",
+                  "args": {
+                    "session": "slip"
+                  },
+                  "description": "Save the slip"
+                },
+                {
+                  "id": "s53",
+                  "action": "ooa.word/close",
+                  "args": {
+                    "session": "slip"
+                  },
+                  "description": "Close it"
+                },
+                {
+                  "id": "s54",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "needs_ok",
+                    "value": {
+                      "expr": "toNumber($rec.backordered$) > 0 or toNumber($rec.shipments$) > 1"
+                    }
+                  },
+                  "description": "6. An exception notice (backorder or split)?"
+                },
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "body",
+                    "value": "Your test order ${rec.key} has shipped (tracking ${ship.tracking}).${if($needs_ok$, ' Part of it follows later: ' + $rec.state$ + '.', '')}"
+                  },
+                  "description": "5. Draft the notice"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "req",
+                    "value": {}
+                  },
+                  "description": "No approval needed yet"
+                },
+                {
+                  "id": "s57",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$needs_ok$"
+                  },
+                  "children": [
+                    {
+                      "id": "s58",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "method": "POST",
+                        "url": "${standin}/approvals/requests",
+                        "bearer_token": {
+                          "$credential": "rw_qa_standins/servicenow/token"
+                        },
+                        "json": {
+                          "subject": "notice ${rec.key}",
+                          "approver": "lead.service@ooa-qa.test",
+                          "requester": "orders-bot@ooa-qa.test",
+                          "run": "$run_id$",
+                          "comment": "$body$"
+                        }
+                      },
+                      "out": {
+                        "json": "req"
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "Ask the service lead"
+                    },
+                    {
+                      "id": "s59",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "tries",
+                        "value": 0
+                      },
+                      "description": "Start counting"
+                    },
+                    {
+                      "id": "s60",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "ans",
+                        "value": {
+                          "status": "pending"
+                        }
+                      },
+                      "description": "Waiting"
+                    },
+                    {
+                      "id": "s61",
+                      "action": "core/loop",
+                      "args": {
+                        "iterator": "while",
+                        "condition": "$ans.status$ == 'pending' and $tries$ < 3",
+                        "max_iterations": 4
+                      },
+                      "children": [
+                        {
+                          "id": "s62",
+                          "action": "core/delay",
+                          "args": {
+                            "seconds": 1
+                          },
+                          "description": "Wait a second"
+                        },
+                        {
+                          "id": "s63",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "tries",
+                            "value": {
+                              "expr": "$tries$ + 1"
+                            }
+                          },
+                          "description": "Count"
+                        },
+                        {
+                          "id": "s64",
+                          "action": "ooa.rest/request",
+                          "args": {
+                            "url": "${standin}/approvals/requests/${req.id}",
+                            "bearer_token": {
+                              "$credential": "rw_qa_standins/servicenow/token"
+                            }
+                          },
+                          "out": {
+                            "json": "ans"
+                          },
+                          "description": "Read the answer"
+                        }
+                      ],
+                      "description": "Wait for the answer"
+                    },
+                    {
+                      "id": "s65",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$ans.status$",
+                          "right": "approved"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s66",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "APPROVAL.NOTICE",
+                            "message": "${rec.key}: exception notice ${ans.status}"
+                          },
+                          "description": "Hold the notice"
+                        }
+                      ],
+                      "description": "Not approved?"
+                    }
+                  ],
+                  "description": "6. Exception notice: ask for approval first"
+                },
+                {
+                  "id": "s67",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "subject",
+                    "value": "OOA-QA ${run_id} order ${rec.key} shipped"
+                  },
+                  "description": "Subject"
+                },
+                {
+                  "id": "s68",
+                  "action": "ooa.microsoft365/send_mail",
+                  "args": {
+                    "to": "$email$",
+                    "subject": "$subject$",
+                    "body": "$body$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    },
+                    "base_url": "${standin}/graph/v1.0",
+                    "mailbox": "orders-qa@ooa-qa.test"
+                  },
+                  "description": "7. Send the notice (QA address only)"
+                },
+                {
+                  "id": "s69",
+                  "action": "ooa.microsoft365/list_mail",
+                  "args": {
+                    "folder": "inbox",
+                    "subject_contains": "$subject$",
+                    "max_results": 1,
+                    "access_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    },
+                    "base_url": "${standin}/graph/v1.0",
+                    "mailbox": "$email$"
+                  },
+                  "out": {
+                    "table": "seen",
+                    "count": "seen_n"
+                  },
+                  "description": "8. Find it in the customer's mailbox (message id)"
+                },
+                {
+                  "id": "s70",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$seen_n$ == 0"
+                  },
+                  "children": [
+                    {
+                      "id": "s71",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VERIFY.NOT_DELIVERED",
+                        "message": "Notice to ${email} did not arrive"
+                      },
+                      "description": "Report it"
+                    }
+                  ],
+                  "description": "Not delivered?"
+                },
+                {
+                  "id": "s72",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$seen$",
+                    "row": 0,
+                    "column": "id"
+                  },
+                  "out": {
+                    "value": "msg_id"
+                  },
+                  "description": "The message id"
+                },
+                {
+                  "id": "s73",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "${standin}/carrier/shipments/${ship.id}/events"
+                  },
+                  "out": {
+                    "json": "events"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "9. Delivery events from the carrier"
+                },
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "delivered",
+                    "value": {
+                      "expr": "last($events.events$).status == 'delivered'"
+                    }
+                  },
+                  "description": "Delivered?"
+                },
+                {
+                  "id": "s75",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "shipment": "$ship.id$",
+                      "tracking": "$ship.tracking$",
+                      "packing_slip": "$slip$",
+                      "approval": {
+                        "expr": "get($req$, 'id', '')"
+                      },
+                      "message_id": "$msg_id$",
+                      "delivered": "$delivered$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Record it"
+                },
+                {
+                  "id": "s76",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${ship.tracking} delivered ${delivered}"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s77",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s78",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s79",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s80",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW04-B5 - record ${rec.key}",
+                        "message": "RW04-B5: record ${$i + 1} of ${len($records$)}\n\n${rec.key}: ${ship.tracking}\nSlip: ${slip}\nNotice ${msg_id} delivered ${delivered}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s81",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s82",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s83",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s84",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s85",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s86",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW04-B5 - exception",
+                            "message": "RW04-B5: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s87",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 shipments (the reserved ones)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s89",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s90",
+          "action": "core/comment",
+          "args": {
+            "text": "Save; no payment or refund call was made (the agent has none)."
+          }
+        },
+        {
+          "id": "s91",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "No payment, capture or refund call was made for any order"
+          },
+          "description": "10. No payment or refund"
+        },
+        {
+          "id": "s92",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s93",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s94",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s95",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s96",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s97",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW04-B5 Fulfilment and customer notice finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s98",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s99",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW04-B5 finished",
+                "message": "RW04-B5 Fulfilment and customer notice finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

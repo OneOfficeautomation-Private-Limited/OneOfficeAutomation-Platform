@@ -1,0 +1,7 @@
+key,order_id,reserved,backordered,shipments,locations,conflicts,state,event_offset
+O01,9900000001,3,0,1,WH-A,0,reserved,0
+O03,9900000003,3,2,1,WH-A,0,partial,1
+O04,9900000004,3,0,2,WH-A;WH-B,1,split shipment,2
+O05,9900000005,0,2,0,,0,backorder,3
+O06,9900000006,3,0,1,WH-A,0,"cancelled, released",4
+O10,9900000010,3,0,2,WH-B;WH-A,0,split shipment,5

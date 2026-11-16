@@ -55,6 +55,8 @@ class Flow:
 
     def act(self, action, desc=None, out=None, retry=None, cont=False, timeout=None, **args):
         """A leaf step. Keyword arguments become the step's args (None values are left out)."""
+        if "action_" in args:            # a step argument called "action" (e.g. Object action), which act's own name hides
+            args["action"] = args.pop("action_")
         s = {"id": self._id(), "action": action, "args": {k: v for k, v in args.items() if v is not None}}
         if out:
             s["out"] = out

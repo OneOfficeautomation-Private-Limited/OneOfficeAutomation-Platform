@@ -1,0 +1,1359 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw04_b2",
+  "name": "RW04-B2 Order intake and risk",
+  "description": "RW04-B2 (RW04 real-world test). Reads the 10 tagged draft orders, checks the customer is a QA customer (also in the Salesforce sandbox), the quantities and the ship-to allow-list, recomputes the totals, catches duplicate idempotency keys, impossible addresses, a currency other than the store's and prices changed since the cart, scores the fixed risk rules, then holds or accepts each order with its reason and an idempotency token, and queues the accepted ones.",
+  "tags": [
+    "real-world-test",
+    "RW04"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "products",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "countries",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "d",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "o",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "acct",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "acct_n",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "ln",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "cat_price",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "pattern",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sub",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "tax",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "total",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "hold",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "risk",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "keys",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "carts",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "cart_hash",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "token",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "item",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "decision",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "order_id",
+          "name",
+          "customer_ref",
+          "email",
+          "currency",
+          "lines",
+          "subtotal",
+          "tax",
+          "shipping",
+          "total",
+          "risk",
+          "status",
+          "idempotency_key",
+          "token",
+          "queue_item"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Reads the 10 tagged draft orders, checks the customer is a QA customer (also in the Salesforce sandbox), the quantities and the ship-to allow-list, recomputes the totals, catches duplicate idempotency keys, impossible addresses, a currency other than the store's and prices changed since the cart, scores the fixed risk rules, then holds or accepts each order with its reason and an idempotency token, and queues the accepted ones. It works through 10 tagged draft orders and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW04-B2"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW04-B2 Order intake and risk started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW04-B2 starts",
+                "message": "RW04-B2 Order intake and risk\n\nReads the 10 tagged draft orders, checks the customer is a QA customer (also in the Salesforce sandbox), the quantities and the ship-to allow-list, recomputes the totals, catches duplicate idempotency keys, impossible addresses, a currency other than the store's and prices changed since the cart, scores the fixed risk rules, then holds or accepts each order with its reason and an idempotency token, and queues the accepted ones.\n\nRecords: 10 tagged draft orders\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the store catalogue (prices), the ship-to allow-list with its postcode rules."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW04/orders.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW04/orders.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "shopify",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s18",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW04/products.csv"
+          },
+          "out": {
+            "table": "products"
+          },
+          "description": "Read the test products"
+        },
+        {
+          "id": "s19",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW04/countries.csv"
+          },
+          "out": {
+            "table": "countries"
+          },
+          "description": "Ship-to allow-list and postcode rules"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s20",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s21",
+          "action": "core/comment",
+          "args": {
+            "text": "Per draft order: QA customer, CRM account, quantities, ship-to, totals, duplicates, address, currency, prices, risk, hold or accept."
+          }
+        },
+        {
+          "id": "s22",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s24",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "GET",
+                    "url": "${standin}/admin/api/2024-10/draft_orders/${rec.order_id}.json",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/shopify/token"
+                    }
+                  },
+                  "out": {
+                    "json": "d"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "1. Read the draft order"
+                },
+                {
+                  "id": "s26",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "o",
+                    "value": "$d.draft_order$"
+                  },
+                  "description": "The order"
+                },
+                {
+                  "id": "s27",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "hold",
+                    "value": ""
+                  },
+                  "description": "No hold reason yet"
+                },
+                {
+                  "id": "s28",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not endsWith(lower($o.email$), '@ooa-qa.test')"
+                  },
+                  "children": [
+                    {
+                      "id": "s29",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.NOT_QA_CUSTOMER",
+                        "message": "${rec.name}: ${o.email} is not a QA customer"
+                      },
+                      "description": "Reject: not a test customer"
+                    }
+                  ],
+                  "description": "2. Not a QA customer?"
+                },
+                {
+                  "id": "s30",
+                  "action": "ooa.salesforce/query",
+                  "args": {
+                    "soql": "SELECT Id, Name FROM Account WHERE External_Id__c = '${o.customer_ref}'",
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/salesforce/token"
+                    }
+                  },
+                  "out": {
+                    "table": "acct",
+                    "count": "acct_n"
+                  },
+                  "description": "2. The customer's account in the Salesforce sandbox"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$acct_n$ == 0"
+                  },
+                  "children": [
+                    {
+                      "id": "s32",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "hold",
+                        "value": "no CRM account for ${o.customer_ref}"
+                      },
+                      "description": "Hold reason"
+                    }
+                  ],
+                  "description": "No CRM account?"
+                },
+                {
+                  "id": "s33",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sub",
+                    "value": 0
+                  },
+                  "description": "Start the subtotal"
+                },
+                {
+                  "id": "s34",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$o.line_items$",
+                    "as": "ln"
+                  },
+                  "children": [
+                    {
+                      "id": "s35",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "toNumber($ln.quantity$) <= 0 or toNumber($ln.quantity$) > 100"
+                      },
+                      "children": [
+                        {
+                          "id": "s36",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "hold",
+                            "value": "quantity ${ln.quantity} of ${ln.sku} out of bounds"
+                          },
+                          "description": "Hold reason"
+                        }
+                      ],
+                      "description": "Quantity out of bounds?"
+                    },
+                    {
+                      "id": "s37",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$products$",
+                        "column": "sku",
+                        "value": "$ln.sku$",
+                        "return_column": "price",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "cat_price"
+                      },
+                      "description": "Catalogue price of the SKU"
+                    },
+                    {
+                      "id": "s38",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "isEmpty($cat_price$)"
+                      },
+                      "children": [
+                        {
+                          "id": "s39",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "hold",
+                            "value": "${ln.sku} is not a test SKU"
+                          },
+                          "description": "Hold reason"
+                        }
+                      ],
+                      "description": "SKU not a test SKU?",
+                      "elseIf": [
+                        {
+                          "condition": "abs(toNumber($ln.price$) - toNumber($cat_price$)) > 0.001",
+                          "children": [
+                            {
+                              "id": "s40",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "hold",
+                                "value": "price of ${ln.sku} changed since the cart (${ln.price} vs ${cat_price})"
+                              },
+                              "description": "Hold reason"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "s41",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "sub",
+                        "value": {
+                          "expr": "$sub$ + toNumber($ln.quantity$) * toNumber($ln.price$)"
+                        }
+                      },
+                      "description": "4. Add the line"
+                    }
+                  ],
+                  "description": "3. Each line: quantity, catalogue price"
+                },
+                {
+                  "id": "s42",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$countries$",
+                    "column": "country",
+                    "value": "$o.shipping_address.country$",
+                    "return_column": "zip_pattern",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "pattern"
+                  },
+                  "description": "3. Ship-to country allowed? (its postcode rule)"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "isEmpty($pattern$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s44",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "hold",
+                        "value": "ship-to ${o.shipping_address.country} not allowed"
+                      },
+                      "description": "Hold reason"
+                    }
+                  ],
+                  "description": "Country not on the allow-list?",
+                  "elseIf": [
+                    {
+                      "condition": "not regexMatch($o.shipping_address.zip$, $pattern$)",
+                      "children": [
+                        {
+                          "id": "s45",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "hold",
+                            "value": "impossible address: postcode ${o.shipping_address.zip} for ${o.shipping_address.country}"
+                          },
+                          "description": "7. Hold reason"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sub",
+                    "value": {
+                      "expr": "round($sub$, 2)"
+                    }
+                  },
+                  "description": "Subtotal"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "tax",
+                    "value": {
+                      "expr": "round($sub$ * 0.08, 2)"
+                    }
+                  },
+                  "description": "4. Tax (8%)"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "total",
+                    "value": {
+                      "expr": "round($sub$ + $tax$ + toNumber($o.shipping$), 2)"
+                    }
+                  },
+                  "description": "4. Total"
+                },
+                {
+                  "id": "s49",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "abs($total$ - toNumber($o.total_price$)) > 0.01"
+                  },
+                  "children": [
+                    {
+                      "id": "s50",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "hold",
+                        "value": "total ${o.total_price} differs from ${total}"
+                      },
+                      "description": "Hold reason"
+                    }
+                  ],
+                  "description": "Order total differs?"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$o.currency$",
+                      "right": "USD"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s52",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "hold",
+                        "value": "currency ${o.currency} differs from the store currency USD"
+                      },
+                      "description": "Hold reason"
+                    }
+                  ],
+                  "description": "Currency other than the store's?"
+                },
+                {
+                  "id": "s53",
+                  "action": "ooa.crypto/hash_text",
+                  "args": {
+                    "text": "${o.email}|${jsonStringify($o.line_items$)}"
+                  },
+                  "out": {
+                    "hash": "cart_hash"
+                  },
+                  "description": "5. Hash of customer and lines (duplicate check)"
+                },
+                {
+                  "id": "s54",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "any": [
+                        {
+                          "op": "contains",
+                          "left": "$keys$",
+                          "right": "$o.idempotency_key$"
+                        },
+                        {
+                          "op": "contains",
+                          "left": "$carts$",
+                          "right": "$cart_hash$"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s55",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "hold",
+                        "value": "duplicate of an earlier order (key ${o.idempotency_key})"
+                      },
+                      "description": "Hold reason"
+                    }
+                  ],
+                  "description": "5. Same idempotency key or same cart seen?"
+                },
+                {
+                  "id": "s56",
+                  "action": "ooa.list/add_item",
+                  "args": {
+                    "list": "$keys$",
+                    "item": "$o.idempotency_key$"
+                  },
+                  "out": {
+                    "list": "keys"
+                  },
+                  "description": "Remember the key"
+                },
+                {
+                  "id": "s57",
+                  "action": "ooa.list/add_item",
+                  "args": {
+                    "list": "$carts$",
+                    "item": "$cart_hash$"
+                  },
+                  "out": {
+                    "list": "carts"
+                  },
+                  "description": "Remember the cart"
+                },
+                {
+                  "id": "s58",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "risk",
+                    "value": {
+                      "expr": "if($total$ > 500, 40, 0) + if($o.billing_country$ != $o.shipping_address.country$, 30, 0) + if($acct_n$ == 0, 30, 0)"
+                    }
+                  },
+                  "description": "6. Fixed risk rules (value, country mismatch, unknown account)"
+                },
+                {
+                  "id": "s59",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$risk$ >= 60"
+                  },
+                  "children": [
+                    {
+                      "id": "s60",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "hold",
+                        "value": "risk score ${risk}"
+                      },
+                      "description": "Hold reason"
+                    }
+                  ],
+                  "description": "High risk?"
+                },
+                {
+                  "id": "s61",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not isEmpty($hold$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s62",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "json": {
+                          "draft_order": {
+                            "note": "OOA-QA ${run_id} hold: ${hold}",
+                            "tags": "ooa-qa, rw04, hold"
+                          }
+                        },
+                        "method": "PUT",
+                        "url": "${standin}/admin/api/2024-10/draft_orders/${rec.order_id}.json",
+                        "bearer_token": {
+                          "$credential": "rw_qa_standins/shopify/token"
+                        }
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "9. Record the reason on the draft order"
+                    },
+                    {
+                      "id": "s63",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "decision",
+                        "value": "hold: ${hold}"
+                      },
+                      "description": "Decision"
+                    },
+                    {
+                      "id": "s64",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.HOLD",
+                        "message": "${rec.name}: ${hold}"
+                      },
+                      "description": "Hold the order"
+                    }
+                  ],
+                  "description": "8. Hold?"
+                },
+                {
+                  "id": "s65",
+                  "action": "ooa.crypto/hash_text",
+                  "args": {
+                    "text": "${run_id}|${o.id}|${o.idempotency_key}"
+                  },
+                  "out": {
+                    "hash": "token"
+                  },
+                  "description": "10. Issue the idempotency token"
+                },
+                {
+                  "id": "s66",
+                  "action": "ooa.workload/add_item",
+                  "args": {
+                    "queue": "rw04-orders",
+                    "reference": "${run_id}-${rec.key}",
+                    "if_exists": "skip",
+                    "data": {
+                      "key": "$rec.key$",
+                      "order_id": "$o.id$",
+                      "token": "$token$"
+                    },
+                    "tags": [
+                      "rw04"
+                    ]
+                  },
+                  "out": {
+                    "item_id": "item"
+                  },
+                  "description": "Queue the accepted order"
+                },
+                {
+                  "id": "s67",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "json": {
+                      "draft_order": {
+                        "note": "OOA-QA ${run_id} accepted",
+                        "tags": "ooa-qa, rw04, accepted"
+                      }
+                    },
+                    "method": "PUT",
+                    "url": "${standin}/admin/api/2024-10/draft_orders/${rec.order_id}.json",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/shopify/token"
+                    }
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "9. Record the acceptance on the draft order"
+                },
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "decision",
+                    "value": "accepted"
+                  },
+                  "description": "Decision"
+                },
+                {
+                  "id": "s69",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "order_id": "$o.id$",
+                      "name": "$o.name$",
+                      "customer_ref": "$o.customer_ref$",
+                      "email": "$o.email$",
+                      "currency": "$o.currency$",
+                      "lines": {
+                        "expr": "jsonStringify($o.line_items$)"
+                      },
+                      "subtotal": "$sub$",
+                      "tax": "$tax$",
+                      "shipping": "$o.shipping$",
+                      "total": "$total$",
+                      "risk": "$risk$",
+                      "status": "$o.status$",
+                      "idempotency_key": "$o.idempotency_key$",
+                      "token": {
+                        "expr": "substring($token$, 0, 16)"
+                      },
+                      "queue_item": "$item$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Accepted order row"
+                },
+                {
+                  "id": "s70",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "accepted (risk ${risk})"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s71",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s72",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s73",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s74",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW04-B2 - record ${rec.key}",
+                        "message": "RW04-B2: record ${$i + 1} of ${len($records$)}\n\n${rec.name} ${o.email}\n${o.currency} ${total}  risk ${risk}\n${decision}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s75",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s76",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s77",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s78",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s79",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s80",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW04-B2 - exception",
+                            "message": "RW04-B2: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s81",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s82",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 tagged draft orders"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s83",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s84",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s85",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s86",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s87",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s88",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s89",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s90",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW04-B2 Order intake and risk finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s91",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s92",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW04-B2 finished",
+                "message": "RW04-B2 Order intake and risk finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

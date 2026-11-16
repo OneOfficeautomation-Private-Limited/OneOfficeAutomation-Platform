@@ -1,0 +1,7 @@
+key,order_id,name,customer_ref,email,currency,lines,subtotal,tax,shipping,total,risk,status,idempotency_key,token,queue_item
+O01,9900000001,#D101,C1,ann.lee@ooa-qa.test,USD,"[{""sku"":""QA-SKU-01"",""quantity"":2,""price"":""29.99""},{""sku"":""QA-SKU-02"",""quantity"":1,""price"":""9.99""}]",69.97,5.60,5.00,80.57,0,open,IK-1001,a5d6f6e6d98a8f22,wi_0cf7fec0f93f
+O03,9900000003,#D103,C2,raj.iyer@ooa-qa.test,USD,"[{""sku"":""QA-SKU-04"",""quantity"":5,""price"":""45.99""}]",229.95,18.40,5.00,253.35,0,open,IK-1003,d876efc6f079a1d0,wi_334eb59e10bc
+O04,9900000004,#D104,C3,mia.chen@ooa-qa.test,USD,"[{""sku"":""QA-SKU-03"",""quantity"":2,""price"":""15.99""},{""sku"":""QA-SKU-07"",""quantity"":1,""price"":""65.01""}]",96.99,7.76,5.00,109.75,0,open,IK-1004,8166df2a2c7fd05f,wi_6a0a25f27893
+O05,9900000005,#D105,C4,tom.berg@ooa-qa.test,USD,"[{""sku"":""QA-SKU-06"",""quantity"":2,""price"":""15.99""}]",31.98,2.56,5.00,39.54,0,open,IK-1005,dbf736353831b580,wi_f1ccc9de9a07
+O06,9900000006,#D106,C5,eva.mora@ooa-qa.test,USD,"[{""sku"":""QA-SKU-05"",""quantity"":3,""price"":""7.99""}]",23.97,1.92,5.00,30.89,0,cancelled,IK-1006,e331e97e0a040ca7,wi_145a554031de
+O10,9900000010,#D110,C5,eva.mora@ooa-qa.test,USD,"[{""sku"":""QA-SKU-08"",""quantity"":1,""price"":""67.49""},{""sku"":""QA-SKU-02"",""quantity"":2,""price"":""9.99""}]",87.47,7,5.00,99.47,0,open,IK-1010,90098835f69ee003,wi_90fc42e9e908

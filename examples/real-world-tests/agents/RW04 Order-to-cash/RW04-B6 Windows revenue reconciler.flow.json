@@ -1,0 +1,1830 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw04_b6",
+  "name": "RW04-B6 Windows revenue reconciler",
+  "description": "RW04-B6 (RW04 real-world test). Brings the order, stock, CRM and shipment rows together for the 10 orders, compares line counts, tax, currency, shipment and status, finds duplicates and missing rows, keys each bundle into the demo order-entry desktop app (the legacy revenue system, with its validation pop-up handled by an interrupt rule), writes the exception sheet, recalculates the workbook in Excel, stores it in SharePoint, reads it back and checks the totals.",
+  "tags": [
+    "real-world-test",
+    "RW04"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "b2",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b3",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b4",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b5",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b2r",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "total",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "cur",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "state",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "crm",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "trk",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "intake",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "issue",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "seen",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "pid",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "status_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "objs",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "objn",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "win",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "wh",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "wx",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "wy",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "clip",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "app_out",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "app_rows",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "app_n",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "sum_total",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "cell",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "item",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "bundle",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "name",
+          "intake",
+          "currency",
+          "total",
+          "reservation",
+          "crm_order",
+          "tracking",
+          "issue"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "issues",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "workbook",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The reconciliation workbook."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Brings the order, stock, CRM and shipment rows together for the 10 orders, compares line counts, tax, currency, shipment and status, finds duplicates and missing rows, keys each bundle into the demo order-entry desktop app (the legacy revenue system, with its validation pop-up handled by an interrupt rule), writes the exception sheet, recalculates the workbook in Excel, stores it in SharePoint, reads it back and checks the totals. It works through 10 order bundles and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW04-B6"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW04-B6 Windows revenue reconciler started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW04-B6 starts",
+                "message": "RW04-B6 Windows revenue reconciler\n\nBrings the order, stock, CRM and shipment rows together for the 10 orders, compares line counts, tax, currency, shipment and status, finds duplicates and missing rows, keys each bundle into the demo order-entry desktop app (the legacy revenue system, with its validation pop-up handled by an interrupt rule), writes the exception sheet, recalculates the workbook in Excel, stores it in SharePoint, reads it back and checks the totals.\n\nRecords: 10 order bundles\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "1. Export every child's rows; start the demo order-entry app (the legacy revenue system) with an interrupt rule for its pop-up."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW04/orders.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW04/orders.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B2/evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW04-B2 evidence"
+            }
+          ],
+          "description": "RW04-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s18",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW04-B2's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s19",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW04/fixtures/RW04-B2-evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW04-B2 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s20",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B3/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s21",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B3/evidence.csv"
+              },
+              "out": {
+                "table": "b3"
+              },
+              "description": "Read RW04-B3 evidence"
+            }
+          ],
+          "description": "RW04-B3 ran in this run?",
+          "else": [
+            {
+              "id": "s22",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW04-B3's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s23",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW04/fixtures/RW04-B3-evidence.csv"
+              },
+              "out": {
+                "table": "b3"
+              },
+              "description": "Read RW04-B3 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s24",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B4/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B4/evidence.csv"
+              },
+              "out": {
+                "table": "b4"
+              },
+              "description": "Read RW04-B4 evidence"
+            }
+          ],
+          "description": "RW04-B4 ran in this run?",
+          "else": [
+            {
+              "id": "s26",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW04-B4's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s27",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW04/fixtures/RW04-B4-evidence.csv"
+              },
+              "out": {
+                "table": "b4"
+              },
+              "description": "Read RW04-B4 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s28",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B5/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s29",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B5/evidence.csv"
+              },
+              "out": {
+                "table": "b5"
+              },
+              "description": "Read RW04-B5 evidence"
+            }
+          ],
+          "description": "RW04-B5 ran in this run?",
+          "else": [
+            {
+              "id": "s30",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW04-B5's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s31",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW04/fixtures/RW04-B5-evidence.csv"
+              },
+              "out": {
+                "table": "b5"
+              },
+              "description": "Read RW04-B5 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s32",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B2/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s33",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW04-B2/results.csv"
+              },
+              "out": {
+                "table": "b2r"
+              },
+              "description": "Read RW04-B2 results"
+            }
+          ],
+          "description": "RW04-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s34",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW04-B2's results from a checked run."
+              }
+            },
+            {
+              "id": "s35",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW04/fixtures/RW04-B2-results.csv"
+              },
+              "out": {
+                "table": "b2r"
+              },
+              "description": "Read RW04-B2 results (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s36",
+          "action": "core/set",
+          "args": {
+            "variable": "app_out",
+            "value": "${out_dir}/revenue-entries.csv"
+          },
+          "description": "Where the demo app writes its entries"
+        },
+        {
+          "id": "s37",
+          "action": "ooa.file/delete",
+          "args": {
+            "path": "$app_out$"
+          },
+          "continueOnError": true,
+          "description": "Start with no entries"
+        },
+        {
+          "id": "s38",
+          "action": "ooa.application/start_program",
+          "args": {
+            "program": "powershell.exe",
+            "arguments": [
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "${base}/data/RW04/order-entry.ps1",
+              "-Out",
+              "$app_out$"
+            ],
+            "window_state": "normal"
+          },
+          "out": {
+            "process_id": "pid"
+          },
+          "description": "Start the demo order-entry app"
+        },
+        {
+          "id": "s39",
+          "action": "ooa.window/wait_for",
+          "args": {
+            "title": "OOA Order Entry",
+            "timeout_seconds": 30
+          },
+          "description": "Wait for its window"
+        },
+        {
+          "id": "s40",
+          "action": "ooa.interrupts/add_rule",
+          "args": {
+            "name": "validation-popup",
+            "when_window": "Validation",
+            "then": "close_window"
+          },
+          "description": "Interrupt rule: close the app's Validation pop-up whenever it appears"
+        },
+        {
+          "id": "s41",
+          "action": "ooa.desktop_ui/find_legacy_objects",
+          "args": {
+            "window_title": "OOA Order Entry"
+          },
+          "out": {
+            "objects": "objs",
+            "count": "objn"
+          },
+          "continueOnError": true,
+          "description": "List the app's controls through MSAA (legacy view)"
+        },
+        {
+          "id": "s42",
+          "action": "ooa.window/get_info",
+          "args": {
+            "title": "OOA Order Entry"
+          },
+          "out": {
+            "window": "win",
+            "height": "wh",
+            "x": "wx",
+            "y": "wy"
+          },
+          "description": "Where the app's window is"
+        },
+        {
+          "id": "s43",
+          "action": "ooa.window/activate",
+          "args": {
+            "title": "OOA Order Entry",
+            "timeout_seconds": 3
+          },
+          "continueOnError": true,
+          "description": "Bring the app to the front"
+        },
+        {
+          "id": "s44",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.window/is_active",
+              "args": {
+                "title": "OOA Order Entry"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s45",
+              "action": "ooa.desktop/mouse_click",
+              "args": {
+                "relative_to": "screen",
+                "x": {
+                  "expr": "$wx$ + 60"
+                },
+                "y": {
+                  "expr": "$wy$ + $wh$ - 60"
+                }
+              },
+              "description": "Mouse: click inside the app's order grid (the app is in front)"
+            }
+          ],
+          "description": "Is the app in front? (mouse and keys only reach the app then)",
+          "else": [
+            {
+              "id": "s46",
+              "action": "ooa.log/write",
+              "args": {
+                "path": "$log_file$",
+                "level": "WARN",
+                "message": "The app is not in front (Windows focus rules): mouse step skipped"
+              },
+              "description": "Skip the mouse step"
+            }
+          ]
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s47",
+      "action": "core/try",
+      "args": {},
+      "children": [
+        {
+          "id": "s48",
+          "action": "core/step",
+          "args": {
+            "title": "3. Work through the records"
+          },
+          "children": [
+            {
+              "id": "s49",
+              "action": "core/comment",
+              "args": {
+                "text": "Per order: compare rows, find duplicates and gaps, key it into the legacy app, read its status."
+              }
+            },
+            {
+              "id": "s50",
+              "action": "core/loop",
+              "args": {
+                "iterator": "table_rows",
+                "over": "$records$",
+                "as": "rec",
+                "index": "i"
+              },
+              "children": [
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": ""
+                  },
+                  "description": "Clear the note of the previous record"
+                },
+                {
+                  "id": "s52",
+                  "action": "core/try",
+                  "args": {},
+                  "children": [
+                    {
+                      "id": "s53",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b2r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "status",
+                        "if_not_found": "missing"
+                      },
+                      "out": {
+                        "value": "intake"
+                      },
+                      "description": "Intake result"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b2$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "total",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "total"
+                      },
+                      "description": "Total"
+                    },
+                    {
+                      "id": "s55",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b2$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "currency",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "cur"
+                      },
+                      "description": "Currency"
+                    },
+                    {
+                      "id": "s56",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b3$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "state",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "state"
+                      },
+                      "description": "Reservation"
+                    },
+                    {
+                      "id": "s57",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b4$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "order_record",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "crm"
+                      },
+                      "description": "CRM order"
+                    },
+                    {
+                      "id": "s58",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b5$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "tracking",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "trk"
+                      },
+                      "description": "Tracking"
+                    },
+                    {
+                      "id": "s59",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "issue",
+                        "value": {
+                          "expr": "if($intake$ == 'exception', 'held at intake', if(isEmpty($crm$), 'missing CRM row', if($state$ == 'cancelled, released', 'cancelled', if(isEmpty($trk$) and $state$ != 'backorder', 'missing shipment', if(not isEmpty($cur$) and $cur$ != 'USD', 'currency', 'none')))))"
+                        }
+                      },
+                      "description": "3.-4. Compare and find gaps"
+                    },
+                    {
+                      "id": "s60",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "contains",
+                          "left": "$seen$",
+                          "right": "$rec.name$"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s61",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "issue",
+                            "value": "duplicate row"
+                          },
+                          "description": "Issue"
+                        }
+                      ],
+                      "description": "4. Duplicate row?"
+                    },
+                    {
+                      "id": "s62",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$seen$",
+                        "item": "$rec.name$"
+                      },
+                      "out": {
+                        "list": "seen"
+                      },
+                      "description": "Remember it"
+                    },
+                    {
+                      "id": "s63",
+                      "action": "ooa.desktop_ui/object_action",
+                      "args": {
+                        "object": {
+                          "technology": "desktop",
+                          "window": {
+                            "title": "OOA Order Entry",
+                            "title_match": "equals"
+                          },
+                          "properties": [
+                            {
+                              "name": "AutomationId",
+                              "value": "txtCustomer",
+                              "match": "equals",
+                              "use": true
+                            }
+                          ]
+                        },
+                        "text": "${rec.name} ${rec.key}",
+                        "action": "set_text"
+                      },
+                      "description": "Customer field: the order"
+                    },
+                    {
+                      "id": "s64",
+                      "action": "ooa.desktop_ui/object_action",
+                      "args": {
+                        "object": {
+                          "technology": "desktop",
+                          "window": {
+                            "title": "OOA Order Entry",
+                            "title_match": "equals"
+                          },
+                          "properties": [
+                            {
+                              "name": "AutomationId",
+                              "value": "txtAmount",
+                              "match": "equals",
+                              "use": true
+                            }
+                          ]
+                        },
+                        "text": {
+                          "expr": "if(isEmpty($total$), 'n/a', $total$)"
+                        },
+                        "action": "set_text"
+                      },
+                      "description": "Amount field"
+                    },
+                    {
+                      "id": "s65",
+                      "action": "ooa.desktop_ui/object_action",
+                      "args": {
+                        "object": {
+                          "technology": "desktop",
+                          "window": {
+                            "title": "OOA Order Entry",
+                            "title_match": "equals"
+                          },
+                          "properties": [
+                            {
+                              "name": "AutomationId",
+                              "value": "cboKind",
+                              "match": "equals",
+                              "use": true
+                            }
+                          ]
+                        },
+                        "item": {
+                          "expr": "if($issue$ == 'cancelled', 'Return', 'Standard')"
+                        },
+                        "action": "select_item"
+                      },
+                      "description": "Kind"
+                    },
+                    {
+                      "id": "s66",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$issue$",
+                          "right": "none"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s67",
+                          "action": "ooa.desktop_ui/object_action",
+                          "args": {
+                            "object": {
+                              "technology": "desktop",
+                              "window": {
+                                "title": "OOA Order Entry",
+                                "title_match": "equals"
+                              },
+                              "properties": [
+                                {
+                                  "name": "AutomationId",
+                                  "value": "chkUrgent",
+                                  "match": "equals",
+                                  "use": true
+                                }
+                              ]
+                            },
+                            "action": "check"
+                          },
+                          "description": "Urgent"
+                        }
+                      ],
+                      "description": "An issue: mark it urgent"
+                    },
+                    {
+                      "id": "s68",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "condition": "ooa.window/is_active",
+                          "args": {
+                            "title": "OOA Order Entry"
+                          }
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s69",
+                          "action": "ooa.desktop/press_keys",
+                          "args": {
+                            "keys": "TAB"
+                          },
+                          "description": "Keyboard: Tab to the next field"
+                        }
+                      ],
+                      "description": "App in front? (keys only reach the app then)"
+                    },
+                    {
+                      "id": "s70",
+                      "action": "ooa.desktop_ui/object_action",
+                      "args": {
+                        "object": {
+                          "technology": "desktop",
+                          "window": {
+                            "title": "OOA Order Entry",
+                            "title_match": "equals"
+                          },
+                          "properties": [
+                            {
+                              "name": "AutomationId",
+                              "value": "btnSave",
+                              "match": "equals",
+                              "use": true
+                            }
+                          ]
+                        },
+                        "click_method": "pattern",
+                        "action": "click"
+                      },
+                      "description": "Save"
+                    },
+                    {
+                      "id": "s71",
+                      "action": "ooa.interrupts/check_now",
+                      "args": {},
+                      "description": "Handle the Validation pop-up now if it came (amount n/a)"
+                    },
+                    {
+                      "id": "s72",
+                      "action": "ooa.desktop_ui/object_action",
+                      "args": {
+                        "object": {
+                          "technology": "desktop",
+                          "window": {
+                            "title": "OOA Order Entry",
+                            "title_match": "equals"
+                          },
+                          "properties": [
+                            {
+                              "name": "AutomationId",
+                              "value": "lblStatus",
+                              "match": "equals",
+                              "use": true
+                            }
+                          ]
+                        },
+                        "action": "get_text"
+                      },
+                      "out": {
+                        "result": "status_text"
+                      },
+                      "description": "Read the app's status"
+                    },
+                    {
+                      "id": "s73",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "not startsWith($status_text$, 'Saved')"
+                      },
+                      "children": [
+                        {
+                          "id": "s74",
+                          "action": "ooa.desktop_ui/object_action",
+                          "args": {
+                            "object": {
+                              "technology": "desktop",
+                              "window": {
+                                "title": "OOA Order Entry",
+                                "title_match": "equals"
+                              },
+                              "properties": [
+                                {
+                                  "name": "AutomationId",
+                                  "value": "txtAmount",
+                                  "match": "equals",
+                                  "use": true
+                                }
+                              ]
+                            },
+                            "text": "",
+                            "action": "set_text"
+                          },
+                          "description": "Clear the amount for the next entry"
+                        }
+                      ],
+                      "description": "Not saved (held order without amount)?"
+                    },
+                    {
+                      "id": "s75",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$bundle$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "name": "$rec.name$",
+                          "intake": "$intake$",
+                          "currency": "$cur$",
+                          "total": {
+                            "expr": "toNumber(coalesce($total$, '0'))"
+                          },
+                          "reservation": "$state$",
+                          "crm_order": "$crm$",
+                          "tracking": "$trk$",
+                          "issue": "$issue$"
+                        }
+                      },
+                      "out": {
+                        "table": "bundle"
+                      },
+                      "description": "Bundle row"
+                    },
+                    {
+                      "id": "s76",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "rec_note",
+                        "value": "${issue}; app: ${status_text}"
+                      },
+                      "description": "Note for the results"
+                    },
+                    {
+                      "id": "s77",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "done",
+                          "note": "$rec_note$",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the record's result to the results table"
+                    },
+                    {
+                      "id": "s78",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "processed",
+                        "value": {
+                          "expr": "$processed$ + 1"
+                        }
+                      },
+                      "description": "Count the record as handled"
+                    },
+                    {
+                      "id": "s79",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s80",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW04-B6 - record ${rec.key}",
+                            "message": "RW04-B6: record ${$i + 1} of ${len($records$)}\n\n${rec.name}: ${state} | CRM ${crm} | ${trk}\nIssue: ${issue}\nApp: ${status_text}",
+                            "timeout_seconds": 2,
+                            "icon": "information",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "description": "Handle one record; a failure is caught below and the next record goes on",
+                  "catch": [
+                    {
+                      "codes": [
+                        "*"
+                      ],
+                      "children": [
+                        {
+                          "id": "s81",
+                          "action": "core/comment",
+                          "args": {
+                            "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                          }
+                        },
+                        {
+                          "id": "s82",
+                          "action": "ooa.datatable/add_row",
+                          "args": {
+                            "table": "$results$",
+                            "values": {
+                              "key": "$rec.key$",
+                              "status": "exception",
+                              "note": "${err.code}: ${err_msg}",
+                              "time": "${formatDate(now(), '%H:%M:%S')}"
+                            }
+                          },
+                          "out": {
+                            "table": "results"
+                          },
+                          "description": "Add the failure to the results table"
+                        },
+                        {
+                          "id": "s83",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "exceptions",
+                            "value": {
+                              "expr": "$exceptions$ + 1"
+                            }
+                          },
+                          "description": "Count the exception"
+                        },
+                        {
+                          "id": "s84",
+                          "action": "ooa.log/write",
+                          "args": {
+                            "path": "$log_file$",
+                            "level": "WARN",
+                            "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                          },
+                          "description": "Log the exception"
+                        },
+                        {
+                          "id": "s85",
+                          "action": "core/if",
+                          "args": {
+                            "condition": "$watch$"
+                          },
+                          "children": [
+                            {
+                              "id": "s86",
+                              "action": "ooa.desktop/message_box",
+                              "args": {
+                                "title": "RW04-B6 - exception",
+                                "message": "RW04-B6: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                                "timeout_seconds": 3,
+                                "icon": "warning",
+                                "always_on_top": true
+                              },
+                              "description": "Message box that closes by itself"
+                            }
+                          ],
+                          "description": "Show what is happening (watch is on)"
+                        }
+                      ],
+                      "as": "err",
+                      "message_to": "err_msg"
+                    }
+                  ]
+                },
+                {
+                  "id": "s87",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s88",
+                      "action": "core/delay",
+                      "args": {
+                        "seconds": "$pause_seconds$"
+                      },
+                      "description": "Short pause"
+                    }
+                  ],
+                  "description": "Pause so the screen can be followed (watch is on)"
+                }
+              ],
+              "description": "Once for each of the 10 order bundles"
+            }
+          ],
+          "description": "3. Work through the records"
+        }
+      ],
+      "description": "Work through the bundles; the app is closed afterwards whatever happens",
+      "finally": [
+        {
+          "id": "s89",
+          "action": "ooa.interrupts/clear_rules",
+          "args": {},
+          "continueOnError": true,
+          "description": "Remove the interrupt rule"
+        },
+        {
+          "id": "s90",
+          "action": "ooa.application/stop_program",
+          "args": {
+            "process_id": "$pid$",
+            "force": true
+          },
+          "continueOnError": true,
+          "description": "Close the demo app"
+        }
+      ]
+    },
+    {
+      "id": "s91",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s92",
+          "action": "core/comment",
+          "args": {
+            "text": "Exception sheet, Excel recalculation, SharePoint, read back and totals."
+          }
+        },
+        {
+          "id": "s93",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "$app_out$"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s94",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "$app_out$"
+              },
+              "out": {
+                "table": "app_rows"
+              },
+              "description": "9. The legacy app's entries"
+            },
+            {
+              "id": "s95",
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$app_rows$"
+              },
+              "out": {
+                "count": "app_n"
+              },
+              "description": "How many"
+            }
+          ],
+          "description": "Did the app write entries?"
+        },
+        {
+          "id": "s96",
+          "action": "ooa.datatable/filter",
+          "args": {
+            "table": "$bundle$",
+            "column": "issue",
+            "operator": "ne",
+            "value": "none"
+          },
+          "out": {
+            "table": "issues"
+          },
+          "description": "5. Exception rows"
+        },
+        {
+          "id": "s97",
+          "action": "ooa.datatable/sum_column",
+          "args": {
+            "table": "$bundle$",
+            "column": "total",
+            "if_not_number": "skip"
+          },
+          "out": {
+            "total": "sum_total"
+          },
+          "description": "Revenue of the accepted orders"
+        },
+        {
+          "id": "s98",
+          "action": "core/set",
+          "args": {
+            "variable": "workbook",
+            "value": "${out_dir}/RW04-revenue.xlsx"
+          },
+          "description": "Name of the workbook"
+        },
+        {
+          "id": "s99",
+          "action": "ooa.excel/create_workbook",
+          "args": {
+            "path": "$workbook$",
+            "overwrite": true,
+            "sheet": "Orders"
+          },
+          "description": "The reconciliation workbook"
+        },
+        {
+          "id": "s100",
+          "action": "ooa.excel/write_table",
+          "args": {
+            "table": "$bundle$",
+            "sheet": "Orders"
+          },
+          "description": "All bundles"
+        },
+        {
+          "id": "s101",
+          "action": "ooa.excel/set_cell",
+          "args": {
+            "cell": "K1",
+            "value": "Revenue (USD)",
+            "sheet": "Orders"
+          },
+          "description": "Label"
+        },
+        {
+          "id": "s102",
+          "action": "ooa.excel/set_formula",
+          "args": {
+            "cell": "L1",
+            "formula": "SUM(E2:E11)",
+            "sheet": "Orders"
+          },
+          "description": "Revenue formula"
+        },
+        {
+          "id": "s103",
+          "action": "ooa.excel/add_sheet",
+          "args": {
+            "name": "Exceptions"
+          },
+          "description": "Exceptions sheet"
+        },
+        {
+          "id": "s104",
+          "action": "ooa.excel/write_table",
+          "args": {
+            "table": "$issues$",
+            "sheet": "Exceptions"
+          },
+          "description": "5. Write the exceptions"
+        },
+        {
+          "id": "s105",
+          "action": "ooa.excel/save",
+          "args": {},
+          "description": "Save"
+        },
+        {
+          "id": "s106",
+          "action": "ooa.excel/close",
+          "args": {},
+          "description": "Close"
+        },
+        {
+          "id": "s107",
+          "action": "ooa.excel_desktop/refresh_all",
+          "args": {
+            "path": "$workbook$"
+          },
+          "description": "2. Open in Excel desktop: recalculate and save"
+        },
+        {
+          "id": "s108",
+          "action": "ooa.excel/open",
+          "args": {
+            "path": "$workbook$",
+            "session": "check"
+          },
+          "description": "7. Read it back"
+        },
+        {
+          "id": "s109",
+          "action": "ooa.excel/get_cell",
+          "args": {
+            "cell": "L1",
+            "sheet": "Orders",
+            "session": "check"
+          },
+          "out": {
+            "value": "cell"
+          },
+          "description": "The revenue Excel worked out"
+        },
+        {
+          "id": "s110",
+          "action": "ooa.excel/close",
+          "args": {
+            "session": "check",
+            "save": false
+          },
+          "description": "Close"
+        },
+        {
+          "id": "s111",
+          "action": "core/if",
+          "args": {
+            "condition": "abs(toNumber($cell$) - $sum_total$) > 0.01"
+          },
+          "children": [
+            {
+              "id": "s112",
+              "action": "core/throw",
+              "args": {
+                "code": "VERIFY.TOTALS",
+                "message": "Workbook revenue ${cell}, rows add up to ${sum_total}"
+              },
+              "description": "Stop"
+            }
+          ],
+          "description": "8. Totals differ?"
+        },
+        {
+          "id": "s113",
+          "action": "ooa.desktop/clipboard_set",
+          "args": {
+            "text": "RW04 ${run_id}: revenue USD ${sum_total}, ${app_n} legacy entries"
+          },
+          "description": "Revenue line on the clipboard (for the finance chat)"
+        },
+        {
+          "id": "s114",
+          "action": "ooa.desktop/clipboard_get",
+          "args": {},
+          "out": {
+            "text": "clip"
+          },
+          "description": "Read it back"
+        },
+        {
+          "id": "s115",
+          "action": "ooa.microsoft365/upload_file",
+          "args": {
+            "local_path": "$workbook$",
+            "remote_path": "OOA-QA/${run_id}/RW04-revenue.xlsx",
+            "drive": "sites/ooa-qa/drive",
+            "access_token": {
+              "$credential": "rw_qa_standins/graph/token"
+            },
+            "base_url": "${standin}/graph/v1.0"
+          },
+          "out": {
+            "item_id": "item"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "6. Store it in the QA SharePoint site"
+        },
+        {
+          "id": "s116",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$bundle$",
+            "path": "${out_dir}/RW04-bundles.csv"
+          },
+          "description": "9. Checkpoint: the bundles as CSV"
+        },
+        {
+          "id": "s117",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "Reconciled ${len($seen$)} orders; revenue ${sum_total}; legacy entries ${app_n}; clipboard ok ${$clip$ != ''}"
+          },
+          "description": "Masked audit event"
+        },
+        {
+          "id": "s118",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s119",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s120",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s121",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW04-B6 Windows revenue reconciler finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s122",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s123",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW04-B6 finished",
+                "message": "RW04-B6 Windows revenue reconciler finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

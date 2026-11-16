@@ -1,0 +1,1762 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw04_b1",
+  "name": "RW04-B1 Catalog and price reader",
+  "description": "RW04-B1 (RW04 real-world test). Reads the 10 tagged test products of the store, then the same items on the public practice sites (Sauce Demo after a demo sign-in, Books to Scrape), checks the component behaviour of RPA Challenge and DemoQA, normalizes SKU, price, currency and stock, confirms each product's identity, converts to EUR, flags price drift and writes the catalogue snapshot. It never changes a product.",
+  "tags": [
+    "real-world-test",
+    "RW04"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "rates",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "count_before",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "count_after",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "cnt",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "sauce",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "books",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "item",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "public",
+      "type": "Dictionary",
+      "direction": "local",
+      "default": {}
+    },
+    {
+      "name": "sauce_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "xlsx",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "people",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "row",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "rpa_result",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "demoqa",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "demoqa_rows",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "prod",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "variant",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "sku",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "price",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "stock",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "pprice",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "pcur",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "score",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "found",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "store_eur",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "public_eur",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "drift",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "source",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "flag",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "demo_password",
+      "type": "Credential",
+      "direction": "input",
+      "description": "Sauce Demo's public demo password from the vault (rw_qa_standins/saucedemo/password; a person enters it there)."
+    },
+    {
+      "name": "drift_tolerance",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Price drift (per cent) above which a product is flagged."
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "sku",
+          "title",
+          "store_price_usd",
+          "stock",
+          "public_site",
+          "public_name",
+          "public_price",
+          "public_currency",
+          "store_eur",
+          "public_eur",
+          "drift_pct",
+          "flag",
+          "identity_score",
+          "source"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Reads the 10 tagged test products of the store, then the same items on the public practice sites (Sauce Demo after a demo sign-in, Books to Scrape), checks the component behaviour of RPA Challenge and DemoQA, normalizes SKU, price, currency and stock, confirms each product's identity, converts to EUR, flags price drift and writes the catalogue snapshot. It never changes a product. It works through 10 test SKUs and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW04-B1"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW04-B1 Catalog and price reader started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW04-B1 starts",
+                "message": "RW04-B1 Catalog and price reader\n\nReads the 10 tagged test products of the store, then the same items on the public practice sites (Sauce Demo after a demo sign-in, Books to Scrape), checks the component behaviour of RPA Challenge and DemoQA, normalizes SKU, price, currency and stock, confirms each product's identity, converts to EUR, flags price drift and writes the catalogue snapshot. It never changes a product.\n\nRecords: 10 test SKUs\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Count the store's products (to prove no writes), then read the public practice sites once each (browser) and check RPA Challenge and DemoQA."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW04/products.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW04/products.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "shopify",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s18",
+          "action": "ooa.json/read_file",
+          "args": {
+            "path": "${base}/data/RW04/rates.json"
+          },
+          "out": {
+            "value": "rates"
+          },
+          "description": "Fixed exchange rates"
+        },
+        {
+          "id": "s19",
+          "action": "ooa.rest/request",
+          "args": {
+            "method": "GET",
+            "url": "${standin}/admin/api/2024-10/products/count.json",
+            "bearer_token": {
+              "$credential": "rw_qa_standins/shopify/token"
+            }
+          },
+          "out": {
+            "json": "cnt"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "Products in the store before (no writes allowed)"
+        },
+        {
+          "id": "s20",
+          "action": "core/set",
+          "args": {
+            "variable": "count_before",
+            "value": {
+              "expr": "toNumber($cnt.count$)"
+            }
+          },
+          "description": "Count before"
+        },
+        {
+          "id": "s21",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/if",
+              "args": {
+                "condition": "isEmpty($demo_password$)"
+              },
+              "children": [
+                {
+                  "id": "s23",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "SETUP.NO_DEMO_PASSWORD",
+                    "message": "no demo password: give demo_password (vault rw_qa_standins/saucedemo/password)"
+                  },
+                  "description": "Skip Sauce Demo"
+                }
+              ],
+              "description": "No demo password given?"
+            },
+            {
+              "id": "s24",
+              "action": "ooa.browser/open",
+              "args": {
+                "url": "https://www.saucedemo.com/",
+                "headless": {
+                  "expr": "not $watch$"
+                },
+                "engine": "playwright",
+                "keep_open": false
+              },
+              "description": "Open Sauce Demo"
+            },
+            {
+              "id": "s25",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#user-name",
+                "text": "standard_user"
+              },
+              "description": "Demo user"
+            },
+            {
+              "id": "s26",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#password",
+                "text": "$demo_password$"
+              },
+              "description": "Demo password (vault; entered there by a person)"
+            },
+            {
+              "id": "s27",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#login-button"
+              },
+              "description": "Sign in"
+            },
+            {
+              "id": "s28",
+              "action": "ooa.browser/wait_for",
+              "args": {
+                "selector": ".inventory_list",
+                "state": "visible"
+              },
+              "description": "Wait for the product list"
+            },
+            {
+              "id": "s29",
+              "action": "ooa.browser/run_javascript",
+              "args": {
+                "script": "Array.from(document.querySelectorAll('.inventory_item')).map(x => ({name: x.querySelector('.inventory_item_name').textContent.trim(), price: Number(x.querySelector('.inventory_item_price').textContent.replace('$', ''))}))"
+              },
+              "out": {
+                "result": "sauce"
+              },
+              "description": "Read names and prices"
+            },
+            {
+              "id": "s30",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#react-burger-menu-btn"
+              },
+              "description": "Open the menu"
+            },
+            {
+              "id": "s31",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#logout_sidebar_link"
+              },
+              "description": "Sign out"
+            },
+            {
+              "id": "s32",
+              "action": "ooa.browser/close",
+              "args": {},
+              "description": "Close the browser"
+            },
+            {
+              "id": "s33",
+              "action": "core/set",
+              "args": {
+                "variable": "sauce_note",
+                "value": "read ${len($sauce$)} products"
+              },
+              "description": "Note"
+            }
+          ],
+          "description": "Sauce Demo: demo sign-in with the demo password from the vault",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "core/comment",
+                  "args": {
+                    "text": "No demo password in the vault yet, or the site is down: the Sauce Demo items go to the exception list below."
+                  }
+                },
+                {
+                  "id": "s35",
+                  "action": "ooa.browser/close",
+                  "args": {},
+                  "continueOnError": true,
+                  "description": "Close the browser if open"
+                },
+                {
+                  "id": "s36",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "WARN",
+                    "message": "Sauce Demo not read: ${sauce_note}"
+                  },
+                  "description": "Note it"
+                }
+              ],
+              "message_to": "sauce_note"
+            }
+          ]
+        },
+        {
+          "id": "s37",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": "$sauce$",
+            "as": "item"
+          },
+          "children": [
+            {
+              "id": "s38",
+              "action": "ooa.dictionary/put",
+              "args": {
+                "dictionary": "$public$",
+                "key": "$item.name$",
+                "value": {
+                  "expr": "[$item.price$, 'USD', 'https://www.saucedemo.com/inventory.html']"
+                }
+              },
+              "out": {
+                "dictionary": "public"
+              },
+              "description": "Name -> price"
+            }
+          ],
+          "description": "Sauce Demo prices by name (USD)"
+        },
+        {
+          "id": "s39",
+          "action": "ooa.browser/open",
+          "args": {
+            "url": "https://books.toscrape.com/",
+            "headless": {
+              "expr": "not $watch$"
+            },
+            "engine": "playwright",
+            "keep_open": false
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "Open Books to Scrape (read only)"
+        },
+        {
+          "id": "s40",
+          "action": "ooa.browser/run_javascript",
+          "args": {
+            "script": "Array.from(document.querySelectorAll('article.product_pod')).map(x => ({name: x.querySelector('h3 a').getAttribute('title'), price: Number(x.querySelector('.price_color').textContent.replace(/[^0-9.]/g, ''))}))"
+          },
+          "out": {
+            "result": "books"
+          },
+          "description": "Read the first page's titles and prices (GBP)"
+        },
+        {
+          "id": "s41",
+          "action": "ooa.browser/close",
+          "args": {},
+          "description": "Close the browser"
+        },
+        {
+          "id": "s42",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": "$books$",
+            "as": "item"
+          },
+          "children": [
+            {
+              "id": "s43",
+              "action": "ooa.dictionary/put",
+              "args": {
+                "dictionary": "$public$",
+                "key": "$item.name$",
+                "value": {
+                  "expr": "[$item.price$, 'GBP', 'https://books.toscrape.com/']"
+                }
+              },
+              "out": {
+                "dictionary": "public"
+              },
+              "description": "Title -> price"
+            }
+          ],
+          "description": "Book prices by title (GBP)"
+        },
+        {
+          "id": "s44",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s45",
+              "action": "ooa.browser/open",
+              "args": {
+                "url": "https://rpachallenge.com/",
+                "headless": {
+                  "expr": "not $watch$"
+                },
+                "engine": "playwright",
+                "keep_open": false
+              },
+              "description": "Open RPA Challenge"
+            },
+            {
+              "id": "s46",
+              "action": "ooa.browser/download",
+              "args": {
+                "selector": "a[href*='challenge.xlsx']",
+                "folder": "$out_dir$",
+                "timeout_ms": 30000
+              },
+              "out": {
+                "path": "xlsx"
+              },
+              "description": "Download the challenge sheet"
+            },
+            {
+              "id": "s47",
+              "action": "ooa.excel/open",
+              "args": {
+                "path": "$xlsx$",
+                "session": "challenge",
+                "header": true
+              },
+              "description": "Open it"
+            },
+            {
+              "id": "s48",
+              "action": "ooa.excel/get_all_cells",
+              "args": {
+                "session": "challenge"
+              },
+              "out": {
+                "table": "people"
+              },
+              "description": "Read the ten people"
+            },
+            {
+              "id": "s49",
+              "action": "ooa.excel/close",
+              "args": {
+                "session": "challenge",
+                "save": false
+              },
+              "description": "Close it"
+            },
+            {
+              "id": "s50",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "xpath=//button[normalize-space()='Start']"
+              },
+              "description": "Start"
+            },
+            {
+              "id": "s51",
+              "action": "core/loop",
+              "args": {
+                "iterator": "table_rows",
+                "over": "$people$",
+                "as": "row"
+              },
+              "children": [
+                {
+                  "id": "s52",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "notEmpty",
+                      "left": {
+                        "expr": "$row[\"First Name\"]$"
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s53",
+                      "action": "ooa.browser/type_text",
+                      "args": {
+                        "selector": "input[ng-reflect-name='labelFirstName']",
+                        "text": {
+                          "expr": "toString($row[\"First Name\"]$)"
+                        }
+                      },
+                      "description": "Fill First Name"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "ooa.browser/type_text",
+                      "args": {
+                        "selector": "input[ng-reflect-name='labelLastName']",
+                        "text": {
+                          "expr": "toString($row[\"Last Name \"]$)"
+                        }
+                      },
+                      "description": "Fill Last Name"
+                    },
+                    {
+                      "id": "s55",
+                      "action": "ooa.browser/type_text",
+                      "args": {
+                        "selector": "input[ng-reflect-name='labelCompanyName']",
+                        "text": {
+                          "expr": "toString($row[\"Company Name\"]$)"
+                        }
+                      },
+                      "description": "Fill Company Name"
+                    },
+                    {
+                      "id": "s56",
+                      "action": "ooa.browser/type_text",
+                      "args": {
+                        "selector": "input[ng-reflect-name='labelRole']",
+                        "text": {
+                          "expr": "toString($row[\"Role in Company\"]$)"
+                        }
+                      },
+                      "description": "Fill Role in Company"
+                    },
+                    {
+                      "id": "s57",
+                      "action": "ooa.browser/type_text",
+                      "args": {
+                        "selector": "input[ng-reflect-name='labelAddress']",
+                        "text": {
+                          "expr": "toString($row[\"Address\"]$)"
+                        }
+                      },
+                      "description": "Fill Address"
+                    },
+                    {
+                      "id": "s58",
+                      "action": "ooa.browser/type_text",
+                      "args": {
+                        "selector": "input[ng-reflect-name='labelEmail']",
+                        "text": {
+                          "expr": "toString($row[\"Email\"]$)"
+                        }
+                      },
+                      "description": "Fill Email"
+                    },
+                    {
+                      "id": "s59",
+                      "action": "ooa.browser/type_text",
+                      "args": {
+                        "selector": "input[ng-reflect-name='labelPhone']",
+                        "text": {
+                          "expr": "toString($row[\"Phone Number\"]$)"
+                        }
+                      },
+                      "description": "Fill Phone Number"
+                    },
+                    {
+                      "id": "s60",
+                      "action": "ooa.browser/click",
+                      "args": {
+                        "selector": "input[type='submit']"
+                      },
+                      "description": "Submit the round"
+                    }
+                  ],
+                  "description": "A person on this row?"
+                }
+              ],
+              "description": "Each round"
+            },
+            {
+              "id": "s61",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "selector": ".message2"
+              },
+              "out": {
+                "text": "rpa_result"
+              },
+              "description": "Read the result"
+            },
+            {
+              "id": "s62",
+              "action": "ooa.browser/close",
+              "args": {},
+              "description": "Close the browser"
+            }
+          ],
+          "description": "RPA Challenge: the demo form, ten rounds (component behaviour: fields move every round)",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s63",
+                  "action": "ooa.browser/close",
+                  "args": {},
+                  "continueOnError": true,
+                  "description": "Close the browser if open"
+                }
+              ],
+              "message_to": "rpa_result"
+            }
+          ]
+        },
+        {
+          "id": "s64",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s65",
+              "action": "ooa.browser/open",
+              "args": {
+                "url": "https://demoqa.com/webtables",
+                "headless": {
+                  "expr": "not $watch$"
+                },
+                "engine": "playwright",
+                "keep_open": false
+              },
+              "description": "Open DemoQA web tables"
+            },
+            {
+              "id": "s66",
+              "action": "ooa.browser/extract_table",
+              "args": {
+                "selector": "table"
+              },
+              "out": {
+                "table": "demoqa"
+              },
+              "description": "Read the table"
+            },
+            {
+              "id": "s67",
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$demoqa$"
+              },
+              "out": {
+                "count": "demoqa_rows"
+              },
+              "description": "Rows shown"
+            },
+            {
+              "id": "s68",
+              "action": "ooa.browser/close",
+              "args": {},
+              "description": "Close the browser"
+            }
+          ],
+          "description": "DemoQA web table: read only",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "ooa.browser/close",
+                  "args": {},
+                  "continueOnError": true,
+                  "description": "Close the browser if open"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s70",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "Sauce Demo: ${sauce_note}; Books: ${len($books$)}; RPA Challenge: ${rpa_result}; DemoQA rows: ${demoqa_rows}"
+          },
+          "description": "Public sites read"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s71",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s72",
+          "action": "core/comment",
+          "args": {
+            "text": "Per SKU: product detail, normalize, public twin, identity, EUR prices, drift, snapshot row."
+          }
+        },
+        {
+          "id": "s73",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s74",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s75",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s76",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "GET",
+                    "url": "${standin}/admin/api/2024-10/products/${rec.product_id}.json",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/shopify/token"
+                    }
+                  },
+                  "out": {
+                    "json": "prod"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "2. Product detail from the store"
+                },
+                {
+                  "id": "s77",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "variant",
+                    "value": {
+                      "expr": "first($prod.product.variants$)"
+                    }
+                  },
+                  "description": "Its variant"
+                },
+                {
+                  "id": "s78",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sku",
+                    "value": {
+                      "expr": "upper(trim($variant.sku$))"
+                    }
+                  },
+                  "description": "3. Normalize the SKU"
+                },
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "price",
+                    "value": {
+                      "expr": "round(toNumber($variant.price$), 2)"
+                    }
+                  },
+                  "description": "3. Normalize the price (USD)"
+                },
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "stock",
+                    "value": {
+                      "expr": "toNumber($variant.inventory_quantity$)"
+                    }
+                  },
+                  "description": "3. Stock"
+                },
+                {
+                  "id": "s81",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$sku$",
+                      "right": "$rec.sku$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s82",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.IDENTITY",
+                        "message": "Product ${rec.product_id} has SKU ${sku}, expected ${rec.sku}"
+                      },
+                      "description": "Identity not confirmed"
+                    }
+                  ],
+                  "description": "5. SKU differs from the test list?"
+                },
+                {
+                  "id": "s83",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "pprice",
+                    "value": {
+                      "expr": "get($public$, $rec.public_name$)"
+                    }
+                  },
+                  "description": "4. Public twin's price"
+                },
+                {
+                  "id": "s84",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "isEmpty($pprice$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s85",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.NOT_ON_SITE",
+                        "message": "${rec.public_name} was not found on ${rec.public_site}"
+                      },
+                      "description": "Identity not confirmed"
+                    }
+                  ],
+                  "description": "Not on the public site?"
+                },
+                {
+                  "id": "s86",
+                  "action": "ooa.fuzzy/best_match",
+                  "args": {
+                    "text": "$prod.product.title$",
+                    "candidates": [
+                      "$rec.public_name$"
+                    ],
+                    "threshold": 80,
+                    "algorithm": "token_set"
+                  },
+                  "out": {
+                    "found": "found",
+                    "score": "score"
+                  },
+                  "description": "5. Same product? (title against the public name)"
+                },
+                {
+                  "id": "s87",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not $found$"
+                  },
+                  "children": [
+                    {
+                      "id": "s88",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.IDENTITY",
+                        "message": "${prod.product.title} does not look like ${rec.public_name} (${score})"
+                      },
+                      "description": "Identity not confirmed"
+                    }
+                  ],
+                  "description": "Titles too different?"
+                },
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "pcur",
+                    "value": {
+                      "expr": "$pprice$[1]"
+                    }
+                  },
+                  "description": "Public currency"
+                },
+                {
+                  "id": "s90",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "source",
+                    "value": {
+                      "expr": "$pprice$[2]"
+                    }
+                  },
+                  "description": "6. Capture the source"
+                },
+                {
+                  "id": "s91",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "pprice",
+                    "value": {
+                      "expr": "$pprice$[0]"
+                    }
+                  },
+                  "description": "Public price"
+                },
+                {
+                  "id": "s92",
+                  "action": "ooa.currency/convert",
+                  "args": {
+                    "amount": "$price$",
+                    "from_currency": "USD",
+                    "to_currency": "EUR",
+                    "source": "fixed",
+                    "base_currency": "EUR",
+                    "rates": "$rates$"
+                  },
+                  "out": {
+                    "amount": "store_eur"
+                  },
+                  "description": "Store price in EUR"
+                },
+                {
+                  "id": "s93",
+                  "action": "ooa.currency/convert",
+                  "args": {
+                    "amount": "$pprice$",
+                    "from_currency": "$pcur$",
+                    "to_currency": "EUR",
+                    "source": "fixed",
+                    "base_currency": "EUR",
+                    "rates": "$rates$"
+                  },
+                  "out": {
+                    "amount": "public_eur"
+                  },
+                  "description": "Public price in EUR"
+                },
+                {
+                  "id": "s94",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "drift",
+                    "value": {
+                      "expr": "round(($store_eur$ - $public_eur$) / $public_eur$ * 100, 2)"
+                    }
+                  },
+                  "description": "7. Price drift (%)"
+                },
+                {
+                  "id": "s95",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "flag",
+                    "value": {
+                      "expr": "if(abs($drift$) > $drift_tolerance$, 'PRICE DRIFT', 'ok')"
+                    }
+                  },
+                  "description": "Flag it"
+                },
+                {
+                  "id": "s96",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$flag$",
+                      "right": "ok"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s97",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "${sku}: store ${price} USD vs public ${pprice} ${pcur} (${drift}%)"
+                      },
+                      "description": "Log the drift"
+                    }
+                  ],
+                  "description": "Drift?"
+                },
+                {
+                  "id": "s98",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "sku": "$sku$",
+                      "title": "$prod.product.title$",
+                      "store_price_usd": "$price$",
+                      "stock": "$stock$",
+                      "public_site": "$rec.public_site$",
+                      "public_name": "$rec.public_name$",
+                      "public_price": "$pprice$",
+                      "public_currency": "$pcur$",
+                      "store_eur": "$store_eur$",
+                      "public_eur": "$public_eur$",
+                      "drift_pct": "$drift$",
+                      "flag": "$flag$",
+                      "identity_score": "$score$",
+                      "source": "$source$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "8. Snapshot row"
+                },
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${flag} ${drift}%"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s100",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s101",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s102",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s103",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW04-B1 - record ${rec.key}",
+                        "message": "RW04-B1: record ${$i + 1} of ${len($records$)}\n\n${sku} ${prod.title}\nStore USD ${price} | public ${pcur} ${pprice}\nDrift ${drift}% ${flag}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s104",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s105",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s106",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s107",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s108",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s109",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW04-B1 - exception",
+                            "message": "RW04-B1: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s110",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s111",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 test SKUs"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s112",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s113",
+          "action": "core/comment",
+          "args": {
+            "text": "Prove no product was written, then save the snapshot (CSV and JSON)."
+          }
+        },
+        {
+          "id": "s114",
+          "action": "ooa.rest/request",
+          "args": {
+            "method": "GET",
+            "url": "${standin}/admin/api/2024-10/products/count.json",
+            "bearer_token": {
+              "$credential": "rw_qa_standins/shopify/token"
+            }
+          },
+          "out": {
+            "json": "count_after"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "9. Products in the store after"
+        },
+        {
+          "id": "s115",
+          "action": "core/if",
+          "args": {
+            "condition": "toNumber($count_after.count$) != $count_before$"
+          },
+          "children": [
+            {
+              "id": "s116",
+              "action": "core/throw",
+              "args": {
+                "code": "VERIFY.PRODUCT_WRITE",
+                "message": "The store had ${count_before} products and now ${count_after.count}"
+              },
+              "description": "Stop: a product write happened"
+            }
+          ],
+          "description": "Product count changed?"
+        },
+        {
+          "id": "s117",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s118",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s119",
+          "action": "ooa.datatable/to_records",
+          "args": {
+            "table": "$evidence$"
+          },
+          "out": {
+            "records": "sauce"
+          },
+          "description": "Snapshot as records"
+        },
+        {
+          "id": "s120",
+          "action": "ooa.json/write_file",
+          "args": {
+            "path": "${out_dir}/catalog-snapshot.json",
+            "value": "$sauce$",
+            "pretty": true
+          },
+          "description": "Catalogue snapshot (JSON)"
+        },
+        {
+          "id": "s121",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s122",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s123",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s124",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW04-B1 Catalog and price reader finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s125",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s126",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW04-B1 finished",
+                "message": "RW04-B1 Catalog and price reader finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

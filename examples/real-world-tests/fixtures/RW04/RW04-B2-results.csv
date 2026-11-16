@@ -1,0 +1,11 @@
+key,status,note,time
+O01,done,accepted (risk 0),04:09:16
+O02,exception,ROUTE.HOLD: #D102: duplicate of an earlier order (key IK-1001),04:09:16
+O03,done,accepted (risk 0),04:09:16
+O04,done,accepted (risk 0),04:09:16
+O05,done,accepted (risk 0),04:09:16
+O06,done,accepted (risk 0),04:09:16
+O07,exception,ROUTE.HOLD: #D107: currency GBP differs from the store currency USD,04:09:16
+O08,exception,ROUTE.HOLD: #D108: price of QA-SKU-01 changed since the cart (24.99 vs 29.99),04:09:16
+O09,exception,ROUTE.HOLD: #D109: impossible address: postcode ABCDE for US,04:09:17
+O10,done,accepted (risk 0),04:09:17

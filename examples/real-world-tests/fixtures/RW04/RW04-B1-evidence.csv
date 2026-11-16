@@ -1,0 +1,4 @@
+key,sku,title,store_price_usd,stock,public_site,public_name,public_price,public_currency,store_eur,public_eur,drift_pct,flag,identity_score,source
+P07,QA-SKU-07,A Light in the Attic (paperback),65.01,6,books,A Light in the Attic,51.77,GBP,60.19,60.20,-0.02,ok,100,https://books.toscrape.com/
+P08,QA-SKU-08,Tipping the Velvet,67.49,8,books,Tipping the Velvet,53.74,GBP,62.49,62.49,0,ok,100,https://books.toscrape.com/
+P09,QA-SKU-09,Soumission,59.99,5,books,Soumission,50.1,GBP,55.55,58.26,-4.65,PRICE DRIFT,100,https://books.toscrape.com/

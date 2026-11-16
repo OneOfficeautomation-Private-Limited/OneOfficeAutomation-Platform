@@ -1,0 +1,11 @@
+key,status,note,time
+P01,exception,ROUTE.NOT_ON_SITE: Sauce Labs Backpack was not found on saucedemo,04:08:58
+P02,exception,ROUTE.NOT_ON_SITE: Sauce Labs Bike Light was not found on saucedemo,04:08:58
+P03,exception,ROUTE.NOT_ON_SITE: Sauce Labs Bolt T-Shirt was not found on saucedemo,04:08:58
+P04,exception,ROUTE.NOT_ON_SITE: Sauce Labs Fleece Jacket was not found on saucedemo,04:08:58
+P05,exception,ROUTE.NOT_ON_SITE: Sauce Labs Onesie was not found on saucedemo,04:08:58
+P06,exception,ROUTE.NOT_ON_SITE: Test.allTheThings() T-Shirt (Red) was not found on saucedemo,04:08:58
+P07,done,ok -0.02%,04:08:58
+P08,done,ok 0%,04:08:58
+P09,done,PRICE DRIFT -4.65%,04:08:58
+P10,exception,ROUTE.NOT_ON_SITE: The Missing Atlas was not found on books,04:08:58
