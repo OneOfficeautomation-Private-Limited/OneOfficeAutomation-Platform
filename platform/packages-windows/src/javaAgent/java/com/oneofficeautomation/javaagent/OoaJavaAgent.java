@@ -103,17 +103,18 @@ public final class OoaJavaAgent {
             int max = Integer.parseInt(arg(f, 5).isEmpty() ? "500" : arg(f, 5));
             for (int i = 0; i < ws.size() && out.size() < max; i++) {
                 AccessibleContext ac = ws.get(i).getAccessibleContext();
-                if (ac != null) walk(ac, String.valueOf(i), arg(f, 3), arg(f, 4), out, max, 0);
+                if (ac != null) walk(ws.get(i), ac, String.valueOf(i), arg(f, 3), arg(f, 4), out, max, 0);
             }
             StringBuilder sb = new StringBuilder("[");
             for (String o : out) { if (sb.length() > 1) sb.append(','); sb.append(o); }
             return sb.append(']').toString();
         }
         if (op.equals("act")) {    // act  window  path  action  value
-            AccessibleContext ac = byPath(windows(arg(f, 2)), arg(f, 3));
+            Accessible a = byPath(windows(arg(f, 2)), arg(f, 3));
+            AccessibleContext ac = a.getAccessibleContext();
             String action = arg(f, 4);
-            if (action.equals("properties")) return props(ac, arg(f, 3));
-            if (action.equals("get_text")) return q(text(ac));
+            if (action.equals("properties")) return props(a, ac, arg(f, 3));
+            if (action.equals("get_text")) return q(text(a, ac));
             if (action.equals("set_text")) {
                 AccessibleEditableText et = ac.getAccessibleEditableText();
                 if (et == null) throw new IllegalArgumentException("The control does not take text");
@@ -170,30 +171,32 @@ public final class OoaJavaAgent {
         return "";
     }
 
-    static void walk(AccessibleContext ac, String path, String name, String role, List<String> out, int max, int depth) {
+    static void walk(Accessible a, AccessibleContext ac, String path, String name, String role, List<String> out, int max, int depth) {
         if (out.size() >= max || depth > 40) return;
-        if (path.indexOf('.') > 0 && like(ac.getAccessibleName(), name) && like(role(ac), role)) out.add(props(ac, path));
+        if (path.indexOf('.') > 0 && like(ac.getAccessibleName(), name) && like(role(ac), role)) out.add(props(a, ac, path));
         int n = ac.getAccessibleChildrenCount();
         for (int i = 0; i < n && out.size() < max; i++) {
             Accessible child = ac.getAccessibleChild(i);
             AccessibleContext cc = child == null ? null : child.getAccessibleContext();
-            if (cc != null) walk(cc, path + "." + i, name, role, out, max, depth + 1);
+            if (cc != null) walk(child, cc, path + "." + i, name, role, out, max, depth + 1);
         }
     }
 
-    static AccessibleContext byPath(List<Window> ws, String path) {
+    /** The control at a path (window index, then child indexes); its accessible context is never null. */
+    static Accessible byPath(List<Window> ws, String path) {
         String[] p = path.split("\\.");
         int w = Integer.parseInt(p[0]);
         if (w >= ws.size()) throw new IllegalArgumentException("No window " + w + " (the application changed)");
-        AccessibleContext ac = ws.get(w).getAccessibleContext();
+        Accessible a = ws.get(w);
+        AccessibleContext ac = a.getAccessibleContext();
         for (int i = 1; i < p.length; i++) {
             int k = Integer.parseInt(p[i]);
             if (ac == null || k >= ac.getAccessibleChildrenCount()) throw new IllegalArgumentException("No control at " + path + " (the application changed)");
-            Accessible a = ac.getAccessibleChild(k);
+            a = ac.getAccessibleChild(k);
             ac = a == null ? null : a.getAccessibleContext();
         }
         if (ac == null) throw new IllegalArgumentException("No control at " + path);
-        return ac;
+        return a;
     }
 
     static String role(AccessibleContext ac) {
@@ -201,7 +204,12 @@ public final class OoaJavaAgent {
         return r == null ? "" : r.toDisplayString(Locale.ENGLISH);
     }
 
-    static String text(AccessibleContext ac) {
+    /**
+     * The text a control shows: its accessible text; else the text of a label, button, check box or menu item (Swing
+     * and AWT), which the application may have named differently for screen readers and whose accessible value is only
+     * whether it is checked (real-world tests finding 8); else its value; else its name.
+     */
+    static String text(Accessible a, AccessibleContext ac) {
         AccessibleText t = ac.getAccessibleText();
         if (t instanceof AccessibleEditableText) return ((AccessibleEditableText) t).getTextRange(0, t.getCharCount());
         if (t != null && t.getCharCount() > 0) {
@@ -209,19 +217,30 @@ public final class OoaJavaAgent {
             for (int i = 0; i < t.getCharCount(); i++) sb.append(t.getAtIndex(AccessibleText.CHARACTER, i));
             return sb.toString();
         }
+        String own = ownText(a);
+        if (own != null && !own.isEmpty()) return own;
         AccessibleValue v = ac.getAccessibleValue();
         if (v != null && v.getCurrentAccessibleValue() != null) return String.valueOf(v.getCurrentAccessibleValue());
         return ac.getAccessibleName() == null ? "" : ac.getAccessibleName();
     }
 
-    static String props(AccessibleContext ac, String path) {
+    static String ownText(Accessible a) {
+        if (a instanceof javax.swing.JLabel) return ((javax.swing.JLabel) a).getText();
+        if (a instanceof javax.swing.AbstractButton) return ((javax.swing.AbstractButton) a).getText();
+        if (a instanceof java.awt.Label) return ((java.awt.Label) a).getText();
+        if (a instanceof java.awt.Button) return ((java.awt.Button) a).getLabel();
+        if (a instanceof java.awt.Checkbox) return ((java.awt.Checkbox) a).getLabel();
+        return null;
+    }
+
+    static String props(Accessible a, AccessibleContext ac, String path) {
         StringBuilder sb = new StringBuilder("{");
         sb.append("\"path\":").append(q(path));
         sb.append(",\"name\":").append(q(ac.getAccessibleName()));
         sb.append(",\"role\":").append(q(role(ac)));
         sb.append(",\"description\":").append(q(ac.getAccessibleDescription()));
         String text = "";
-        try { text = text(ac); } catch (RuntimeException ignored) { }
+        try { text = text(a, ac); } catch (RuntimeException ignored) { }
         sb.append(",\"text\":").append(q(text));
         AccessibleStateSet st = ac.getAccessibleStateSet();
         sb.append(",\"enabled\":").append(st != null && st.contains(AccessibleState.ENABLED));
