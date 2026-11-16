@@ -50,8 +50,68 @@ const CORE: Record<string, { name: string; mark: Mark }> = {
 
 const OTHER: Mark = { color: "#334155", icon: "code" };
 
+/**
+ * One colour and one symbol per toolkit (command observations, 16 Nov 2026; option A on the design canvas): Aa for
+ * text, 123 for numbers, a switch for Yes/No, a calendar for dates and so on. Toolkits of one family keep related
+ * colours (Excel and CSV green, Office documents in their own colours, cloud apps teal). Every colour carries a white
+ * symbol at 4.9:1 or more. Toolkits not listed here fall back to their family (BY_TOOLKIT).
+ */
+const OWN: Record<string, Mark> = {
+  "ooa.string": { color: "#1d4ed8", icon: "textAa" },
+  "ooa.number": { color: "#0369a1", icon: "text123" },
+  "ooa.boolean": { color: "#0f766e", icon: "toggle" },
+  "ooa.convert": { color: "#be185d", icon: "arrows" },
+  "ooa.datetime": { color: "#b45309", icon: "calendar" },
+  "ooa.list": { color: "#4338ca", icon: "list" },
+  "ooa.dictionary": { color: "#6d28d9", icon: "keyValue" },
+  "ooa.datatable": { color: "#15803d", icon: "table" },
+  "ooa.json": { color: "#a21caf", icon: "textBraces" },
+  "ooa.xml": { color: "#9a3412", icon: "textTag" },
+  "ooa.csv": { color: "#166534", icon: "textCsv" },
+  "ooa.excel": { color: "#1d7a46", icon: "sheet" },
+  "ooa.excel_desktop": { color: "#1d7a46", icon: "sheet" },
+  "ooa.word": { color: "#1e4fb4", icon: "wordDoc" },
+  "ooa.powerpoint": { color: "#c2410c", icon: "slides" },
+  "ooa.powerpoint_desktop": { color: "#c2410c", icon: "slides" },
+  "ooa.pdf": { color: "#b91c1c", icon: "pdfDoc" },
+  "ooa.email": { color: "#0f6cbd", icon: "mail" },
+  "ooa.outlook_desktop": { color: "#0f6cbd", icon: "mail" },
+  "ooa.exchange": { color: "#0f6cbd", icon: "mail" },
+  "ooa.browser": { color: "#c2410c", icon: "globe" },
+  "ooa.rest": { color: "#9a3412", icon: "arrows" },
+  "ooa.soap": { color: "#9a3412", icon: "arrows" },
+  "ooa.database": { color: "#334155", icon: "db" },
+  "ooa.file": { color: "#a16207", icon: "doc" },
+  "ooa.folder": { color: "#a16207", icon: "folder" },
+  "ooa.crypto": { color: "#7c2d12", icon: "key" },
+  "ooa.pgp": { color: "#7c2d12", icon: "key" },
+  "ooa.vault": { color: "#7c2d12", icon: "lock" },
+  "ooa.credential_manager": { color: "#7c2d12", icon: "lock" },
+  "ooa.genai": { color: "#7c3aed", icon: "stars" },
+  "ooa.ocr": { color: "#5b21b6", icon: "scan" },
+  "ooa.image": { color: "#5b21b6", icon: "image" },
+  "ooa.window": { color: "#475569", icon: "window" },
+  "ooa.desktop": { color: "#3f3f46", icon: "keyboard" },
+  "ooa.application": { color: "#475569", icon: "window" },
+  "ooa.script": { color: "#1f2937", icon: "terminal" },
+  "ooa.services": { color: "#4b5563", icon: "gear" },
+  "ooa.system": { color: "#4b5563", icon: "machine" },
+  "ooa.sound": { color: "#57534e", icon: "sound" },
+  "ooa.log": { color: "#57534e", icon: "doc" },
+  "ooa.fuzzy": { color: "#0369a1", icon: "target" },
+  "ooa.currency": { color: "#0369a1", icon: "calc" },
+  "ooa.global_values": { color: "#334155", icon: "keyValue" },
+  "ooa.run_context": { color: "#334155", icon: "pulse" },
+  "ooa.network": { color: "#c2410c", icon: "globe" },
+  "ooa.terminal": { color: "#1f2937", icon: "terminal" },
+};
+
 export function toolkitMark(toolkitId: string): Mark {
   const id = toolkitId.toLowerCase();
+  if (OWN[id]) return OWN[id];
+  // business and cloud apps share the cloud symbol in teal; the families below keep their own symbols
+  if (/^ooa\.(asana|jira|zendesk|servicenow|salesforce|workday|github|azure_devops|google|okta|box|docusign|slack|microsoft365|aws_ec2|azure_vm|snowflake|databricks|kafka)$/.test(id))
+    return { color: "#0e7490", icon: "cloud" };
   return BY_TOOLKIT.find(([re]) => re.test(id))?.[1] ?? OTHER;
 }
 

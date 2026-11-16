@@ -28,8 +28,8 @@ function dur(ms?: number | null) {
 }
 const shown = (v: unknown) => v == null || v === "" ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
 
-const HELP: HelpTopic = { title: "Business: Agents", about: "Every agent whose runs return values (its outputs), with a dashboard made for it from those values, "
-  + "as AA's Business dashboards. Values marked KPI in OneAgentStudio come first.",
+const HELP: HelpTopic = { title: "Business: Agents", about: "Every agent whose runs return values (its outputs), with a dashboard made for it from those values. "
+  + "Values marked KPI in OneAgentStudio come first.",
   items: [
     { name: "Values it records", text: "The outputs the agent's runs returned in the period; KPI-marked ones are shown first and bold." },
     { name: "With values", text: "How many of its runs returned at least one value." },

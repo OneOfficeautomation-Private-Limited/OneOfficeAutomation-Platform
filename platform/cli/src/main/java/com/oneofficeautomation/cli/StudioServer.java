@@ -289,6 +289,31 @@ public final class StudioServer {
             sendJson(ex, 200, dependencies(query(ex).getOrDefault("path", "")));
         } else if (method.equals("POST") && route.equals("condition/test")) {
             sendJson(ex, 200, testCondition((Map<String, Object>) body(ex)));
+        } else if (method.equals("POST") && route.equals("formula/preview")) {
+            // Calculate and Set Yes/No (16 Nov 2026): a formula's result with the agent's variable values (their defaults),
+            // so the person sees what it gives while typing it; nothing runs but the sandboxed expression language
+            Map<String, Object> b = (Map<String, Object>) body(ex);
+            String expr = String.valueOf(b.getOrDefault("expr", "")).strip();
+            Map<String, Object> vals = b.get("variables") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+            Map<String, Object> out = new LinkedHashMap<>();
+            List<String> missing = new ArrayList<>();
+            try {
+                for (String ref : com.oneofficeautomation.runner.expr.Expressions.references(Map.of("expr", expr))) {
+                    String root = ref.split("[.\\[]", 2)[0];
+                    if (vals.get(root) == null && !missing.contains(root)) missing.add(root);
+                }
+                if (missing.isEmpty()) {
+                    Object v = com.oneofficeautomation.runner.expr.Expressions.evaluate(expr, vals::get);
+                    if (v instanceof java.math.BigDecimal n) v = com.oneofficeautomation.runner.expr.Functions.plain(n);   // 44.25, not 44.250
+                    out.put("value", com.oneofficeautomation.runner.Values.toJsonable(v));
+                    out.put("text", com.oneofficeautomation.runner.Values.text(v));
+                    out.put("type", com.oneofficeautomation.runner.Values.typeName(v));
+                }
+            } catch (OoaException e) {
+                out.put("error", Map.of("code", e.code(), "message", e.getMessage()));
+            }
+            out.put("missing", missing);
+            sendJson(ex, 200, out);
         } else if (method.equals("POST") && route.equals("validate")) {
             Map<String, Object> checked = (Map<String, Object>) body(ex);
             List<Object> problems = new ArrayList<>(validator().validate(checked));

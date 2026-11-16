@@ -33,7 +33,7 @@ public final class ServerlessRuns {
     public int parallel() { int n = cr.platform.intSetting("serverless_parallel"); return n <= 0 ? PARALLEL : Math.min(MAX_PARALLEL, n); }
     private final java.util.concurrent.atomic.AtomicInteger active = new java.util.concurrent.atomic.AtomicInteger();
     /** Toolkits that need no desktop and cannot reach the server's programs, settings or databases. */
-    static final Set<String> TOOLKITS = Set.of("core", "ooa.string", "ooa.number", "ooa.boolean", "ooa.datetime", "ooa.list", "ooa.dictionary",
+    static final Set<String> TOOLKITS = Set.of("core", "ooa.string", "ooa.number", "ooa.boolean", "ooa.convert", "ooa.datetime", "ooa.list", "ooa.dictionary",
         "ooa.datatable", "ooa.json", "ooa.csv", "ooa.xml", "ooa.log", "ooa.crypto", "ooa.fuzzy", "ooa.currency", "ooa.global_values", "ooa.vault", "ooa.pgp",
         "ooa.rest", "ooa.soap", "ooa.genai", "ooa.ai_skills", "ooa.knowledge", "ooa.workload", "ooa.pdf", "ooa.excel", "ooa.word", "ooa.powerpoint", "ooa.email",
         "ooa.microsoft365", "ooa.google", "ooa.salesforce", "ooa.servicenow", "ooa.jira", "ooa.slack", "ooa.workday", "ooa.github", "ooa.azure_devops",

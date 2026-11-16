@@ -11,9 +11,10 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Core logic & data | Comment | core/comment | Built |  |
 | Core logic & data | Task Bot | core/run_bot | Built |  |
 | Core logic & data | Delay / Wait | core/delay, core/wait_until, ooa.image/wait_for_image | Built |  |
-| Core logic & data | Boolean | ooa.boolean | Built |  |
-| Core logic & data | Number | ooa.number | Built |  |
-| Core logic & data | String | ooa.string + expression functions | Built |  |
+| Core logic & data | Boolean | ooa.boolean | Built | Set Yes/No from a value or a formula, Combine (all, any, exactly one, none), Number to Yes/No, Is Yes / Is No conditions (16 Nov 2026) |
+| Core logic & data | Number | ooa.number | Built | Calculate (an operation from a list, or a formula with a live result in OneAgentStudio), List statistics, Round to a step, Format as currency, percent or unit, Number to words (international or lakh/crore), Is between and Compare numbers conditions (16 Nov 2026) |
+| Core logic & data | String | ooa.string + expression functions | Built | Join texts, Find all matches, Extract with pattern, Remove characters, Normalize spaces, Insert, Remove part, Repeat, Mask, Shorten, Count words and lines, Fill a template, Encode or decode (URL, HTML, XML, JSON, Base64), camelCase/PascalCase/snake_case/kebab-case; conditions Starts with, Ends with, Contains, Is empty, Matches a pattern (16 Nov 2026). Formula functions: floor, ceiling, truncate, power, sqrt, mod, average, clamp, indexOf, left, right, repeat, padLeft, padRight, titleCase, normalizeSpace |
+| Core logic & data | (type conversions) | ooa.convert/convert | Built | Convert value: text, number, Yes/No, date, list, dictionary or JSON text into any other, with a date pattern, a locale, a list separator and a fallback value (16 Nov 2026) |
 | Core logic & data | DateTime | ooa.datetime | Built |  |
 | Core logic & data | List | ooa.list | Built |  |
 | Core logic & data | Dictionary | ooa.dictionary | Built |  |

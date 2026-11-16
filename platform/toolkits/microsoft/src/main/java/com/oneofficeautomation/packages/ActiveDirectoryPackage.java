@@ -144,7 +144,7 @@ public final class ActiveDirectoryPackage {
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, pattern = "^[Ll][Dd][Aa][Pp][Ss]?://", example = "ldaps://dc01.corp.example.com:636",
                     description = "Server address. ldaps:// (or ldap:// with StartTLS) is recommended for everything and needed for password changes. "
-                            + "AA's form LDAP://dc01/DC=corp,DC=example,DC=com is accepted; the part after the host is the base DN.") String url,
+                            + "The form LDAP://dc01/DC=corp,DC=example,DC=com is accepted too; the part after the host is the base DN.") String url,
             @Input(name = "bind_user", type = OoaType.STRING, example = "svc-bot@corp.example.com", description = "User to sign in as (UPN or distinguished name).") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "Password from the vault.") SecureString password,
             @Input(name = "base_dn", type = OoaType.STRING, required = false, example = "DC=corp,DC=example,DC=com", description = "Where searches start; taken from the address when it has one.") String baseDn,

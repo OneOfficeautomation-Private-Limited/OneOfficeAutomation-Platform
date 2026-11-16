@@ -28,7 +28,7 @@ function fakeServer() {
     "GET tree": () => ({ workspace: "C:/ws", tree }),
     "GET packages": () => ({ packages: [
       { id: "ooa.excel", name: "Excel", version: "1.0.0", actions: [{ id: "open", name: "Open workbook" }, { id: "close", name: "Close workbook" },
-        { id: "count_rows", name: "Count rows", outputs: { properties: { count: { "x-ooa-type": "Number", "x-ooa-label": "Row count" } } } }] },
+        { id: "count_rows", name: "Count rows", outputs: { count: { "x-ooa-type": "Number", "x-ooa-label": "Row count" } } }] },
       { id: "ooa.browser", name: "Browser", version: "1.0.0", actions: [{ id: "type_text", name: "Type text", inputs: { properties: { text: {} } } },
         { id: "element_action", name: "Element action", inputs: { properties: {
           window: { type: "object", "x-ooa-type": "Dictionary" }, object: { type: "object", "x-ooa-type": "Dictionary" }, selector: { type: "string", "x-ooa-type": "String" },
@@ -1400,8 +1400,10 @@ describe("new Studio", () => {
     expect(await screen.findByLabelText("Number of times *")).toBeTruthy();
     expect(screen.queryByLabelText("Start at position")).toBeNull();
     expect(screen.queryByLabelText("Loop type")).toBeNull();
-    // short help is written under the field (item 24), not hidden behind an (i)
-    expect(screen.queryByRole("button", { name: "About Number of times" })).toBeNull();
+    // the compact Details (16 Nov 2026): every help text is behind the (i) beside the label, opened with a click
+    const about = screen.getByRole("button", { name: "About Number of times" });
+    expect(about.getAttribute("title")).toMatch(/Smallest value: 0/);
+    fireEvent.click(about);
     expect(screen.getByText(/Smallest value: 0/)).toBeTruthy();
     const count = screen.getByLabelText("Number of times *");
     fireEvent.change(count, { target: { value: "$rows - 1" } });   // not a number: kept as a calculation
@@ -1692,7 +1694,7 @@ describe("new Studio", () => {
     expect(within(diagram).getByText("Start")).toBeTruthy();
     expect(diagram.querySelectorAll(".st-fnode")).toHaveLength(3);
     fireEvent.click(diagram.querySelector('[data-step-id="log"]')!);
-    expect(await screen.findByText("Line 3 · Flow")).toBeTruthy();
+    expect(await screen.findByText("Flow · line 3")).toBeTruthy();
     fireEvent.click(within(steps).getByRole("radio", { name: "List" }));
   });
 

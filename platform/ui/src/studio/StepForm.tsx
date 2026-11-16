@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
+import { actionOutputs, type FieldSpec, type Flow, type FlowStep, type PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
 import { StepErrorFields } from "./ErrorPolicy";
@@ -13,7 +13,7 @@ import {
   connectionInputs, EACH_KINDS, elementFields, helpText, isElementAction, LOOP_LABELS, loopIsMore, loopMode, outcomeOf, shownWhen, TIMEOUT_FIELDS,
   TIMEOUT_LABELS, valueLabel, type LoopMode,
 } from "./stepKinds";
-import { AssignmentsEditor, AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
+import { AssignmentsEditor, AssignValue, CommitInput, FORMULA_HELP, FormulaValue, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
 import { BoolField, CollectionField, CredentialField, DateField, FileField, isFolderField, MODEL_STEPS, ModelConnectionField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
 import { pickerFor } from "./Pickers";
@@ -94,7 +94,7 @@ export function StepForm({ step, packages, onArg, onNote }:
     else bySelectorAsked.add(step.id);
     redraw((n) => n + 1);
   }}>{bySelector ? "Capture the element instead" : "Use a selector instead"}</button> : null;
-  const outputs: [string, FieldSpec][] = Object.entries(spec?.outputs?.properties ?? {});
+  const outputs: [string, FieldSpec][] = Object.entries(actionOutputs(spec));
   const outcome = isElementAction(step.action) ? outcomeOf(String(step.args?.action ?? "click")) : null;
   if (outcome && !outputs.some(([n]) => n === "result")) outputs.push(["result", { "x-ooa-type": outcome.type, "x-ooa-label": "Result" }]);
 
@@ -120,6 +120,8 @@ export function StepForm({ step, packages, onArg, onNote }:
       <ConditionEditor key={step.id} value={step.args?.condition} onCommit={(v) => onArg(name, v)} />}</Field>;
     if (step.action === "core/set" && name === "value") return <Field key={step.id + ":value"} label={"Value" + (req(name) ? " *" : "")} info={props[name]?.description}>{() =>
       <AssignValue step={step} />}</Field>;
+    if ((step.action === "ooa.number/calculate" || step.action === "ooa.boolean/set") && name === "formula") return <Field key={step.id + ":formula"} label={"Formula" + (req(name) ? " *" : "")}
+      info={(props[name]?.description ?? "") + " " + FORMULA_HELP[step.action === "ooa.boolean/set" ? "Boolean" : "Number"]}>{() => <FormulaValue step={step} name="formula" want={step.action === "ooa.boolean/set" ? "Boolean" : "Number"} />}</Field>;
     if (step.action === "core/set_many" && name === "assignments") return <Field key={step.id + ":assignments"} label={"Assignments" + (req(name) ? " *" : "")}
       info={props[name]?.description}>{() => <AssignmentsEditor step={step} />}</Field>;
     if (step.action === "core/run_bot" && name === "automation") return <RunAgentFields key={step.id + ":agent"} step={step} />;
@@ -284,10 +286,10 @@ export function StepForm({ step, packages, onArg, onNote }:
       {outputs.length > 0 && <>
         <h3 className="st-prop-section">Save results in</h3>
         <div className="st-prop-fields">
-          {outputs.map(([name, o]) => (
-            <Field key={step.id + ":out:" + name} label={o["x-ooa-label"] ?? name.replace(/_/g, " ")} layout="beside" info={o.description}>{() =>
-              <OutputChooser step={step} output={name} type={o["x-ooa-type"]} label={"Keep " + (o["x-ooa-label"] ?? name.replace(/_/g, " ")) + " in"} />}</Field>
-          ))}
+          {outputs.map(([name, o]) => { const label = o["x-ooa-label"] ?? outputLabel(name); return (
+            <Field key={step.id + ":out:" + name} label={label} layout="beside" info={o.description}>{() =>
+              <OutputChooser step={step} output={name} type={o["x-ooa-type"]} label={"Keep " + label + " in"} />}</Field>
+          ); })}
         </div>
       </>}
       {/* C3: what happens when this step fails, as UiPath's ContinueOnError and Retry Scope */}
@@ -322,6 +324,12 @@ export function chosenOption(g: Extract<PanelGroup, { choice: string }>, step: F
 }
 
 /** A choice (buttons, then the chosen option's fields) or a tick box (its fields when ticked), as the Classic Studio drew them. */
+/** An output's label when the toolkit gives none: its name as words, starting with a capital (result -> Result). */
+function outputLabel(name: string): string {
+  const words = name.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 function PanelGroupView({ group, step, props, shown, field, clear }: { group: PanelGroup; step: FlowStep; props: Record<string, FieldSpec>; shown: string[];
   field: (name: string) => ReactNode; clear: (fields: string[]) => void }) {
   const has = (f: string) => step.args?.[f] !== undefined && step.args[f] !== "";

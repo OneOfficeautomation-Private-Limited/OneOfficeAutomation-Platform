@@ -336,6 +336,11 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-fieldset legend { font-weight: 600; padding: 0 4px; }
 .st-label { font-weight: 600; color: var(--ui-text); }
 .st-source { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* Calculate and Set Yes/No: the formula, its result with the variables' defaults, and what it may use */
+.st-formula { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.st-formula-result { margin: 0; font-size: 12px; color: var(--ui-text-2); }
+.st-formula-result b { color: var(--ui-text); font-weight: 600; }
+.st-formula-bad { color: var(--ui-error-text); }
 .st-seg { display: inline-flex; flex-wrap: wrap; flex-shrink: 0; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); overflow: hidden; align-self: flex-start; }
 .st-seg-btn { height: 28px; padding: 0 10px; border: 0; border-right: 1px solid var(--ui-accent); background: var(--ui-bg); color: var(--ui-text); font: inherit; font-size: 12.5px; cursor: pointer; }
 .st-seg-btn:last-child { border-right: 0; }
@@ -644,7 +649,7 @@ body.st-printing-doc .st-print-doc { display: block; color: #000; background: #f
 .st-simple-toggle:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 .st-ai-note.st-clone-note { flex-wrap: wrap; background: var(--ui-offer-bg); color: var(--ui-text); }
 .st-prop-about { margin: 0; padding: 8px 12px 10px; color: var(--ui-text); font-size: 13px; line-height: 1.45; border-bottom: 1px solid var(--ui-border); background: var(--ui-soft); }
-.st-action .st-aa-name { display: block; color: var(--ui-text-2); font-size: 12px; }
+.st-action .st-alt-name { display: block; color: var(--ui-text-2); font-size: 12px; }
 /* item 16 (9 Nov 2026): a section heading folds its section; the section of the page on screen stays open */
 button.st-menu-group-head { width: 100%; border: 0; background: transparent; font-family: inherit; text-align: left; cursor: pointer; border-radius: var(--ui-radius); }
 button.st-menu-group-head:hover { background: rgba(255, 255, 255, .06); }
@@ -1053,3 +1058,40 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 /* 14 Nov defects r3, item 3: Add step sits with the step's own tools at the end of its line, never over another row */
 .st-step-tools { align-items: center; }
 .st-step-tools .st-add-here { height: 28px; border-radius: var(--ui-radius); padding: 0 8px; font-size: 12px; }
+
+/* ---- Compact Details (command observations, 16 Nov 2026: canvas option A, made smaller) ----
+   Every field and help text stays; help is behind the (i) beside each label. Text 11.5 px (title 12.5 px), boxes 24 px
+   on 26 px rows across the whole width, {x} inside the box, labels 88 px, headings with a rule, one-line header. */
+.st-right { font-size: 11.5px; }
+.st-right .ui-input, .st-right select, .st-right .ui-search-select-field { height: 24px; font-size: 11.5px; padding: 0 6px; }
+.st-right textarea.ui-input, .st-right .ui-textarea { height: auto; padding: 4px 6px; }
+.st-right .ui-field-label, .st-right label { font-size: 11.5px; }
+.st-right .ui-field-beside { grid-template-columns: 88px minmax(0, 1fr); gap: 6px; min-height: 26px; }
+.st-right .ui-field-beside .ui-field-label { line-height: 14px; }
+.st-right .ui-field-control { gap: 2px; }
+.st-right .ui-field-hint { font-size: 11px; line-height: 15px; }
+.st-right .ui-info { width: 13px; height: 13px; font-size: 9px; line-height: 11px; }
+.st-right [role="tab"] { height: 28px; font-size: 11.5px; }
+.st-right .st-prop-head.is-line { display: flex; align-items: center; gap: 6px; padding: 6px 10px 1px; border-bottom: 0; min-width: 0; }
+.st-right .st-prop-head.is-line .ui-tile { width: 18px !important; height: 18px !important; }
+.st-right .st-prop-head.is-line strong { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.st-right .st-prop-where { color: var(--ui-text-2); white-space: nowrap; }
+.st-right .st-prop-head.is-line .st-help-links { margin-left: auto; gap: 8px; }
+.st-right .st-prop-head.is-line .st-help-link { font-size: 11.5px; }
+.st-right .st-prop-about { display: flex; gap: 4px; align-items: baseline; margin: 0; padding: 1px 10px 5px; font-size: 11.5px; line-height: 15px;
+  background: transparent; border-bottom: 1px solid var(--ui-border); color: var(--ui-text-2); }
+.st-right .st-prop-about-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-right .st-prop-about.is-open .st-prop-about-text { white-space: normal; }
+.st-right .st-about-more { flex: none; font-size: 11.5px; }
+.st-right .st-prop-section { display: flex; align-items: center; gap: 6px; padding: 6px 10px 1px; font-size: 11.5px; }
+.st-right .st-prop-section::after { content: ""; flex: 1; border-top: 1px solid var(--ui-divider); }
+.st-right .st-prop-fields { padding: 2px 10px 4px; gap: 2px; border-bottom: 0; }
+.st-right .st-more { padding: 0 10px 4px; border-bottom: 0; }
+.st-right .st-more summary { padding: 3px 0; font-size: 11.5px; }
+.st-right .st-seg-btn { height: 22px; padding: 0 8px; font-size: 11.5px; }
+.st-right .st-var-field { gap: 0; }
+.st-right .st-var-field > .ui-input { padding-right: 30px; }
+.st-right .st-x-btn { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); height: 20px; padding: 0 4px; border: 0;
+  border-radius: 4px; background: var(--ui-selected); font-size: 10.5px; }
+.st-right .st-x-word { display: none; }
+.st-right .st-formula-result { font-size: 11.5px; }

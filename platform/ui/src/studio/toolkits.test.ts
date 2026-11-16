@@ -17,13 +17,17 @@ describe("steps view", () => {
   });
 
   it("names actions in plain words and marks them by toolkit", () => {
-    expect(describeAction("ooa.excel/open", packages)).toMatchObject({ name: "Open workbook", toolkit: "Excel", mark: { icon: "grid" } });
+    expect(describeAction("ooa.excel/open", packages)).toMatchObject({ name: "Open workbook", toolkit: "Excel", mark: { icon: "sheet" } });
     expect(describeAction("core/if", packages)).toMatchObject({ name: "If", toolkit: "Flow" });
     expect(describeAction("ooa.unknown/do_thing", packages).name).toBe("do thing");
     expect(toolkitMark("ooa.outlook").icon).toBe("mail");
     expect(toolkitMark("ooa.exchange").icon).toBe("mail");
-    expect(toolkitMark("ooa.genai").icon).toBe("spark");
-    expect(toolkitMark("ooa.datatable")).toEqual({ color: "#1e40af", icon: "code" });
+    expect(toolkitMark("ooa.genai").icon).toBe("stars");
+    // one colour and symbol per toolkit (16 Nov 2026): Aa for text, 123 for numbers, a table for data tables ...
+    expect(toolkitMark("ooa.datatable")).toEqual({ color: "#15803d", icon: "table" });
+    expect(toolkitMark("ooa.string")).toEqual({ color: "#1d4ed8", icon: "textAa" });
+    expect(toolkitMark("ooa.number").icon).toBe("text123");
+    expect(toolkitMark("ooa.servicenow")).toEqual({ color: "#0e7490", icon: "cloud" });
     expect(toolkitMark("ooa.something_new").color).toBe("#334155");
   });
 

@@ -50,7 +50,7 @@ public final class CodeAnalysis {
     }
 
     /** Toolkits that only work on the agent's own values (text, numbers, dates, lists): in no group, so they mix with both. */
-    public static List<String> neutralToolkits() { return List.of("core", "ooa.string", "ooa.number", "ooa.datetime", "ooa.boolean", "ooa.list", "ooa.dictionary",
+    public static List<String> neutralToolkits() { return List.of("core", "ooa.string", "ooa.number", "ooa.datetime", "ooa.boolean", "ooa.convert", "ooa.list", "ooa.dictionary",
             "ooa.datatable", "ooa.log", "ooa.json", "ooa.xml", "ooa.csv", "ooa.locks", "ooa.jobs"); }
 
     /** True when the action belongs to one of the toolkits listed (a toolkit id, or a prefix ending in * such as ooa.aws*). */

@@ -207,7 +207,7 @@ one. Drag the menu's edge to make it wider or narrower. The menu is the same in 
 You only see the pages your role allows. For example, a **Viewer** sees the agent repository, runs, runners,
 schedules, triggers, shared values, work queues, Agent Insights and Prompt Skills, but cannot change anything.
 
-**Agents** has two tabs, as AA's one Automation page: **Public** (on the left) is the agent repository, with the agents
+**Agents** has two tabs: **Public** (on the left) is the agent repository, with the agents
 checked in to run; **Private** (on the right) is a builder's own workspace. Everyone sees the same menu and pages; only
 what you may open differs. **Private** works for people who build agents (who may check agents in) when the workspace
 runs beside One CommandCenter on the same computer. The top bar names no product, except **OneAgentStudio** in the
@@ -230,7 +230,7 @@ has **Learn more**.
 
 ### My account
 
-The person icon on the top bar opens **My account** (as AA's user menu):
+The person icon on the top bar opens **My account**:
 
 - **My profile**: your name, user name, e-mail, roles, how many permissions they give, teams (and which you lead), your
   licence seat, how you sign in, two-step sign-in, your last sign-in and from where, and when your password must change.
@@ -241,7 +241,7 @@ The person icon on the top bar opens **My account** (as AA's user menu):
   sign-on or a directory, these come from your organisation's sign-in.
 - **My devices**: your default runner, every runner you are a default user of, and the runners you connected yourself
   (**your local runner**), each with its status, computer, version and when it last reported. When your last run
-  stopped because its runner stopped reporting, it says so. As in AA's My settings:
+  stopped because its runner stopped reporting, it says so. In My settings:
   - **Choose default runner** (permission *Choose own default runner*, which runners and developers have): any switched-on
     runner, except a single-user runner someone else already has.
   - **Connect to my computer** (permission *Connect own computer as a runner*): gives this server's address and a key

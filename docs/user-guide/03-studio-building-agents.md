@@ -83,9 +83,12 @@ Deleting a block asks "Delete this step and the n step(s) inside?".
 
 ## 3. The Action settings panel
 
-Select a step to see its settings on the right. From top to bottom:
+Select a step to see its settings on the right. The panel is compact: 26 px rows, the boxes across the whole width, and
+every field's help behind its ⓘ. From top to bottom:
 
-1. **Title**: the action's icon, name, toolkit and address (for example `ooa.excel/open`), then its description.
+1. **Title** on one line: the toolkit's mark (its own colour and symbol, such as Aa for text or 123 for numbers), the
+   action's name, its toolkit and line, and **Docs** and **Video**; then its description on one line, with **more** for
+   the rest.
 2. **Inputs**: the fields the action needs.
 3. **Outputs**: where to keep what the action returns.
 4. Extra sections for some blocks: **Else if branches** (If), **Catch blocks** and **Finally** (Try), **Case** and
@@ -105,18 +108,18 @@ Select a step to see its settings on the right. From top to bottom:
 | true / false drop-down | For Boolean fields. |
 | File or folder box with **Browse…** on its right | Type a path or a `$variable$`, or click **Browse…**. A file field asks where the file comes from: **This computer** (choose it in a folder list) or **One CommandCenter** (a file kept there; the agent takes it along, so the runner gets it at the same path). A folder field opens the folder list straight away: open the folder and click **Use this folder**. The same **Browse…** is on file and folder fields in conditions (File exists, Folder exists), loop types (Each file in folder), the file trigger's **Folder**, and a File variable's default. |
 | "(choose a … variable)" list | For Table, List, Dictionary and Record fields: pick a variable of that type, **+ New … variable**, or **Enter a value or expression…**. |
-| **{x} Insert value** button | Opens **Insert a value** (also F2 or Ctrl+Space, or typing `$`): a preview of the field with the value in it, **Your variables** (with their types) first, then **System values** (each with what it holds) and **Shared Global values**. Click one to put it at the cursor. **New variable** makes one of the field's type; from a field its button is **Create and use**. |
-| ⓘ | Hover or focus it for the field's help, allowed range and an example. |
+| **{x}** inside the box (on its right) | Opens **Insert a value** (also F2 or Ctrl+Space, or typing `$`): a preview of the field with the value in it, **Your variables** (with their types) first, then **System values** (each with what it holds) and **Shared Global values**. Click one to put it at the cursor. **New variable** makes one of the field's type; from a field its button is **Create and use**. |
+| ⓘ beside the label | Hover or focus it for the field's help, allowed range and an example; click it to show the help under the field. |
 
 A required field that is still empty is marked with ***** and says **Required** under it, before you even validate.
 
-**How variables are written.** A variable is written between two dollar signs, as in AA: `$total$`, `$row.Amount$`,
+**How variables are written.** A variable is written between two dollar signs: `$total$`, `$row.Amount$`,
 `$sys.date$`, `$global.region$`. A field that holds only `$total$` passes the value with its type (a Number stays a
 Number); inside text, `$total$` is replaced by the value (`Total $total$ items`). Agents made before 14 November 2026
 wrote `$total` and `${total}`; they keep working, and saving the agent rewrites its references as `$total$`. A `$` with
 no closing `$` (such as `US$ 5`) stays as typed.
 
-**Inputs left empty** (as in AA). An agent runs without its inputs; only an input ticked **Required** stops the run
+**Inputs left empty**. An agent runs without its inputs; only an input ticked **Required** stops the run
 ("Required input 'count' has no value"). An input given as nothing (left empty in the Run dialog, an empty cell, or an
 empty value from a parent agent) counts as not given, so its default applies. A variable with no value starts empty
 for its type: Text `""`, an empty List, Dictionary or Table, and No for Yes/No. A Number or a date stays empty until a
@@ -246,6 +249,28 @@ Calculations are worked out when the step runs.
 
 You can use `+ - * / %`, comparisons (`== != < > <= >=`), `&&` and `||`, and functions such as `round($x, 2)`,
 `toNumber($text)` and `upper($name)`.
+
+**Calculate (Number)** is the easy way to work out a number. Choose **Pick an operation** and pick add, subtract,
+multiply, divide, remainder, power, square root, absolute, negate, round, round up, round down, integer part, decimal
+part, minimum, maximum, sum, average, percent of (A percent of B) or percentage change (from A to B); or choose **Write a
+formula** and type it as in a spreadsheet: `($price$ * $qty$) * (1 + $tax$ / 100)`. Under the formula Studio shows its
+result with your variables' default values while you type, or says which variable needs a default first, or what is
+wrong with the formula. **Decimals** rounds the result. **Set Yes/No (Boolean)** works the same way for conditions:
+`$total$ > 1000 and $country$ == 'IN'`.
+
+Functions for numbers: `round(x, 2)`, `floor(x)`, `ceiling(x)`, `truncate(x, 2)`, `power(x, y)`, `sqrt(x)`, `mod(a, b)`,
+`abs(x)`, `min`, `max`, `sum($list)`, `average($list)` and `clamp(x, low, high)`. For text: `indexOf`, `left`, `right`,
+`repeat`, `padLeft`, `padRight`, `titleCase`, `normalizeSpace`, `upper`, `lower`, `trim`, `replace`, `substring`,
+`split` and `join`.
+
+Commands for the usual changes, without a formula:
+
+| Toolkit | Commands |
+| --- | --- |
+| Number | Calculate, List statistics (count, sum, average, minimum, maximum, median), Round to a step (0.05, 15 minutes, a pack of 12), Format as currency, percent or unit, Number to words (cheques; lakh and crore too); conditions Number is between, Compare numbers (with a tolerance) |
+| String | Join texts, Find all matches, Extract with pattern (named parts as a Dictionary), Remove characters (digits, letters, punctuation, accents ...), Normalize spaces, Insert text, Remove part of text, Repeat text, Mask text (cards, e-mail addresses), Shorten text, Count words and lines, Fill a template (`Dear {name}`), Encode or decode text (URL, HTML, XML, JSON, Base64), Change case (also camelCase, PascalCase, snake_case, kebab-case); conditions Starts with, Ends with, Contains, Is empty, Matches a pattern |
+| Boolean | Set Yes/No (from a value or a formula), Combine Yes/No values (all, any, exactly one, none), Number to Yes/No; conditions Is Yes, Is No |
+| Convert | Convert value: text, number, Yes/No, date, list, dictionary or JSON text into any other, with a date pattern (dd/MM/yyyy), a locale for numbers (de-DE reads 1.234,50), a list separator, and a fallback value instead of an error |
 
 ## 7. Conditions: the If builder
 

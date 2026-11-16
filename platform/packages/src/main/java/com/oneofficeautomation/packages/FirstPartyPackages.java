@@ -27,7 +27,7 @@ public final class FirstPartyPackages {
             TerminalPackage.class, ConnectorPackage.class, FuzzyPackage.class, CurrencyPackage.class, TriggerLoopPackage.class, FormsPackage.class,
             AzureAiPackage.class, GoogleAiPackage.class, DocumentAutomationPackage.class, JobsPackage.class, EnvironmentLocksPackage.class,
             LongRunningPackage.class, DotNetPackage.class, McpPackage.class, RulesPackage.class, IdpPackage.class, CommsPackage.class,
-            DataStorePackage.class, CodedAgentPackage.class);
+            DataStorePackage.class, CodedAgentPackage.class, ConvertPackage.class);
 
     /** Every first-party toolkit: the core ones, then each group on the class path in the order of its id. */
     public static final List<Class<?>> ALL = all();

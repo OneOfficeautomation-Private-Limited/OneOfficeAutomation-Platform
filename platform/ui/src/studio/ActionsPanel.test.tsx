@@ -27,6 +27,6 @@ describe("the action library (usage review item 26)", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), { target: { value: "simulate keystrokes" } });
     const action = screen.getAllByRole("button").find((b) => b.classList.contains("st-action"))!;
     expect(action.textContent).toContain("Type text");
-    expect(within(action).getByText("AA: Simulate keystrokes")).toBeTruthy();
+    expect(within(action).getByText("Also called: Simulate keystrokes")).toBeTruthy();
   });
 });

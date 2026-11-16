@@ -673,7 +673,7 @@ public final class TerminalPackage {
             @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Column of that position (1-based).") Integer col,
             @Input(name = "label", type = OoaType.STRING, required = false, description = "Label text shown before the field; used instead of row and column.") String label,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
-            @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Field number as listed by Get all fields, counted from 1 (AA counts from 0: add 1); used instead of position or label.") Integer index) {
+            @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Field number as listed by Get all fields, counted from 1 (add 1 to a number counted from 0); used instead of position or label.") Integer index) {
         Fields fs = fields(s(ctx, session));
         Field f = index != null ? byIndex(fs.list(), index) : locate(fs.list(), fs.cols(), fs.rows(), row, col, label, false);
         Map<String, Object> m = f.asMap(false);
@@ -696,7 +696,7 @@ public final class TerminalPackage {
             @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Column of that position (1-based).") Integer col,
             @Input(name = "label", type = OoaType.STRING, required = false, description = "Label text shown before the field; the next input field after it is used.") String label,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
-            @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Field number as listed by Get all fields, counted from 1 (AA counts from 0: add 1); used instead of position or label.") Integer index,
+            @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Field number as listed by Get all fields, counted from 1 (add 1 to a number counted from 0); used instead of position or label.") Integer index,
             @Input(name = "press_key", type = OoaType.STRING, required = false, example = "Enter", description = "Key to press after filling the field; none when empty.") String pressKey,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = D_WAIT) int timeout,
             @Input(name = "wait_for_text", type = OoaType.STRING, required = false, description = "Text that must appear on the screen afterwards, e.g. the next screen's title (waits up to timeout_seconds); no check when empty.") String waitText) {

@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import type { AgentSummary, Flow, FlowStep, FlowVariable } from "../api/client";
+import { useEffect, useRef, useState } from "react";
+import type { AgentSummary, Flow, FlowStep, FlowVariable, FormulaPreview } from "../api/client";
 import { Button, is, Select, TextInput, withKey } from "../components";
 import { parseLoose, setArg, setOut, showValue } from "./flowEdit";
 import { AgentFinder, agentPlace, applyQuickMap, planQuickMap, QuickMapDialog } from "./RunAgentParts";
@@ -184,6 +184,50 @@ export function AssignValue({ step }: { step: FlowStep }) {
     </div>
   );
 }
+
+/**
+ * A formula field (Calculate, Set Yes/No; 16 Nov 2026): typed as in a spreadsheet, saved as a formula ({expr}) the runner
+ * works out with the variables' real types, and shown with its result for the variables' default values while typing.
+ */
+export function FormulaValue({ step, name, want }: { step: FlowStep; name: string; want: "Number" | "Boolean" }) {
+  const vars = useVars();
+  const value = step.args?.[name];
+  const text = isCalc(value) ? value.expr : typeof value === "string" ? value : "";
+  const [preview, setPreview] = useState<FormulaPreview | null>(null);
+  const asked = useRef("");
+  const flowVars = vars?.flow.variables;
+  useEffect(() => {
+    if (!vars || !text.trim()) { setPreview(null); return; }
+    const values: Record<string, unknown> = {};
+    for (const v of flowVars ?? []) if (v.default !== undefined && v.type !== "Credential") values[v.name] = v.default;
+    const key = text + JSON.stringify(values);
+    asked.current = key;
+    const t = setTimeout(() => {
+      vars.api.formulaPreview(text, values).then((p) => { if (asked.current === key) setPreview(p); }).catch(() => { if (asked.current === key) setPreview(null); });
+    }, 250);
+    return () => clearTimeout(t);
+  }, [vars, text, flowVars]);
+  if (!vars) return null;
+  const set = (t: string) => { const x = t.trim().replace(/^=\s*/, ""); applyNow(vars, (f) => setArg(f, step.id, name, x ? { expr: x } : undefined)); };
+  const result = preview?.error ? <span className="st-formula-bad">{preview.error.message}</span>
+    : preview?.missing?.length ? <span>Give {preview.missing.map((m) => varRef(m)).join(", ")} a default value to see the result here.</span>
+    : preview && preview.text !== undefined ? <span>= <b>{preview.text}</b> with the variables&rsquo; default values{want === "Number" && preview.type && preview.type !== "Number" ? " (not a number)" : ""}</span>
+    : null;
+  return (
+    <div className="st-formula">
+      <CommitInput key={"f" + text} label="Formula" mono want="Any" initial={text}
+        placeholder={want === "Number" ? "($price$ * $qty$) * (1 + $tax$ / 100)" : "$total$ > 1000 and $country$ == 'IN'"}
+        onCommit={set} apply={(t, f) => setArg(f, step.id, name, { expr: t.trim() })} />
+      {result && <p className="st-formula-result" aria-live="polite">{result}</p>}
+    </div>
+  );
+}
+
+/** What a formula may use, behind the (i) of the Formula field. */
+export const FORMULA_HELP = {
+  Number: "Use + - * / and % (remainder), brackets, and functions: round(x, 2), floor, ceiling, truncate, power(x, y), sqrt, abs, min, max, sum, average($list$), clamp(x, low, high).",
+  Boolean: "Use comparisons (== != > >= < <=), and, or, not, brackets, and functions such as contains($subject$, 'urgent'), isEmpty($x$), startsWith and regexMatch.",
+};
 
 type Assignment = { variable?: string; value?: unknown };
 

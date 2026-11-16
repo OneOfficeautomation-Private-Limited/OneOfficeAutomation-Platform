@@ -1,11 +1,12 @@
 package com.oneofficeautomation.packages;
 
+import com.oneofficeautomation.runner.Values;
 import com.oneofficeautomation.sdk.*;
 
 import java.util.*;
 import java.util.regex.PatternSyntaxException;
 
-@OoaPackage(id = "ooa.string", name = "String", version = "1.0.0", description = "Text manipulation: extract, replace, split, change case.")
+@OoaPackage(id = "ooa.string", name = "String", version = "1.1.0", description = "Text manipulation: extract, replace, split, join, clean, mask, fill templates, encode and change case.")
 public final class StringPackage {
 
     @Action(id = "extract_text", name = "Extract text", category = "Text", idempotent = true,
@@ -125,16 +126,17 @@ public final class StringPackage {
         return Map.of("items", items);
     }
 
-    @Action(id = "change_case", name = "Change case", category = "Text", idempotent = true, description = "Convert text to upper, lower, title or sentence case.",
+    @Action(id = "change_case", name = "Change case", category = "Text", idempotent = true, description = "Convert text to upper, lower, title or sentence case, or to camelCase, PascalCase, snake_case or kebab-case for names and keys.",
             panel = "text, case")
     @Output(name = "result", type = OoaType.STRING, description = "Converted text.")
     public Map<String, Object> changeCase(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
-            @Input(name = "case", type = OoaType.STRING, enumValues = {"upper", "lower", "title", "sentence"}, description = "Target case.") String kase) {
+            @Input(name = "case", type = OoaType.STRING, enumValues = {"upper", "lower", "title", "sentence", "camel", "pascal", "snake", "kebab"}, description = "Target case: camel is invoiceTotal, pascal InvoiceTotal, snake invoice_total, kebab invoice-total.") String kase) {
         String r = switch (kase) {
             case "upper" -> text.toUpperCase(Locale.ROOT);
             case "lower" -> text.toLowerCase(Locale.ROOT);
             case "sentence" -> text.isEmpty() ? text : text.substring(0, 1).toUpperCase(Locale.ROOT) + text.substring(1).toLowerCase(Locale.ROOT);
+            case "camel", "pascal", "snake", "kebab" -> codeCase(text, kase);
             default -> {
                 StringBuilder sb = new StringBuilder();
                 boolean up = true;
@@ -479,5 +481,388 @@ public final class StringPackage {
         f.setRoundingMode(java.math.RoundingMode.HALF_UP);
         String text = f.format(value);
         return Out.of("result", grouping ? NumberPackage.southAsianGrouping(text, Locale.forLanguageTag(locale == null || locale.isBlank() ? "en-US" : locale)) : text);
+    }
+
+    /** Names and keys: the words of the text (split at spaces, punctuation and lower-to-upper changes) in camel, Pascal, snake or kebab case. */
+    static String codeCase(String text, String kase) {
+        List<String> words = new ArrayList<>();
+        for (String w : text.replaceAll("([a-z0-9])([A-Z])", "$1 $2").split("[^A-Za-z0-9]+")) if (!w.isEmpty()) words.add(w.toLowerCase(Locale.ROOT));
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < words.size(); i++) {
+            String w = words.get(i);
+            switch (kase) {
+                case "snake" -> sb.append(i > 0 ? "_" : "").append(w);
+                case "kebab" -> sb.append(i > 0 ? "-" : "").append(w);
+                default -> sb.append(i == 0 && kase.equals("camel") ? w : Character.toUpperCase(w.charAt(0)) + w.substring(1));
+            }
+        }
+        return sb.toString();
+    }
+
+    // ---- More text work made easy (16 Nov 2026) ----
+
+    @Action(id = "join", name = "Join texts", category = "Text", idempotent = true,
+            description = "Join the items of a list into one text with a separator, e.g. names into Ann, Bo and Cy, leaving out empty items if you like.",
+            panel = "items, separator | skip_empty, last_separator, prefix, suffix")
+    @Output(name = "result", type = OoaType.STRING, description = "The joined text.")
+    public Map<String, Object> join(ActionContext ctx,
+            @Input(name = "items", type = OoaType.LIST, description = "The texts, as a List variable or [\"a\", \"b\"]; numbers and dates are written as text.") List<Object> items,
+            @Input(name = "separator", type = OoaType.STRING, required = false, defaultValue = "\", \"", description = "Put between items; a line break is \\n.") String separator,
+            @Input(name = "skip_empty", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Leave out empty items.") boolean skipEmpty,
+            @Input(name = "last_separator", type = OoaType.STRING, required = false, description = "Put before the last item instead, e.g. \" and \".") String last,
+            @Input(name = "prefix", type = OoaType.STRING, required = false, description = "Text before the result.") String prefix,
+            @Input(name = "suffix", type = OoaType.STRING, required = false, description = "Text after the result.") String suffix) {
+        List<String> parts = new ArrayList<>();
+        if (items != null) for (Object o : items) { String s = Values.text(o); if (!(skipEmpty && (s == null || s.isBlank()))) parts.add(s == null ? "" : s); }
+        String sep = unescapeBreaks(separator == null ? ", " : separator);
+        String body;
+        if (last != null && !last.isEmpty() && parts.size() > 1)
+            body = String.join(sep, parts.subList(0, parts.size() - 1)) + unescapeBreaks(last) + parts.get(parts.size() - 1);
+        else body = String.join(sep, parts);
+        return Out.of("result", (prefix == null ? "" : prefix) + body + (suffix == null ? "" : suffix));
+    }
+
+    /** \n and \t typed in a separator field mean a line break and a tab. */
+    static String unescapeBreaks(String s) { return s.replace("\\r\\n", "\r\n").replace("\\n", "\n").replace("\\t", "\t"); }
+
+    @Action(id = "find_all", name = "Find all matches", category = "Text", idempotent = true,
+            description = "Every place a text or pattern occurs, as a list: all invoice numbers, e-mail addresses or amounts in a text.",
+            panel = "text, find, regex, ignore_case | group, unique")
+    @Output(name = "matches", type = OoaType.LIST, description = "The matches, in order.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many.")
+    public Map<String, Object> findAll(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to search.") String text,
+            @Input(name = "find", type = OoaType.STRING, example = "INV-\\d+", description = "Text or pattern to find.") String find,
+            @Input(name = "regex", type = OoaType.BOOLEAN, required = false, defaultValue = "true", label = "Use a pattern", description = "Find is a regular expression.") boolean regex,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Upper and lower case alike.") boolean ignoreCase,
+            @Input(name = "group", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, visibleWhen = "regex=true",
+                    description = "Keep this bracket group of each match; 0 keeps the whole match.") int group,
+            @Input(name = "unique", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Keep each match once.") boolean unique) {
+        java.util.regex.Matcher m = pattern(find, regex, ignoreCase).matcher(text == null ? "" : text);
+        List<Object> out = new ArrayList<>();
+        while (m.find()) {
+            if (group > m.groupCount()) throw new ActionException("STRING.BAD_GROUP", "The pattern has " + m.groupCount() + " bracket groups, not " + group, "Use a group from 0 to " + m.groupCount() + ".");
+            String g = m.group(group);
+            if (g != null && !(unique && out.contains(g))) out.add(g);
+        }
+        return Out.of("matches", out, "count", java.math.BigDecimal.valueOf(out.size()));
+    }
+
+    static java.util.regex.Pattern pattern(String find, boolean regex, boolean ignoreCase) {
+        int flags = ignoreCase ? java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE : 0;
+        try { return java.util.regex.Pattern.compile(regex ? find : java.util.regex.Pattern.quote(find), flags); }
+        catch (java.util.regex.PatternSyntaxException e) {
+            throw new ActionException("STRING.BAD_PATTERN", "The pattern '" + find + "' is not valid: " + e.getDescription(), "Fix the pattern, or untick Use a pattern to find the text as it is.");
+        }
+    }
+
+    @Action(id = "extract_pattern", name = "Extract with pattern", category = "Text", idempotent = true,
+            description = "Take the parts of a text a pattern describes, e.g. the date, number and amount of \"Invoice 42 of 2026-11-16: 99.50\"; named parts come back as a Dictionary.",
+            panel = "text, pattern, occurrence | ignore_case")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the pattern was found.")
+    @Output(name = "match", type = OoaType.STRING, description = "The whole match.")
+    @Output(name = "groups", type = OoaType.LIST, description = "Each bracket group, in order.")
+    @Output(name = "named", type = OoaType.DICTIONARY, description = "Each named group (?<name>...) by its name.")
+    public Map<String, Object> extractPattern(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to read.") String text,
+            @Input(name = "pattern", type = OoaType.STRING, example = "Invoice (?<number>\\d+) of (?<date>[\\d-]+)",
+                    description = "A regular expression with bracket groups, named like (?<total>[\\d.]+) if you want them by name.") String pattern,
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "Which match to take: 1 for the first.") int occurrence,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Upper and lower case alike.") boolean ignoreCase) {
+        java.util.regex.Pattern p = pattern(pattern, true, ignoreCase);
+        java.util.regex.Matcher m = p.matcher(text == null ? "" : text);
+        int n = 0;
+        while (m.find()) {
+            if (++n < Math.max(1, occurrence)) continue;
+            List<Object> groups = new ArrayList<>();
+            for (int g = 1; g <= m.groupCount(); g++) groups.add(m.group(g));
+            Map<String, Object> named = new LinkedHashMap<>();
+            for (String name : p.namedGroups().keySet()) named.put(name, m.group(name));
+            return Out.of("found", true, "match", m.group(), "groups", groups, "named", named);
+        }
+        return Out.of("found", false, "match", "", "groups", new ArrayList<>(), "named", new LinkedHashMap<>());
+    }
+
+    @Action(id = "remove_characters", name = "Remove characters", category = "Text", idempotent = true,
+            description = "Strip digits, letters, punctuation, spaces, line breaks or accents (é becomes e), or characters you list, e.g. to clean phone numbers or IDs.",
+            panel = "text, digits, letters, punctuation, spaces, line_breaks, accents | characters, keep_instead")
+    @Output(name = "result", type = OoaType.STRING, description = "The cleaned text.")
+    public Map<String, Object> removeCharacters(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to clean.") String text,
+            @Input(name = "digits", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove 0-9.") boolean digits,
+            @Input(name = "letters", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove letters of any alphabet.") boolean letters,
+            @Input(name = "punctuation", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove punctuation and symbols such as . , - ( ) / # @.") boolean punctuation,
+            @Input(name = "spaces", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove spaces and tabs.") boolean spaces,
+            @Input(name = "line_breaks", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove line breaks.") boolean lineBreaks,
+            @Input(name = "accents", type = OoaType.BOOLEAN, required = false, defaultValue = "false", label = "Accents (é to e)",
+                    description = "Keep the letters but drop their accents: café becomes cafe, Müller becomes Muller.") boolean accents,
+            @Input(name = "characters", type = OoaType.STRING, required = false, description = "Any other characters to remove, typed one after another, e.g. $€£.") String characters,
+            @Input(name = "keep_instead", type = OoaType.BOOLEAN, required = false, defaultValue = "false", label = "Keep only these instead",
+                    description = "Keep only the ticked kinds and listed characters, removing everything else (e.g. tick Digits to keep only digits).") boolean keepInstead) {
+        String t = text == null ? "" : text;
+        if (accents) t = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
+        StringBuilder sb = new StringBuilder(t.length());
+        String extra = characters == null ? "" : characters;
+        t.codePoints().forEach(cp -> {
+            boolean hit = (digits && Character.isDigit(cp)) || (letters && Character.isLetter(cp))
+                    || (punctuation && !Character.isLetterOrDigit(cp) && !Character.isWhitespace(cp) && !Character.isISOControl(cp))
+                    || (spaces && (cp == ' ' || cp == '\t' || cp == 0xA0)) || (lineBreaks && (cp == '\n' || cp == '\r'))
+                    || extra.indexOf(cp) >= 0;
+            if (hit == keepInstead) sb.appendCodePoint(cp);
+        });
+        return Out.of("result", sb.toString());
+    }
+
+    @Action(id = "normalize_spaces", name = "Normalize spaces", category = "Text", idempotent = true,
+            description = "Turn runs of spaces, tabs and no-break spaces into one space and trim the ends, keeping or joining the lines, e.g. for text read from web pages or PDFs.",
+            panel = "text, keep_line_breaks")
+    @Output(name = "result", type = OoaType.STRING, description = "The tidied text.")
+    public Map<String, Object> normalizeSpaces(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to tidy.") String text,
+            @Input(name = "keep_line_breaks", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Keep the lines (tidying each, and dropping empty ones); when off, everything becomes one line.") boolean keepLines) {
+        String t = text == null ? "" : text;
+        if (!keepLines) return Out.of("result", t.replaceAll("[ \\t\\n\\r\\f\\u000b\\u00a0]+", " ").strip());
+        List<String> lines = new ArrayList<>();
+        for (String line : t.split("\\r?\\n|\\r")) { String s = line.replaceAll("[ \\t\\f\\u000b\\u00a0]+", " ").strip(); if (!s.isEmpty()) lines.add(s); }
+        return Out.of("result", String.join("\n", lines));
+    }
+
+    @Action(id = "insert", name = "Insert text", category = "Text", idempotent = true,
+            description = "Put text into another text at a position (counted from 0), at the start or at the end.",
+            panel = "text, insert, position")
+    @Output(name = "result", type = OoaType.STRING, description = "The text with the insert.")
+    public Map<String, Object> insert(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to change.") String text,
+            @Input(name = "insert", type = OoaType.STRING, label = "Text to insert", description = "What goes in.") String insert,
+            @Input(name = "position", type = OoaType.NUMBER, required = false, defaultValue = "0", min = -1,
+                    description = "Where it goes, counted from 0; -1 puts it at the end.") int position) {
+        String t = text == null ? "" : text;
+        int at = position < 0 ? t.length() : position;
+        if (at > t.length()) throw new ActionException("STRING.BAD_POSITION", "Position " + position + " is past the end of the text (length " + t.length() + ")", "Use a position from 0 to " + t.length() + ", or -1 for the end.");
+        return Out.of("result", t.substring(0, at) + (insert == null ? "" : insert) + t.substring(at));
+    }
+
+    @Action(id = "remove_part", name = "Remove part of text", category = "Text", idempotent = true,
+            description = "Cut out a number of characters from a position (counted from 0), e.g. a prefix or a check digit.",
+            panel = "text, start, length")
+    @Output(name = "result", type = OoaType.STRING, description = "The text without that part.")
+    public Map<String, Object> removePart(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to change.") String text,
+            @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "First character to remove, counted from 0.") int start,
+            @Input(name = "length", type = OoaType.NUMBER, required = false, min = 0, description = "How many characters; to the end when empty.") Integer length) {
+        String t = text == null ? "" : text;
+        if (start > t.length()) throw new ActionException("STRING.BAD_POSITION", "Start " + start + " is past the end of the text (length " + t.length() + ")", "Use a start from 0 to " + t.length() + ".");
+        int end = length == null ? t.length() : (int) Math.min((long) start + length, t.length());
+        return Out.of("result", t.substring(0, start) + t.substring(end));
+    }
+
+    @Action(id = "repeat", name = "Repeat text", category = "Text", idempotent = true,
+            description = "Repeat a text a number of times, with a separator between, e.g. a line of dashes or placeholders.",
+            panel = "text, times | separator")
+    @Output(name = "result", type = OoaType.STRING, description = "The repeated text.")
+    public Map<String, Object> repeat(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to repeat.") String text,
+            @Input(name = "times", type = OoaType.NUMBER, defaultValue = "2", min = 0, max = 100000, description = "How many times.") int times,
+            @Input(name = "separator", type = OoaType.STRING, required = false, description = "Put between the copies.") String separator) {
+        String t = text == null ? "" : text, sep = separator == null ? "" : unescapeBreaks(separator);
+        if ((long) (t.length() + sep.length()) * times > 1_000_000)
+            throw new ActionException("STRING.TOO_LONG", "The result would be longer than 1,000,000 characters", "Repeat the text fewer times.");
+        return Out.of("result", String.join(sep, java.util.Collections.nCopies(Math.max(0, times), t)));
+    }
+
+    @Action(id = "mask", name = "Mask text", category = "Text", idempotent = true,
+            description = "Hide most of a text behind a character, keeping the first or last few, e.g. a card number as ************1111 or an e-mail as a***@example.com.",
+            panel = "text, keep_last, keep_first | mask_character, keep_separators, email")
+    @Output(name = "result", type = OoaType.STRING, description = "The masked text.")
+    public Map<String, Object> mask(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to mask.") String text,
+            @Input(name = "keep_last", type = OoaType.NUMBER, required = false, defaultValue = "4", min = 0, description = "Characters to keep visible at the end.") int keepLast,
+            @Input(name = "keep_first", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Characters to keep visible at the start.") int keepFirst,
+            @Input(name = "mask_character", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "The character that hides the rest.") String maskChar,
+            @Input(name = "keep_separators", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Leave spaces, dashes and dots as they are (4111 1111 1111 1111 becomes **** **** **** 1111).") boolean keepSeparators,
+            @Input(name = "email", type = OoaType.BOOLEAN, required = false, defaultValue = "false", label = "It is an e-mail address",
+                    description = "Mask only the part before the @, keeping its first character.") boolean email) {
+        String t = text == null ? "" : text, c = maskChar == null || maskChar.isEmpty() ? "*" : maskChar.substring(0, 1);
+        if (email && t.contains("@")) {
+            int at = t.indexOf('@');
+            String local = t.substring(0, at);
+            return Out.of("result", (local.isEmpty() ? "" : local.charAt(0) + c.repeat(Math.max(3, local.length() - 1))) + t.substring(at));
+        }
+        int[] cps = t.codePoints().toArray();
+        List<Integer> maskable = new ArrayList<>();
+        for (int i = 0; i < cps.length; i++) if (!(keepSeparators && (cps[i] == ' ' || cps[i] == '-' || cps[i] == '.' || cps[i] == '/'))) maskable.add(i);
+        StringBuilder sb = new StringBuilder();
+        java.util.Set<Integer> hidden = new java.util.HashSet<>();
+        for (int k = Math.max(0, keepFirst); k < maskable.size() - Math.max(0, keepLast); k++) hidden.add(maskable.get(k));
+        for (int i = 0; i < cps.length; i++) { if (hidden.contains(i)) sb.append(c); else sb.appendCodePoint(cps[i]); }
+        return Out.of("result", sb.toString());
+    }
+
+    @Action(id = "shorten", name = "Shorten text", category = "Text", idempotent = true,
+            description = "Cut a text to a maximum length and add an ending such as …, if you like at a word break, e.g. for subjects, columns or messages.",
+            panel = "text, max_length | ending, whole_words")
+    @Output(name = "result", type = OoaType.STRING, description = "The shortened text (unchanged when it was short enough).")
+    @Output(name = "shortened", type = OoaType.BOOLEAN, description = "True when the text was cut.")
+    public Map<String, Object> shorten(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to shorten.") String text,
+            @Input(name = "max_length", type = OoaType.NUMBER, defaultValue = "100", min = 1, description = "Longest result, ending included.") int max,
+            @Input(name = "ending", type = OoaType.STRING, required = false, defaultValue = "\"…\"", description = "Added when the text is cut; empty adds nothing.") String ending,
+            @Input(name = "whole_words", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Cut at the last space rather than in a word.") boolean wholeWords) {
+        String t = text == null ? "" : text, end = ending == null ? "" : ending;
+        if (t.length() <= max) return Out.of("result", t, "shortened", false);
+        int room = Math.max(0, max - end.length());
+        String cut = t.substring(0, room);
+        // at a word break already when the next character is a space; otherwise back to the last space (if not too far back)
+        if (wholeWords && !Character.isWhitespace(t.charAt(room))) { int sp = cut.lastIndexOf(' '); if (sp > room / 2) cut = cut.substring(0, sp); }
+        return Out.of("result", cut.stripTrailing() + end, "shortened", true);
+    }
+
+    @Action(id = "count_words", name = "Count words and lines", category = "Text", idempotent = true,
+            description = "How many words, lines, sentences and characters a text has.",
+            panel = "text")
+    @Output(name = "words", type = OoaType.NUMBER, description = "Words (runs of letters and digits).")
+    @Output(name = "lines", type = OoaType.NUMBER, description = "Lines, empty ones included; 0 for empty text.")
+    @Output(name = "sentences", type = OoaType.NUMBER, description = "Sentences ending in . ! or ?.")
+    @Output(name = "characters", type = OoaType.NUMBER, description = "Characters, spaces included.")
+    @Output(name = "characters_no_spaces", type = OoaType.NUMBER, description = "Characters without spaces and line breaks.")
+    public Map<String, Object> countWords(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text to count.") String text) {
+        String t = text == null ? "" : text;
+        long words = java.util.regex.Pattern.compile("[\\p{L}\\p{N}]+(?:['’-][\\p{L}\\p{N}]+)*").matcher(t).results().count();
+        long lines = t.isEmpty() ? 0 : t.split("\\r?\\n|\\r", -1).length;
+        long sentences = t.isBlank() ? 0 : java.util.regex.Pattern.compile("[^.!?]*[\\p{L}\\p{N}][^.!?]*(?:[.!?]+|$)").matcher(t.strip()).results().count();
+        long noSpaces = t.codePoints().filter(cp -> !Character.isWhitespace(cp) && cp != 0xA0).count();
+        return Out.of("words", java.math.BigDecimal.valueOf(words), "lines", java.math.BigDecimal.valueOf(lines), "sentences", java.math.BigDecimal.valueOf(sentences),
+                "characters", java.math.BigDecimal.valueOf(t.codePointCount(0, t.length())), "characters_no_spaces", java.math.BigDecimal.valueOf(noSpaces));
+    }
+
+    @Action(id = "fill_template", name = "Fill a template", category = "Text", idempotent = true,
+            description = "Put values into a text with {name} places, e.g. \"Dear {first_name}, invoice {number} is due on {due}.\" from a Dictionary or a table row.",
+            panel = "template, values | if_missing")
+    @Output(name = "result", type = OoaType.STRING, description = "The filled text.")
+    @Output(name = "missing", type = OoaType.LIST, description = "Places that had no value.")
+    public Map<String, Object> fillTemplate(ActionContext ctx,
+            @Input(name = "template", type = OoaType.STRING, description = "Text with places in curly brackets, e.g. {name}; {{ and }} write a bracket.") String template,
+            @Input(name = "values", type = OoaType.DICTIONARY, description = "The values by name: a Dictionary or a table row (a Record).") Map<String, Object> values,
+            @Input(name = "if_missing", type = OoaType.STRING, required = false, defaultValue = "\"keep\"", enumValues = {"keep", "empty", "error"},
+                    description = "A place without a value: keep {name}, leave it empty, or fail with STRING.MISSING_VALUE.") String ifMissing) {
+        String t = template == null ? "" : template;
+        Map<String, Object> vals = new LinkedHashMap<>();
+        if (values != null) values.forEach((k, v) -> vals.put(k.toLowerCase(Locale.ROOT), v));
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{\\{|\\}\\}|\\{([^{}]+)\\}").matcher(t);
+        StringBuilder sb = new StringBuilder();
+        List<Object> missing = new ArrayList<>();
+        while (m.find()) {
+            String rep;
+            if (m.group().equals("{{")) rep = "{";
+            else if (m.group().equals("}}")) rep = "}";
+            else {
+                String key = m.group(1).strip();
+                Object v = vals.get(key.toLowerCase(Locale.ROOT));
+                if (v == null && !vals.containsKey(key.toLowerCase(Locale.ROOT))) {
+                    missing.add(key);
+                    if ("error".equals(ifMissing)) throw new ActionException("STRING.MISSING_VALUE", "The template needs {" + key + "}, which the values do not have", "Add " + key + " to the values, or choose to keep or empty missing places.");
+                    rep = "empty".equals(ifMissing) ? "" : m.group();
+                } else rep = v == null ? "" : Values.text(v);
+            }
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(rep));
+        }
+        m.appendTail(sb);
+        return Out.of("result", sb.toString(), "missing", missing);
+    }
+
+    @Action(id = "encode", name = "Encode or decode text", category = "Text", idempotent = true,
+            description = "Make text safe for, or read it back from, a web address (URL), HTML, XML, JSON or Base64.",
+            panel = "text, direction, format")
+    @Output(name = "result", type = OoaType.STRING, description = "The encoded or decoded text.")
+    public Map<String, Object> encode(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to change.") String text,
+            @Input(name = "direction", type = OoaType.STRING, required = false, defaultValue = "\"encode\"", enumValues = {"encode", "decode"}, description = "Encode or decode.") String direction,
+            @Input(name = "format", type = OoaType.STRING, defaultValue = "\"url\"", enumValues = {"url", "html", "xml", "json", "base64"},
+                    description = "URL: a value in a web address (a space is %20); HTML and XML: < > & and quotes; JSON: the inside of a JSON text (quotes, \\n); Base64: UTF-8 bytes.") String format) {
+        String t = text == null ? "" : text;
+        boolean enc = !"decode".equals(direction);
+        try {
+            String r = switch (format == null ? "url" : format) {
+                case "url" -> enc ? java.net.URLEncoder.encode(t, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20")
+                        : java.net.URLDecoder.decode(t.replace("+", "%2B"), java.nio.charset.StandardCharsets.UTF_8);
+                case "html", "xml" -> enc ? t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;") : unescapeMarkup(t);
+                case "json" -> {
+                    if (enc) { String q = JsonLite.write(t); yield q.substring(1, q.length() - 1); }
+                    Object v = JsonLite.parse("\"" + t + "\"");
+                    yield String.valueOf(v);
+                }
+                case "base64" -> enc ? java.util.Base64.getEncoder().encodeToString(t.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                        : new String(java.util.Base64.getMimeDecoder().decode(t.strip()), java.nio.charset.StandardCharsets.UTF_8);
+                default -> throw new ActionException("STRING.BAD_FORMAT", "Unknown format '" + format + "'", "Use url, html, xml, json or base64.");
+            };
+            return Out.of("result", r);
+        } catch (IllegalArgumentException e) {
+            throw new ActionException("STRING.CANNOT_DECODE", "The text is not valid " + format + ": " + e.getMessage(), "Check that the text really is " + format + "-encoded.");
+        }
+    }
+
+    static String unescapeMarkup(String t) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("&(#x[0-9A-Fa-f]+|#[0-9]+|amp|lt|gt|quot|apos|nbsp);").matcher(t);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String e = m.group(1), rep = switch (e) {
+                case "amp" -> "&"; case "lt" -> "<"; case "gt" -> ">"; case "quot" -> "\""; case "apos" -> "'"; case "nbsp" -> " ";
+                default -> new String(Character.toChars(e.startsWith("#x") ? Integer.parseInt(e.substring(2), 16) : Integer.parseInt(e.substring(1))));
+            };
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(rep));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    // ---- Conditions: check text in an If, a Loop's while or Wait for condition ----
+
+    @Condition(id = "starts_with", name = "Text starts with", description = "True when the text begins with the other text.")
+    public boolean startsWith(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to check.") String text,
+            @Input(name = "start", type = OoaType.STRING, label = "Starts with", description = "The beginning to look for.") String start,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Upper and lower case alike.") boolean ignoreCase) {
+        String t = text == null ? "" : text, s = start == null ? "" : start;
+        return ignoreCase ? t.regionMatches(true, 0, s, 0, s.length()) : t.startsWith(s);
+    }
+
+    @Condition(id = "ends_with", name = "Text ends with", description = "True when the text finishes with the other text.")
+    public boolean endsWith(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to check.") String text,
+            @Input(name = "end", type = OoaType.STRING, label = "Ends with", description = "The ending to look for, e.g. .pdf.") String end,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Upper and lower case alike.") boolean ignoreCase) {
+        String t = text == null ? "" : text, e = end == null ? "" : end;
+        return ignoreCase ? t.regionMatches(true, t.length() - e.length(), e, 0, e.length()) && t.length() >= e.length() : t.endsWith(e);
+    }
+
+    @Condition(id = "contains", name = "Text contains", description = "True when the text has the other text in it, anywhere or as a whole word.")
+    public boolean containsText(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to check.") String text,
+            @Input(name = "find", type = OoaType.STRING, label = "Contains", description = "The text to look for.") String find,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Upper and lower case alike.") boolean ignoreCase,
+            @Input(name = "whole_word", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only as a whole word (urgent, not urgently).") boolean wholeWord) {
+        String t = text == null ? "" : text, f = find == null ? "" : find;
+        if (!wholeWord) return ignoreCase ? t.toLowerCase(Locale.ROOT).contains(f.toLowerCase(Locale.ROOT)) : t.contains(f);
+        return pattern("(?<![\\p{L}\\p{N}_])" + java.util.regex.Pattern.quote(f) + "(?![\\p{L}\\p{N}_])", true, ignoreCase).matcher(t).find();
+    }
+
+    @Condition(id = "is_empty", name = "Text is empty", description = "True when the text has no characters (or, if you like, only spaces).")
+    public boolean isEmpty(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, required = false, description = "Text to check; an empty variable counts as empty.") String text,
+            @Input(name = "spaces_are_empty", type = OoaType.BOOLEAN, required = false, defaultValue = "true", label = "Only spaces counts as empty",
+                    description = "Text of only spaces, tabs and line breaks counts as empty.") boolean spacesEmpty) {
+        return text == null || text.isEmpty() || (spacesEmpty && text.replace(' ', ' ').isBlank());
+    }
+
+    @Condition(id = "matches_pattern", name = "Text matches a pattern", description = "True when the text fits a regular expression, as a whole or somewhere in it, e.g. ^INV-\\d{6}$ for an invoice number.")
+    public boolean matchesPattern(ActionContext ctx,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to check.") String text,
+            @Input(name = "pattern", type = OoaType.STRING, example = "^INV-\\d{6}$", description = "The regular expression.") String pattern,
+            @Input(name = "whole_text", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "The whole text must fit; when off, a match anywhere counts.") boolean whole,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Upper and lower case alike.") boolean ignoreCase) {
+        java.util.regex.Matcher m = pattern(pattern, true, ignoreCase).matcher(text == null ? "" : text);
+        return whole ? m.matches() : m.find();
     }
 }

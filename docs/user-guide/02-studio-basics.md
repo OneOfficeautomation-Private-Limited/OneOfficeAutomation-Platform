@@ -26,7 +26,7 @@ items in your workspace, upload files, and work faster with keyboard shortcuts.
 ## 1. What OneAgentStudio is
 
 OneAgentStudio is the editor where you build, test and debug agents: the screen you get when an agent (or another
-item) is open. Everything else is One CommandCenter, as in AA, where there is one Control Room: the **Private** tab of
+item) is open. Everything else is One CommandCenter: the **Private** tab of
 **Build > Agents** is your own workspace, and opening an item there opens it in OneAgentStudio. It runs in your web
 browser (Chrome or Edge), but only on your own computer: it reads and writes your private workspace, called **My
 Workspace**.
@@ -145,7 +145,7 @@ sit together as one group of icon buttons), and **Full screen**.
 
 **List** and **Flow** are two tabs: the one shown is underlined.
 
-**Clicking a step** (as in AA's editor): a click on a step chooses it and opens its **Properties** in **Details**; a
+**Clicking a step**: a click on a step chooses it and opens its **Properties** in **Details**; a
 second click on the same step folds **Details** away, so the steps get the whole width, and the next click opens it
 again. Clicking another step while Details is open shows that step's properties. Each step also shows its command's
 **Docs** and **Video** beside its **⋮** when it is chosen or under the pointer, and the step menu has **Docs for this

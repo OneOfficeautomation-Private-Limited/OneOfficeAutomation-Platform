@@ -365,7 +365,7 @@ Wait until a window whose title matches (or the main window of a process) opens,
 
 `ooa.window/pick_point` (action)
 
-Design time: point at a place in any window and press Ctrl+Shift+C. Gives the point on the screen and measured from the window's top-left corner, with the window's title and size, for mouse steps (AA's Capture coordinate).
+Design time: point at a place in any window and press Ctrl+Shift+C. Gives the point on the screen and measured from the window's top-left corner, with the window's title and size, for mouse steps.
 
 **Settings**
 

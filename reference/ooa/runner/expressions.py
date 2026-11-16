@@ -12,7 +12,8 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import re
-from decimal import ROUND_HALF_UP, Decimal, DivisionByZero, InvalidOperation
+from decimal import ROUND_CEILING, ROUND_DOWN, ROUND_FLOOR, ROUND_HALF_UP, Decimal, DivisionByZero, InvalidOperation
+import math
 from typing import Any, Callable
 
 from ..sdk.errors import ExpressionError, VariableError
@@ -457,6 +458,92 @@ def _round(n, digits=0):
     return to_number(n).quantize(q, rounding=ROUND_HALF_UP)
 
 
+def _scaled(n, digits, rounding):
+    q = Decimal(1).scaleb(-int(to_number(digits)))
+    return to_number(n).quantize(q, rounding=rounding)
+
+
+def _plain(d):
+    """A number without trailing zeros after the point (4.0 -> 4, 2.50 -> 2.5), never in E notation (as Java's plain())."""
+    p = d.normalize()
+    return p.quantize(Decimal(1)) if p.as_tuple().exponent > 0 else p
+
+
+def _power(x, y):
+    x, y = to_number(x), to_number(y)
+    if y == y.to_integral_value() and 0 <= y <= 1000:
+        return Decimal(1) if y == 0 else _plain(x ** int(y))
+    try:
+        r = math.pow(float(x), float(y))
+    except (ValueError, OverflowError):
+        r = float("nan")
+    if math.isnan(r) or math.isinf(r):
+        raise ExpressionError(f"power({x}, {y}) has no number as its result",
+                              suggested_fix="A negative number has no fractional power, and 0 has no negative one; check the values.")
+    return _plain(Decimal(repr(r)))
+
+
+def _sqrt(x):
+    x = to_number(x)
+    if x < 0:
+        raise ExpressionError(f"sqrt() of a negative number ({x})", suggested_fix="Give sqrt() zero or a positive number; abs() makes a number positive.")
+    return _plain(Decimal(repr(math.sqrt(float(x)))))
+
+
+def _mod(a, b):
+    b = to_number(b)
+    if b == 0:
+        raise ExpressionError("mod() by zero", suggested_fix="Give mod() a divisor other than 0.")
+    return to_number(a) % b
+
+
+def _average(*a):
+    items = a[0] if len(a) == 1 and isinstance(a[0], list) else list(a)
+    if not items:
+        return None
+    total = sum((to_number(x) for x in items), Decimal(0))
+    return _plain((total / Decimal(len(items))).quantize(Decimal("1e-10"), rounding=ROUND_HALF_UP))
+
+
+# Spaces for titleCase and normalizeSpace, as the Java runner: space, tab, line breaks, form feed, vertical tab, no-break space.
+_SPACES = " \t\n\r\f\v "
+
+
+def _title_case(s):
+    out, start = [], True
+    for c in _s(s):
+        space = c in _SPACES
+        out.append(c if space else (c.upper() if start else c.lower()))
+        start = space
+    return "".join(out)
+
+
+def _repeat(s, n):
+    s, times = _s(s), max(0, int(to_number(n)))
+    if len(s) * times > 1_000_000:
+        raise ExpressionError("repeat() would make more than 1,000,000 characters", suggested_fix="Repeat the text fewer times.")
+    return s * times
+
+
+def _pad(s, width, ch=" ", left=True):
+    s, width = _s(s), int(to_number(width))
+    if width > 1_000_000:
+        raise ExpressionError(f"Width {width} is too large", suggested_fix="Pad to 1,000,000 characters at most.")
+    c = _s(ch)[:1] or " "
+    return s.rjust(width, c) if left else s.ljust(width, c)
+
+
+def _left(s, n):
+    s = _s(s)
+    return s[:max(0, min(len(s), int(to_number(n))))]
+
+
+def _right(s, n):
+    s = _s(s)
+    k = max(0, min(len(s), int(to_number(n))))
+    return s[len(s) - k:]
+
+
 def _len(v):
     if v is None:
         return Decimal(0)
@@ -544,6 +631,24 @@ FUNCTIONS: dict[str, Callable] = {
     "min": lambda *a: min(to_number(x) for x in (a[0] if len(a) == 1 and isinstance(a[0], list) else a)),
     "max": lambda *a: max(to_number(x) for x in (a[0] if len(a) == 1 and isinstance(a[0], list) else a)),
     "sum": lambda lst: sum((to_number(x) for x in lst), Decimal(0)),
+    # calculations made easy (16 Nov 2026), as the Java runner
+    "floor": lambda n, digits=0: _scaled(n, digits, ROUND_FLOOR),
+    "ceiling": lambda n, digits=0: _scaled(n, digits, ROUND_CEILING),
+    "truncate": lambda n, digits=0: _scaled(n, digits, ROUND_DOWN),
+    "power": _power,
+    "sqrt": _sqrt,
+    "mod": _mod,
+    "average": _average,
+    "clamp": lambda n, low, high: min(max(to_number(n), to_number(low)), to_number(high)),
+    # text made easy (16 Nov 2026)
+    "indexOf": lambda s, find, start=0: Decimal(_s(s).find(_s(find), max(0, int(to_number(start))))),
+    "left": _left,
+    "right": _right,
+    "repeat": _repeat,
+    "padLeft": lambda s, width, ch=" ": _pad(s, width, ch, True),
+    "padRight": lambda s, width, ch=" ": _pad(s, width, ch, False),
+    "titleCase": _title_case,
+    "normalizeSpace": lambda s: re.sub("[" + _SPACES + "]+", " ", _s(s)).strip(" "),
     "now": lambda: _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0),
     "today": lambda: _dt.datetime.combine(_dt.date.today(), _dt.time()),
     "dateAdd": _date_add,

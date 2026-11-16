@@ -248,7 +248,7 @@ Sign in to Active Directory or an LDAP server.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `ad` | Main | Session name. |
-| Address (URL) | `url` | Text | Yes |  | Main | Server address. ldaps:// (or ldap:// with StartTLS) is recommended for everything and needed for password changes. AA's form LDAP://dc01/DC=corp,DC=example,DC=com is accepted; the part after the host is the base DN. Example: `ldaps://dc01.corp.example.com:636` |
+| Address (URL) | `url` | Text | Yes |  | Main | Server address. ldaps:// (or ldap:// with StartTLS) is recommended for everything and needed for password changes. The form LDAP://dc01/DC=corp,DC=example,DC=com is accepted too; the part after the host is the base DN. Example: `ldaps://dc01.corp.example.com:636` |
 | Search base (distinguished name) | `base_dn` | Text | No |  | Main | Where searches start; taken from the address when it has one. Example: `DC=corp,DC=example,DC=com` |
 | Bind user | `bind_user` | Text | Yes |  | Main | User to sign in as (UPN or distinguished name). Example: `svc-bot@corp.example.com` |
 | Password | `password` | Credential (vault) | Yes |  | Main | Password from the vault. |

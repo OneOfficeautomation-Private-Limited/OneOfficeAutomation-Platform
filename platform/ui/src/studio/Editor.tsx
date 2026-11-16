@@ -151,7 +151,7 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
                   onDragStart={(e) => { e.dataTransfer.setData(ACTION_DRAG, p.id + "/" + a.id); e.dataTransfer.effectAllowed = "copy"; }}
                   onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}
                   {(() => { const own = a.name.toLowerCase().includes(q); const aa = !own ? aaMatch(p.id + "/" + a.id, q) : undefined; const was = !own && !aa ? formerMatch(p.id + "/" + a.id, q) : undefined;
-                    return aa ? <span className="st-aa-name">AA: {aa}</span> : was ? <span className="st-aa-name">Formerly: {was}</span> : null; })()}</button>
+                    return aa ? <span className="st-alt-name">Also called: {aa}</span> : was ? <span className="st-alt-name">Formerly: {was}</span> : null; })()}</button>
                 </li>
               ))}</ul>}
             </li>
@@ -827,9 +827,11 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
             tabs={[{ value: "properties", label: "Properties" }, { value: "variables", label: "Variables" }, { value: "triggers", label: "Triggers" }, { value: "deps", label: "Dependencies" }]}>
             <TabPanel value="properties">
               {selStep && selInfo ? <>
-                <div className="st-prop-head"><IconTile name={selInfo.mark.icon} color={selInfo.mark.color} size={28} />
-                  <div><strong>{selInfo.name}</strong><div>Line {selStep.n} · {selInfo.toolkit}</div><HelpLinks k={commandKey(selStep.step.action)} label={selInfo.name} /></div></div>
-                {selInfo.description && <p className="st-prop-about">{selInfo.description}</p>}
+                {/* one line: mark, name, toolkit and line, Docs and Video; the description on one line with "more" (16 Nov 2026) */}
+                <div className="st-prop-head is-line"><IconTile name={selInfo.mark.icon} color={selInfo.mark.color} size={18} />
+                  <strong>{selInfo.name}</strong><span className="st-prop-where">{selInfo.toolkit} · line {selStep.n}</span>
+                  <HelpLinks k={commandKey(selStep.step.action)} label={selInfo.name} /></div>
+                {selInfo.description && <AboutLine key={selStep.step.id} text={selInfo.description} />}
                 <StepForm step={selStep.step} packages={packages}
                   onArg={(name, v) => onEdit(setArg(flow, selStep.step.id, name, v))}
                   onNote={(n) => onEdit(setNote(flow, selStep.step.id, n))} />
@@ -1096,6 +1098,18 @@ function onErrorSummary(flow: Flow): string {
  * Settings of the agent's error handler (On error): the variable that gets the error, whether the run fails (the
  * default, with the original error) or succeeds after the handler, a screenshot first; and removing it.
  */
+/** A command's description on one line; "more" shows all of it (the compact Details, 16 Nov 2026). */
+function AboutLine({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 70;
+  return (
+    <p className={"st-prop-about" + (open ? " is-open" : "")} title={open ? undefined : text}>
+      <span className="st-prop-about-text">{text}</span>
+      {long && <button type="button" className="st-link st-about-more" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "less" : "more"}</button>}
+    </p>
+  );
+}
+
 function OnErrorProperties({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow, select?: string[]) => void }) {
   const h = flow.onError!;
   const n = (h.steps ?? []).length;

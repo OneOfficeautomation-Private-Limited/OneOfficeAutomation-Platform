@@ -1,13 +1,13 @@
 # String
 
-Toolkit `ooa.string`, version 1.0.0. Text manipulation: extract, replace, split, change case.
+Toolkit `ooa.string`, version 1.1.0. Text manipulation: extract, replace, split, join, clean, mask, fill templates, encode and change case.
 
 [All toolkits](README.md)
 
 ## Contents
 
-- **Text**: Change case, Compare, Count occurrences, Escape for regex, Extract text, Find, Get length, Pad text, Random text, Replace, Reverse, Split, Get part of text, Number to locale text, Text to number, Trim
-- **Conditions**: Text is an email address, Text is a number
+- **Text**: Change case, Compare, Count occurrences, Count words and lines, Encode or decode text, Escape for regex, Extract with pattern, Extract text, Fill a template, Find, Find all matches, Insert text, Join texts, Get length, Mask text, Normalize spaces, Pad text, Random text, Remove characters, Remove part of text, Repeat text, Replace, Reverse, Shorten text, Split, Get part of text, Number to locale text, Text to number, Trim
+- **Conditions**: Text contains, Text ends with, Text is an email address, Text is empty, Text is a number, Text matches a pattern, Text starts with
 
 ## Text
 
@@ -15,14 +15,14 @@ Toolkit `ooa.string`, version 1.0.0. Text manipulation: extract, replace, split,
 
 `ooa.string/change_case` (action)
 
-Convert text to upper, lower, title or sentence case.
+Convert text to upper, lower, title or sentence case, or to camelCase, PascalCase, snake_case or kebab-case for names and keys.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Text | `text` | Text | Yes |  | Main | Source text. |
-| Case | `case` | Text | Yes |  | Main | Target case. One of: `upper`, `lower`, `title`, `sentence` |
+| Case | `case` | Text | Yes |  | Main | Target case: camel is invoiceTotal, pascal InvoiceTotal, snake invoice_total, kebab invoice-total. One of: `upper`, `lower`, `title`, `sentence`, `camel`, `pascal`, `snake`, `kebab` |
 
 **Results**
 
@@ -79,6 +79,52 @@ Count how many times a piece of text appears in a text (matches do not overlap).
 
 *Time limit 60 s; safe to repeat.*
 
+### Count words and lines
+
+`ooa.string/count_words` (action)
+
+How many words, lines, sentences and characters a text has.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to count. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `words` | Number | Words (runs of letters and digits). |
+| `lines` | Number | Lines, empty ones included; 0 for empty text. |
+| `sentences` | Number | Sentences ending in . ! or ?. |
+| `characters` | Number | Characters, spaces included. |
+| `characters_no_spaces` | Number | Characters without spaces and line breaks. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Encode or decode text
+
+`ooa.string/encode` (action)
+
+Make text safe for, or read it back from, a web address (URL), HTML, XML, JSON or Base64.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to change. |
+| Direction | `direction` | Text | No | `encode` | Main | Encode or decode. One of: `encode`, `decode` |
+| Format | `format` | Text | No | `url` | Main | URL: a value in a web address (a space is %20); HTML and XML: < > & and quotes; JSON: the inside of a JSON text (quotes, \n); Base64: UTF-8 bytes. One of: `url`, `html`, `xml`, `json`, `base64` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The encoded or decoded text. |
+
+*Time limit 60 s; safe to repeat.*
+
 ### Escape for regex
 
 `ooa.string/escape_regex` (action)
@@ -96,6 +142,32 @@ Put a backslash before every character that has a meaning in regular expressions
 | Name | Type | Description |
 | --- | --- | --- |
 | `result` | Text | The text, safe to use inside a regular expression. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Extract with pattern
+
+`ooa.string/extract_pattern` (action)
+
+Take the parts of a text a pattern describes, e.g. the date, number and amount of "Invoice 42 of 2026-11-16: 99.50"; named parts come back as a Dictionary.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to read. |
+| Pattern | `pattern` | Text | Yes |  | Main | A regular expression with bracket groups, named like (?<total>[\d.]+) if you want them by name. Example: `Invoice (?<number>\d+) of (?<date>[\d-]+)` |
+| Occurrence | `occurrence` | Number | No | `1` | Main | Which match to take: 1 for the first. Range: 1 to  |
+| Ignore case | `ignore_case` | Yes/No | No | No | More options | Upper and lower case alike. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `found` | Yes/No | True when the pattern was found. |
+| `match` | Text | The whole match. |
+| `groups` | List | Each bracket group, in order. |
+| `named` | Dictionary | Each named group (?<name>...) by its name. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -126,6 +198,29 @@ Return the text before, after or between markers.
 | Name | Type | Description |
 | --- | --- | --- |
 | `result` | Text | Extracted text, empty when a marker is missing. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Fill a template
+
+`ooa.string/fill_template` (action)
+
+Put values into a text with {name} places, e.g. "Dear {first_name}, invoice {number} is due on {due}." from a Dictionary or a table row.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Template | `template` | Text | Yes |  | Main | Text with places in curly brackets, e.g. {name}; {{ and }} write a bracket. |
+| Values | `values` | Dictionary | Yes |  | Main | The values by name: a Dictionary or a table row (a Record). |
+| If missing | `if_missing` | Text | No | `keep` | More options | A place without a value: keep {name}, leave it empty, or fail with STRING.MISSING_VALUE. One of: `keep`, `empty`, `error` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The filled text. |
+| `missing` | List | Places that had no value. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -162,6 +257,79 @@ Find where a text (or regular expression) first appears, starting from a positio
 
 *Time limit 60 s; safe to repeat.*
 
+### Find all matches
+
+`ooa.string/find_all` (action)
+
+Every place a text or pattern occurs, as a list: all invoice numbers, e-mail addresses or amounts in a text.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to search. |
+| Find | `find` | Text | Yes |  | Main | Text or pattern to find. Example: `INV-\d+` |
+| Use a pattern | `regex` | Yes/No | No | Yes | Main | Find is a regular expression. |
+| Ignore case | `ignore_case` | Yes/No | No | No | Main | Upper and lower case alike. |
+| Group | `group` | Number | No | `0` | More options | Keep this bracket group of each match; 0 keeps the whole match. Range: 0 to ; Shown when: `{"regex": ["true"]}` |
+| Unique | `unique` | Yes/No | No | No | More options | Keep each match once. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `matches` | List | The matches, in order. |
+| `count` | Number | How many. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Insert text
+
+`ooa.string/insert` (action)
+
+Put text into another text at a position (counted from 0), at the start or at the end.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to change. |
+| Text to insert | `insert` | Text | Yes |  | Main | What goes in. |
+| Position | `position` | Number | No | `0` | Main | Where it goes, counted from 0; -1 puts it at the end. Range: -1 to  |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The text with the insert. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Join texts
+
+`ooa.string/join` (action)
+
+Join the items of a list into one text with a separator, e.g. names into Ann, Bo and Cy, leaving out empty items if you like.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Items | `items` | List | Yes |  | Main | The texts, as a List variable or ["a", "b"]; numbers and dates are written as text. |
+| Separator | `separator` | Text | No | `, ` | Main | Put between items; a line break is \n. |
+| Skip empty | `skip_empty` | Yes/No | No | Yes | More options | Leave out empty items. |
+| Last separator | `last_separator` | Text | No |  | More options | Put before the last item instead, e.g. " and ". |
+| Prefix | `prefix` | Text | No |  | More options | Text before the result. |
+| Suffix | `suffix` | Text | No |  | More options | Text after the result. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The joined text. |
+
+*Time limit 60 s; safe to repeat.*
+
 ### Get length
 
 `ooa.string/length` (action)
@@ -179,6 +347,52 @@ Count the characters in a text.
 | Name | Type | Description |
 | --- | --- | --- |
 | `length` | Number | Number of characters. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Mask text
+
+`ooa.string/mask` (action)
+
+Hide most of a text behind a character, keeping the first or last few, e.g. a card number as ************1111 or an e-mail as a***@example.com.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to mask. |
+| Keep last | `keep_last` | Number | No | `4` | Main | Characters to keep visible at the end. Range: 0 to  |
+| Keep first | `keep_first` | Number | No | `0` | Main | Characters to keep visible at the start. Range: 0 to  |
+| Mask character | `mask_character` | Text | No | `*` | More options | The character that hides the rest. |
+| Keep separators | `keep_separators` | Yes/No | No | Yes | More options | Leave spaces, dashes and dots as they are (4111 1111 1111 1111 becomes **** **** **** 1111). |
+| It is an e-mail address | `email` | Yes/No | No | No | More options | Mask only the part before the @, keeping its first character. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The masked text. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Normalize spaces
+
+`ooa.string/normalize_spaces` (action)
+
+Turn runs of spaces, tabs and no-break spaces into one space and trim the ends, keeping or joining the lines, e.g. for text read from web pages or PDFs.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to tidy. |
+| Keep line breaks | `keep_line_breaks` | Yes/No | No | No | Main | Keep the lines (tidying each, and dropping empty ones); when off, everything becomes one line. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The tidied text. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -230,6 +444,78 @@ Generate random text of a given length from letters, digits and/or symbols.
 
 *Time limit 60 s.*
 
+### Remove characters
+
+`ooa.string/remove_characters` (action)
+
+Strip digits, letters, punctuation, spaces, line breaks or accents (é becomes e), or characters you list, e.g. to clean phone numbers or IDs.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to clean. |
+| Digits | `digits` | Yes/No | No | No | Main | Remove 0-9. |
+| Letters | `letters` | Yes/No | No | No | Main | Remove letters of any alphabet. |
+| Punctuation | `punctuation` | Yes/No | No | No | Main | Remove punctuation and symbols such as . , - ( ) / # @. |
+| Spaces | `spaces` | Yes/No | No | No | Main | Remove spaces and tabs. |
+| Line breaks | `line_breaks` | Yes/No | No | No | Main | Remove line breaks. |
+| Accents (é to e) | `accents` | Yes/No | No | No | Main | Keep the letters but drop their accents: café becomes cafe, Müller becomes Muller. |
+| Characters | `characters` | Text | No |  | More options | Any other characters to remove, typed one after another, e.g. $€£. |
+| Keep only these instead | `keep_instead` | Yes/No | No | No | More options | Keep only the ticked kinds and listed characters, removing everything else (e.g. tick Digits to keep only digits). |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The cleaned text. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Remove part of text
+
+`ooa.string/remove_part` (action)
+
+Cut out a number of characters from a position (counted from 0), e.g. a prefix or a check digit.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to change. |
+| Start | `start` | Number | No | `0` | Main | First character to remove, counted from 0. Range: 0 to  |
+| Length | `length` | Number | No |  | Main | How many characters; to the end when empty. Range: 0 to  |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The text without that part. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Repeat text
+
+`ooa.string/repeat` (action)
+
+Repeat a text a number of times, with a separator between, e.g. a line of dashes or placeholders.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to repeat. |
+| Times | `times` | Number | No | `2` | Main | How many times. Range: 0 to 100000 |
+| Separator | `separator` | Text | No |  | More options | Put between the copies. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The repeated text. |
+
+*Time limit 60 s; safe to repeat.*
+
 ### Replace
 
 `ooa.string/replace` (action)
@@ -273,6 +559,30 @@ Return the text with its characters in reverse order.
 | Name | Type | Description |
 | --- | --- | --- |
 | `result` | Text | Reversed text. |
+
+*Time limit 60 s; safe to repeat.*
+
+### Shorten text
+
+`ooa.string/shorten` (action)
+
+Cut a text to a maximum length and add an ending such as …, if you like at a word break, e.g. for subjects, columns or messages.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to shorten. |
+| Maximum length | `max_length` | Number | No | `100` | Main | Longest result, ending included. Range: 1 to  |
+| Ending | `ending` | Text | No | `…` | More options | Added when the text is cut; empty adds nothing. |
+| Whole words | `whole_words` | Yes/No | No | Yes | More options | Cut at the last space rather than in a word. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `result` | Text | The shortened text (unchanged when it was short enough). |
+| `shortened` | Yes/No | True when the text was cut. |
 
 *Time limit 60 s; safe to repeat.*
 
@@ -399,6 +709,35 @@ Remove spaces, or the characters you list, from both ends, the start or the end 
 
 Used in If, Loop while and Wait until steps.
 
+### Text contains
+
+`ooa.string/contains` (condition)
+
+True when the text has the other text in it, anywhere or as a whole word.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to check. |
+| Contains | `find` | Text | Yes |  | Main | The text to look for. |
+| Ignore case | `ignore_case` | Yes/No | No | Yes | Main | Upper and lower case alike. |
+| Whole word | `whole_word` | Yes/No | No | No | Main | Only as a whole word (urgent, not urgently). |
+
+### Text ends with
+
+`ooa.string/ends_with` (condition)
+
+True when the text finishes with the other text.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to check. |
+| Ends with | `end` | Text | Yes |  | Main | The ending to look for, e.g. .pdf. |
+| Ignore case | `ignore_case` | Yes/No | No | Yes | Main | Upper and lower case alike. |
+
 ### Text is an email address
 
 `ooa.string/is_email` (condition)
@@ -411,6 +750,19 @@ True when the text looks like an email address.
 | --- | --- | --- | --- | --- | --- | --- |
 | Text | `text` | Text | Yes |  | Main | Text to check. |
 
+### Text is empty
+
+`ooa.string/is_empty` (condition)
+
+True when the text has no characters (or, if you like, only spaces).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | No |  | Main | Text to check; an empty variable counts as empty. |
+| Only spaces counts as empty | `spaces_are_empty` | Yes/No | No | Yes | Main | Text of only spaces, tabs and line breaks counts as empty. |
+
 ### Text is a number
 
 `ooa.string/is_number` (condition)
@@ -422,3 +774,32 @@ True when the text is a number, e.g. 1,250.50 or -3.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Text | `text` | Text | Yes |  | Main | Text to check. |
+
+### Text matches a pattern
+
+`ooa.string/matches_pattern` (condition)
+
+True when the text fits a regular expression, as a whole or somewhere in it, e.g. ^INV-\d{6}$ for an invoice number.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to check. |
+| Pattern | `pattern` | Text | Yes |  | Main | The regular expression. Example: `^INV-\d{6}$` |
+| Whole text | `whole_text` | Yes/No | No | Yes | Main | The whole text must fit; when off, a match anywhere counts. |
+| Ignore case | `ignore_case` | Yes/No | No | No | Main | Upper and lower case alike. |
+
+### Text starts with
+
+`ooa.string/starts_with` (condition)
+
+True when the text begins with the other text.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Text | `text` | Text | Yes |  | Main | Text to check. |
+| Starts with | `start` | Text | Yes |  | Main | The beginning to look for. |
+| Ignore case | `ignore_case` | Yes/No | No | Yes | Main | Upper and lower case alike. |

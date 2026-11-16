@@ -41,9 +41,23 @@ export type PanelEntry = string | { choice: string; options: { label: string; fi
 export type ActionManifest = {
   id: string; name: string; category?: string; description?: string;
   inputs?: { properties?: Record<string, FieldSpec>; required?: string[] };
-  outputs?: { properties?: Record<string, FieldSpec> };
+  /** What the action gives back, by name: the toolkits' manifest lists them flat ({text: {...}}), not under "properties". */
+  outputs?: Record<string, FieldSpec>;
   "x-ooa-panel"?: { main?: PanelEntry[]; more?: PanelEntry[] };
 };
+
+/**
+ * An action's outputs by name. The manifest lists them flat; an older form wrapped them in "properties" (kept readable).
+ * Reading only the wrapped form hid "Save results in" for every toolkit action (16 Nov 2026).
+ */
+export function actionOutputs(spec?: { outputs?: unknown } | null): Record<string, FieldSpec> {
+  const o = spec?.outputs;
+  if (!o || typeof o !== "object") return {};
+  const m = o as Record<string, unknown>;
+  const p = m.properties;
+  const wrapped = Object.keys(m).length === 1 && !!p && typeof p === "object" && !("x-ooa-type" in (p as object)) && !("description" in (p as object));
+  return (wrapped ? p : m) as Record<string, FieldSpec>;
+}
 export type PackageManifest = { id: string; name: string; version: string; description?: string; actions: ActionManifest[]; conditions?: ActionManifest[]; iterators?: ActionManifest[] };
 
 /** A variable: in_out is both an input and an output; local (or none) is a working value inside the agent. */
@@ -110,6 +124,7 @@ export type Problem = { stepId?: string; path?: string; message: string; suggest
 /** One thing a run reported: a step started, finished or failed, a log line, a variable set, the run ended. */
 export type RunEvent = { seq: number; type: string; stepId?: string | null; ts?: string; data?: Record<string, unknown> };
 export type RunError = { code: string; message: string; suggestedFix?: string | null; stepId?: string };
+export type FormulaPreview = { value?: unknown; text?: string; type?: string; missing?: string[]; error?: { code: string; message: string } };
 export type RunResult = { status: string; outputs?: Record<string, unknown>; error?: RunError | null; durationMs?: number; stepsExecuted?: number };
 /** Where a debugged run is stopped, and the values it holds there. */
 export type DebugState = { stepId: string; action: string; reason?: string; variables?: Record<string, unknown> };
@@ -241,6 +256,10 @@ export class StudioApi {
   }
   /** The problems the server finds in an agent, without saving it. */
   async validate(flow: Flow) { return (await this.call<{ problems?: Problem[] }>("POST", "validate", flow)).problems ?? []; }
+  /** A formula's result with the given variable values (Calculate, Set Yes/No); variables it needs that have no value are listed instead. */
+  formulaPreview(expr: string, variables: Record<string, unknown>) {
+    return this.call<FormulaPreview>("POST", "formula/preview", { expr, variables });
+  }
   /** Shows the file or folder in File Explorer (Windows). */
   async reveal(path: string) { await this.call("POST", "files/reveal", { path }); }
   /** Uploads a file into a folder as it is (a taken name gets " (2)"); gives where it went. */

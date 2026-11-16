@@ -10,9 +10,9 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1645 codes in 151 areas.
+1666 codes in 152 areas.
 
-Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
+Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
 ## ACTION
 
@@ -266,8 +266,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
+| `BOOLEAN.BAD_FORMULA` | The formula '…' cannot be worked out: … | Check the formula; Help > Formulas lists what it may use. | packages |
 | `BOOLEAN.BAD_OPERATOR` | Unknown operator '…' | Use equal or not_equal. | packages |
-| `BOOLEAN.INVALID` | '…' is not a yes/no value | Use true/false, yes/no or 1/0. | packages |
+| `BOOLEAN.EMPTY` | The value is empty | Give a value, or choose what an empty value means. | packages |
+| `BOOLEAN.INVALID` | '…' is not a yes/no value<br>… is neither 1 nor 0 | Use true/false, yes/no or 1/0.<br>Use the non-zero rule, or check the number. | packages |
 
 ## BOX
 
@@ -430,6 +432,14 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `CONNECTOR.UNSUPPORTED_AUTH` | Auth scheme '…id…' (…) is not supported | …note…note…Choose another scheme with auth.scheme, or add headers yourself. | packages |
 | `CONNECTOR.UNSUPPORTED_VERSION` | Unsupported spec version …openapi…swagger… | Use OpenAPI 3.x or Swagger 2.0. | packages |
 | `CONNECTOR.YAML_UNSUPPORTED` | YAML files cannot be read here because no YAML parser is installed<br>The installed YAML parser is not compatible: … | Convert the spec to JSON (most API tools can export JSON), or import it from OneAgentStudio, which can read YAML.<br>Convert the spec to JSON and import it again. | packages |
+
+## CONVERT
+
+| Code | What it means | What to do | Where |
+|---|---|---|---|
+| `CONVERT.BAD_PATTERN` | The date pattern '…' is not valid: … | Use letters such as dd, MM, yyyy, HH, mm, e.g. dd/MM/yyyy. | packages |
+| `CONVERT.BAD_TYPE` | Unknown type '…' | Use text, number, boolean, date_time, list, dictionary or json_text. | packages |
+| `CONVERT.FAILED` | Cannot convert '…' to ……: …<br>The value is empty<br>'…' is not a number in … | Check the value and the format options, or choose to give a fallback value.<br>Give a number, or choose to give a fallback value.<br>Check the separators for this locale. | packages |
 
 ## CR
 
@@ -1411,9 +1421,20 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
+| `NUMBER.BAD_CURRENCY` | '…' is not a currency code | Use a three-letter ISO code such as USD, EUR, GBP or INR. | packages |
 | `NUMBER.BAD_DECIMALS` | Decimals must be between 0 and 15, got …<br>Decimals cannot be negative (…) | Use 0 for whole numbers.<br>Use 0 or more. | packages |
+| `NUMBER.BAD_FORMULA` | The formula '…' cannot be worked out: …<br>The formula gave no value<br>The formula gave '…', which is not a number | Check the brackets, operators (+ - * / %) and function names; Help > Formulas lists the functions.<br>Check that its variables have values.<br>Make the formula give a number, e.g. toNumber($text$). | packages |
+| `NUMBER.BAD_OPERATION` | Unknown operation '…' | Pick an operation from the list. | packages |
 | `NUMBER.BAD_PATTERN` | Invalid number pattern '…': … | Use 0, #, comma and dot, e.g. #,##0.00. | packages |
 | `NUMBER.BAD_RANGE` | max (…) is smaller than min (…)<br>No number with … decimals lies between min and max | Swap min and max.<br>Widen the range or allow more decimals. | packages |
+| `NUMBER.BAD_STEP` | The step must be more than 0 | Give a step such as 0.05 or 10. | packages |
+| `NUMBER.BAD_STYLE` | Unknown style '…' | Use currency, percent or unit. | packages |
+| `NUMBER.DIVIDE_BY_ZERO` | A change from 0 has no percentage<br>Division by zero | Percentage change needs a starting number (A) other than 0.<br>Make Number B something other than 0, or check it first with an If. | packages |
+| `NUMBER.MISSING` | Number A is empty<br>Number B is empty | Give Number A.<br>Give Number B for …. | packages |
+| `NUMBER.NEGATIVE` | A negative number (…) has no square root | Use Absolute first, or check the number. | packages |
+| `NUMBER.NOT_A_NUMBER` | '…' in the list is not a number | Clean the list, or tick Skip text that is not a number. | packages |
+| `NUMBER.NO_VALUES` | There are no numbers to … | Give a list with at least one number. | packages |
+| `NUMBER.TOO_LARGE` | The number is too large to write in words | Write numbers below 10^30 in words. | packages |
 
 ## OBJECT
 
@@ -1971,17 +1992,22 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `STRING.BAD_CHARACTER` | Pad with one character, not '…' | Give a single character such as 0 or a space. | packages |
 | `STRING.BAD_COUNT` | max_parts cannot be negative | Use 0 for all parts. | packages |
 | `STRING.BAD_DECIMALS` | Decimals must be between 0 and 50, got … | Use a small positive number. | packages |
-| `STRING.BAD_GROUP` | The expression has … capture group(s), group … was asked for | Use 0 for the whole match or a group number that exists. | packages |
+| `STRING.BAD_FORMAT` | Unknown format '…' | Use url, html, xml, json or base64. | packages |
+| `STRING.BAD_GROUP` | The expression has … capture group(s), group … was asked for<br>The pattern has … bracket groups, not … | Use 0 for the whole match or a group number that exists.<br>Use a group from 0 to …. | packages |
 | `STRING.BAD_LENGTH` | max_length cannot be negative<br>Length cannot be negative (…)<br>Length … is out of range | Use 0 or more.<br>Use a length from 0 to 100000.<br>Choose a smaller positive length. | packages |
 | `STRING.BAD_MODE` | Unknown compare mode '…' | Use exact, ignore_case or natural. | packages |
 | `STRING.BAD_OCCURRENCE` | Occurrences start at 1<br>Occurrences start at 1, got … | Use 1 for the first match. | packages |
 | `STRING.BAD_OPTION` | Unknown until option '…' | Use marker, end_of_line or end_of_text. | packages |
-| `STRING.BAD_POSITION` | Start position … is outside the text (length …)<br>End position … is before start position … | Use a position from 0 to the text length.<br>Use an end at or after the start. | packages |
+| `STRING.BAD_PATTERN` | The pattern '…' is not valid: … | Fix the pattern, or untick Use a pattern to find the text as it is. | packages |
+| `STRING.BAD_POSITION` | Start position … is outside the text (length …)<br>End position … is before start position …<br>Position … is past the end of the text (length …) | Use a position from 0 to the text length.<br>Use an end at or after the start.<br>Use a position from 0 to …, or -1 for the end. | packages |
 | `STRING.BAD_REGEX` | Invalid regular expression: … | Escape special characters such as ( ) [ ] . * | packages |
 | `STRING.BAD_SEPARATORS` | Decimal and grouping separators are both '…' | Use different separators. | packages |
+| `STRING.CANNOT_DECODE` | The text is not valid …: … | Check that the text really is …-encoded. | packages |
 | `STRING.EMPTY_FIND` | Nothing to count | Fill in the text to count. | packages |
+| `STRING.MISSING_VALUE` | The template needs {…}, which the values do not have | Add … to the values, or choose to keep or empty missing places. | packages |
 | `STRING.NOT_A_NUMBER` | '…' is not a number for locale … (decimal '…', grouping '…') | Check the locale or set decimal_separator and grouping_separator. | packages |
 | `STRING.NO_CHARACTER_SET` | No character set selected | Turn on letters, digits or symbols. | packages |
+| `STRING.TOO_LONG` | The result would be longer than 1,000,000 characters | Repeat the text fewer times. | packages |
 
 ## STUDIO
 

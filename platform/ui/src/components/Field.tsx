@@ -1,17 +1,22 @@
 import { useId, useState, type ReactNode } from "react";
 
 /**
- * A labelled field. "beside" puts the label to the left (properties panels, as in AA); "above" puts it on top
- * (dialogs). The control gets the label's id, so screen readers announce it. Help ("info") up to SHORT_HELP characters
- * is written under the field, as AA writes its hints (usage review item 24); longer help stays behind the (i) button.
+ * A labelled field. "beside" puts the label to the left (OneAgentStudio's panels); "above" puts it on top (dialogs).
+ * The control gets the label's id, so screen readers announce it. Above: help ("info") up to SHORT_HELP characters is
+ * written under the field, longer help stays behind the (i) button. Beside: every help text (hint and info) is behind
+ * the (i) beside the label, shown on hover and opened under the field with a click, so the panel stays compact and
+ * keeps every detail (command observations, 16 Nov 2026).
  */
 const SHORT_HELP = 160;
 export function Field({ label, hint, info, layout = "above", children }:
   { label: string; hint?: string; info?: string; layout?: "above" | "beside"; children: (id: string) => ReactNode }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const shown = info && info.length <= SHORT_HELP ? info : undefined;
-  const behind = info && !shown ? info : undefined;
+  const compact = layout === "beside";
+  const tucked = compact ? [hint, info].filter((t, i, all): t is string => !!t && all.indexOf(t) === i).join(" ") || undefined : undefined;
+  const shown = !compact && info && info.length <= SHORT_HELP ? info : undefined;
+  const behind = compact ? tucked : info && !shown ? info : undefined;
+  const shownHint = compact ? undefined : hint;
   return (
     <div className={`ui-field ui-field-${layout}`}>
       <span className="ui-field-label">
@@ -20,8 +25,8 @@ export function Field({ label, hint, info, layout = "above", children }:
       </span>
       <div className="ui-field-control">
         {children(id)}
-        {hint && <div className="ui-field-hint">{hint}</div>}
-        {shown && shown !== hint && <div className="ui-field-hint">{shown}</div>}
+        {shownHint && <div className="ui-field-hint">{shownHint}</div>}
+        {shown && shown !== shownHint && <div className="ui-field-hint">{shown}</div>}
         {behind && open && <div className="ui-field-hint" role="note">{behind}</div>}
       </div>
     </div>

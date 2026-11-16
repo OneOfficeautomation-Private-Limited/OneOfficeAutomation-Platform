@@ -64,7 +64,7 @@ outputs in $total$". The **Input values** and **Save outputs to** fields fill wi
 ## 4. Give inputs and keep outputs
 
 **Input values** shows one row per input variable of the child, with a tick box, its type and description. Tick an
-input to give it a value (as in AA); an input left unticked takes the child's default:
+input to give it a value; an input left unticked takes the child's default:
 
 - type text or a number, or a `$variable$` of the parent (use **{x}**, F2 or type `$` to pick one);
 - a Number input turns `42` into a number and a Boolean input turns `true`/`false` into true or false;
