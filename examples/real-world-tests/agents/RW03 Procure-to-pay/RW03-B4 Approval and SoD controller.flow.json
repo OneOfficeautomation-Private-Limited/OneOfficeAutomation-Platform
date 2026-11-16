@@ -1,0 +1,1510 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw03_b4",
+  "name": "RW03-B4 Approval and SoD controller",
+  "description": "RW03-B4 (RW03 real-world test). Creates an approval request per matched invoice, chooses the approver by amount and route (the buyer for price variance), never lets requesters approve their own invoice, asks a second approver above the threshold, handles decline and timeout, signs each decision (HMAC) so SAP staging can check it, resumes safely from its checkpoint and notifies QA recipients only.",
+  "tags": [
+    "real-world-test",
+    "RW03"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "matrix",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "requesters",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "done",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "invoice",
+          "amount_eur",
+          "route",
+          "requester",
+          "approver",
+          "second_approver",
+          "approval_id",
+          "status",
+          "signature"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "prev",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "again",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "mrow",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "amount",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "approver",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "second",
+      "type": "String",
+      "direction": "local",
+      "default": "no"
+    },
+    {
+      "name": "requester",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "req",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "req2",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "state",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "status2",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "tries",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "sig",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "approvals",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "checkpoint",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "invoice",
+          "amount_eur",
+          "route",
+          "requester",
+          "approver",
+          "second_approver",
+          "approval_id",
+          "status",
+          "signature"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Creates an approval request per matched invoice, chooses the approver by amount and route (the buyer for price variance), never lets requesters approve their own invoice, asks a second approver above the threshold, handles decline and timeout, signs each decision (HMAC) so SAP staging can check it, resumes safely from its checkpoint and notifies QA recipients only. It works through 10 approval dossiers (the matched ones) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW03-B4"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW03-B4 Approval and SoD controller started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW03-B4 starts",
+                "message": "RW03-B4 Approval and SoD controller\n\nCreates an approval request per matched invoice, chooses the approver by amount and route (the buyer for price variance), never lets requesters approve their own invoice, asks a second approver above the threshold, handles decline and timeout, signs each decision (HMAC) so SAP staging can check it, resumes safely from its checkpoint and notifies QA recipients only.\n\nRecords: 10 approval dossiers (the matched ones)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the matcher's decisions (only invoices for approval), the approval matrix, the cost-centre requesters and this run's checkpoint."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "approvals",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s17",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B3/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B3/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW03-B3 evidence"
+            }
+          ],
+          "description": "RW03-B3 ran in this run?",
+          "else": [
+            {
+              "id": "s19",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B3's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B3-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW03-B3 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.datatable/filter",
+          "args": {
+            "table": "$records$",
+            "column": "route",
+            "operator": "eq",
+            "value": "approval",
+            "more_conditions": [
+              {
+                "column": "route",
+                "operator": "eq",
+                "value": "buyer"
+              }
+            ],
+            "match": "any"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Only invoices that go to approval"
+        },
+        {
+          "id": "s22",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW03/approval_matrix.csv"
+          },
+          "out": {
+            "table": "matrix"
+          },
+          "description": "Read the approval matrix"
+        },
+        {
+          "id": "s23",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW03/requesters.csv"
+          },
+          "out": {
+            "table": "requesters"
+          },
+          "description": "Read who requests for each cost centre"
+        },
+        {
+          "id": "s24",
+          "action": "core/set",
+          "args": {
+            "variable": "approvals",
+            "value": "${standin}/approvals/requests"
+          },
+          "description": "Approval service (QA stand-in)"
+        },
+        {
+          "id": "s25",
+          "action": "core/set",
+          "args": {
+            "variable": "checkpoint",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Checkpoint: the evidence saved after each invoice"
+        },
+        {
+          "id": "s26",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "$checkpoint$"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s27",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "$checkpoint$"
+              },
+              "out": {
+                "table": "done"
+              },
+              "description": "Read it to resume safely"
+            }
+          ],
+          "description": "8. A checkpoint from an earlier try of this run?"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s28",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s29",
+          "action": "core/comment",
+          "args": {
+            "text": "Per invoice: approver by amount and route, self-approval check, request, wait for the answer, second approver, signature, notice."
+          }
+        },
+        {
+          "id": "s30",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s31",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s32",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$done$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "approval_id",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "prev"
+                  },
+                  "description": "8. Approved in an earlier try of this run?"
+                },
+                {
+                  "id": "s34",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not isEmpty($prev$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s35",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "message": "${rec.invoice}: approved earlier in this run as ${prev}"
+                      },
+                      "description": "Resume without asking again"
+                    },
+                    {
+                      "id": "s36",
+                      "action": "ooa.datatable/filter",
+                      "args": {
+                        "table": "$done$",
+                        "column": "key",
+                        "operator": "eq",
+                        "value": "$rec.key$"
+                      },
+                      "out": {
+                        "table": "again"
+                      },
+                      "description": "Keep the earlier row"
+                    },
+                    {
+                      "id": "s37",
+                      "action": "ooa.datatable/merge",
+                      "args": {
+                        "tables": [
+                          "$evidence$",
+                          "$again$"
+                        ]
+                      },
+                      "out": {
+                        "table": "evidence"
+                      },
+                      "description": "Carry it into the evidence"
+                    },
+                    {
+                      "id": "s38",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "rec_note",
+                        "value": "resumed ${prev}"
+                      },
+                      "description": "Note for the results"
+                    }
+                  ],
+                  "description": "Already approved: resume",
+                  "else": [
+                    {
+                      "id": "s39",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "amount",
+                        "value": {
+                          "expr": "toNumber($rec.amount_eur$)"
+                        }
+                      },
+                      "description": "Amount in EUR"
+                    },
+                    {
+                      "id": "s40",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "approver",
+                        "value": ""
+                      },
+                      "description": "No approver yet"
+                    },
+                    {
+                      "id": "s41",
+                      "action": "core/loop",
+                      "args": {
+                        "iterator": "table_rows",
+                        "over": "$matrix$",
+                        "as": "mrow"
+                      },
+                      "children": [
+                        {
+                          "id": "s42",
+                          "action": "core/if",
+                          "args": {
+                            "condition": "isEmpty($approver$) and $amount$ <= toNumber($mrow.up_to_eur$)"
+                          },
+                          "children": [
+                            {
+                              "id": "s43",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "approver",
+                                "value": "$mrow.approver$"
+                              },
+                              "description": "Approver for the amount"
+                            },
+                            {
+                              "id": "s44",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "second",
+                                "value": "$mrow.second_approver$"
+                              },
+                              "description": "Second approver needed?"
+                            }
+                          ],
+                          "description": "Within this limit?"
+                        }
+                      ],
+                      "description": "2. Approval matrix, smallest limit first"
+                    },
+                    {
+                      "id": "s45",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "eq",
+                          "left": "$rec.route$",
+                          "right": "buyer"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s46",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "approver",
+                            "value": "buyer.ap@ooa-qa.test"
+                          },
+                          "description": "The buyer approves the price"
+                        }
+                      ],
+                      "description": "Price variance: the buyer decides"
+                    },
+                    {
+                      "id": "s47",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$requesters$",
+                        "column": "cost_center",
+                        "value": "$rec.cost_center$",
+                        "return_column": "requester",
+                        "if_not_found": "ap.clerk@ooa-qa.test"
+                      },
+                      "out": {
+                        "value": "requester"
+                      },
+                      "description": "Who requested it (cost centre owner)"
+                    },
+                    {
+                      "id": "s48",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "eq",
+                          "left": "$approver$",
+                          "right": "$requester$"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s49",
+                          "action": "ooa.log/write",
+                          "args": {
+                            "path": "$log_file$",
+                            "level": "WARN",
+                            "message": "${rec.invoice}: ${requester} cannot approve their own request; escalated to the controller"
+                          },
+                          "description": "Segregation of duties: escalate"
+                        },
+                        {
+                          "id": "s50",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "approver",
+                            "value": "controller.ap@ooa-qa.test"
+                          },
+                          "description": "Escalate to the controller"
+                        }
+                      ],
+                      "description": "3. Would the requester approve their own invoice?"
+                    },
+                    {
+                      "id": "s51",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "eq",
+                          "left": "$approver$",
+                          "right": "$requester$"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s52",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "SOD.SELF_APPROVAL",
+                            "message": "${rec.invoice}: no approver other than ${requester}"
+                          },
+                          "description": "Stop: no independent approver"
+                        }
+                      ],
+                      "description": "Still the same person?"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "method": "POST",
+                        "url": "$approvals$",
+                        "bearer_token": {
+                          "$credential": "rw_qa_standins/servicenow/token"
+                        },
+                        "json": {
+                          "subject": "$rec.invoice$",
+                          "approver": "$approver$",
+                          "requester": "$requester$",
+                          "amount_eur": "$amount$",
+                          "run": "$run_id$",
+                          "comment": "OOA-QA ${rec.invoice} ${rec.decision}: ${rec.reason}"
+                        }
+                      },
+                      "out": {
+                        "json": "req"
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "1. Create the approval request"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "status",
+                        "value": "pending"
+                      },
+                      "description": "Waiting for the answer"
+                    },
+                    {
+                      "id": "s55",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "tries",
+                        "value": 0
+                      },
+                      "description": "Start counting the checks"
+                    },
+                    {
+                      "id": "s56",
+                      "action": "core/loop",
+                      "args": {
+                        "iterator": "while",
+                        "condition": "$status$ == 'pending' and $tries$ < 3",
+                        "max_iterations": 5
+                      },
+                      "children": [
+                        {
+                          "id": "s57",
+                          "action": "core/delay",
+                          "args": {
+                            "seconds": 1
+                          },
+                          "description": "Wait a second"
+                        },
+                        {
+                          "id": "s58",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "tries",
+                            "value": {
+                              "expr": "$tries$ + 1"
+                            }
+                          },
+                          "description": "Count the check"
+                        },
+                        {
+                          "id": "s59",
+                          "action": "ooa.rest/request",
+                          "args": {
+                            "url": "${approvals}/${req.id}",
+                            "bearer_token": {
+                              "$credential": "rw_qa_standins/servicenow/token"
+                            }
+                          },
+                          "out": {
+                            "json": "state"
+                          },
+                          "retry": {
+                            "max": 3,
+                            "backoff": "exponential",
+                            "delayMs": 1000
+                          },
+                          "description": "Read the request's state"
+                        },
+                        {
+                          "id": "s60",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "status",
+                            "value": "$state.status$"
+                          },
+                          "description": "Its state"
+                        }
+                      ],
+                      "description": "5. Wait for the answer (3 checks, then it is a timeout)"
+                    },
+                    {
+                      "id": "s61",
+                      "action": "core/switch",
+                      "args": {
+                        "value": "$status$",
+                        "match": "equals",
+                        "ignore_case": true
+                      },
+                      "description": "5. The approver's answer",
+                      "cases": [
+                        {
+                          "values": [
+                            "declined"
+                          ],
+                          "children": [
+                            {
+                              "id": "s62",
+                              "action": "core/throw",
+                              "args": {
+                                "code": "APPROVAL.DECLINED",
+                                "message": "${rec.invoice} was declined by ${approver}"
+                              },
+                              "description": "Declined"
+                            }
+                          ]
+                        },
+                        {
+                          "values": [
+                            "pending"
+                          ],
+                          "children": [
+                            {
+                              "id": "s63",
+                              "action": "core/throw",
+                              "args": {
+                                "code": "APPROVAL.TIMEOUT",
+                                "message": "${approver} did not answer for ${rec.invoice}"
+                              },
+                              "description": "No answer in time"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "s64",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "status2",
+                        "value": ""
+                      },
+                      "description": "No second approval yet"
+                    },
+                    {
+                      "id": "s65",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "eq",
+                          "left": "$second$",
+                          "right": "yes"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s66",
+                          "action": "ooa.rest/request",
+                          "args": {
+                            "method": "POST",
+                            "url": "$approvals$",
+                            "bearer_token": {
+                              "$credential": "rw_qa_standins/servicenow/token"
+                            },
+                            "json": {
+                              "subject": "${rec.invoice}#2",
+                              "approver": "cfo.ap@ooa-qa.test",
+                              "requester": "$requester$",
+                              "amount_eur": "$amount$",
+                              "run": "$run_id$",
+                              "comment": "Second approval above EUR 20,000"
+                            }
+                          },
+                          "out": {
+                            "json": "req2"
+                          },
+                          "retry": {
+                            "max": 3,
+                            "backoff": "exponential",
+                            "delayMs": 1000
+                          },
+                          "description": "Ask the second approver"
+                        },
+                        {
+                          "id": "s67",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "status2",
+                            "value": "pending"
+                          },
+                          "description": "Waiting"
+                        },
+                        {
+                          "id": "s68",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "tries",
+                            "value": 0
+                          },
+                          "description": "Start counting the checks"
+                        },
+                        {
+                          "id": "s69",
+                          "action": "core/loop",
+                          "args": {
+                            "iterator": "while",
+                            "condition": "$status2$ == 'pending' and $tries$ < 3",
+                            "max_iterations": 5
+                          },
+                          "children": [
+                            {
+                              "id": "s70",
+                              "action": "core/delay",
+                              "args": {
+                                "seconds": 1
+                              },
+                              "description": "Wait a second"
+                            },
+                            {
+                              "id": "s71",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "tries",
+                                "value": {
+                                  "expr": "$tries$ + 1"
+                                }
+                              },
+                              "description": "Count the check"
+                            },
+                            {
+                              "id": "s72",
+                              "action": "ooa.rest/request",
+                              "args": {
+                                "url": "${approvals}/${req2.id}",
+                                "bearer_token": {
+                                  "$credential": "rw_qa_standins/servicenow/token"
+                                }
+                              },
+                              "out": {
+                                "json": "state"
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "Read its state"
+                            },
+                            {
+                              "id": "s73",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "status2",
+                                "value": "$state.status$"
+                              },
+                              "description": "Its state"
+                            }
+                          ],
+                          "description": "Wait for the second answer"
+                        },
+                        {
+                          "id": "s74",
+                          "action": "core/if",
+                          "args": {
+                            "condition": {
+                              "op": "ne",
+                              "left": "$status2$",
+                              "right": "approved"
+                            }
+                          },
+                          "children": [
+                            {
+                              "id": "s75",
+                              "action": "core/throw",
+                              "args": {
+                                "code": "APPROVAL.SECOND_MISSING",
+                                "message": "${rec.invoice}: second approval ${status2} (first approved by ${approver})"
+                              },
+                              "description": "6. No SAP staging without both approvals"
+                            }
+                          ],
+                          "description": "Second approver did not approve?"
+                        }
+                      ],
+                      "description": "4. Above the threshold: second approver"
+                    },
+                    {
+                      "id": "s76",
+                      "action": "ooa.crypto/hmac",
+                      "args": {
+                        "text": "${rec.key}|${rec.invoice}|${approver}|${status}|${req.id}",
+                        "key": {
+                          "$credential": "rw_qa_standins/sign_key/token"
+                        }
+                      },
+                      "out": {
+                        "signature": "sig"
+                      },
+                      "description": "7. Sign the decision (approval hash)"
+                    },
+                    {
+                      "id": "s77",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "not endsWith(lower($approver$), '@ooa-qa.test')"
+                      },
+                      "children": [
+                        {
+                          "id": "s78",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "NOTIFY.EXTERNAL",
+                            "message": "${approver} is not a QA recipient"
+                          },
+                          "description": "Never notify outside QA"
+                        }
+                      ],
+                      "description": "9. Recipient outside the QA tenant?"
+                    },
+                    {
+                      "id": "s79",
+                      "action": "ooa.microsoft365/send_mail",
+                      "args": {
+                        "to": "$approver$",
+                        "subject": "OOA-QA ${run_id} ${rec.invoice} approved",
+                        "body": "Approval ${req.id} recorded for ${rec.invoice} (EUR ${amount}).",
+                        "access_token": {
+                          "$credential": "rw_qa_standins/graph/token"
+                        },
+                        "base_url": "${standin}/graph/v1.0",
+                        "mailbox": "ap-qa@ooa-qa.test"
+                      },
+                      "description": "9. Notify the approver (QA mailbox only)"
+                    },
+                    {
+                      "id": "s80",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$evidence$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "invoice": "$rec.invoice$",
+                          "amount_eur": "$amount$",
+                          "route": "$rec.route$",
+                          "requester": "$requester$",
+                          "approver": "$approver$",
+                          "second_approver": {
+                            "expr": "if($second$ == 'yes', 'cfo.ap@ooa-qa.test', '')"
+                          },
+                          "approval_id": "$req.id$",
+                          "status": "approved",
+                          "signature": "$sig$"
+                        }
+                      },
+                      "out": {
+                        "table": "evidence"
+                      },
+                      "description": "7. Record the decision and its signature"
+                    },
+                    {
+                      "id": "s81",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "evidence_file",
+                        "value": "${out_dir}/evidence.csv"
+                      },
+                      "description": "Name of the evidence file"
+                    },
+                    {
+                      "id": "s82",
+                      "action": "ooa.datatable/write_to_file",
+                      "args": {
+                        "table": "$evidence$",
+                        "path": "$evidence_file$"
+                      },
+                      "description": "Save the evidence rows"
+                    },
+                    {
+                      "id": "s83",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "rec_note",
+                        "value": "approved by ${approver}"
+                      },
+                      "description": "Note for the results"
+                    }
+                  ]
+                },
+                {
+                  "id": "s84",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s85",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s86",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s87",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW03-B4 - record ${rec.key}",
+                        "message": "RW03-B4: record ${$i + 1} of ${len($records$)}\n\n${rec.invoice}: EUR ${amount}\nApprover ${approver} (second: ${second})\nAnswer: ${status} ${status2}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s88",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s89",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s90",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s91",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s92",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s93",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW03-B4 - exception",
+                            "message": "RW03-B4: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s94",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s95",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 approval dossiers (the matched ones)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s96",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s97",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s98",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s99",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s100",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s101",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s102",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s103",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW03-B4 Approval and SoD controller finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s104",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s105",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW03-B4 finished",
+                "message": "RW03-B4 Approval and SoD controller finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

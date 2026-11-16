@@ -1,0 +1,4 @@
+key,status,note,time
+AAMkAP0001,done,parked 5100000001,03:56:00
+AAMkAP0002,done,parked 5100000002,03:56:00
+AAMkAP0008,exception,"SAP.TOTAL_MISMATCH: RE-7781: SAP worked out 1469.13, the invoice says 1469.05; draft 5100000003 cancelled",03:56:00

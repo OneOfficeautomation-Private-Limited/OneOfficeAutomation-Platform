@@ -1,0 +1,3 @@
+key,invoice,vendor,po,tax_code,document,status,sap_total,invoice_total
+AAMkAP0001,INV-1001,S-ACME,PO-5001,V1,5100000001,parked,1309,1309
+AAMkAP0002,INV-1002,S-ACME,PO-5002,V1,5100000002,parked,1225.7,1225.70

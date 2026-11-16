@@ -61,6 +61,13 @@ def main():
             raise
         mod.write(w)
         merge(seed, mod.seed())
+    # fixtures: saved outputs of checked runs, which a child reads when it runs on its own (without the child before it)
+    fixtures = os.path.join(os.path.dirname(HERE), "fixtures")
+    if os.path.isdir(fixtures):
+        for rw in sorted(os.listdir(fixtures)):
+            for name in sorted(os.listdir(os.path.join(fixtures, rw))):
+                with open(os.path.join(fixtures, rw, name), "rb") as fh:
+                    w(rw + "/fixtures/" + name, fh.read())
     os.makedirs(os.path.join(base, "standin"), exist_ok=True)
     with open(os.path.join(base, "standin", "seed.json"), "w", encoding="utf-8") as fh:
         json.dump(seed, fh, indent=1)

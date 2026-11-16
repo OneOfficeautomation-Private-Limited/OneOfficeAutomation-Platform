@@ -1,0 +1,8 @@
+key,status,note,time
+AAMkAP0001,done,EUR 1309 (model sure),03:54:54
+AAMkAP0002,done,EUR 1225.70 (model sure),03:54:55
+AAMkAP0003,done,USD 1120 (model sure),03:54:55
+AAMkAP0004,exception,ROUTE.NO_PO: INV-2002 has no purchase order number: rejected to the supplier,03:54:56
+AAMkAP0006,done,USD 25000 (model sure),03:54:56
+AAMkAP0008,done,"EUR 1469.05 (low confidence, proved by calculation)",03:54:57
+AAMkAP0010,done,USD 1200 (model sure),03:54:57

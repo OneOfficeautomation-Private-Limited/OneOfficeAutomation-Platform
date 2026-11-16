@@ -57,8 +57,10 @@ RATES = {"EUR": 1, "USD": 1.08, "GBP": 0.86, "INR": 90.5}   # fixed rates for au
 APPROVAL_MATRIX = [  # up to amount (EUR), first approver, second approver needed
     (5000, "lead.ap@ooa-qa.test", "no"), (20000, "controller.ap@ooa-qa.test", "no"), (10000000, "controller.ap@ooa-qa.test", "yes"),
 ]
-# the approvers' answers in the QA tenant, by invoice number (others approve)
-DECISIONS = {"INV-1002": "approve", "INV-3001": "approve", "RE-7781": "timeout", "INV-1001": "approve"}
+# the approvers' answers in the QA tenant, by request subject (others approve); "#2" is the second approval
+DECISIONS = {"INV-2001": "decline", "INV-3001#2": "timeout"}
+REQUESTERS = [("CC-410", "lead.ap@ooa-qa.test"), ("CC-520", "buyer.ap@ooa-qa.test"), ("CC-630", "requester.ap@ooa-qa.test")]
+TAX_CODES = [(19, "V1"), (0, "V0")]   # SAP QA tax codes by rate
 
 
 def money(v, style):
@@ -80,7 +82,11 @@ def lines_of(inv):
 def write(w):
     for inv in INVOICES:
         w("RW03/invoices/%s-%s.pdf" % (inv[0], inv[3]), pdf(lines_of(inv)))
-    w("RW03/invoices.csv", [(i[0], i[3], i[1]) for i in INVOICES], ["key", "invoice", "sender"])
+    w("RW03/invoices.csv", [(mail_id(n), i[0], i[3], i[1], "RW03/invoices/%s-%s.pdf" % (i[0], i[3])) for n, i in enumerate(INVOICES)],
+      ["key", "dossier", "invoice", "sender", "file"])
+    w("RW03/requesters.csv", REQUESTERS, ["cost_center", "requester"])
+    w("RW03/tax_codes.csv", TAX_CODES, ["rate", "tax_code"])
+    w("RW03/period.json", '{"open_period": "%s", "closed_before": "%s"}\n' % (TODAY.strftime("%Y-%m"), TODAY.replace(day=1).isoformat()))
     w("RW03/suppliers.csv", SUPPLIERS, ["id", "name", "aliases", "sender", "currency"])
     w("RW03/pos.csv", POS, ["po", "supplier", "sku", "qty", "unit_price", "currency", "cost_center"])
     w("RW03/receipts.csv", RECEIPTS, ["po", "sku", "received"])
@@ -88,13 +94,22 @@ def write(w):
     w("RW03/rates.json", '{"EUR": 1, "USD": 1.08, "GBP": 0.86, "INR": 90.5}\n')
 
 
+def mail_id(n):
+    """The QA mailbox gives the n-th invoice mail this id; every RW03 agent keys its records by it."""
+    return "AAMkAP%04d" % (n + 1)
+
+
 def seed():
     msgs = []
     for n, inv in enumerate(INVOICES):
         att = [{"@odata.type": "#microsoft.graph.fileAttachment", "name": "%s.pdf" % inv[3], "contentType": "application/pdf", "isInline": False,
                 "contentBytes": base64.b64encode(pdf(lines_of(inv))).decode("ascii")}] if inv[9] else []
-        msgs.append({"id": "AAMkAP%04d" % (n + 1), "subject": "OOA-QA invoice %s" % inv[3], "isRead": False, "hasAttachments": bool(att),
+        msgs.append({"id": mail_id(n), "subject": "OOA-QA invoice %s" % inv[3], "isRead": False, "hasAttachments": bool(att),
                      "parentFolderId": "inbox", "receivedDateTime": (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(hours=12 - n)).strftime("%Y-%m-%dT%H:%M:%SZ"),
                      "from": {"emailAddress": {"address": inv[1]}}, "toRecipients": [{"emailAddress": {"address": MAILBOX}}],
                      "body": {"contentType": "text", "content": "Please find invoice %s attached." % inv[3]}, "_attachments": att})
-    return {"mail": {MAILBOX: msgs}, "approvals": {"decisions": DECISIONS, "requests": []}, "sap": {"parked": [], "posted": []}}
+    prices = {"%s|%s" % (p[1], p[2]): [p[4], p[5]] for p in POS}   # the ERP's agreed unit prices (SOAP price service)
+    sap = {"parked": [], "posted": [], "clients": ["QA-100"], "vendors": {sid: name for sid, name, *_ in SUPPLIERS},
+           "pos": {po: sup for po, sup, *_ in POS}, "tax_codes": {code: rate for rate, code in TAX_CODES}}
+    return {"mail": {MAILBOX: msgs}, "approvals": {"decisions": DECISIONS, "requests": []}, "sap": sap,
+            "erp": {"prices": prices}}

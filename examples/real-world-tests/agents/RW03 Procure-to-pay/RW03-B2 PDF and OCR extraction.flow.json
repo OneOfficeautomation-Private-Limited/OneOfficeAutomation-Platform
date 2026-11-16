@@ -1,0 +1,1345 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw03_b2",
+  "name": "RW03-B2 PDF and OCR extraction",
+  "description": "RW03-B2 (RW03 real-world test). Opens each accepted invoice PDF, reads its text and (as a cross-check) the OCR text of the page picture, asks the scripted AI model for the header fields with confidence, reads the lines with a Python script, parses the numbers the invoice's way (German or English), recomputes lines, tax and total, applies the confidence threshold, rejects no-PO and duplicate invoices and returns typed fields.",
+  "tags": [
+    "real-world-test",
+    "RW03"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "b1",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "pdf",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "pages",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "imgs",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ocr",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ai",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "conf",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "review",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "parsed",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "ln",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "net",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "tax",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "total",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "sum_lines",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "ok",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "dup_key",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "seen",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "how",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "lines",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "invoice",
+          "sku",
+          "qty",
+          "unit_price",
+          "amount"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "threshold",
+      "type": "Number",
+      "direction": "input",
+      "default": 0.8,
+      "description": "AI confidence below this sends a field to a person (unless the bot can prove it by calculation)."
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "invoice",
+          "supplier",
+          "po",
+          "currency",
+          "invoice_date",
+          "locale",
+          "net",
+          "tax_rate",
+          "tax",
+          "total",
+          "line_count",
+          "ai_review",
+          "how",
+          "page_image"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    },
+    {
+      "name": "lines_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The invoice lines (one row per line)."
+    },
+    {
+      "name": "local",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "pys",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "pyf",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "py",
+      "type": "String",
+      "direction": "local",
+      "default": "python"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Opens each accepted invoice PDF, reads its text and (as a cross-check) the OCR text of the page picture, asks the scripted AI model for the header fields with confidence, reads the lines with a Python script, parses the numbers the invoice's way (German or English), recomputes lines, tax and total, applies the confidence threshold, rejects no-PO and duplicate invoices and returns typed fields. It works through 10 invoices (the accepted ones) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW03-B2"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW03-B2 PDF and OCR extraction started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW03-B2 starts",
+                "message": "RW03-B2 PDF and OCR extraction\n\nOpens each accepted invoice PDF, reads its text and (as a cross-check) the OCR text of the page picture, asks the scripted AI model for the header fields with confidence, reads the lines with a Python script, parses the numbers the invoice's way (German or English), recomputes lines, tax and total, applies the confidence threshold, rejects no-PO and duplicate invoices and returns typed fields.\n\nRecords: 10 invoices (the accepted ones)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Use the PDFs intake accepted (or all 10 when run on its own), find Python and write the line reader script."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW03/invoices.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW03/invoices.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "ai",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s18",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s19",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B1/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read what intake accepted"
+            }
+          ],
+          "description": "Intake ran in this run?",
+          "else": [
+            {
+              "id": "s20",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: all 10 invoice PDFs of the test data."
+              }
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.system/get_environment_variable",
+          "args": {
+            "name": "LOCALAPPDATA"
+          },
+          "out": {
+            "value": "local"
+          },
+          "description": "Where per-user programs are"
+        },
+        {
+          "id": "s22",
+          "action": "ooa.folder/list_subfolders",
+          "args": {
+            "path": "${local}/Programs/Python"
+          },
+          "out": {
+            "folders": "pys"
+          },
+          "continueOnError": true,
+          "description": "Installed Pythons (one folder each)"
+        },
+        {
+          "id": "s23",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": {
+              "expr": "coalesce($pys$, [])"
+            },
+            "as": "pyf"
+          },
+          "children": [
+            {
+              "id": "s24",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.file/exists",
+                  "args": {
+                    "path": "${pyf}/python.exe"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "py",
+                    "value": "${pyf}/python.exe"
+                  },
+                  "description": "Use it"
+                }
+              ],
+              "description": "Has python.exe at its top?"
+            }
+          ],
+          "description": "Each installed Python"
+        },
+        {
+          "id": "s26",
+          "action": "ooa.file/write_text",
+          "args": {
+            "path": "${out_dir}/parse_lines.py",
+            "text": "\"\"\"Reads invoice lines (SKU, quantity, unit price, amount) from the invoice text on standard input; prints JSON.\nNumbers are read the invoice's way: 1.234,50 (German) or 1,234.50 (English).\"\"\"\nimport json, re, sys\ntext = sys.stdin.read()\nde = bool(re.search(r\"\\d\\.\\d{3},\\d{2}\\b|(?<![\\d.,])\\d+,\\d{2}\\b\", text))\ndef num(s):\n    s = s.strip()\n    s = s.replace(\".\", \"\").replace(\",\", \".\") if de else s.replace(\",\", \"\")\n    return round(float(s), 4)\nlines = [{\"sku\": m.group(1), \"qty\": int(m.group(2)), \"unit_price\": num(m.group(3)), \"amount\": num(m.group(4))}\n         for m in re.finditer(r\"^(SKU-\\w+)\\s+(\\d+)\\s+([\\d.,]+)\\s+([\\d.,]+)\\s*$\", text, re.M)]\ntax = re.search(r\"Tax\\s+(\\d+)%\", text)\nprint(json.dumps({\"locale\": \"de-DE\" if de else \"en-US\", \"tax_rate\": int(tax.group(1)) if tax else None, \"lines\": lines}))\n"
+          },
+          "description": "Write the line reader (Python)"
+        },
+        {
+          "id": "s27",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "${out_dir}/pages"
+          },
+          "description": "Folder for the page pictures (evidence)"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s28",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s29",
+          "action": "core/comment",
+          "args": {
+            "text": "Per invoice: text, page picture and OCR, AI fields with confidence, Python lines, locale numbers, totals, threshold, PO and duplicate checks."
+          }
+        },
+        {
+          "id": "s30",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s31",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s32",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "pdf",
+                    "value": {
+                      "expr": "if(contains($rec.file$, ':'), $rec.file$, $base$ + '/data/' + $rec.file$)"
+                    }
+                  },
+                  "description": "1. Open the PDF (intake folder, or test data)"
+                },
+                {
+                  "id": "s34",
+                  "action": "ooa.pdf/extract_text",
+                  "args": {
+                    "path": "$pdf$",
+                    "mode": "plain"
+                  },
+                  "out": {
+                    "text": "text",
+                    "page_count": "pages"
+                  },
+                  "description": "2. Extract the text"
+                },
+                {
+                  "id": "s35",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$pages$ == 0 or isEmpty(trim($text$))"
+                  },
+                  "children": [
+                    {
+                      "id": "s36",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.MALFORMED",
+                        "message": "${rec.invoice}: the PDF has no readable text"
+                      },
+                      "description": "Reject it"
+                    }
+                  ],
+                  "description": "Malformed (no pages or no text)?"
+                },
+                {
+                  "id": "s37",
+                  "action": "ooa.pdf/to_images",
+                  "args": {
+                    "path": "$pdf$",
+                    "pages": "1",
+                    "target_folder": "${out_dir}/pages",
+                    "file_prefix": "${rec.key}-",
+                    "dpi": 150,
+                    "color": "gray"
+                  },
+                  "out": {
+                    "files": "imgs"
+                  },
+                  "description": "6. Page picture as evidence"
+                },
+                {
+                  "id": "s38",
+                  "action": "ooa.ocr/read_image",
+                  "args": {
+                    "path": "${first($imgs$)}"
+                  },
+                  "out": {
+                    "text": "ocr"
+                  },
+                  "description": "2. OCR the page picture (cross-check)"
+                },
+                {
+                  "id": "s39",
+                  "action": "ooa.genai/extract",
+                  "args": {
+                    "text": "$text$",
+                    "fields": {
+                      "supplier": "supplier name",
+                      "invoice_number": "invoice number",
+                      "invoice_date": "invoice date",
+                      "po_number": "purchase order number",
+                      "currency": "ISO currency code",
+                      "net": "net amount as written",
+                      "tax": "tax amount as written",
+                      "total": "total amount as written"
+                    },
+                    "provider": "openai_compatible",
+                    "model": "qa-scripted",
+                    "api_key": {
+                      "$credential": "rw_qa_standins/ai/token"
+                    },
+                    "base_url": "${standin}/v1",
+                    "min_confidence": "$threshold$",
+                    "mask_pii": true
+                  },
+                  "out": {
+                    "fields": "ai",
+                    "confidence": "conf",
+                    "needs_review": "review"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "3. Identify supplier, invoice, date, PO, currency and totals (scripted model, personal data masked)"
+                },
+                {
+                  "id": "s40",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "isEmpty(coalesce($ai.po_number$, ''))"
+                  },
+                  "children": [
+                    {
+                      "id": "s41",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.NO_PO",
+                        "message": "${rec.invoice} has no purchase order number: rejected to the supplier"
+                      },
+                      "description": "Reject: no PO, no payment"
+                    }
+                  ],
+                  "description": "No PO number?"
+                },
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "dup_key",
+                    "value": "${ai.supplier}|${ai.invoice_number}"
+                  },
+                  "description": "Supplier and invoice number"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "$seen$",
+                      "right": "$dup_key$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s44",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.DUPLICATE",
+                        "message": "${ai.invoice_number} of ${ai.supplier} was already extracted"
+                      },
+                      "description": "Reject the duplicate"
+                    }
+                  ],
+                  "description": "8. Same supplier invoice seen already?"
+                },
+                {
+                  "id": "s45",
+                  "action": "ooa.list/add_item",
+                  "args": {
+                    "list": "$seen$",
+                    "item": "$dup_key$"
+                  },
+                  "out": {
+                    "list": "seen"
+                  },
+                  "description": "Remember it"
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.script/run_python",
+                  "args": {
+                    "file": "${out_dir}/parse_lines.py",
+                    "input": "$text$",
+                    "interpreter": "$py$"
+                  },
+                  "out": {
+                    "json": "parsed"
+                  },
+                  "description": "3. Read the lines (Python)"
+                },
+                {
+                  "id": "s47",
+                  "action": "ooa.string/to_number",
+                  "args": {
+                    "text": "$ai.net$",
+                    "locale": "$parsed.locale$"
+                  },
+                  "out": {
+                    "result": "net"
+                  },
+                  "description": "4. Net, read the invoice's way"
+                },
+                {
+                  "id": "s48",
+                  "action": "ooa.string/to_number",
+                  "args": {
+                    "text": "$ai.tax$",
+                    "locale": "$parsed.locale$"
+                  },
+                  "out": {
+                    "result": "tax"
+                  },
+                  "description": "4. Tax, read the invoice's way"
+                },
+                {
+                  "id": "s49",
+                  "action": "ooa.string/to_number",
+                  "args": {
+                    "text": "$ai.total$",
+                    "locale": "$parsed.locale$"
+                  },
+                  "out": {
+                    "result": "total"
+                  },
+                  "description": "4. Total, read the invoice's way"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sum_lines",
+                    "value": 0
+                  },
+                  "description": "Start the line sum"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$parsed.lines$",
+                    "as": "ln"
+                  },
+                  "children": [
+                    {
+                      "id": "s52",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "sum_lines",
+                        "value": {
+                          "expr": "$sum_lines$ + toNumber($ln.amount$)"
+                        }
+                      },
+                      "description": "5. Add the line amount"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$lines$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "invoice": "$ai.invoice_number$",
+                          "sku": "$ln.sku$",
+                          "qty": "$ln.qty$",
+                          "unit_price": "$ln.unit_price$",
+                          "amount": "$ln.amount$"
+                        }
+                      },
+                      "out": {
+                        "table": "lines"
+                      },
+                      "description": "Keep the line"
+                    }
+                  ],
+                  "description": "Each invoice line"
+                },
+                {
+                  "id": "s54",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": {
+                      "expr": "abs($sum_lines$ - $net$) <= 0.02 and abs(round($net$ * toNumber($parsed.tax_rate$) / 100, 2) - $tax$) <= 0.02 and abs($net$ + $tax$ - $total$) <= 0.02"
+                    }
+                  },
+                  "description": "5. Lines add up to the net, tax and total"
+                },
+                {
+                  "id": "s55",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not $ok$"
+                  },
+                  "children": [
+                    {
+                      "id": "s56",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.MANUAL_REVIEW",
+                        "message": "${rec.invoice}: lines ${sum_lines}, net ${net}, tax ${tax}, total ${total} do not add up"
+                      },
+                      "description": "Send it to a person"
+                    }
+                  ],
+                  "description": "Totals do not add up?"
+                },
+                {
+                  "id": "s57",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "how",
+                    "value": "model sure"
+                  },
+                  "description": "The model was sure"
+                },
+                {
+                  "id": "s58",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$review$"
+                  },
+                  "children": [
+                    {
+                      "id": "s59",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "Low confidence (here: German number format). The bot proved net, tax and total by recomputing them from the lines, so it accepts them; had they not added up, the invoice would have gone to manual review above."
+                      }
+                    },
+                    {
+                      "id": "s60",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "how",
+                        "value": "low confidence, proved by calculation"
+                      },
+                      "description": "Accepted on the calculation"
+                    },
+                    {
+                      "id": "s61",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "${rec.invoice}: model confidence total ${conf.total}; proved by recomputing the lines"
+                      },
+                      "description": "Note the low confidence"
+                    }
+                  ],
+                  "description": "7. Model below the confidence threshold?"
+                },
+                {
+                  "id": "s62",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not contains($ocr$, $ai.invoice_number$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s63",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "${rec.invoice}: OCR did not read the invoice number"
+                      },
+                      "description": "Note the OCR difference"
+                    }
+                  ],
+                  "description": "OCR text lacks the invoice number?"
+                },
+                {
+                  "id": "s64",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "invoice": "$ai.invoice_number$",
+                      "supplier": "$ai.supplier$",
+                      "po": "$ai.po_number$",
+                      "currency": "$ai.currency$",
+                      "invoice_date": "$ai.invoice_date$",
+                      "locale": "$parsed.locale$",
+                      "net": "$net$",
+                      "tax_rate": "$parsed.tax_rate$",
+                      "tax": "$tax$",
+                      "total": "$total$",
+                      "line_count": {
+                        "expr": "len($parsed.lines$)"
+                      },
+                      "ai_review": "$review$",
+                      "how": "$how$",
+                      "page_image": "${first($imgs$)}"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "9. Return the typed fields"
+                },
+                {
+                  "id": "s65",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${ai.currency} ${total} (${how})"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s66",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s67",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s68",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s69",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW03-B2 - record ${rec.key}",
+                        "message": "RW03-B2: record ${$i + 1} of ${len($records$)}\n\n${rec.invoice}: ${ai.supplier}\nPO ${ai.po_number}  ${ai.currency} ${total}\nAI review: ${review} (${how})",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s70",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s71",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s72",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s73",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s74",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s75",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW03-B2 - exception",
+                            "message": "RW03-B2: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s76",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s77",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 invoices (the accepted ones)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s78",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s79",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s80",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s81",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s82",
+          "action": "core/set",
+          "args": {
+            "variable": "lines_file",
+            "value": "${out_dir}/lines.csv"
+          },
+          "description": "Name of the lines file"
+        },
+        {
+          "id": "s83",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$lines$",
+            "path": "$lines_file$"
+          },
+          "description": "Save the invoice lines"
+        },
+        {
+          "id": "s84",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s85",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s86",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s87",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW03-B2 PDF and OCR extraction finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s88",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s89",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW03-B2 finished",
+                "message": "RW03-B2 PDF and OCR extraction finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+key,invoice,supplier,po,currency,invoice_date,locale,net,tax_rate,tax,total,line_count,ai_review,how,page_image
+AAMkAP0001,INV-1001,Acme Supplies Ltd,PO-5001,EUR,2026-11-16,en-US,1100,19,209,1309,2,false,model sure,C:\Users\virup\OOA Real-world tests\output\RW03-LOCAL-1\RW03-B2\pages\AAMkAP0001-_page1.png
+AAMkAP0002,INV-1002,ACME Supplies Limited,PO-5002,EUR,2026-11-16,en-US,1030,19,195.70,1225.70,1,false,model sure,C:\Users\virup\OOA Real-world tests\output\RW03-LOCAL-1\RW03-B2\pages\AAMkAP0002-_page1.png
+AAMkAP0003,INV-2001,Globex Corp,PO-5003,USD,2026-11-16,en-US,1120,0,0,1120,1,false,model sure,C:\Users\virup\OOA Real-world tests\output\RW03-LOCAL-1\RW03-B2\pages\AAMkAP0003-_page1.png
+AAMkAP0006,INV-3001,Stark Industries,PO-5006,USD,2026-11-16,en-US,25000,0,0,25000,1,false,model sure,C:\Users\virup\OOA Real-world tests\output\RW03-LOCAL-1\RW03-B2\pages\AAMkAP0006-_page1.png
+AAMkAP0008,RE-7781,Umbrella GmbH,PO-5008,EUR,2026-11-16,de-DE,1234.50,19,234.55,1469.05,1,true,"low confidence, proved by calculation",C:\Users\virup\OOA Real-world tests\output\RW03-LOCAL-1\RW03-B2\pages\AAMkAP0008-_page1.png
+AAMkAP0010,INV-3002,Stark Industries,PO-5010,USD,2026-11-16,en-US,1200,0,0,1200,1,false,model sure,C:\Users\virup\OOA Real-world tests\output\RW03-LOCAL-1\RW03-B2\pages\AAMkAP0010-_page1.png

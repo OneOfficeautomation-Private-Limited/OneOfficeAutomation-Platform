@@ -1,0 +1,1232 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw03_b1",
+  "name": "RW03-B1 Invoice mail intake",
+  "description": "RW03-B1 (RW03 real-world test). Reads the 10 tagged invoice mails of the QA accounts-payable mailbox, checks each sender against the supplier allow-list, routes mail without an attachment, saves the PDF under the run folder, enforces type and size, drops duplicates by file hash, checks the invoice period is open, creates a case id per invoice and checkpoints it; the accepted PDFs land in the intake folder.",
+  "tags": [
+    "real-world-test",
+    "RW03"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "email",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "invoice",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "supplier_id",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "case_id",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "files",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "pdf",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sha",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "seen",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "period",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "cfg",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "suppliers",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "intake",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "arrived",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "handed",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "case_id",
+          "invoice",
+          "sender",
+          "supplier_id",
+          "file",
+          "hash",
+          "size_bytes",
+          "received",
+          "period"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Reads the 10 tagged invoice mails of the QA accounts-payable mailbox, checks each sender against the supplier allow-list, routes mail without an attachment, saves the PDF under the run folder, enforces type and size, drops duplicates by file hash, checks the invoice period is open, creates a case id per invoice and checkpoints it; the accepted PDFs land in the intake folder. It works through 10 synthetic invoice mails and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW03-B1"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW03-B1 Invoice mail intake started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW03-B1 starts",
+                "message": "RW03-B1 Invoice mail intake\n\nReads the 10 tagged invoice mails of the QA accounts-payable mailbox, checks each sender against the supplier allow-list, routes mail without an attachment, saves the PDF under the run folder, enforces type and size, drops duplicates by file hash, checks the invoice period is open, creates a case id per invoice and checkpoints it; the accepted PDFs land in the intake folder.\n\nRecords: 10 synthetic invoice mails\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the 10 tagged invoice mails (oldest first), the supplier allow-list and the open accounting period."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "graph",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s17",
+          "action": "ooa.microsoft365/list_mail",
+          "args": {
+            "folder": "inbox",
+            "subject_contains": "OOA-QA invoice",
+            "oldest_first": true,
+            "max_results": 10,
+            "access_token": {
+              "$credential": "rw_qa_standins/graph/token"
+            },
+            "base_url": "${standin}/graph/v1.0",
+            "mailbox": "ap-qa@ooa-qa.test"
+          },
+          "out": {
+            "table": "records"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "List the tagged invoice mails of the AP mailbox"
+        },
+        {
+          "id": "s18",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW03/suppliers.csv"
+          },
+          "out": {
+            "table": "suppliers"
+          },
+          "description": "Read the supplier master (sender allow-list)"
+        },
+        {
+          "id": "s19",
+          "action": "ooa.json/read_file",
+          "args": {
+            "path": "${base}/data/RW03/period.json"
+          },
+          "out": {
+            "value": "cfg"
+          },
+          "description": "Read the open accounting period"
+        },
+        {
+          "id": "s20",
+          "action": "core/set",
+          "args": {
+            "variable": "intake",
+            "value": "${out_dir}/intake"
+          },
+          "description": "Intake folder: the accepted PDFs, one per case"
+        },
+        {
+          "id": "s21",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$intake$"
+          },
+          "description": "Create the intake folder"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s22",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s23",
+          "action": "core/comment",
+          "args": {
+            "text": "Per mail: read it, check the sender, route a missing attachment, save the PDF, check type and size, hash and drop duplicates, check the period, make the case id, hand the PDF to intake and checkpoint."
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s26",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "ooa.microsoft365/get_mail",
+                  "args": {
+                    "id": "$rec.id$",
+                    "mark_read": false,
+                    "body_as_text": true,
+                    "access_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    },
+                    "base_url": "${standin}/graph/v1.0",
+                    "mailbox": "ap-qa@ooa-qa.test"
+                  },
+                  "out": {
+                    "email": "email"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "1. Read the tagged message"
+                },
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "invoice",
+                    "value": {
+                      "expr": "trim(replace($rec.subject$, 'OOA-QA invoice', ''))"
+                    }
+                  },
+                  "description": "Invoice number from the subject"
+                },
+                {
+                  "id": "s29",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$suppliers$",
+                    "column": "sender",
+                    "value": "$rec.from$",
+                    "return_column": "id",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "supplier_id"
+                  },
+                  "description": "2. Validate the sender against the test allow-list"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "empty",
+                      "left": "$supplier_id$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s31",
+                      "action": "ooa.microsoft365/move_mail",
+                      "args": {
+                        "id": "$rec.id$",
+                        "to_folder": "rejected",
+                        "access_token": {
+                          "$credential": "rw_qa_standins/graph/token"
+                        },
+                        "base_url": "${standin}/graph/v1.0",
+                        "mailbox": "ap-qa@ooa-qa.test"
+                      },
+                      "description": "Route it to Rejected"
+                    },
+                    {
+                      "id": "s32",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.UNKNOWN_SENDER",
+                        "message": "${rec.from} is not an allow-listed supplier sender"
+                      },
+                      "description": "Route the unknown sender"
+                    }
+                  ],
+                  "description": "Sender not on the allow-list?"
+                },
+                {
+                  "id": "s33",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "${rec.has_attachments}",
+                      "right": "true"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s34",
+                      "action": "ooa.microsoft365/move_mail",
+                      "args": {
+                        "id": "$rec.id$",
+                        "to_folder": "missing-attachment",
+                        "access_token": {
+                          "$credential": "rw_qa_standins/graph/token"
+                        },
+                        "base_url": "${standin}/graph/v1.0",
+                        "mailbox": "ap-qa@ooa-qa.test"
+                      },
+                      "description": "Route it to Missing attachment"
+                    },
+                    {
+                      "id": "s35",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.MISSING_ATTACHMENT",
+                        "message": "${invoice} from ${rec.from} came without the invoice PDF"
+                      },
+                      "description": "Route the mail"
+                    }
+                  ],
+                  "description": "8. No attachment?"
+                },
+                {
+                  "id": "s36",
+                  "action": "ooa.microsoft365/save_mail_attachments",
+                  "args": {
+                    "id": "$rec.id$",
+                    "target_folder": "${out_dir}/mail/${rec.id}",
+                    "overwrite": true,
+                    "include_inline": false,
+                    "access_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    },
+                    "base_url": "${standin}/graph/v1.0",
+                    "mailbox": "ap-qa@ooa-qa.test"
+                  },
+                  "out": {
+                    "files": "files"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "3. Save the attachment under the run folder"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "pdf",
+                    "value": {
+                      "expr": "first($files$)"
+                    }
+                  },
+                  "description": "The saved file"
+                },
+                {
+                  "id": "s38",
+                  "action": "ooa.file/get_info",
+                  "args": {
+                    "path": "$pdf$"
+                  },
+                  "out": {
+                    "info": "info"
+                  },
+                  "description": "5. Read its type and size"
+                },
+                {
+                  "id": "s39",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "lower($info.extension$) != 'pdf' or toNumber($info.size_bytes$) > 5242880"
+                  },
+                  "children": [
+                    {
+                      "id": "s40",
+                      "action": "ooa.microsoft365/move_mail",
+                      "args": {
+                        "id": "$rec.id$",
+                        "to_folder": "rejected",
+                        "access_token": {
+                          "$credential": "rw_qa_standins/graph/token"
+                        },
+                        "base_url": "${standin}/graph/v1.0",
+                        "mailbox": "ap-qa@ooa-qa.test"
+                      },
+                      "description": "Route it to Rejected"
+                    },
+                    {
+                      "id": "s41",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VALIDATION.ATTACHMENT",
+                        "message": "${info.name}: only PDF files up to 5 MB are accepted"
+                      },
+                      "description": "Reject the attachment"
+                    }
+                  ],
+                  "description": "Not a PDF, or over 5 MB?"
+                },
+                {
+                  "id": "s42",
+                  "action": "ooa.crypto/hash_file",
+                  "args": {
+                    "path": "$pdf$"
+                  },
+                  "out": {
+                    "hash": "sha"
+                  },
+                  "description": "4. Hash the PDF (SHA-256)"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "$seen$",
+                      "right": "$sha$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s44",
+                      "action": "ooa.microsoft365/move_mail",
+                      "args": {
+                        "id": "$rec.id$",
+                        "to_folder": "duplicates",
+                        "access_token": {
+                          "$credential": "rw_qa_standins/graph/token"
+                        },
+                        "base_url": "${standin}/graph/v1.0",
+                        "mailbox": "ap-qa@ooa-qa.test"
+                      },
+                      "description": "Route the duplicate"
+                    },
+                    {
+                      "id": "s45",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.DUPLICATE",
+                        "message": "${invoice}: the same PDF arrived before (hash ${substring($sha$, 0, 12)})"
+                      },
+                      "description": "Route the duplicate"
+                    }
+                  ],
+                  "description": "Same file seen already?"
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.list/add_item",
+                  "args": {
+                    "list": "$seen$",
+                    "item": "$sha$"
+                  },
+                  "out": {
+                    "list": "seen"
+                  },
+                  "description": "Remember the hash"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "period",
+                    "value": {
+                      "expr": "formatDate($rec.received$, '%Y-%m')"
+                    }
+                  },
+                  "description": "7. Accounting period of the invoice mail"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$period$",
+                      "right": "$cfg.open_period$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s49",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VALIDATION.PERIOD_CLOSED",
+                        "message": "${invoice} belongs to ${period}; open period is ${cfg.open_period}"
+                      },
+                      "description": "Hold it for the next period"
+                    }
+                  ],
+                  "description": "Period closed?"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "case_id",
+                    "value": "OOA-QA-${run_id}-AP${substring($rec.id$, 6)}"
+                  },
+                  "description": "9. Create the case id (6. the mail id is kept with it)"
+                },
+                {
+                  "id": "s51",
+                  "action": "ooa.file/copy",
+                  "args": {
+                    "source": "$pdf$",
+                    "target": "${intake}/${case_id}.pdf",
+                    "overwrite": true
+                  },
+                  "description": "Hand the PDF to the intake folder"
+                },
+                {
+                  "id": "s52",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.id$",
+                      "case_id": "$case_id$",
+                      "invoice": "$invoice$",
+                      "sender": "$rec.from$",
+                      "supplier_id": "$supplier_id$",
+                      "file": "${intake}/${case_id}.pdf",
+                      "hash": "$sha$",
+                      "size_bytes": "$info.size_bytes$",
+                      "received": "$rec.received$",
+                      "period": "$period$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "10. Checkpoint: the case row"
+                },
+                {
+                  "id": "s53",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "evidence_file",
+                    "value": "${out_dir}/evidence.csv"
+                  },
+                  "description": "Name of the evidence file"
+                },
+                {
+                  "id": "s54",
+                  "action": "ooa.datatable/write_to_file",
+                  "args": {
+                    "table": "$evidence$",
+                    "path": "$evidence_file$"
+                  },
+                  "description": "Save the evidence rows"
+                },
+                {
+                  "id": "s55",
+                  "action": "ooa.microsoft365/mark_mail",
+                  "args": {
+                    "id": "$rec.id$",
+                    "status": "read",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    },
+                    "base_url": "${standin}/graph/v1.0",
+                    "mailbox": "ap-qa@ooa-qa.test"
+                  },
+                  "description": "Check the mail off (read)"
+                },
+                {
+                  "id": "s56",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "message": "${case_id}: ${invoice} from ${supplier_id}, mail ${rec.id}, hash ${substring($sha$, 0, 12)}"
+                  },
+                  "description": "Log the checkpoint"
+                },
+                {
+                  "id": "s57",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${case_id}"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s58",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.id$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s60",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s61",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW03-B1 - record ${rec.id}",
+                        "message": "RW03-B1: record ${$i + 1} of ${len($records$)}\n\n${invoice} from ${rec.from}\nCase: ${case_id}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s62",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s63",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.id$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s64",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s65",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.id}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s66",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s67",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW03-B1 - exception",
+                            "message": "RW03-B1: record ${rec.id} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s68",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 synthetic invoice mails"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s70",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s71",
+          "action": "core/comment",
+          "args": {
+            "text": "Confirm every accepted PDF is in the intake folder (a trigger loop sees each file arrive), then save the results."
+          }
+        },
+        {
+          "id": "s72",
+          "action": "core/comment",
+          "args": {
+            "text": "The same Each-new-file loop a watching agent would use; it sees the PDFs already there and stops after the accepted count or 10 seconds."
+          }
+        },
+        {
+          "id": "s73",
+          "action": "core/loop",
+          "args": {
+            "iterator": "ooa.triggerloop/file_arrives",
+            "iterator_args": {
+              "folder": "$intake$",
+              "pattern": "*.pdf",
+              "include_existing": true,
+              "settle_seconds": 1,
+              "poll_seconds": 1,
+              "max_events": {
+                "expr": "max($processed$, 1)"
+              },
+              "max_seconds": 10
+            },
+            "as": "arrived"
+          },
+          "children": [
+            {
+              "id": "s74",
+              "action": "core/set",
+              "args": {
+                "variable": "handed",
+                "value": {
+                  "expr": "$handed$ + 1"
+                }
+              },
+              "description": "Count it"
+            },
+            {
+              "id": "s75",
+              "action": "ooa.log/write",
+              "args": {
+                "path": "$log_file$",
+                "message": "Intake: ${arrived.name} ready for extraction"
+              },
+              "description": "Log the hand-over"
+            }
+          ],
+          "description": "Each PDF in the intake folder"
+        },
+        {
+          "id": "s76",
+          "action": "core/if",
+          "args": {
+            "condition": "$handed$ != $processed$"
+          },
+          "children": [
+            {
+              "id": "s77",
+              "action": "ooa.log/write",
+              "args": {
+                "path": "$log_file$",
+                "level": "WARN",
+                "message": "Intake holds ${handed} PDFs for ${processed} accepted mails"
+              },
+              "description": "Flag it"
+            }
+          ],
+          "description": "Intake folder does not match the accepted mails?"
+        },
+        {
+          "id": "s78",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s79",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s80",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s81",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s82",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s83",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW03-B1 Invoice mail intake finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s84",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW03-B1 finished",
+                "message": "RW03-B1 Invoice mail intake finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

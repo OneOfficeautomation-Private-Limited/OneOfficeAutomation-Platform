@@ -1,0 +1,2256 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw03_b6",
+  "name": "RW03-B6 Excel control and close-out",
+  "description": "RW03-B6 (RW03 real-world test). Brings every child's results together for the 10 invoice dossiers, reconciles counts and EUR totals, sorts variances into buckets, builds the control workbook with formulas and a pivot table, checks the formulas read back, stores it in the QA SharePoint site, scans every output for the secret canary and confirms no posted or paid documents.",
+  "tags": [
+    "real-world-test",
+    "RW03"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "b1",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b1r",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b2",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b2r",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b3",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b3r",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b4",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b4r",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b5",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b5r",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "case",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "total",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "cur",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "eur",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "decision",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "appr",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sapdoc",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "stage",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "bucket",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "st",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "buckets",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "item",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "formula",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "canary",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "files",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "leaks",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "posted",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "control",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "dossier",
+          "invoice",
+          "case",
+          "currency",
+          "total",
+          "amount_eur",
+          "decision",
+          "approval",
+          "sap_document",
+          "stage",
+          "bucket"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "workbook",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The control workbook."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Brings every child's results together for the 10 invoice dossiers, reconciles counts and EUR totals, sorts variances into buckets, builds the control workbook with formulas and a pivot table, checks the formulas read back, stores it in the QA SharePoint site, scans every output for the secret canary and confirms no posted or paid documents. It works through 10 invoice dossiers and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW03-B6"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW03-B6 Excel control and close-out started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW03-B6 starts",
+                "message": "RW03-B6 Excel control and close-out\n\nBrings every child's results together for the 10 invoice dossiers, reconciles counts and EUR totals, sorts variances into buckets, builds the control workbook with formulas and a pivot table, checks the formulas read back, stores it in the QA SharePoint site, scans every output for the secret canary and confirms no posted or paid documents.\n\nRecords: 10 invoice dossiers\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read every child's evidence and results of this run (fixtures when run on its own)."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW03/invoices.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW03/invoices.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B1/evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW03-B1 evidence"
+            }
+          ],
+          "description": "RW03-B1 ran in this run?",
+          "else": [
+            {
+              "id": "s18",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B1's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s19",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B1-evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW03-B1 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s20",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B1/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s21",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B1/results.csv"
+              },
+              "out": {
+                "table": "b1r"
+              },
+              "description": "Read RW03-B1 results"
+            }
+          ],
+          "description": "RW03-B1 ran in this run?",
+          "else": [
+            {
+              "id": "s22",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B1's results from a checked run."
+              }
+            },
+            {
+              "id": "s23",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B1-results.csv"
+              },
+              "out": {
+                "table": "b1r"
+              },
+              "description": "Read RW03-B1 results (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s24",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B2/evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW03-B2 evidence"
+            }
+          ],
+          "description": "RW03-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s26",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B2's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s27",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B2-evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW03-B2 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s28",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B2/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s29",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B2/results.csv"
+              },
+              "out": {
+                "table": "b2r"
+              },
+              "description": "Read RW03-B2 results"
+            }
+          ],
+          "description": "RW03-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s30",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B2's results from a checked run."
+              }
+            },
+            {
+              "id": "s31",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B2-results.csv"
+              },
+              "out": {
+                "table": "b2r"
+              },
+              "description": "Read RW03-B2 results (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s32",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B3/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s33",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B3/evidence.csv"
+              },
+              "out": {
+                "table": "b3"
+              },
+              "description": "Read RW03-B3 evidence"
+            }
+          ],
+          "description": "RW03-B3 ran in this run?",
+          "else": [
+            {
+              "id": "s34",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B3's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s35",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B3-evidence.csv"
+              },
+              "out": {
+                "table": "b3"
+              },
+              "description": "Read RW03-B3 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s36",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B3/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s37",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B3/results.csv"
+              },
+              "out": {
+                "table": "b3r"
+              },
+              "description": "Read RW03-B3 results"
+            }
+          ],
+          "description": "RW03-B3 ran in this run?",
+          "else": [
+            {
+              "id": "s38",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B3's results from a checked run."
+              }
+            },
+            {
+              "id": "s39",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B3-results.csv"
+              },
+              "out": {
+                "table": "b3r"
+              },
+              "description": "Read RW03-B3 results (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s40",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B4/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s41",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B4/evidence.csv"
+              },
+              "out": {
+                "table": "b4"
+              },
+              "description": "Read RW03-B4 evidence"
+            }
+          ],
+          "description": "RW03-B4 ran in this run?",
+          "else": [
+            {
+              "id": "s42",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B4's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s43",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B4-evidence.csv"
+              },
+              "out": {
+                "table": "b4"
+              },
+              "description": "Read RW03-B4 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s44",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B4/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s45",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B4/results.csv"
+              },
+              "out": {
+                "table": "b4r"
+              },
+              "description": "Read RW03-B4 results"
+            }
+          ],
+          "description": "RW03-B4 ran in this run?",
+          "else": [
+            {
+              "id": "s46",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B4's results from a checked run."
+              }
+            },
+            {
+              "id": "s47",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B4-results.csv"
+              },
+              "out": {
+                "table": "b4r"
+              },
+              "description": "Read RW03-B4 results (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s48",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B5/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s49",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B5/evidence.csv"
+              },
+              "out": {
+                "table": "b5"
+              },
+              "description": "Read RW03-B5 evidence"
+            }
+          ],
+          "description": "RW03-B5 ran in this run?",
+          "else": [
+            {
+              "id": "s50",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B5's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s51",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B5-evidence.csv"
+              },
+              "out": {
+                "table": "b5"
+              },
+              "description": "Read RW03-B5 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s52",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B5/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s53",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B5/results.csv"
+              },
+              "out": {
+                "table": "b5r"
+              },
+              "description": "Read RW03-B5 results"
+            }
+          ],
+          "description": "RW03-B5 ran in this run?",
+          "else": [
+            {
+              "id": "s54",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B5's results from a checked run."
+              }
+            },
+            {
+              "id": "s55",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B5-results.csv"
+              },
+              "out": {
+                "table": "b5r"
+              },
+              "description": "Read RW03-B5 results (fixture)"
+            }
+          ]
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s56",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s57",
+          "action": "core/comment",
+          "args": {
+            "text": "Per dossier: where it got to in each child, its EUR amount and its variance bucket."
+          }
+        },
+        {
+          "id": "s58",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s59",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s60",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b1$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "case_id",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "case"
+                  },
+                  "description": "1. Intake case"
+                },
+                {
+                  "id": "s62",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b2$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "total",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "total"
+                  },
+                  "description": "Invoice total"
+                },
+                {
+                  "id": "s63",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b2$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "currency",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "cur"
+                  },
+                  "description": "Currency"
+                },
+                {
+                  "id": "s64",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b3$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "amount_eur",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "eur"
+                  },
+                  "description": "EUR amount"
+                },
+                {
+                  "id": "s65",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b3$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "decision",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "decision"
+                  },
+                  "description": "Match decision"
+                },
+                {
+                  "id": "s66",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b4$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "approval_id",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "appr"
+                  },
+                  "description": "Approval"
+                },
+                {
+                  "id": "s67",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b5$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "document",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "sapdoc"
+                  },
+                  "description": "SAP parked number"
+                },
+                {
+                  "id": "s68",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "bucket",
+                    "value": ""
+                  },
+                  "description": "No exception yet"
+                },
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "stage",
+                    "value": "parked in SAP QA"
+                  },
+                  "description": "Furthest stage, from the end back"
+                },
+                {
+                  "id": "s70",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b1r$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "status",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "st"
+                  },
+                  "description": "Exception at intake?"
+                },
+                {
+                  "id": "s71",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "empty",
+                          "left": "$bucket$"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$st$",
+                          "right": "exception"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s72",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b1r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "note",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "note"
+                      },
+                      "description": "Why"
+                    },
+                    {
+                      "id": "s73",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "bucket",
+                        "value": {
+                          "expr": "'intake: ' + coalesce(regexExtract($note$, '^([A-Z_]+[.][A-Z_]+)', 1), $note$)"
+                        }
+                      },
+                      "description": "Variance bucket"
+                    },
+                    {
+                      "id": "s74",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "stopped at intake"
+                      },
+                      "description": "Where it stopped"
+                    }
+                  ],
+                  "description": "3. Stopped at intake?"
+                },
+                {
+                  "id": "s75",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b2r$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "status",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "st"
+                  },
+                  "description": "Exception at extraction?"
+                },
+                {
+                  "id": "s76",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "empty",
+                          "left": "$bucket$"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$st$",
+                          "right": "exception"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s77",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b2r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "note",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "note"
+                      },
+                      "description": "Why"
+                    },
+                    {
+                      "id": "s78",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "bucket",
+                        "value": {
+                          "expr": "'extraction: ' + coalesce(regexExtract($note$, '^([A-Z_]+[.][A-Z_]+)', 1), $note$)"
+                        }
+                      },
+                      "description": "Variance bucket"
+                    },
+                    {
+                      "id": "s79",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "stopped at extraction"
+                      },
+                      "description": "Where it stopped"
+                    }
+                  ],
+                  "description": "3. Stopped at extraction?"
+                },
+                {
+                  "id": "s80",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b3r$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "status",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "st"
+                  },
+                  "description": "Exception at matching?"
+                },
+                {
+                  "id": "s81",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "empty",
+                          "left": "$bucket$"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$st$",
+                          "right": "exception"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s82",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b3r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "note",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "note"
+                      },
+                      "description": "Why"
+                    },
+                    {
+                      "id": "s83",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "bucket",
+                        "value": {
+                          "expr": "'matching: ' + coalesce(regexExtract($note$, '^([A-Z_]+[.][A-Z_]+)', 1), $note$)"
+                        }
+                      },
+                      "description": "Variance bucket"
+                    },
+                    {
+                      "id": "s84",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "stopped at matching"
+                      },
+                      "description": "Where it stopped"
+                    }
+                  ],
+                  "description": "3. Stopped at matching?"
+                },
+                {
+                  "id": "s85",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b4r$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "status",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "st"
+                  },
+                  "description": "Exception at approval?"
+                },
+                {
+                  "id": "s86",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "empty",
+                          "left": "$bucket$"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$st$",
+                          "right": "exception"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s87",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b4r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "note",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "note"
+                      },
+                      "description": "Why"
+                    },
+                    {
+                      "id": "s88",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "bucket",
+                        "value": {
+                          "expr": "'approval: ' + coalesce(regexExtract($note$, '^([A-Z_]+[.][A-Z_]+)', 1), $note$)"
+                        }
+                      },
+                      "description": "Variance bucket"
+                    },
+                    {
+                      "id": "s89",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "stopped at approval"
+                      },
+                      "description": "Where it stopped"
+                    }
+                  ],
+                  "description": "3. Stopped at approval?"
+                },
+                {
+                  "id": "s90",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b5r$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "status",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "st"
+                  },
+                  "description": "Exception at SAP draft?"
+                },
+                {
+                  "id": "s91",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "empty",
+                          "left": "$bucket$"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$st$",
+                          "right": "exception"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s92",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b5r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "note",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "note"
+                      },
+                      "description": "Why"
+                    },
+                    {
+                      "id": "s93",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "bucket",
+                        "value": {
+                          "expr": "'SAP draft: ' + coalesce(regexExtract($note$, '^([A-Z_]+[.][A-Z_]+)', 1), $note$)"
+                        }
+                      },
+                      "description": "Variance bucket"
+                    },
+                    {
+                      "id": "s94",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "stopped at SAP draft"
+                      },
+                      "description": "Where it stopped"
+                    }
+                  ],
+                  "description": "3. Stopped at SAP draft?"
+                },
+                {
+                  "id": "s95",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "empty",
+                          "left": "$bucket$"
+                        },
+                        {
+                          "op": "empty",
+                          "left": "$sapdoc$"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s96",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "not processed"
+                      },
+                      "description": "Not processed in this run"
+                    },
+                    {
+                      "id": "s97",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "bucket",
+                        "value": "not processed"
+                      },
+                      "description": "Bucket"
+                    }
+                  ],
+                  "description": "Not parked and no exception noted?"
+                },
+                {
+                  "id": "s98",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$control$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "dossier": "$rec.dossier$",
+                      "invoice": "$rec.invoice$",
+                      "case": "$case$",
+                      "currency": "$cur$",
+                      "total": "$total$",
+                      "amount_eur": "$eur$",
+                      "decision": "$decision$",
+                      "approval": "$appr$",
+                      "sap_document": "$sapdoc$",
+                      "stage": "$stage$",
+                      "bucket": {
+                        "expr": "if(isEmpty($bucket$), 'none', $bucket$)"
+                      }
+                    }
+                  },
+                  "out": {
+                    "table": "control"
+                  },
+                  "description": "2. Control row"
+                },
+                {
+                  "id": "s99",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "message": "${rec.dossier} ${rec.invoice}: ${stage} (${bucket})"
+                  },
+                  "description": "Log the dossier"
+                },
+                {
+                  "id": "s100",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "$stage$"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s101",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s102",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s103",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s104",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW03-B6 - record ${rec.key}",
+                        "message": "RW03-B6: record ${$i + 1} of ${len($records$)}\n\n${rec.dossier} ${rec.invoice}: ${stage}\nBucket: ${bucket}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s105",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s106",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s107",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s108",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s109",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s110",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW03-B6 - exception",
+                            "message": "RW03-B6: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s111",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s112",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 invoice dossiers"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s113",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s114",
+          "action": "core/comment",
+          "args": {
+            "text": "Workbook with formulas and a pivot table, read back, stored in SharePoint; canary scan; no posting."
+          }
+        },
+        {
+          "id": "s115",
+          "action": "core/set",
+          "args": {
+            "variable": "workbook",
+            "value": "${out_dir}/RW03-control.xlsx"
+          },
+          "description": "Name of the workbook"
+        },
+        {
+          "id": "s116",
+          "action": "ooa.excel/create_workbook",
+          "args": {
+            "path": "$workbook$",
+            "overwrite": true,
+            "sheet": "Dossiers"
+          },
+          "description": "4. Create the control workbook"
+        },
+        {
+          "id": "s117",
+          "action": "ooa.excel/write_table",
+          "args": {
+            "table": "$control$",
+            "sheet": "Dossiers"
+          },
+          "description": "The 10 dossiers"
+        },
+        {
+          "id": "s118",
+          "action": "ooa.excel/set_cell",
+          "args": {
+            "cell": "M1",
+            "value": "Dossiers",
+            "sheet": "Dossiers"
+          },
+          "description": "Label: Dossiers"
+        },
+        {
+          "id": "s119",
+          "action": "ooa.excel/set_formula",
+          "args": {
+            "cell": "N1",
+            "formula": "COUNTA(A2:A11)",
+            "sheet": "Dossiers"
+          },
+          "description": "Formula: Dossiers"
+        },
+        {
+          "id": "s120",
+          "action": "ooa.excel/set_cell",
+          "args": {
+            "cell": "M2",
+            "value": "Parked in SAP QA",
+            "sheet": "Dossiers"
+          },
+          "description": "Label: Parked in SAP QA"
+        },
+        {
+          "id": "s121",
+          "action": "ooa.excel/set_formula",
+          "args": {
+            "cell": "N2",
+            "formula": "COUNTIF(K2:K11,\"parked in SAP QA\")",
+            "sheet": "Dossiers"
+          },
+          "description": "Formula: Parked in SAP QA"
+        },
+        {
+          "id": "s122",
+          "action": "ooa.excel/set_cell",
+          "args": {
+            "cell": "M3",
+            "value": "Stopped",
+            "sheet": "Dossiers"
+          },
+          "description": "Label: Stopped"
+        },
+        {
+          "id": "s123",
+          "action": "ooa.excel/set_formula",
+          "args": {
+            "cell": "N3",
+            "formula": "COUNTIF(K2:K11,\"stopped*\")",
+            "sheet": "Dossiers"
+          },
+          "description": "Formula: Stopped"
+        },
+        {
+          "id": "s124",
+          "action": "ooa.excel/set_cell",
+          "args": {
+            "cell": "M4",
+            "value": "EUR matched",
+            "sheet": "Dossiers"
+          },
+          "description": "Label: EUR matched"
+        },
+        {
+          "id": "s125",
+          "action": "ooa.excel/set_formula",
+          "args": {
+            "cell": "N4",
+            "formula": "SUM(G2:G11)",
+            "sheet": "Dossiers"
+          },
+          "description": "Formula: EUR matched"
+        },
+        {
+          "id": "s126",
+          "action": "ooa.excel/set_cell",
+          "args": {
+            "cell": "M5",
+            "value": "Counts reconcile",
+            "sheet": "Dossiers"
+          },
+          "description": "Label: Counts reconcile"
+        },
+        {
+          "id": "s127",
+          "action": "ooa.excel/set_formula",
+          "args": {
+            "cell": "N5",
+            "formula": "IF(N2+N3+COUNTIF(K2:K11,\"not processed\")=N1,\"yes\",\"NO\")",
+            "sheet": "Dossiers"
+          },
+          "description": "Formula: Counts reconcile"
+        },
+        {
+          "id": "s128",
+          "action": "ooa.datatable/aggregate",
+          "args": {
+            "table": "$control$",
+            "group_by": [
+              "bucket"
+            ],
+            "summaries": {
+              "dossiers": "count",
+              "eur": "sum:amount_eur"
+            }
+          },
+          "out": {
+            "table": "buckets"
+          },
+          "description": "3. Variance buckets"
+        },
+        {
+          "id": "s129",
+          "action": "ooa.excel/add_sheet",
+          "args": {
+            "name": "Buckets"
+          },
+          "description": "Buckets sheet"
+        },
+        {
+          "id": "s130",
+          "action": "ooa.excel/write_table",
+          "args": {
+            "table": "$buckets$",
+            "sheet": "Buckets"
+          },
+          "description": "Write the buckets"
+        },
+        {
+          "id": "s131",
+          "action": "ooa.excel/create_pivot_table",
+          "args": {
+            "sheet": "Dossiers",
+            "range": "A1:L11",
+            "destination_sheet": "Pivot",
+            "rows": [
+              "stage"
+            ],
+            "values": [
+              "key:count"
+            ]
+          },
+          "description": "4. Pivot-ready: dossiers by stage"
+        },
+        {
+          "id": "s132",
+          "action": "ooa.excel/save",
+          "args": {},
+          "description": "Save it"
+        },
+        {
+          "id": "s133",
+          "action": "ooa.excel/read_formula",
+          "args": {
+            "cell": "N5",
+            "sheet": "Dossiers"
+          },
+          "out": {
+            "formula": "formula"
+          },
+          "description": "6. Read a formula back"
+        },
+        {
+          "id": "s134",
+          "action": "core/if",
+          "args": {
+            "condition": "not startsWith(toString($formula$), 'IF(') and not startsWith(toString($formula$), '=IF(')"
+          },
+          "children": [
+            {
+              "id": "s135",
+              "action": "core/throw",
+              "args": {
+                "code": "VERIFY.FORMULA",
+                "message": "The reconcile formula did not read back: ${formula}"
+              },
+              "description": "Stop"
+            }
+          ],
+          "description": "Formula lost?"
+        },
+        {
+          "id": "s136",
+          "action": "ooa.excel/close",
+          "args": {},
+          "description": "9. Close the workbook"
+        },
+        {
+          "id": "s137",
+          "action": "ooa.microsoft365/upload_file",
+          "args": {
+            "local_path": "$workbook$",
+            "remote_path": "OOA-QA/${run_id}/RW03-control.xlsx",
+            "drive": "sites/ooa-qa/drive",
+            "access_token": {
+              "$credential": "rw_qa_standins/graph/token"
+            },
+            "base_url": "${standin}/graph/v1.0"
+          },
+          "out": {
+            "item_id": "item"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "5. Store it in the QA SharePoint site"
+        },
+        {
+          "id": "s138",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$control$",
+            "path": "${out_dir}/RW03-control.csv"
+          },
+          "description": "The control table as CSV"
+        },
+        {
+          "id": "s139",
+          "action": "ooa.global_values/get",
+          "args": {
+            "name": "rw_canary",
+            "default": "",
+            "type": "String"
+          },
+          "out": {
+            "value": "canary"
+          },
+          "description": "7. Read the canary text"
+        },
+        {
+          "id": "s140",
+          "action": "ooa.file/list",
+          "args": {
+            "folder": "${base}/output/${run_id}",
+            "pattern": "*.csv",
+            "include_subfolders": true
+          },
+          "out": {
+            "files": "files"
+          },
+          "description": "Every file this run wrote"
+        },
+        {
+          "id": "s141",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": "$files$",
+            "as": "file"
+          },
+          "children": [
+            {
+              "id": "s142",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$file$"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read it"
+            },
+            {
+              "id": "s143",
+              "action": "core/if",
+              "args": {
+                "condition": "not isEmpty($canary$) and contains($text$, $canary$)"
+              },
+              "children": [
+                {
+                  "id": "s144",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "leaks",
+                    "value": {
+                      "expr": "$leaks$ + 1"
+                    }
+                  },
+                  "description": "Count the leak"
+                }
+              ],
+              "description": "Holds the canary?"
+            }
+          ],
+          "description": "Each output file"
+        },
+        {
+          "id": "s145",
+          "action": "core/if",
+          "args": {
+            "condition": "$leaks$ > 0"
+          },
+          "children": [
+            {
+              "id": "s146",
+              "action": "core/throw",
+              "args": {
+                "code": "SECURITY.CANARY",
+                "message": "The secret canary is in ${leaks} output file(s)"
+              },
+              "description": "Stop"
+            }
+          ],
+          "description": "Secret found in an output?"
+        },
+        {
+          "id": "s147",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin}/sap/posted"
+          },
+          "out": {
+            "json": "posted"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "8. Posted or paid documents (must be none)"
+        },
+        {
+          "id": "s148",
+          "action": "core/if",
+          "args": {
+            "condition": "toNumber($posted.count$) > 0"
+          },
+          "children": [
+            {
+              "id": "s149",
+              "action": "core/throw",
+              "args": {
+                "code": "SAP.POSTED",
+                "message": "SAP QA shows posted documents"
+              },
+              "description": "Stop"
+            }
+          ],
+          "description": "Anything posted?"
+        },
+        {
+          "id": "s150",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "Close-out: no canary in outputs, no posted or paid documents; workbook ${workbook}"
+          },
+          "description": "Close-out"
+        },
+        {
+          "id": "s151",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s152",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s153",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s154",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW03-B6 Excel control and close-out finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s155",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s156",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW03-B6 finished",
+                "message": "RW03-B6 Excel control and close-out finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

@@ -20,6 +20,7 @@ service fail once each with 503, 429 (Retry-After 1), 401, a slow answer and a d
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -568,11 +569,156 @@ def workday(h: H, m, path, q):
         return h.send(200, rec)
 
 
-SERVICES = ["servicenow", "salesforce", "jira", "graph", "workday"]
+def approvals(h: H, m, path, q):
+    """Approval requests (RW03, RW05, RW08): decisions come from the seeded answers of the QA approvers."""
+    store = STATE.setdefault("approvals", {"decisions": {}, "requests": []})
+    with LOCK:
+        if path == "/approvals/requests" and m == "POST":
+            b = h.body()
+            if str(b.get("approver", "")).lower() == str(b.get("requester", "")).lower():
+                return h.send(409, {"error": {"message": "QA approvals: an approver cannot approve their own request"}})
+            r = {"id": "APR-" + uuid.uuid4().hex[:8].upper(), "status": "pending", "created": now_iso(), **b, "_created": True}
+            store["requests"].append(r)
+            return h.send(201, r)
+        mr = re.match(r"/approvals/requests/([^/]+)$", path)
+        if mr and m == "GET":
+            r = next((x for x in store["requests"] if x["id"] == mr.group(1)), None)
+            if r is None:
+                raise KeyError(path)
+            decision = store["decisions"].get(str(r.get("subject", "")), "approve")
+            if decision != "timeout":
+                r["status"] = "approved" if decision == "approve" else "declined"
+                r.setdefault("decided", now_iso())
+            return h.send(200, {k: v for k, v in r.items() if not k.startswith("_")})
+    raise KeyError(path)
+
+
+def sap(h: H, m, path, q):
+    """SAP QA draft simulator (RW03, RW06): sign on to client QA-100, find vendors and POs, park, read back, cancel, sign off.
+    It works out the totals itself as SAP does (amounts to two decimals, tax from the tax code); posting and payment are refused."""
+    store = STATE.setdefault("sap", {})
+    for k, v in (("parked", []), ("posted", []), ("sessions", []), ("clients", ["QA-100"]), ("vendors", {}), ("pos", {}), ("tax_codes", {})):
+        store.setdefault(k, v)
+    if path.startswith("/sap/post") and path != "/sap/posted" or path.startswith("/sap/pay"):
+        return h.send(403, {"error": {"message": "QA SAP: posting and payment are forbidden in the real-world tests"}})
+    with LOCK:
+        if path == "/sap/posted":   # audit read, no sign-on needed: must stay empty
+            return h.send(200, {"value": store["posted"], "count": len(store["posted"])})
+        if path == "/sap/logon" and m == "POST":
+            b = h.body()
+            if b.get("client") not in store["clients"]:
+                return h.send(403, {"error": {"message": "QA SAP: client %s is not a QA client" % b.get("client")}})
+            auth = h.headers.get("Authorization", "")
+            try:
+                user, _, password = base64.b64decode(auth[6:]).decode("utf-8").partition(":") if auth.startswith("Basic ") else ("", "", "")
+            except ValueError:
+                user, password = "", ""
+            if not user or not password:
+                return h.send(401, {"error": {"message": "QA SAP: sign on with a user and password (basic)"}})
+            sid = "SAPQA-" + uuid.uuid4().hex[:10]
+            store["sessions"].append(sid)
+            return h.send(200, {"session": sid, "client": b["client"], "system": "QA1"})
+        sid = h.headers.get("X-SAP-Session", "")
+        if sid not in store["sessions"]:
+            return h.send(401, {"error": {"message": "QA SAP: not signed on (X-SAP-Session missing or ended)"}})
+        if path == "/sap/logoff" and m == "POST":
+            store["sessions"].remove(sid)
+            return h.send(200, {"signed_off": sid})
+        mv = re.match(r"/sap/vendors/([^/]+)$", path)
+        if mv:
+            name = store["vendors"].get(mv.group(1))
+            return h.send(200, {"vendor": mv.group(1), "name": name}) if name else h.send(404, {"error": {"message": "QA SAP: no vendor " + mv.group(1)}})
+        mo = re.match(r"/sap/po/([^/]+)$", path)
+        if mo:
+            sup = store["pos"].get(mo.group(1))
+            return h.send(200, {"po": mo.group(1), "vendor": sup}) if sup else h.send(404, {"error": {"message": "QA SAP: no PO " + mo.group(1)}})
+        if path == "/sap/parked" and m == "POST":
+            b = h.body()
+            if b.get("client") not in store["clients"]:
+                return h.send(403, {"error": {"message": "QA SAP: only the QA client QA-100 may be used"}})
+            if b.get("tax_code") not in store["tax_codes"]:
+                return h.send(400, {"error": {"message": "QA SAP: unknown tax code %s" % b.get("tax_code")}})
+            dup = next((d for d in store["parked"] if d.get("invoice") == b.get("invoice") and d.get("vendor") == b.get("vendor") and d["status"] == "parked"), None)
+            if dup:
+                return h.send(409, {"error": {"message": "QA SAP: invoice already parked as " + dup["document"]}})
+            lines = b.get("lines") or []
+            if isinstance(lines, str):
+                lines = json.loads(lines or "[]")
+            net = sum(round(float(x.get("qty", 0)) * round(float(x.get("unit_price", 0)), 2), 2) for x in lines)
+            tax = round(net * store["tax_codes"][b["tax_code"]] / 100, 2)
+            d = {"document": str(5100000000 + len(store["parked"]) + 1), "status": "parked", "created": now_iso(), **b, "lines": lines,
+                 "net": round(net, 2), "tax": tax, "total": round(net + tax, 2), "_created": True}
+            store["parked"].append(d)
+            return h.send(201, {k: v for k, v in d.items() if not k.startswith("_")})
+        mp = re.match(r"/sap/parked/(\d+)$", path)
+        if mp:
+            d = next((x for x in store["parked"] if x["document"] == mp.group(1)), None)
+            if d is None:
+                return h.send(404, {"error": {"message": "QA SAP: no parked document " + mp.group(1)}})
+            if m == "DELETE":
+                d["status"] = "cancelled"
+                return h.send(200, {"document": d["document"], "status": "cancelled"})
+            return h.send(200, {k: v for k, v in d.items() if not k.startswith("_")})
+    raise KeyError(path)
+
+
+AI_LABELS = {"supplier": "Supplier", "invoice_number": "Invoice number", "invoice_date": "Invoice date", "po_number": "PO number",
+             "currency": "Currency", "net": "Net", "tax": "Tax", "total": "Total"}
+
+
+def ai(h: H, m, path, q):
+    """A scripted chat model (OpenAI-compatible) for the AI steps: answers Extract fields from labelled lines, so runs repeat exactly.
+    Numbers written the German way (1.234,56) come back with low confidence, the way a real model hesitates over a locale."""
+    if path != "/v1/chat/completions" or m != "POST":
+        raise KeyError(path)
+    b = h.body()
+    msgs = b.get("messages", [])
+    system = " ".join(str(x.get("content", "")) for x in msgs if x.get("role") == "system")
+    user = "\n".join(str(x.get("content", "")) for x in msgs if x.get("role") == "user")
+    fm = re.search(r"Extract these fields from the user's text: (\{.*?\})\. Reply", system, re.S)
+    if fm:
+        fields = json.loads(fm.group(1))
+        values, conf = {}, {}
+        for k in fields:
+            label = AI_LABELS.get(k, k.replace("_", " "))
+            mv = re.search(r"^\s*" + re.escape(label) + r"[^:\n]*:\s*(.+?)\s*$", user, re.I | re.M)
+            v = mv.group(1) if mv and mv.group(1) not in ("-", "") else None
+            values[k] = v
+            conf[k] = 0.0 if v is None else (0.62 if re.search(r"\d\.\d{3},\d{2}$|^\d+,\d{2}$", v) else 0.96)
+        answer = {"values": values, "confidence": conf} if "confidence" in system else values
+        content = json.dumps(answer)
+    else:
+        content = "OOA-QA scripted model: no scripted answer for this prompt."
+    return h.send(200, {"id": "chatcmpl-qa", "object": "chat.completion", "model": b.get("model", "qa-scripted"),
+                        "choices": [{"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
+                        "usage": {"prompt_tokens": len(system + user) // 4, "completion_tokens": len(content) // 4}})
+
+
+def soap(h: H, m, path, q):
+    """ERP price service (SOAP 1.1) for RW03-B3: the agreed unit price of a supplier's SKU."""
+    if path != "/soap/erp" or m != "POST":
+        raise KeyError(path)
+    xml = h.raw().decode("utf-8", "replace")
+    sup = re.search(r"<(?:\w+:)?supplier>([^<]*)<", xml)
+    sku = re.search(r"<(?:\w+:)?sku>([^<]*)<", xml)
+    price = STATE.get("erp", {}).get("prices", {}).get("%s|%s" % (sup.group(1) if sup else "", sku.group(1) if sku else ""))
+    if price is None:
+        body = ('<soap:Fault><faultcode>soap:Client</faultcode><faultstring>QA ERP: no agreed price for %s %s</faultstring></soap:Fault>'
+                % (sup.group(1) if sup else "?", sku.group(1) if sku else "?"))
+        status = 500
+    else:
+        body = ('<GetPriceResponse xmlns="urn:ooa-qa:erp"><sku>%s</sku><price>%s</price><currency>%s</currency></GetPriceResponse>'
+                % (sku.group(1), price[0], price[1]))
+        status = 200
+    env = '<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>%s</soap:Body></soap:Envelope>' % body
+    return h.send(status, env, ctype="text/xml")
+
+
+SERVICES = ["servicenow", "salesforce", "jira", "graph", "workday", "approvals", "sap", "ai", "soap"]
 ROUTES = [
     ("/qa/", qa, None), ("/kb/", kb, None),
     ("/api/now/", servicenow, "servicenow"), ("/services/", salesforce, "salesforce"), ("/rest/api/", jira, "jira"),
-    ("/graph/v1.0/", graph, "graph"), ("/ccx/", workday, "workday"),
+    ("/graph/v1.0/", graph, "graph"), ("/ccx/", workday, "workday"), ("/approvals/", approvals, "approvals"), ("/sap/", sap, "sap"), ("/v1/", ai, "ai"), ("/soap/", soap, "soap"),
 ]
 
 

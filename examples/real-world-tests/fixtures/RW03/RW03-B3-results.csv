@@ -1,0 +1,7 @@
+key,status,note,time
+AAMkAP0001,done,matched -> approval,03:55:13
+AAMkAP0002,done,price_variance -> buyer,03:55:13
+AAMkAP0003,done,price_variance -> buyer,03:55:13
+AAMkAP0006,done,matched -> approval,03:55:13
+AAMkAP0008,done,matched -> approval,03:55:13
+AAMkAP0010,exception,ROUTE.VARIANCE: INV-3002: 6 unit(s) invoiced but not received -> receiving,03:55:13

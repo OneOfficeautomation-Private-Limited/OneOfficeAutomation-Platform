@@ -1,0 +1,1712 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw03_b5",
+  "name": "RW03-B5 SAP QA draft operator",
+  "description": "RW03-B5 (RW03 real-world test). Checks the SAP host and client are QA, signs on with the vault credential, checks each approval signature, finds the vendor and PO, parks a draft invoice only (lines and tax code), reads it back, compares the totals SAP worked out with the invoice, keeps the parked number or cancels the draft on a mismatch, always signs off and proves no posting or payment happened.",
+  "tags": [
+    "real-world-test",
+    "RW03"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "sap_mode",
+      "type": "String",
+      "direction": "input",
+      "default": "simulator",
+      "description": "simulator (the QA stand-in) or gui (SAP GUI scripting on a machine with SAP Logon and the QA system)."
+    },
+    {
+      "name": "sap_client",
+      "type": "String",
+      "direction": "input",
+      "default": "QA-100",
+      "description": "SAP client (mandant); must be a QA client."
+    },
+    {
+      "name": "sap_system",
+      "type": "String",
+      "direction": "input",
+      "default": "QA1 - OOA QA (synthetic)",
+      "description": "SAP Logon entry of the QA system (gui mode)."
+    },
+    {
+      "name": "b2",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "b3",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "lines",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "taxcodes",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "host",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "hosts",
+      "type": "List",
+      "direction": "local",
+      "default": [
+        "127.0.0.1",
+        "localhost"
+      ]
+    },
+    {
+      "name": "clients",
+      "type": "List",
+      "direction": "local",
+      "default": [
+        "QA-100"
+      ]
+    },
+    {
+      "name": "logon",
+      "type": "Dictionary",
+      "direction": "local",
+      "default": {}
+    },
+    {
+      "name": "docno",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sap_total",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "sig",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "vendor",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "po",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "currency",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "total",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "rate",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "tax_code",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "my_lines",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "items",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "doc",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "back",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "check",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "posted",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "bar",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "conn",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "posted_count",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Posted or paid documents found afterwards (must be 0)."
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "invoice",
+          "vendor",
+          "po",
+          "tax_code",
+          "document",
+          "status",
+          "sap_total",
+          "invoice_total"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Checks the SAP host and client are QA, signs on with the vault credential, checks each approval signature, finds the vendor and PO, parks a draft invoice only (lines and tax code), reads it back, compares the totals SAP worked out with the invoice, keeps the parked number or cancels the draft on a mismatch, always signs off and proves no posting or payment happened. It works through 10 approved dossiers (the approved ones) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW03-B5"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW03-B5 SAP QA draft operator started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW03-B5 starts",
+                "message": "RW03-B5 SAP QA draft operator\n\nChecks the SAP host and client are QA, signs on with the vault credential, checks each approval signature, finds the vendor and PO, parks a draft invoice only (lines and tax code), reads it back, compares the totals SAP worked out with the invoice, keeps the parked number or cancels the draft on a mismatch, always signs off and proves no posting or payment happened.\n\nRecords: 10 approved dossiers (the approved ones)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "1. Check host and client are QA, sign on with the vault credential, and read the approved invoices and their lines."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "sap",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s17",
+          "action": "core/set",
+          "args": {
+            "variable": "host",
+            "value": {
+              "expr": "regexExtract($standin$, '//([^:/]+)', 1)"
+            }
+          },
+          "description": "The SAP host"
+        },
+        {
+          "id": "s18",
+          "action": "core/if",
+          "args": {
+            "condition": "not contains($hosts$, $host$) or not contains($clients$, $sap_client$)"
+          },
+          "children": [
+            {
+              "id": "s19",
+              "action": "core/throw",
+              "args": {
+                "code": "SAP.NOT_QA",
+                "message": "SAP host ${host} / client ${sap_client} is not on the QA allow-list"
+              },
+              "description": "Stop: QA only"
+            }
+          ],
+          "description": "Not the QA host and client?"
+        },
+        {
+          "id": "s20",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B4/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s21",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B4/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW03-B4 evidence"
+            }
+          ],
+          "description": "RW03-B4 ran in this run?",
+          "else": [
+            {
+              "id": "s22",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B4's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s23",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B4-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW03-B4 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s24",
+          "action": "ooa.datatable/filter",
+          "args": {
+            "table": "$records$",
+            "column": "status",
+            "operator": "eq",
+            "value": "approved"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Approved invoices only (6. no staging before approval)"
+        },
+        {
+          "id": "s25",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s26",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B2/evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW03-B2 evidence"
+            }
+          ],
+          "description": "RW03-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s27",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B2's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s28",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B2-evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW03-B2 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s29",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B2/lines.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s30",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B2/lines.csv"
+              },
+              "out": {
+                "table": "lines"
+              },
+              "description": "Read RW03-B2 invoice lines"
+            }
+          ],
+          "description": "RW03-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s31",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B2's invoice lines from a checked run."
+              }
+            },
+            {
+              "id": "s32",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B2-lines.csv"
+              },
+              "out": {
+                "table": "lines"
+              },
+              "description": "Read RW03-B2 invoice lines (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s33",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B3/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s34",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW03-B3/evidence.csv"
+              },
+              "out": {
+                "table": "b3"
+              },
+              "description": "Read RW03-B3 evidence"
+            }
+          ],
+          "description": "RW03-B3 ran in this run?",
+          "else": [
+            {
+              "id": "s35",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW03-B3's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s36",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW03/fixtures/RW03-B3-evidence.csv"
+              },
+              "out": {
+                "table": "b3"
+              },
+              "description": "Read RW03-B3 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s37",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW03/tax_codes.csv"
+          },
+          "out": {
+            "table": "taxcodes"
+          },
+          "description": "Read the SAP tax codes"
+        },
+        {
+          "id": "s38",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$sap_mode$",
+              "right": "gui"
+            }
+          },
+          "children": [
+            {
+              "id": "s39",
+              "action": "core/comment",
+              "args": {
+                "text": "Built for the customer's SAP QA system; not run here (SAP GUI is not installed on this PC). Field ids come from MIR7 in SAP GUI Scripting and must be confirmed with a recording on the QA system."
+              }
+            },
+            {
+              "id": "s40",
+              "action": "ooa.sap/log_on",
+              "args": {
+                "system": "$sap_system$",
+                "client": "$sap_client$",
+                "user": "OOA_QA_BOT",
+                "password": {
+                  "$credential": "rw_qa_standins/sap/password"
+                },
+                "language": "EN",
+                "multiple_logon": "fail"
+              },
+              "out": {
+                "connection": "conn"
+              },
+              "description": "2. Sign on to the QA system"
+            }
+          ],
+          "description": "SAP GUI (on a machine with SAP Logon)?",
+          "else": [
+            {
+              "id": "s41",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/sap/logon",
+                "basic_user": "OOA_QA_BOT",
+                "basic_password": {
+                  "$credential": "rw_qa_standins/sap/password"
+                },
+                "json": {
+                  "client": "$sap_client$"
+                }
+              },
+              "out": {
+                "json": "logon"
+              },
+              "retry": {
+                "max": 3,
+                "backoff": "exponential",
+                "delayMs": 1000
+              },
+              "description": "2. Sign on to the SAP QA simulator (vault credential)"
+            }
+          ]
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s42",
+      "action": "core/try",
+      "args": {},
+      "children": [
+        {
+          "id": "s43",
+          "action": "core/step",
+          "args": {
+            "title": "3. Work through the records"
+          },
+          "children": [
+            {
+              "id": "s44",
+              "action": "core/comment",
+              "args": {
+                "text": "Per invoice: signature check, vendor and PO, park the draft, read it back, compare totals, keep or cancel."
+              }
+            },
+            {
+              "id": "s45",
+              "action": "core/loop",
+              "args": {
+                "iterator": "table_rows",
+                "over": "$records$",
+                "as": "rec",
+                "index": "i"
+              },
+              "children": [
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": ""
+                  },
+                  "description": "Clear the note of the previous record"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/try",
+                  "args": {},
+                  "children": [
+                    {
+                      "id": "s48",
+                      "action": "ooa.crypto/hmac",
+                      "args": {
+                        "text": "${rec.key}|${rec.invoice}|${rec.approver}|approved|${rec.approval_id}",
+                        "key": {
+                          "$credential": "rw_qa_standins/sign_key/token"
+                        }
+                      },
+                      "out": {
+                        "signature": "sig"
+                      },
+                      "description": "Recompute the approval signature"
+                    },
+                    {
+                      "id": "s49",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$sig$",
+                          "right": "$rec.signature$"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s50",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "APPROVAL.SIGNATURE",
+                            "message": "${rec.invoice}: the approval signature does not match"
+                          },
+                          "description": "6. Never stage without a valid approval"
+                        }
+                      ],
+                      "description": "Signature does not match?"
+                    },
+                    {
+                      "id": "s51",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b3$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "supplier_id"
+                      },
+                      "out": {
+                        "value": "vendor"
+                      },
+                      "description": "Vendor (supplier id)"
+                    },
+                    {
+                      "id": "s52",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b3$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "po"
+                      },
+                      "out": {
+                        "value": "po"
+                      },
+                      "description": "PO"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b2$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "currency"
+                      },
+                      "out": {
+                        "value": "currency"
+                      },
+                      "description": "Currency"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b2$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "total"
+                      },
+                      "out": {
+                        "value": "total"
+                      },
+                      "description": "Invoice total"
+                    },
+                    {
+                      "id": "s55",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b2$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "tax_rate"
+                      },
+                      "out": {
+                        "value": "rate"
+                      },
+                      "description": "Tax rate"
+                    },
+                    {
+                      "id": "s56",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$taxcodes$",
+                        "column": "rate",
+                        "value": "$rate$",
+                        "return_column": "tax_code",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "tax_code"
+                      },
+                      "description": "SAP tax code for the rate"
+                    },
+                    {
+                      "id": "s57",
+                      "action": "ooa.datatable/filter",
+                      "args": {
+                        "table": "$lines$",
+                        "column": "key",
+                        "operator": "eq",
+                        "value": "$rec.key$",
+                        "columns": [
+                          "sku",
+                          "qty",
+                          "unit_price"
+                        ]
+                      },
+                      "out": {
+                        "table": "my_lines"
+                      },
+                      "description": "The invoice's lines"
+                    },
+                    {
+                      "id": "s58",
+                      "action": "ooa.datatable/to_records",
+                      "args": {
+                        "table": "$my_lines$"
+                      },
+                      "out": {
+                        "records": "items"
+                      },
+                      "description": "As SAP line items"
+                    },
+                    {
+                      "id": "s59",
+                      "action": "core/switch",
+                      "args": {
+                        "value": "$sap_mode$",
+                        "match": "equals",
+                        "ignore_case": true
+                      },
+                      "description": "Simulator or SAP GUI",
+                      "cases": [
+                        {
+                          "values": [
+                            "gui"
+                          ],
+                          "children": [
+                            {
+                              "id": "s60",
+                              "action": "ooa.sap/run_transaction",
+                              "args": {
+                                "tcode": "/nMIR7",
+                                "connection": "$conn$"
+                              },
+                              "description": "5. Enter invoice (MIR7, park)"
+                            },
+                            {
+                              "id": "s61",
+                              "action": "ooa.sap/set_field",
+                              "args": {
+                                "id": "wnd[0]/usr/subHEADER_AND_ITEMS:SAPLMR1M:6005/tabsHEADER/tabpHEADER_TOTAL/ssubHEADER_SCREEN:SAPLFDCB:0010/ctxtINVFO-BLDAT",
+                                "value": "${formatDate(now(), '%d.%m.%Y')}",
+                                "connection": "$conn$"
+                              },
+                              "description": "Invoice date"
+                            },
+                            {
+                              "id": "s62",
+                              "action": "ooa.sap/set_field",
+                              "args": {
+                                "id": "wnd[0]/usr/subHEADER_AND_ITEMS:SAPLMR1M:6005/tabsHEADER/tabpHEADER_TOTAL/ssubHEADER_SCREEN:SAPLFDCB:0010/txtINVFO-XBLNR",
+                                "value": "$rec.invoice$",
+                                "connection": "$conn$"
+                              },
+                              "description": "Reference (invoice number)"
+                            },
+                            {
+                              "id": "s63",
+                              "action": "ooa.sap/set_field",
+                              "args": {
+                                "id": "wnd[0]/usr/subHEADER_AND_ITEMS:SAPLMR1M:6005/tabsHEADER/tabpHEADER_TOTAL/ssubHEADER_SCREEN:SAPLFDCB:0010/txtINVFO-WRBTR",
+                                "value": "$total$",
+                                "connection": "$conn$"
+                              },
+                              "description": "Amount"
+                            },
+                            {
+                              "id": "s64",
+                              "action": "ooa.sap/set_field",
+                              "args": {
+                                "id": "wnd[0]/usr/subHEADER_AND_ITEMS:SAPLMR1M:6005/subITEMS:SAPLMR1M:6010/tabsITEMTAB/tabpITEMS_PO/ssubTABS:SAPLMR1M:6020/subREFERENZBELEG:SAPLMR1M:6211/ctxtRM08M-EBELN",
+                                "value": "$po$",
+                                "press_enter": true,
+                                "connection": "$conn$"
+                              },
+                              "description": "PO (lines come from the PO)"
+                            },
+                            {
+                              "id": "s65",
+                              "action": "ooa.sap/press",
+                              "args": {
+                                "id": "wnd[0]/tbar[1]/btn[27]",
+                                "connection": "$conn$"
+                              },
+                              "description": "Park (never Post)"
+                            },
+                            {
+                              "id": "s66",
+                              "action": "ooa.sap/get_status_bar",
+                              "args": {
+                                "connection": "$conn$"
+                              },
+                              "out": {
+                                "text": "bar"
+                              },
+                              "description": "8. Parked number from the status bar"
+                            },
+                            {
+                              "id": "s67",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "docno",
+                                "value": {
+                                  "expr": "coalesce(regexExtract($bar$, '([0-9]{10})', 1), '')"
+                                }
+                              },
+                              "description": "Keep the parked number"
+                            },
+                            {
+                              "id": "s68",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "sap_total",
+                                "value": "$total$"
+                              },
+                              "description": "SAP GUI: MIR7 checks the balance on the screen before parking"
+                            }
+                          ]
+                        }
+                      ],
+                      "default": [
+                        {
+                          "id": "s69",
+                          "action": "ooa.rest/request",
+                          "args": {
+                            "url": "${standin}/sap/vendors/${vendor}",
+                            "headers": {
+                              "X-SAP-Session": "$logon.session$"
+                            }
+                          },
+                          "out": {
+                            "json": "check"
+                          },
+                          "retry": {
+                            "max": 3,
+                            "backoff": "exponential",
+                            "delayMs": 1000
+                          },
+                          "description": "3. Find the vendor"
+                        },
+                        {
+                          "id": "s70",
+                          "action": "ooa.rest/request",
+                          "args": {
+                            "url": "${standin}/sap/po/${po}",
+                            "headers": {
+                              "X-SAP-Session": "$logon.session$"
+                            }
+                          },
+                          "out": {
+                            "json": "check"
+                          },
+                          "retry": {
+                            "max": 3,
+                            "backoff": "exponential",
+                            "delayMs": 1000
+                          },
+                          "description": "3. Find the PO"
+                        },
+                        {
+                          "id": "s71",
+                          "action": "core/if",
+                          "args": {
+                            "condition": {
+                              "op": "ne",
+                              "left": "$check.vendor$",
+                              "right": "$vendor$"
+                            }
+                          },
+                          "children": [
+                            {
+                              "id": "s72",
+                              "action": "core/throw",
+                              "args": {
+                                "code": "SAP.PO_VENDOR",
+                                "message": "PO ${po} belongs to ${check.vendor} in SAP"
+                              },
+                              "description": "Stop"
+                            }
+                          ],
+                          "description": "PO of another vendor in SAP?"
+                        },
+                        {
+                          "id": "s73",
+                          "action": "ooa.rest/request",
+                          "args": {
+                            "method": "POST",
+                            "url": "${standin}/sap/parked",
+                            "headers": {
+                              "X-SAP-Session": "$logon.session$"
+                            },
+                            "json": {
+                              "client": "$sap_client$",
+                              "vendor": "$vendor$",
+                              "invoice": "$rec.invoice$",
+                              "po": "$po$",
+                              "currency": "$currency$",
+                              "tax_code": "$tax_code$",
+                              "lines": "$items$",
+                              "run": "$run_id$",
+                              "approval": "$rec.approval_id$"
+                            }
+                          },
+                          "out": {
+                            "json": "doc"
+                          },
+                          "retry": {
+                            "max": 3,
+                            "backoff": "exponential",
+                            "delayMs": 1000
+                          },
+                          "description": "4. Park a draft only (5. lines and tax code)"
+                        },
+                        {
+                          "id": "s74",
+                          "action": "ooa.rest/request",
+                          "args": {
+                            "url": "${standin}/sap/parked/${doc.document}",
+                            "headers": {
+                              "X-SAP-Session": "$logon.session$"
+                            }
+                          },
+                          "out": {
+                            "json": "back"
+                          },
+                          "retry": {
+                            "max": 3,
+                            "backoff": "exponential",
+                            "delayMs": 1000
+                          },
+                          "description": "6. Read the parked document back"
+                        },
+                        {
+                          "id": "s75",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "docno",
+                            "value": "$doc.document$"
+                          },
+                          "description": "The parked number"
+                        },
+                        {
+                          "id": "s76",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "sap_total",
+                            "value": "$back.total$"
+                          },
+                          "description": "The total SAP worked out"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "s77",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "abs(toNumber($sap_total$) - toNumber($total$)) > 0.01"
+                      },
+                      "children": [
+                        {
+                          "id": "s78",
+                          "action": "core/if",
+                          "args": {
+                            "condition": {
+                              "op": "ne",
+                              "left": "$sap_mode$",
+                              "right": "gui"
+                            }
+                          },
+                          "children": [
+                            {
+                              "id": "s79",
+                              "action": "ooa.rest/request",
+                              "args": {
+                                "method": "DELETE",
+                                "url": "${standin}/sap/parked/${docno}",
+                                "headers": {
+                                  "X-SAP-Session": "$logon.session$"
+                                }
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "9. Cancel the parked draft"
+                            }
+                          ],
+                          "description": "Simulator: cancel the draft"
+                        },
+                        {
+                          "id": "s80",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "SAP.TOTAL_MISMATCH",
+                            "message": "${rec.invoice}: SAP worked out ${sap_total}, the invoice says ${total}; draft ${docno} cancelled"
+                          },
+                          "description": "Route the mismatch"
+                        }
+                      ],
+                      "description": "7. SAP's total differs from the invoice?"
+                    },
+                    {
+                      "id": "s81",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$evidence$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "invoice": "$rec.invoice$",
+                          "vendor": "$vendor$",
+                          "po": "$po$",
+                          "tax_code": "$tax_code$",
+                          "document": "$docno$",
+                          "status": "parked",
+                          "sap_total": "$sap_total$",
+                          "invoice_total": "$total$"
+                        }
+                      },
+                      "out": {
+                        "table": "evidence"
+                      },
+                      "description": "8. Keep the parked number"
+                    },
+                    {
+                      "id": "s82",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "message": "${rec.invoice}: parked as ${docno} (${currency} ${sap_total})"
+                      },
+                      "description": "Log it"
+                    },
+                    {
+                      "id": "s83",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "rec_note",
+                        "value": "parked ${docno}"
+                      },
+                      "description": "Note for the results"
+                    },
+                    {
+                      "id": "s84",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "done",
+                          "note": "$rec_note$",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the record's result to the results table"
+                    },
+                    {
+                      "id": "s85",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "processed",
+                        "value": {
+                          "expr": "$processed$ + 1"
+                        }
+                      },
+                      "description": "Count the record as handled"
+                    },
+                    {
+                      "id": "s86",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s87",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW03-B5 - record ${rec.key}",
+                            "message": "RW03-B5: record ${$i + 1} of ${len($records$)}\n\n${rec.invoice}: vendor ${vendor}, PO ${po}\nParked ${docno}: SAP ${sap_total} vs invoice ${total}",
+                            "timeout_seconds": 2,
+                            "icon": "information",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "description": "Handle one record; a failure is caught below and the next record goes on",
+                  "catch": [
+                    {
+                      "codes": [
+                        "*"
+                      ],
+                      "children": [
+                        {
+                          "id": "s88",
+                          "action": "core/comment",
+                          "args": {
+                            "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                          }
+                        },
+                        {
+                          "id": "s89",
+                          "action": "ooa.datatable/add_row",
+                          "args": {
+                            "table": "$results$",
+                            "values": {
+                              "key": "$rec.key$",
+                              "status": "exception",
+                              "note": "${err.code}: ${err_msg}",
+                              "time": "${formatDate(now(), '%H:%M:%S')}"
+                            }
+                          },
+                          "out": {
+                            "table": "results"
+                          },
+                          "description": "Add the failure to the results table"
+                        },
+                        {
+                          "id": "s90",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "exceptions",
+                            "value": {
+                              "expr": "$exceptions$ + 1"
+                            }
+                          },
+                          "description": "Count the exception"
+                        },
+                        {
+                          "id": "s91",
+                          "action": "ooa.log/write",
+                          "args": {
+                            "path": "$log_file$",
+                            "level": "WARN",
+                            "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                          },
+                          "description": "Log the exception"
+                        },
+                        {
+                          "id": "s92",
+                          "action": "core/if",
+                          "args": {
+                            "condition": "$watch$"
+                          },
+                          "children": [
+                            {
+                              "id": "s93",
+                              "action": "ooa.desktop/message_box",
+                              "args": {
+                                "title": "RW03-B5 - exception",
+                                "message": "RW03-B5: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                                "timeout_seconds": 3,
+                                "icon": "warning",
+                                "always_on_top": true
+                              },
+                              "description": "Message box that closes by itself"
+                            }
+                          ],
+                          "description": "Show what is happening (watch is on)"
+                        }
+                      ],
+                      "as": "err",
+                      "message_to": "err_msg"
+                    }
+                  ]
+                },
+                {
+                  "id": "s94",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s95",
+                      "action": "core/delay",
+                      "args": {
+                        "seconds": "$pause_seconds$"
+                      },
+                      "description": "Short pause"
+                    }
+                  ],
+                  "description": "Pause so the screen can be followed (watch is on)"
+                }
+              ],
+              "description": "Once for each of the 10 approved dossiers (the approved ones)"
+            }
+          ],
+          "description": "3. Work through the records"
+        }
+      ],
+      "description": "Work through the invoices; whatever happens, sign off afterwards",
+      "finally": [
+        {
+          "id": "s96",
+          "action": "core/comment",
+          "args": {
+            "text": "10. Always sign off, also after an error."
+          }
+        },
+        {
+          "id": "s97",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$sap_mode$",
+              "right": "gui"
+            }
+          },
+          "children": [
+            {
+              "id": "s98",
+              "action": "ooa.sap/close",
+              "args": {
+                "connection": "$conn$"
+              },
+              "continueOnError": true,
+              "description": "Sign off and close SAP"
+            }
+          ],
+          "description": "SAP GUI?",
+          "else": [
+            {
+              "id": "s99",
+              "action": "core/if",
+              "args": {
+                "condition": "not isEmpty(get($logon$, 'session', ''))"
+              },
+              "children": [
+                {
+                  "id": "s100",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "POST",
+                    "url": "${standin}/sap/logoff",
+                    "headers": {
+                      "X-SAP-Session": "$logon.session$"
+                    }
+                  },
+                  "continueOnError": true,
+                  "description": "Sign off the simulator"
+                }
+              ],
+              "description": "Signed on?"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s101",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s102",
+          "action": "core/comment",
+          "args": {
+            "text": "Prove that no posting or payment was made, then save the parked numbers."
+          }
+        },
+        {
+          "id": "s103",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin}/sap/posted"
+          },
+          "out": {
+            "json": "posted"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "Posted or paid documents in SAP QA (must be none)"
+        },
+        {
+          "id": "s104",
+          "action": "core/set",
+          "args": {
+            "variable": "posted_count",
+            "value": {
+              "expr": "toNumber($posted.count$)"
+            }
+          },
+          "description": "How many"
+        },
+        {
+          "id": "s105",
+          "action": "core/if",
+          "args": {
+            "condition": "$posted_count$ > 0"
+          },
+          "children": [
+            {
+              "id": "s106",
+              "action": "core/throw",
+              "args": {
+                "code": "SAP.POSTED",
+                "message": "${posted_count} document(s) were posted: the forbidden action ran"
+              },
+              "description": "Stop: forbidden action happened"
+            }
+          ],
+          "description": "Anything posted?"
+        },
+        {
+          "id": "s107",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "No posting or payment action was invoked; SAP QA shows 0 posted documents"
+          },
+          "description": "Report: posting was never invoked"
+        },
+        {
+          "id": "s108",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s109",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s110",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s111",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s112",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s113",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW03-B5 SAP QA draft operator finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s114",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s115",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW03-B5 finished",
+                "message": "RW03-B5 SAP QA draft operator finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

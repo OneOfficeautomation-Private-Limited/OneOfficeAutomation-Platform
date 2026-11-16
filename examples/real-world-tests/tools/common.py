@@ -159,8 +159,8 @@ def save_evidence(f: Flow):
 class Main:
     """A main agent: runs its six child agents (in order, or two at a time), cleans up and sums up."""
 
-    def __init__(self, test_id, title, process, children, folder):
-        self.test_id, self.children = test_id, children
+    def __init__(self, test_id, title, process, children, folder, parallel_group=(1, 3)):
+        self.test_id, self.children, self.parallel_group = test_id, children, parallel_group
         self.f = Flow(f"{test_id.lower()}_main", f"{test_id} Main - {title}",
                       f"{test_id} real-world test: {process} Runs its six child agents, then cleans up the run's test records and sums up.")
         f = self.f
@@ -219,15 +219,23 @@ class Main:
                 for c in self.children:
                     self.run_child(*c)
             with f.else_(one):
-                f.comment("Two at a time where it is safe: the intake child first (the others use what it accepts), then the next two "
-                          "together, then the rest in order.")
-                self.run_child(*self.children[0])
-                with f.parallel("$concurrency$", desc="Children that need only the intake's results"):
-                    for i, c in enumerate(self.children[1:3]):
-                        with f.step(c[1]):
-                            self.run_child(*c, n=str(i + 1))
-                for c in self.children[3:]:
-                    self.run_child(*c)
+                if self.parallel_group is None:
+                    f.comment("Each child needs the one before it (a strict chain), so they still run one after another; "
+                              "concurrency only speeds up the automations whose children are independent.")
+                    for c in self.children:
+                        self.run_child(*c)
+                else:
+                    a, b = self.parallel_group
+                    f.comment("Two at a time where it is safe: the intake child first (the others use what it accepts), then the next two "
+                              "together, then the rest in order.")
+                    for c in self.children[:a]:
+                        self.run_child(*c)
+                    with f.parallel("$concurrency$", desc="Children that need only the intake's results"):
+                        for i, c in enumerate(self.children[a:b]):
+                            with f.step(c[1]):
+                                self.run_child(*c, n=str(i + 1))
+                    for c in self.children[b:]:
+                        self.run_child(*c)
         with f.step("4. Clean up and attest", "Remove only this run's OOA-QA records from the stand-ins, and check no output file holds the secret canary."):
             f.act("ooa.rest/request", desc="Remove this run's test records from the stand-ins", method="POST", url="${standin}/qa/cleanup", json={"run_id": "$run_id$"})
             f.act("ooa.global_values/get", desc="Read the canary text (also kept as a vault secret)", name="rw_canary", default="", type="String", out={"value": "canary"})

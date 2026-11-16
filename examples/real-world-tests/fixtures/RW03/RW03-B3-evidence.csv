@@ -1,0 +1,7 @@
+key,invoice,supplier_id,match_score,po,cost_center,currency,total,amount_eur,max_price_var,qty_short,tax_var,decision,route,reason
+AAMkAP0001,INV-1001,S-ACME,100,PO-5001,CC-410,EUR,1309,1309,0,0,0,matched,approval,three-way match within tolerance
+AAMkAP0002,INV-1002,S-ACME,100,PO-5002,CC-410,EUR,1225.70,1225.70,3,0,0,price_variance,buyer,price 3% above the PO (tolerance 2%)
+AAMkAP0003,INV-2001,S-GLOBEX,100,PO-5003,CC-520,USD,1120,1037.04,12,0,0,price_variance,buyer,price 12% above the PO (tolerance 2%)
+AAMkAP0006,INV-3001,S-STARK,100,PO-5006,CC-630,USD,25000,23148.15,0,0,0,matched,approval,three-way match within tolerance
+AAMkAP0008,RE-7781,S-UMBRELLA,100,PO-5008,CC-520,EUR,1469.05,1469.05,0,0,-0.01,matched,approval,three-way match within tolerance
+AAMkAP0010,INV-3002,S-STARK,100,PO-5010,CC-630,USD,1200,1111.11,0,6,0,quantity_variance,receiving,6 unit(s) invoiced but not received

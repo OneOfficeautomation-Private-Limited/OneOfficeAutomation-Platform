@@ -1,0 +1,4 @@
+key,invoice,amount_eur,route,requester,approver,second_approver,approval_id,status,signature
+AAMkAP0001,INV-1001,1309,approval,lead.ap@ooa-qa.test,controller.ap@ooa-qa.test,,APR-B55AD123,approved,4452e603a19a9b9e1280170549515bd183c9b7f4a10db8b641c162329f22d518
+AAMkAP0002,INV-1002,1225.70,buyer,lead.ap@ooa-qa.test,buyer.ap@ooa-qa.test,,APR-7ABF402F,approved,c6d6cacbaf5405c3653cae2053c54c7724c138d4eb78f0f46f1d04903578e858
+AAMkAP0008,RE-7781,1469.05,approval,buyer.ap@ooa-qa.test,lead.ap@ooa-qa.test,,APR-A3131DF9,approved,6580a14b5713cda5e37ae90889a6d3660a1ac0df2851e91e664d7e8920a0d3a3

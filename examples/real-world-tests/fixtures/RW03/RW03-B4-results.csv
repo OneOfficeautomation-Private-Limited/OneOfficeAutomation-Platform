@@ -1,0 +1,6 @@
+key,status,note,time
+AAMkAP0001,done,approved by controller.ap@ooa-qa.test,03:55:43
+AAMkAP0002,done,approved by buyer.ap@ooa-qa.test,03:55:44
+AAMkAP0003,exception,APPROVAL.DECLINED: INV-2001 was declined by controller.ap@ooa-qa.test,03:55:45
+AAMkAP0006,exception,APPROVAL.SECOND_MISSING: INV-3001: second approval pending (first approved by controller.ap@ooa-qa.test),03:55:49
+AAMkAP0008,done,approved by lead.ap@ooa-qa.test,03:55:50
