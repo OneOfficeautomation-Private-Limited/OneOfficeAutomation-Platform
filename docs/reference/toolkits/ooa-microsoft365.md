@@ -1,6 +1,6 @@
 # Microsoft 365
 
-Toolkit `ooa.microsoft365`, version 1.0.0. Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph.
+Toolkit `ooa.microsoft365`, version 1.0.0. Outlook mail, calendar, OneDrive and SharePoint files, Teams messages, and Entra ID users and groups, through Microsoft Graph.
 
 [All toolkits](README.md)
 
@@ -12,6 +12,7 @@ Toolkit `ooa.microsoft365`, version 1.0.0. Outlook mail, calendar, OneDrive and 
 - **SharePoint**: Create SharePoint list item, Delete SharePoint list item, Get SharePoint list items, List SharePoint lists, Update SharePoint list item
 - **Planner**: Create task (Planner), List plans (Planner), List tasks (Planner), Update task (Planner)
 - **Mail**: Delete all emails (Outlook), Delete email (Outlook), Forward email (Outlook), Read email (Outlook), Find emails (Outlook), Check mail folder exists (Outlook), Change email status (Outlook), Move all emails (Outlook), Move email (Outlook), Reply all to email (Outlook), Reply to email (Outlook), Save attachments of all matching emails (Outlook), Save email as EML (Outlook), Save email as MSG (Outlook), Save email attachments (Outlook), Send email (Outlook)
+- **Users and groups**: Add to group (Entra ID), Create user (Entra ID), Delete user (Entra ID), Find groups (Entra ID), Find users (Entra ID), Get user (Entra ID), Members of a group (Entra ID), Remove from group (Entra ID), Sign user out everywhere (Entra ID), Update user (Entra ID), Groups of a user (Entra ID)
 - **Excel online**: Add table rows (Excel online), Add worksheet (Excel online), Autofit columns (Excel online), Autofit rows (Excel online), Clear range (Excel online), Get column name (Excel online), Copy Excel range (OneDrive/SharePoint), Copy worksheet (Excel online), Create table (Excel online), Create workbook (Excel online), Delete range (Excel online), Delete table (Excel online), Delete worksheet (Excel online), Find in sheet (Excel online), Find next empty cell (Excel online), Format range (Excel online), Get cell (Excel online), Read cell format (Excel online), Get range values (Excel online), Get table rows (Excel online), Get worksheets (Excel online), Hide worksheet (Excel online), Insert range (Excel online), List tables (Excel online), Read column (Excel online), Read formula (Excel online), Read Excel range (OneDrive/SharePoint), Read row (Excel online), Rename table (Excel online), Rename worksheet (Excel online), Set cell (Excel online), Set formula (Excel online), Set range values (Excel online), Show worksheet (Excel online), Get used range (Excel online), Write Data Table (Excel online), Write Excel range (OneDrive/SharePoint)
 - **Loop types**: Each email in a mailbox (Outlook)
 
@@ -1682,6 +1683,263 @@ Send an email from a Microsoft 365 mailbox with optional CC, BCC and attachments
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 120 s; needs: network.*
+
+## Users and groups
+
+### Add to group (Entra ID)
+
+`ooa.microsoft365/entra_add_group_member` (action)
+
+Make a user (or a group) a member of a group; nothing changes when it already is one.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Group | `group` | Text | Yes |  | Main | A group's object id, or its display name (must match one group). |
+| Member | `member` | Text | Yes |  | Main | The user's object id or sign-in name, or another group's object id. |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `added` | Yes/No | True when it was added; false when it was a member already. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Create user (Entra ID)
+
+`ooa.microsoft365/entra_create_user` (action)
+
+Create an Entra ID user with a first password from the vault; it is asked to change it at the first sign-in unless told otherwise.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Display name | `display_name` | Text | Yes |  | Main | Display name. |
+| User principal name | `user_principal_name` | Text | Yes |  | Main | Sign-in name in one of the tenant's domains. Example: `ann.lee@contoso.com` |
+| Password | `password` | Credential (vault) | Yes |  | Main | First password, from the vault. |
+| Account enabled | `account_enabled` | Yes/No | No | Yes | Main | The account can sign in straight away. |
+| Mail nickname | `mail_nickname` | Text | No |  | More options | Mail alias; the part of the sign-in name before @ when empty. |
+| Department | `department` | Text | No |  | More options | Department. |
+| Job title | `job_title` | Text | No |  | More options | Job title. |
+| Force password change | `force_password_change` | Yes/No | No | Yes | More options | Ask for a new password at the first sign-in. |
+| Fields | `fields` | Dictionary | No |  | More options | More Graph user properties to set. Example: `{"usageLocation": "IN"}` |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `user_id` | Text | The new user's object id. |
+
+*Time limit 60 s; needs: network.*
+
+### Delete user (Entra ID)
+
+`ooa.microsoft365/entra_delete_user` (action)
+
+Delete an Entra ID user; it stays restorable from Deleted users for 30 days.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| User | `user` | Text | Yes |  | Main | A user's object id or sign-in name (user principal name). |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+*Time limit 60 s; needs: network.*
+
+### Find groups (Entra ID)
+
+`ooa.microsoft365/entra_find_groups` (action)
+
+List Entra ID groups whose display name starts with a text, optionally security groups only.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Starts with | `starts_with` | Text | No |  | Main | Display name starts with this text; all groups when empty. Example: `GRP-QA-` |
+| Security only | `security_only` | Yes/No | No | No | Main | Security groups only. |
+| Filter | `filter` | Text | No |  | More options | An extra OData filter, joined with the others by 'and'. |
+| Maximum results | `max_results` | Number | No | `1000` | More options | Most groups to return. Range: 1 to  |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, name, mail, security, description. |
+| `count` | Number | How many groups were found. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Find users (Entra ID)
+
+`ooa.microsoft365/entra_find_users` (action)
+
+List Entra ID users whose sign-in name or display name starts with a text, optionally in a department, enabled only, with their last sign-in.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Starts with | `starts_with` | Text | No |  | Main | Sign-in name or display name starts with this text; all users when empty. Example: `qa.` |
+| Department | `department` | Text | No |  | Main | Only users in this department. |
+| Enabled only | `enabled_only` | Yes/No | No | No | Main | Leave out disabled accounts. |
+| Include sign in | `include_sign_in` | Yes/No | No | No | More options | Also read the last sign-in time (needs the AuditLog.Read.All permission). |
+| Filter | `filter` | Text | No |  | More options | An extra OData filter, joined with the others by 'and'. Example: `jobTitle eq 'Analyst'` |
+| Maximum results | `max_results` | Number | No | `1000` | More options | Most users to return. Range: 1 to  |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, name, user_principal_name, email, department, job_title, enabled, last_sign_in. |
+| `count` | Number | How many users were found. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Get user (Entra ID)
+
+`ooa.microsoft365/entra_get_user` (action)
+
+Read one Entra ID user: name, sign-in name, department, whether the account is enabled, the manager and (optionally) the last sign-in.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| User | `user` | Text | Yes |  | Main | A user's object id or sign-in name (user principal name). |
+| Include sign in | `include_sign_in` | Yes/No | No | No | More options | Also read the last sign-in time (needs the AuditLog.Read.All permission). |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `user` | Dictionary | id, name, user_principal_name, email, department, job_title, enabled, last_sign_in, manager, on_premises_dn. |
+| `enabled` | Yes/No | Whether the account can sign in. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Members of a group (Entra ID)
+
+`ooa.microsoft365/entra_group_members` (action)
+
+List a group's members (users, groups, devices): directly, or also the members of groups inside it (nested).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Group | `group` | Text | Yes |  | Main | A group's object id, or its display name (must match one group). |
+| Nested | `nested` | Yes/No | No | No | Main | Also the members of groups inside this group. |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, type, name, user_principal_name. |
+| `count` | Number | How many members. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Remove from group (Entra ID)
+
+`ooa.microsoft365/entra_remove_group_member` (action)
+
+Take a user (or a group) out of a group; nothing changes when it is not a member.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| Group | `group` | Text | Yes |  | Main | A group's object id, or its display name (must match one group). |
+| Member | `member` | Text | Yes |  | Main | The user's object id or sign-in name, or another group's object id. |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `removed` | Yes/No | True when it was removed; false when it was not a member. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Sign user out everywhere (Entra ID)
+
+`ooa.microsoft365/entra_sign_out_everywhere` (action)
+
+End every sign-in session of a user (e.g. when access is removed); apps ask the user to sign in again.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| User | `user` | Text | Yes |  | Main | A user's object id or sign-in name (user principal name). |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### Update user (Entra ID)
+
+`ooa.microsoft365/entra_update_user` (action)
+
+Enable or disable an Entra ID account, or change its department, job title or other properties; empty fields stay as they are.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| User | `user` | Text | Yes |  | Main | A user's object id or sign-in name (user principal name). |
+| Account | `account` | Text | No | `unchanged` | Main | Enable or disable the account. One of: `unchanged`, `enable`, `disable` |
+| Department | `department` | Text | No |  | More options | New department. |
+| Job title | `job_title` | Text | No |  | More options | New job title. |
+| Fields | `fields` | Dictionary | No |  | More options | More Graph user properties to change. Example: `{"officeLocation": "Pune"}` |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+*Time limit 60 s; needs: network.*
+
+### Groups of a user (Entra ID)
+
+`ooa.microsoft365/entra_user_groups` (action)
+
+List the groups a user belongs to: directly, or also through groups inside groups (nested).
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token. |
+| User | `user` | Text | Yes |  | Main | A user's object id or sign-in name (user principal name). |
+| Nested | `nested` | Yes/No | No | No | Main | Also the groups it belongs to through other groups. |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: id, name, mail, security. |
+| `names` | List | The groups' display names. |
+| `count` | Number | How many groups. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
 
 ## Excel online
 

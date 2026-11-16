@@ -573,7 +573,11 @@ public final class Runner {
                         throw new OoaException("RUN.INPUT_INVALID", "Input '" + name + "' must be one of " + en, "Give one of the values the message lists.");
                     scope.set(name, val);
                 } else if (v.containsKey("default")) {
-                    scope.set(name, Values.deepCopy(v.get("default")));
+                    Object d = Values.deepCopy(v.get("default"));
+                    // a Credential variable's default is a vault reference (real-world tests finding 7): fetched from the
+                    // vault and masked as the run starts, as a vault reference given as an input is
+                    if ("Credential".equals(v.get("type")) && d != null) d = credentialArg(name, d);
+                    scope.set(name, d);
                 } else if (isInput && Boolean.TRUE.equals(v.get("required"))) {
                     throw new OoaException("RUN.INPUT_MISSING", "Required input '" + name + "' has no value",
                             v.get("description") != null ? (String) v.get("description") : "Provide a " + v.get("type") + " value for '" + name + "'.");
@@ -1698,6 +1702,10 @@ public final class Runner {
             Map<String, Object> out = new LinkedHashMap<>();
             for (ActionSpec.InputSpec in : spec.inputs()) {
                 Object v = raw == null ? null : raw.get(in.name());
+                // A required Text that the step fills from a value which turns out missing (a null field, an empty cell) is
+                // empty text, exactly as an empty text written in the step is: Trim of nothing is nothing, not an error.
+                if (v == null && in.type() == OoaType.STRING && in.required() && in.defaultValue() == null && raw != null && raw.containsKey(in.name()))
+                    v = "";
                 if (in.type() == OoaType.CREDENTIAL) v = credentialArg(in.name(), v);
                 else if (v != null) refuseVaultReference(in.name(), v, 0);
                 // an element of a shared object repository (G42) is read from its file just before the step runs
@@ -1719,7 +1727,8 @@ public final class Runner {
                 } else if (in.defaultValue() != null) {
                     out.put(in.name(), in.defaultValue());
                 } else if (in.required()) {
-                    throw new ActionException("ACTION.INPUT_MISSING", "Input '" + in.name() + "' resolved to empty", in.description());
+                    throw new ActionException("ACTION.INPUT_MISSING", "Input '" + in.name() + "' has no value"
+                            + (raw != null && raw.containsKey(in.name()) ? ": what it refers to is empty or missing" : ""), in.description());
                 }
             }
             return out;

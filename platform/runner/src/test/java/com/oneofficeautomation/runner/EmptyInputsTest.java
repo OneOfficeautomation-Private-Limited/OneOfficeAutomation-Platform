@@ -1,6 +1,6 @@
 package com.oneofficeautomation.runner;
 
-import com.oneofficeautomation.sdk.JsonLite;
+import com.oneofficeautomation.sdk.*;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -14,6 +14,27 @@ import static org.junit.jupiter.api.Assertions.*;
  * stops the run.
  */
 class EmptyInputsTest {
+    @OoaPackage(id = "test.empty", name = "Empty inputs", version = "1.0.0", description = "Actions with required inputs, for these tests.", publisher = "acme")
+    public static final class Echo {
+        @Action(id = "echo_text", name = "Echo text", description = "Returns its text.")
+        @Output(name = "text", type = OoaType.STRING, description = "The text.")
+        public Map<String, Object> echo(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text.") String text) {
+            return Map.of("text", text);
+        }
+
+        @Action(id = "needs_number", name = "Needs a number", description = "Takes a required number.")
+        public Map<String, Object> number(ActionContext ctx, @Input(name = "n", type = OoaType.NUMBER, description = "A number.") BigDecimal n) {
+            return Map.of();
+        }
+    }
+
+    private static RunResult runEcho(Map<String, Object> flow) {
+        PackageRegistry r = RunnerTest.registry();
+        PackageSigning.PublisherKey acme = PackageSigning.PublisherKey.generate("acme");
+        r.trust(acme);
+        r.install(Echo.class, PackageSigning.sign(Echo.class, acme));
+        return Runner.builder(r).build().run(flow, Map.of());
+    }
     @SuppressWarnings("unchecked")
     private static Map<String, Object> flow(String variables, String steps) {
         return (Map<String, Object>) JsonLite.parse("{\"kind\":\"TaskBot\",\"id\":\"e\",\"name\":\"e\",\"variables\":[" + variables + "],\"steps\":[" + steps + "]}");
@@ -63,6 +84,23 @@ class EmptyInputsTest {
         assertFalse(r.ok());
         assertEquals("RUN.INPUT_MISSING", r.error().get("code"));
         assertTrue(String.valueOf(r.error().get("message")).contains("has no value"));
+    }
+
+    @Test void aMissingFieldIntoATextInputIsEmptyText() {
+        // real-world tests (16 Nov 2026): $mail.subject$ of a mail without a subject is null; Trim of it is empty text, not an error
+        RunResult r = runEcho(flow("{\"name\":\"mail\",\"type\":\"Dictionary\",\"direction\":\"local\",\"default\":{\"subject\":null}},"
+                        + "{\"name\":\"out\",\"type\":\"String\",\"direction\":\"output\",\"default\":\"x\"}",
+                "{\"id\":\"t\",\"action\":\"test.empty/echo_text\",\"args\":{\"text\":\"$mail.subject$\"},\"out\":{\"text\":\"out\"}}"));
+        assertTrue(r.ok(), String.valueOf(r.error()));
+        assertEquals("", r.outputs().get("out"));
+    }
+
+    @Test void aMissingValueForAnotherTypeStillStopsTheStepAndSaysWhy() {
+        RunResult r = runEcho(flow("{\"name\":\"opts\",\"type\":\"Dictionary\",\"direction\":\"local\",\"default\":{\"n\":null}}",
+                "{\"id\":\"t\",\"action\":\"test.empty/needs_number\",\"args\":{\"n\":\"$opts.n$\"}}"));
+        assertFalse(r.ok());
+        assertEquals("ACTION.INPUT_MISSING", r.error().get("code"));
+        assertTrue(String.valueOf(r.error().get("message")).contains("empty or missing"), String.valueOf(r.error().get("message")));
     }
 
     @Test void anEmptyNumberInACalculationSaysWhatIsWrong() {

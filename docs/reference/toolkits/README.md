@@ -72,7 +72,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Log to file](ooa-log.md) | `ooa.log` | 5 | 0 | 0 | Write timestamped lines to a log file or to the run log in One CommandCenter; secrets are masked automatically. |
 | [Long-running agents](ooa-longrunning.md) | `ooa.longrunning` | 8 | 0 | 0 | Suspend an agent until a time, a task, a work item, another run or a callback URL is called, and carry on from the same step; only from One CommandCenter. |
 | [MCP tools](ooa-mcp.md) | `ooa.mcp` | 2 | 0 | 0 | List and call the tools of an MCP server (Model Context Protocol over HTTP). |
-| [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 102 | 0 | 1 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
+| [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 113 | 0 | 1 | Outlook mail, calendar, OneDrive and SharePoint files, Teams messages, and Entra ID users and groups, through Microsoft Graph. |
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 21 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
 | [Network](ooa-network.md) | `ooa.network` | 7 | 2 | 0 | Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3. |
 | [Number](ooa-number.md) | `ooa.number` | 11 | 2 | 0 | Calculate, round, format and generate numbers with exact decimal arithmetic. |
@@ -113,4 +113,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 102 toolkits, 1328 actions, 59 conditions and 18 loop types.
+In all: 102 toolkits, 1339 actions, 59 conditions and 18 loop types.

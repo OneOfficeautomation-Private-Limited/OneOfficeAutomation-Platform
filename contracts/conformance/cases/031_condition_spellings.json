@@ -1,0 +1,115 @@
+{
+  "name": "031_condition_spellings",
+  "description": "Comparisons accept the snake_case spellings the data table filter uses: not_empty, starts_with and not_in mean notEmpty, startsWith and notIn.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c31",
+    "name": "c31",
+    "variables": [
+      {
+        "name": "prev",
+        "type": "String",
+        "default": "APR-1"
+      },
+      {
+        "name": "code",
+        "type": "String",
+        "default": "OOA-QA-7"
+      },
+      {
+        "name": "a",
+        "type": "String",
+        "direction": "output",
+        "default": "no"
+      },
+      {
+        "name": "b",
+        "type": "String",
+        "direction": "output",
+        "default": "no"
+      },
+      {
+        "name": "c",
+        "type": "String",
+        "direction": "output",
+        "default": "no"
+      }
+    ],
+    "steps": [
+      {
+        "id": "1",
+        "action": "core/if",
+        "args": {
+          "condition": {
+            "op": "not_empty",
+            "left": "$prev$"
+          }
+        },
+        "children": [
+          {
+            "id": "1a",
+            "action": "core/set",
+            "args": {
+              "variable": "a",
+              "value": "yes"
+            }
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "action": "core/if",
+        "args": {
+          "condition": {
+            "op": "starts_with",
+            "left": "$code$",
+            "right": "OOA-QA"
+          }
+        },
+        "children": [
+          {
+            "id": "2a",
+            "action": "core/set",
+            "args": {
+              "variable": "b",
+              "value": "yes"
+            }
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "action": "core/if",
+        "args": {
+          "condition": {
+            "op": "not_in",
+            "left": "$code$",
+            "right": [
+              "X",
+              "Y"
+            ]
+          }
+        },
+        "children": [
+          {
+            "id": "3a",
+            "action": "core/set",
+            "args": {
+              "variable": "c",
+              "value": "yes"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "a": "yes",
+      "b": "yes",
+      "c": "yes"
+    }
+  }
+}

@@ -169,8 +169,15 @@ public final class ApplicationPackage {
         env.forEach((k, v) -> { if (v.isEmpty()) target.remove(k); else target.put(k, v); });
     }
 
+    /**
+     * The arguments as a list. Windows PowerShell 5.1's ConvertFrom-Json returns a JSON array as one object, so @(...) around
+     * it made a one-item list and every argument ended up in one (real-world tests, 16 Nov 2026); foreach enumerates the
+     * parsed array in 5.1 and in PowerShell 7 alike.
+     */
+    static final String ARGS_SCRIPT = "$j = ConvertFrom-Json $env:OOA_APP_ARGS; $a = @(foreach ($x in $j) { $x }); ";
+
     /** Start-Process with a window style; program, arguments and folder arrive in environment variables, never inside the script. */
-    static final String START_SCRIPT = "$ErrorActionPreference='Stop'; $a = @(ConvertFrom-Json $env:OOA_APP_ARGS); "
+    static final String START_SCRIPT = "$ErrorActionPreference='Stop'; " + ARGS_SCRIPT
             + "$p = @{ FilePath = $env:OOA_APP_PROGRAM; WindowStyle = $env:OOA_APP_STYLE; PassThru = $true }; "
             + "if ($a.Count -gt 0) { $p.ArgumentList = @($a | ForEach-Object { if ($_ -match '[\\s\"]') { '\"' + ($_ -replace '\"', '\\\"') + '\"' } else { $_ } }) }; "
             + "if ($env:OOA_APP_DIR) { $p.WorkingDirectory = $env:OOA_APP_DIR }; (Start-Process @p).Id";

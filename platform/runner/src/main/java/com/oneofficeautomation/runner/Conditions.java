@@ -20,13 +20,31 @@ final class Conditions {
 
     static boolean compare(String op, Object left, Object right) { return compare(op, left, right, Map.of()); }
 
+    /**
+     * The operator as written, or its snake_case spelling ("not_empty", "starts_with") as the data table filter writes it
+     * (real-world tests finding 4); null when it is neither.
+     */
+    static String canonical(String op) {
+        if (op == null) return null;
+        if (OPS.contains(op)) return op;
+        StringBuilder b = new StringBuilder();
+        boolean up = false;
+        for (char ch : op.strip().toCharArray()) {
+            if (ch == '_') { up = true; continue; }
+            b.append(up ? Character.toUpperCase(ch) : ch);
+            up = false;
+        }
+        return OPS.contains(b.toString()) ? b.toString() : null;
+    }
+
     static boolean compare(String op, Object left, Object right, Map<String, Object> options) {
         boolean ignoreCase = Boolean.TRUE.equals(options.get("ignoreCase"));
         boolean trim = Boolean.TRUE.equals(options.get("trim"));
         boolean dateOnly = Boolean.FALSE.equals(options.get("includeTime"));
         if (ignoreCase || trim) { left = normText(left, ignoreCase, trim); right = normText(right, ignoreCase, trim); }
         if (dateOnly) { left = dateOnly(left); right = dateOnly(right); }
-        switch (op) {
+        String known = canonical(op);
+        switch (known == null ? String.valueOf(op) : known) {
             case "eq": return (Boolean) Expressions.binary("==", left, right);
             case "ne": return (Boolean) Expressions.binary("!=", left, right);
             case "lt": return (Boolean) Expressions.binary("<", left, right);

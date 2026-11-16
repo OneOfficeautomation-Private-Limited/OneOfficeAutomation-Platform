@@ -16,6 +16,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * X6: a Swing application in its own JVM, reached through the Java Attach API and its accessibility information: a
  * text field filled, a button pressed, the label it changes read back. The application is closed at the end.
+ * A label the application named for screen readers, a button and a check box read as the text they show (real-world
+ * tests finding 8).
  */
 class JavaAppsLiveTest {
 
@@ -32,8 +34,11 @@ class JavaAppsLiveTest {
                     JLabel status = new JLabel("Ready");
                     JButton save = new JButton("Save");
                     save.addActionListener(e -> status.setText("Saved: " + customer.getText()));
-                    f.add(customer); f.add(save); f.add(status);
-                    f.setSize(360, 120); f.setLocation(40, 40);
+                    JLabel order = new JLabel("Open");
+                    order.getAccessibleContext().setAccessibleName("Order status");
+                    JCheckBox urgent = new JCheckBox("Urgent");
+                    f.add(customer); f.add(save); f.add(status); f.add(order); f.add(urgent);
+                    f.setSize(560, 120); f.setLocation(40, 40);
                     f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
                     f.setVisible(true);
                 });
@@ -60,6 +65,13 @@ class JavaAppsLiveTest {
             do { label = p.objectAction(c, "OOA Swing test", "Saved*", "label", 0, null, "get_text", null, "OoaSwingTestApp", 2).get("result"); }
             while (!"Saved: Acme Ltd".equals(label) && System.currentTimeMillis() < end);
             assertEquals("Saved: Acme Ltd", label);
+
+            Map<String, Object> order = p.objectAction(c, "OOA Swing test", "Order status", "label", 0, null, "get_text", null, "OoaSwingTestApp", 2);
+            assertEquals("Open", order.get("result"), "a label reads as what it shows, not as the name it was given");
+            assertEquals("Order status", ((Map<String, Object>) order.get("object")).get("name"), "the name stays in the properties");
+            assertEquals("Open", ((Map<String, Object>) order.get("object")).get("text"));
+            assertEquals("Save", p.objectAction(c, "OOA Swing test", "Save", "push button", 0, null, "get_text", null, "OoaSwingTestApp", 2).get("result"));
+            assertEquals("Urgent", p.objectAction(c, "OOA Swing test", "Urgent", "check box", 0, null, "get_text", null, "OoaSwingTestApp", 2).get("result"));
 
             List<Object> objects = (List<Object>) p.findObjects(c, "OOA Swing test", null, null, "OoaSwingTestApp", 100, 0).get("objects");
             assertTrue(objects.stream().anyMatch(o -> "push button".equals(((Map<String, Object>) o).get("role"))), objects.toString());

@@ -266,9 +266,10 @@ public static class Bridge {
     static object Dispatch(string op, Dictionary<string, object> req) {
         switch (op) {
             case "ping": return "pong";
-            case "windows": return Windows();
+            case "windows": return Windows(Bool(req, "owned", true));
             case "foreground": return Native.GetForegroundWindow().ToInt64();
             case "find": return Find(req);
+            case "recheck": return Recheck(req);
             case "act": return Act(req);
             case "capture_at": return CaptureAt(Int(req, "x", 0), Int(req, "y", 0), Bool(req, "screenshot", true));
             case "element_at": return ElementAt(Int(req, "x", 0), Int(req, "y", 0));
@@ -364,7 +365,8 @@ public static class Bridge {
     }
 
     // ---------- windows and search ----------
-    static List<object> Windows() {
+    // owned = false lists only top-level windows: one call instead of one per open window (real-world tests finding 6)
+    static List<object> Windows(bool owned = true) {
         List<object> list = new List<object>();
         CacheRequest cr = new CacheRequest();
         cr.Add(AutomationElement.NameProperty); cr.Add(AutomationElement.ClassNameProperty);
@@ -376,6 +378,7 @@ public static class Bridge {
         Condition isWindow = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window);
         foreach (AutomationElement w in col) {
             all.Add(w);
+            if (!owned) continue;
             try { using (cr.Activate()) foreach (AutomationElement o in w.FindAll(TreeScope.Children, isWindow)) all.Add(o); }
             catch (ElementNotAvailableException) { }
         }
@@ -422,7 +425,7 @@ public static class Bridge {
                 catch (Exception) { }   // the window closed meanwhile
             }
         } else roots.Add(AutomationElement.RootElement);
-        Refs.Clear();
+        // references stay valid across searches (Remember clears them past 20000), so a step can re-check what an earlier step found
         List<object> list = new List<object>();
         foreach (AutomationElement root in roots) {
             AutomationElementCollection col;
@@ -438,6 +441,30 @@ public static class Bridge {
             }
         }
         return list;
+    }
+
+    // A remembered element read again: its current properties (and the same ref), or STALE when it is gone (real-world tests finding 6)
+    // only the properties asked for are read (each is a call into the application), plus the process id to prove it still exists;
+    // a control now off screen (hidden, scrolled away) is reported STALE too, so a full search decides whether it still counts
+    static Dictionary<string, object> Recheck(Dictionary<string, object> req) {
+        AutomationElement e = Ref(req);
+        Dictionary<string, object> d = new Dictionary<string, object>();
+        object want;
+        List<string> names = new List<string>();
+        if (req.TryGetValue("props", out want) && want is ArrayList) foreach (object n in (ArrayList)want) names.Add(Convert.ToString(n, CultureInfo.InvariantCulture));
+        try {
+            d["ProcessId"] = Fmt(e.GetCurrentPropertyValue(AutomationElement.ProcessIdProperty, true));
+            object off = e.GetCurrentPropertyValue(AutomationElement.IsOffscreenProperty, true);
+            if (off is bool && (bool)off) throw new BridgeError("STALE", "The object is off screen; find it again");
+            for (int i = 0; i < Props.Length; i++) {
+                if (!names.Contains(Names[i])) continue;
+                object v;
+                try { v = e.GetCurrentPropertyValue(Props[i], true); } catch (ElementNotAvailableException) { throw; } catch (Exception) { v = null; }
+                d[Names[i]] = Fmt(v);
+            }
+        } catch (ElementNotAvailableException) { throw new BridgeError("STALE", "The object is gone; find it again"); }
+        d["ref"] = Int(req, "ref", -1);
+        return d;
     }
 
     // ---------- actions ----------
