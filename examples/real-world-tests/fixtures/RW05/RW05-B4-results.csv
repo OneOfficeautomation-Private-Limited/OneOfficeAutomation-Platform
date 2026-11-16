@@ -1,0 +1,6 @@
+key,status,note,time
+I02,done,approved (1 change(s)),04:35:08
+I03,done,approved (1 change(s)),04:35:09
+I04,done,approved (1 change(s)),04:35:10
+I06,done,approved (1 change(s)),04:35:11
+I08,exception,"APPROVAL.NOT_GRANTED: I08: reviewer approved, second approver declined: no change",04:35:12

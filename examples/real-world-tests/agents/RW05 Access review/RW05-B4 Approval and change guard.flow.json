@@ -1,0 +1,1244 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw05_b4",
+  "name": "RW05-B4 Approval and change guard",
+  "description": "RW05-B4 (RW05 real-world test). For each proposed change bundle: routes it to the app owner, makes sure the reviewer is not the requestor, needs a rationale for high-risk changes, locks the policy version, asks a second approver (two-person rule), blocks anything not approved, expires stale approvals, keeps the exact changeset hash, audits the decision and returns a signed approval token.",
+  "tags": [
+    "real-world-test",
+    "RW05"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "app_owners",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "acts",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "app",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "reviewer",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rationale",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "chash",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "r1",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "r2",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "st",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "s1",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "s2",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "tries",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "token",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "exp",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "version",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "subject",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "age",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "upn",
+          "actions",
+          "changeset_hash",
+          "reviewer",
+          "second",
+          "approval_1",
+          "approval_2",
+          "status",
+          "policy_version",
+          "token"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: For each proposed change bundle: routes it to the app owner, makes sure the reviewer is not the requestor, needs a rationale for high-risk changes, locks the policy version, asks a second approver (two-person rule), blocks anything not approved, expires stale approvals, keeps the exact changeset hash, audits the decision and returns a signed approval token. It works through 10 proposed access bundles (those with changes) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW05-B4"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW05-B4 Approval and change guard started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW05-B4 starts",
+                "message": "RW05-B4 Approval and change guard\n\nFor each proposed change bundle: routes it to the app owner, makes sure the reviewer is not the requestor, needs a rationale for high-risk changes, locks the policy version, asks a second approver (two-person rule), blocks anything not approved, expires stale approvals, keeps the exact changeset hash, audits the decision and returns a signed approval token.\n\nRecords: 10 proposed access bundles (those with changes)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Only bundles with changes; read the app owners; check the signing key has not expired (vault metadata)."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "approvals",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s17",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW05-B3/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW05-B3/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW05-B3 evidence"
+            }
+          ],
+          "description": "RW05-B3 ran in this run?",
+          "else": [
+            {
+              "id": "s19",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW05-B3's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW05/fixtures/RW05-B3-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW05-B3 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.datatable/filter",
+          "args": {
+            "table": "$records$",
+            "column": "actions",
+            "operator": "not_empty"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Bundles that propose a change"
+        },
+        {
+          "id": "s22",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW05/app_owners.csv"
+          },
+          "out": {
+            "table": "app_owners"
+          },
+          "description": "App owners (reviewers)"
+        },
+        {
+          "id": "s23",
+          "action": "ooa.global_values/get",
+          "args": {
+            "name": "rw05_policy_version",
+            "default": "v3",
+            "type": "String"
+          },
+          "out": {
+            "value": "version"
+          },
+          "description": "Policy version in force"
+        },
+        {
+          "id": "s24",
+          "action": "ooa.vault/credential_expiry",
+          "args": {
+            "credential": "rw_qa_standins/sign_key"
+          },
+          "out": {
+            "expired": "exp"
+          },
+          "continueOnError": true,
+          "description": "Signing key still valid? (vault metadata only)"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s25",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s26",
+          "action": "core/comment",
+          "args": {
+            "text": "Per bundle: owner as reviewer (not the requestor), rationale, policy lock, two approvals, block, expiry, hash, token."
+          }
+        },
+        {
+          "id": "s27",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s29",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "acts",
+                    "value": {
+                      "expr": "split($rec.actions$, ';')"
+                    }
+                  },
+                  "description": "The changes"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "app",
+                    "value": {
+                      "expr": "split(split(first($acts$), ' ')[1], ':')[0]"
+                    }
+                  },
+                  "description": "2. App of the first change"
+                },
+                {
+                  "id": "s32",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$app_owners$",
+                    "column": "app",
+                    "value": "$app$",
+                    "return_column": "owner",
+                    "if_not_found": "owner.entra@ooa-qa.test"
+                  },
+                  "out": {
+                    "value": "reviewer"
+                  },
+                  "description": "2. Route by app owner"
+                },
+                {
+                  "id": "s33",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$reviewer$",
+                      "right": "$rec.manager$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s34",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "${rec.key}: ${reviewer} requested it; the security lead reviews instead"
+                      },
+                      "description": "Reroute"
+                    },
+                    {
+                      "id": "s35",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "reviewer",
+                        "value": "lead.security@ooa-qa.test"
+                      },
+                      "description": "Independent reviewer"
+                    }
+                  ],
+                  "description": "3. Reviewer is the requestor (the manager)?"
+                },
+                {
+                  "id": "s36",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rationale",
+                    "value": "${rec.reasons}"
+                  },
+                  "description": "4. Rationale (the reason codes)"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "eq",
+                          "left": "$rec.severity$",
+                          "right": "high"
+                        },
+                        {
+                          "op": "empty",
+                          "left": "$rationale$"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s38",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "APPROVAL.NO_RATIONALE",
+                        "message": "${rec.key}: high-risk change without a rationale"
+                      },
+                      "description": "Block it"
+                    }
+                  ],
+                  "description": "High risk without a rationale?"
+                },
+                {
+                  "id": "s39",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$rec.version$",
+                      "right": "$version$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s40",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "POLICY.VERSION",
+                        "message": "${rec.key}: proposed under ${rec.version}, policy is ${version}"
+                      },
+                      "description": "Block it"
+                    }
+                  ],
+                  "description": "5. Proposed under another policy version?"
+                },
+                {
+                  "id": "s41",
+                  "action": "ooa.crypto/hash_text",
+                  "args": {
+                    "text": "${rec.key}|${rec.version}|${rec.actions}"
+                  },
+                  "out": {
+                    "hash": "chash"
+                  },
+                  "description": "8. Exact changeset hash"
+                },
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "subject",
+                    "value": "${rec.key} ${first($acts$)}"
+                  },
+                  "description": "Review task subject"
+                },
+                {
+                  "id": "s43",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "POST",
+                    "url": "${standin}/approvals/requests",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    },
+                    "json": {
+                      "subject": "$subject$",
+                      "approver": "$reviewer$",
+                      "requester": "$rec.manager$",
+                      "changeset": "$chash$",
+                      "rationale": "$rationale$",
+                      "run": "$run_id$"
+                    }
+                  },
+                  "out": {
+                    "json": "r1"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "1. Review task for the app owner"
+                },
+                {
+                  "id": "s44",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "POST",
+                    "url": "${standin}/approvals/requests",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    },
+                    "json": {
+                      "subject": "${subject}#2",
+                      "approver": "lead.security2@ooa-qa.test",
+                      "requester": "$rec.manager$",
+                      "changeset": "$chash$",
+                      "run": "$run_id$"
+                    }
+                  },
+                  "out": {
+                    "json": "r2"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "Second approver (two-person rule)"
+                },
+                {
+                  "id": "s45",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "s1",
+                    "value": "pending"
+                  },
+                  "description": "Waiting"
+                },
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "s2",
+                    "value": "pending"
+                  },
+                  "description": "Waiting"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "tries",
+                    "value": 0
+                  },
+                  "description": "Start counting"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "while",
+                    "condition": "($s1$ == 'pending' or $s2$ == 'pending') and $tries$ < 3",
+                    "max_iterations": 4
+                  },
+                  "children": [
+                    {
+                      "id": "s49",
+                      "action": "core/delay",
+                      "args": {
+                        "seconds": 1
+                      },
+                      "description": "Wait a second"
+                    },
+                    {
+                      "id": "s50",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "tries",
+                        "value": {
+                          "expr": "$tries$ + 1"
+                        }
+                      },
+                      "description": "Count"
+                    },
+                    {
+                      "id": "s51",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "url": "${standin}/approvals/requests/${r1.id}",
+                        "bearer_token": {
+                          "$credential": "rw_qa_standins/servicenow/token"
+                        }
+                      },
+                      "out": {
+                        "json": "st"
+                      },
+                      "description": "First answer"
+                    },
+                    {
+                      "id": "s52",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "s1",
+                        "value": "$st.status$"
+                      },
+                      "description": "Its state"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "url": "${standin}/approvals/requests/${r2.id}",
+                        "bearer_token": {
+                          "$credential": "rw_qa_standins/servicenow/token"
+                        }
+                      },
+                      "out": {
+                        "json": "st"
+                      },
+                      "description": "Second answer"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "s2",
+                        "value": "$st.status$"
+                      },
+                      "description": "Its state"
+                    },
+                    {
+                      "id": "s55",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "age",
+                        "value": {
+                          "expr": "dateDiff(coalesce(get($st$, 'decided'), now()), now(), 'hours')"
+                        }
+                      },
+                      "description": "Age of the decision"
+                    }
+                  ],
+                  "description": "Wait for both answers"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$age$ > 24"
+                  },
+                  "children": [
+                    {
+                      "id": "s57",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "APPROVAL.STALE",
+                        "message": "${rec.key}: approval is ${age} hours old; ask again"
+                      },
+                      "description": "Expire it"
+                    }
+                  ],
+                  "description": "7. Stale approval (over a day old)?"
+                },
+                {
+                  "id": "s58",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$s1$ != 'approved' or $s2$ != 'approved'"
+                  },
+                  "children": [
+                    {
+                      "id": "s59",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "APPROVAL.NOT_GRANTED",
+                        "message": "${rec.key}: reviewer ${s1}, second approver ${s2}: no change"
+                      },
+                      "description": "Block the change"
+                    }
+                  ],
+                  "description": "6. Not approved by both?"
+                },
+                {
+                  "id": "s60",
+                  "action": "ooa.crypto/hmac",
+                  "args": {
+                    "text": "${chash}|${r1.id}|${r2.id}",
+                    "key": {
+                      "$credential": "rw_qa_standins/sign_key/token"
+                    }
+                  },
+                  "out": {
+                    "signature": "token"
+                  },
+                  "description": "10. Signed approval token"
+                },
+                {
+                  "id": "s61",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "message": "${rec.key}: approved by ${reviewer} and lead.security2; changeset ${substring($chash$, 0, 12)}"
+                  },
+                  "description": "9. Audit the decision"
+                },
+                {
+                  "id": "s62",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "upn": "$rec.upn$",
+                      "actions": "$rec.actions$",
+                      "changeset_hash": "$chash$",
+                      "reviewer": "$reviewer$",
+                      "second": "lead.security2@ooa-qa.test",
+                      "approval_1": "$r1.id$",
+                      "approval_2": "$r2.id$",
+                      "status": "approved",
+                      "policy_version": "$version$",
+                      "token": "$token$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Approved bundle"
+                },
+                {
+                  "id": "s63",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "approved (${len($acts$)} change(s))"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s64",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s65",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s66",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s67",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW05-B4 - record ${rec.key}",
+                        "message": "RW05-B4: record ${$i + 1} of ${len($records$)}\n\n${rec.upn}: ${rec.actions}\nReviewer ${reviewer}; answers ${s1} / ${s2}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s68",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s69",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s70",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s71",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s72",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s73",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW05-B4 - exception",
+                            "message": "RW05-B4: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s74",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s75",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 proposed access bundles (those with changes)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s76",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s77",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s78",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s79",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s80",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s81",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s82",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s83",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW05-B4 Approval and change guard finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s84",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW05-B4 finished",
+                "message": "RW05-B4 Approval and change guard finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

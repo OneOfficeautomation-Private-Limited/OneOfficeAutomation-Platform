@@ -1,0 +1,10 @@
+key,status,note,time
+I01,done,none: 0 action(s),04:35:00
+I02,done,high: 1 action(s),04:35:00
+I03,done,high: 1 action(s),04:35:00
+I04,done,medium: 1 action(s),04:35:00
+I05,exception,ROUTE.REVIEW: qa.eli.sun@ooa-qa.test: duplicate Jira accounts (2),04:35:00
+I06,done,high: 1 action(s),04:35:00
+I08,done,low: 1 action(s),04:35:00
+I09,exception,ROUTE.REVIEW: qa.ivy.paz@ooa-qa.test: manager someone.else@ooa-qa.test is neither a role owner nor an app owner,04:35:00
+I10,done,none: 0 action(s),04:35:00

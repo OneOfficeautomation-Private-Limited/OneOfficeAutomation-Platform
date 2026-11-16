@@ -1,0 +1,10 @@
+key,upn,immutable_id,enabled,manager,last_sign_in,days,stale,direct_groups,effective_groups,cycles,masked,hash
+I01,qa.ann.lee@ooa-qa.test,u-qa-i01,true,lead.support@ooa-qa.test,2026-11-13T04:34:32Z,3,false,GRP-QA-Support,GRP-QA-Support,0,qa.a***@ooa-qa.test,140c1364b4476f7c7faff7272d51dabc21a3cec3b3040f26beb47099fa006fe7
+I02,qa.ben.ray@ooa-qa.test,u-qa-i02,true,lead.support@ooa-qa.test,2026-11-11T04:34:32Z,5,false,GRP-QA-Support,GRP-QA-Support,0,qa.b***@ooa-qa.test,d8eb45ed566a9253ad3a6c5e032c08e600a26ae7344c8eb06781c8885c18b48c
+I03,qa.cara.ng@ooa-qa.test,u-qa-i03,true,owner.sn@ooa-qa.test,2026-11-14T04:34:32Z,2,false,GRP-QA-Readers,GRP-QA-Readers,0,qa.c***@ooa-qa.test,3ca3178254cfe2ed884e8d957552bdaaeb65e816ae49db711dc7ddaf50bebeeb
+I04,qa.dev.rao@ooa-qa.test,u-qa-i04,true,lead.finance@ooa-qa.test,2026-04-30T04:34:32Z,200,true,GRP-QA-Readers,GRP-QA-Readers,0,qa.d***@ooa-qa.test,4baff3b4bd090b0bf48c0641f44f5ae24fd2ff52f8d124820004d8becaa3d6ee
+I05,qa.eli.sun@ooa-qa.test,u-qa-i05,true,lead.support@ooa-qa.test,2026-11-07T04:34:32Z,9,false,GRP-QA-Support,GRP-QA-Support,0,qa.e***@ooa-qa.test,2c4545943eb61df1772645079aa0bfe4bfc34e3231d19d5e8836980d687b37a6
+I06,qa.fay.ito@ooa-qa.test,u-qa-i06,true,lead.support@ooa-qa.test,2026-11-15T04:34:32Z,1,false,GRP-QA-Nest-A;GRP-QA-Support,GRP-QA-Admins;GRP-QA-Nest-A;GRP-QA-Nest-B;GRP-QA-Support,1,qa.f***@ooa-qa.test,e464113bc99be80311585fcf9da55f3b94b9296119e92ae53e56b398ee4b11f3
+I08,qa.hal.oak@ooa-qa.test,u-qa-i08,true,lead.release@ooa-qa.test,2026-11-10T04:34:32Z,6,false,GRP-QA-Readers,GRP-QA-Readers,0,qa.h***@ooa-qa.test,5ed987eb935bda4f010698db0eae99c38dc60c8473db16d739f57b3e26cd7826
+I09,qa.ivy.paz@ooa-qa.test,u-qa-i09,true,someone.else@ooa-qa.test,2026-11-04T04:34:32Z,12,false,GRP-QA-Readers,GRP-QA-Readers,0,qa.i***@ooa-qa.test,1d91dbe7c0958caa53a5fc0aad413d639ac252005284c807bf49d8d4fd0f7a4d
+I10,qa.jon.uhl@ooa-qa.test,u-qa-i10,true,lead.finance@ooa-qa.test,2026-09-17T04:34:32Z,60,false,GRP-QA-Readers,GRP-QA-Readers,0,qa.j***@ooa-qa.test,0c64f500a8d39416bc31a0ff70d848ff24df5247ef62c342a01c2f9f79e6b543

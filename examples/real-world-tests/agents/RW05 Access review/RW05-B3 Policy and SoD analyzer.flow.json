@@ -1,0 +1,1445 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw05_b3",
+  "name": "RW05-B3 Policy and SoD analyzer",
+  "description": "RW05-B3 (RW05 real-world test). Joins each snapshot to the versioned role matrix, works out expected against actual grants, finds privileged extras (also those inherited through nested groups), SoD conflicts and dormant accounts, compares the manager with the role owner, classifies the severity, proposes least-privilege actions, sends ambiguous cases to review, keeps the baseline and gives reason codes.",
+  "tags": [
+    "real-world-test",
+    "RW05"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "assign",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "owners",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rules",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rule",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "role",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "owner",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "exp_t",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "expected",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "actual",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "direct",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "missing",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "extra",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "priv",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "privx",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "sod",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "actions",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "reasons",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "x",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sev",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "version",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "db",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "app_owners",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "known",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "more",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "dormant_days",
+      "type": "Number",
+      "direction": "input",
+      "default": 90,
+      "description": "No sign-in for longer than this: disable (with approval)."
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "upn",
+          "role",
+          "version",
+          "owner",
+          "manager",
+          "expected",
+          "actual",
+          "missing",
+          "extra",
+          "privileged",
+          "sod",
+          "dormant",
+          "severity",
+          "actions",
+          "reasons"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Joins each snapshot to the versioned role matrix, works out expected against actual grants, finds privileged extras (also those inherited through nested groups), SoD conflicts and dormant accounts, compares the manager with the role owner, classifies the severity, proposes least-privilege actions, sends ambiguous cases to review, keeps the baseline and gives reason codes. It works through 10 access profiles and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW05-B3"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW05-B3 Policy and SoD analyzer started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW05-B3 starts",
+                "message": "RW05-B3 Policy and SoD analyzer\n\nJoins each snapshot to the versioned role matrix, works out expected against actual grants, finds privileged extras (also those inherited through nested groups), SoD conflicts and dormant accounts, compares the manager with the role owner, classifies the severity, proposes least-privilege actions, sends ambiguous cases to review, keeps the baseline and gives reason codes.\n\nRecords: 10 access profiles\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the entitlements, load the versioned role matrix and the rules into the review database, check the policy version."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW05-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW05-B2/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW05-B2 evidence"
+            }
+          ],
+          "description": "RW05-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s17",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW05-B2's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW05/fixtures/RW05-B2-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW05-B2 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s19",
+          "action": "ooa.global_values/get",
+          "args": {
+            "name": "rw05_policy_version",
+            "default": "v3",
+            "type": "String"
+          },
+          "out": {
+            "value": "version"
+          },
+          "description": "Policy version in force"
+        },
+        {
+          "id": "s20",
+          "action": "core/set",
+          "args": {
+            "variable": "db",
+            "value": "${out_dir}/policy"
+          },
+          "description": "Policy database of this run"
+        },
+        {
+          "id": "s21",
+          "action": "ooa.database/connect",
+          "args": {
+            "database_type": "h2",
+            "file": "$db$",
+            "session": "pol"
+          },
+          "description": "Open the policy database (embedded H2)"
+        },
+        {
+          "id": "s22",
+          "action": "ooa.database/execute",
+          "args": {
+            "sql": "DROP TABLE IF EXISTS matrix",
+            "session": "pol"
+          },
+          "description": "Fresh matrix table"
+        },
+        {
+          "id": "s23",
+          "action": "ooa.database/execute",
+          "args": {
+            "session": "pol",
+            "sql": "CREATE TABLE matrix(version VARCHAR(5), role VARCHAR(30), grant_ VARCHAR(60), privileged VARCHAR(3)) AS SELECT * FROM CSVREAD('${base}/data/RW05/role_matrix.csv')"
+          },
+          "description": "1. Load the versioned role matrix"
+        },
+        {
+          "id": "s24",
+          "action": "ooa.database/execute",
+          "args": {
+            "sql": "DROP TABLE IF EXISTS baseline",
+            "session": "pol"
+          },
+          "description": "Fresh baseline table"
+        },
+        {
+          "id": "s25",
+          "action": "ooa.database/execute",
+          "args": {
+            "sql": "CREATE TABLE baseline(pkey VARCHAR(5), grants VARCHAR(600), taken TIMESTAMP)",
+            "session": "pol"
+          },
+          "description": "8. Baseline table"
+        },
+        {
+          "id": "s26",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW05/assignments.csv"
+          },
+          "out": {
+            "table": "assign"
+          },
+          "description": "Who has which role"
+        },
+        {
+          "id": "s27",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW05/role_owners.csv"
+          },
+          "out": {
+            "table": "owners"
+          },
+          "description": "Role owners"
+        },
+        {
+          "id": "s28",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW05/app_owners.csv"
+          },
+          "out": {
+            "table": "app_owners"
+          },
+          "description": "App owners"
+        },
+        {
+          "id": "s29",
+          "action": "ooa.datatable/column_to_list",
+          "args": {
+            "table": "$owners$",
+            "column": "owner"
+          },
+          "out": {
+            "list": "known"
+          },
+          "description": "Known managers: the role owners"
+        },
+        {
+          "id": "s30",
+          "action": "ooa.datatable/column_to_list",
+          "args": {
+            "table": "$app_owners$",
+            "column": "owner"
+          },
+          "out": {
+            "list": "more"
+          },
+          "description": "and the app owners"
+        },
+        {
+          "id": "s31",
+          "action": "ooa.list/append_list",
+          "args": {
+            "list": "$known$",
+            "other": "$more$"
+          },
+          "out": {
+            "list": "known"
+          },
+          "description": "One list"
+        },
+        {
+          "id": "s32",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW05/sod_rules.csv"
+          },
+          "out": {
+            "table": "rules"
+          },
+          "description": "SoD rules"
+        },
+        {
+          "id": "s33",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW05/privileged.csv"
+          },
+          "out": {
+            "table": "exp_t"
+          },
+          "description": "Privileged grants"
+        },
+        {
+          "id": "s34",
+          "action": "ooa.datatable/column_to_list",
+          "args": {
+            "table": "$exp_t$",
+            "column": "grant"
+          },
+          "out": {
+            "list": "priv"
+          },
+          "description": "As a list"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s35",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s36",
+          "action": "core/comment",
+          "args": {
+            "text": "Per profile: expected vs actual, privileged and SoD, dormant, owner, severity, actions, review or proposal."
+          }
+        },
+        {
+          "id": "s37",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s38",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s39",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s40",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$assign$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "role"
+                  },
+                  "out": {
+                    "value": "role"
+                  },
+                  "description": "1. The principal's role"
+                },
+                {
+                  "id": "s41",
+                  "action": "ooa.database/query",
+                  "args": {
+                    "session": "pol",
+                    "parameters": [
+                      "$role$",
+                      "$version$"
+                    ],
+                    "sql": "SELECT grant_ AS \"grant\" FROM matrix WHERE role = ? AND version = ?"
+                  },
+                  "out": {
+                    "table": "exp_t"
+                  },
+                  "description": "2. Expected grants (matrix ${version})"
+                },
+                {
+                  "id": "s42",
+                  "action": "ooa.datatable/column_to_list",
+                  "args": {
+                    "table": "$exp_t$",
+                    "column": "grant"
+                  },
+                  "out": {
+                    "list": "expected"
+                  },
+                  "description": "As a list"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "actual",
+                    "value": {
+                      "expr": "split($rec.grants$, ';')"
+                    }
+                  },
+                  "description": "2. Actual grants"
+                },
+                {
+                  "id": "s44",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "direct",
+                    "value": {
+                      "expr": "split(coalesce($rec.direct_groups$, ''), ';')"
+                    }
+                  },
+                  "description": "Direct Entra groups"
+                },
+                {
+                  "id": "s45",
+                  "action": "ooa.list/subtract",
+                  "args": {
+                    "list": "$expected$",
+                    "other": "$actual$"
+                  },
+                  "out": {
+                    "list": "missing"
+                  },
+                  "description": "2. Missing grants"
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.list/subtract",
+                  "args": {
+                    "list": "$actual$",
+                    "other": "$expected$"
+                  },
+                  "out": {
+                    "list": "extra"
+                  },
+                  "description": "2. Extra grants"
+                },
+                {
+                  "id": "s47",
+                  "action": "ooa.list/intersect",
+                  "args": {
+                    "list": "$extra$",
+                    "other": "$priv$"
+                  },
+                  "out": {
+                    "list": "privx"
+                  },
+                  "description": "3. Privileged extras"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sod",
+                    "value": []
+                  },
+                  "description": "Start: sod"
+                },
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "actions",
+                    "value": []
+                  },
+                  "description": "Start: actions"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "reasons",
+                    "value": []
+                  },
+                  "description": "Start: reasons"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "table_rows",
+                    "over": "$rules$",
+                    "as": "rule"
+                  },
+                  "children": [
+                    {
+                      "id": "s52",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "all": [
+                            {
+                              "op": "contains",
+                              "left": "$actual$",
+                              "right": "$rule.grant_a$"
+                            },
+                            {
+                              "op": "contains",
+                              "left": "$actual$",
+                              "right": "$rule.grant_b$"
+                            }
+                          ]
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s53",
+                          "action": "ooa.list/add_item",
+                          "args": {
+                            "list": "$sod$",
+                            "item": "${rule.grant_a} + ${rule.grant_b}"
+                          },
+                          "out": {
+                            "list": "sod"
+                          },
+                          "description": "SoD conflict"
+                        },
+                        {
+                          "id": "s54",
+                          "action": "ooa.list/add_item",
+                          "args": {
+                            "list": "$actions$",
+                            "item": "remove ${rule.grant_b}"
+                          },
+                          "out": {
+                            "list": "actions"
+                          },
+                          "description": "6. Remove the second grant"
+                        },
+                        {
+                          "id": "s55",
+                          "action": "ooa.list/add_item",
+                          "args": {
+                            "list": "$reasons$",
+                            "item": "SOD_CONFLICT"
+                          },
+                          "out": {
+                            "list": "reasons"
+                          },
+                          "description": "Reason"
+                        }
+                      ],
+                      "description": "Both grants held?"
+                    }
+                  ],
+                  "description": "3. Each SoD rule"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$extra$",
+                    "as": "x"
+                  },
+                  "children": [
+                    {
+                      "id": "s57",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "startsWith($x$, 'entra:') and not contains($direct$, substring($x$, 6))"
+                      },
+                      "children": [
+                        {
+                          "id": "s58",
+                          "action": "ooa.list/add_item",
+                          "args": {
+                            "list": "$reasons$",
+                            "item": "INHERITED_${upper(substring($x$, 6))}"
+                          },
+                          "out": {
+                            "list": "reasons"
+                          },
+                          "description": "Reason"
+                        }
+                      ],
+                      "description": "Inherited through a nested group?",
+                      "else": [
+                        {
+                          "id": "s59",
+                          "action": "core/if",
+                          "args": {
+                            "condition": "not contains($actions$, 'remove ' + $x$)"
+                          },
+                          "children": [
+                            {
+                              "id": "s60",
+                              "action": "ooa.list/add_item",
+                              "args": {
+                                "list": "$actions$",
+                                "item": "remove ${x}"
+                              },
+                              "out": {
+                                "list": "actions"
+                              },
+                              "description": "Remove the extra grant"
+                            },
+                            {
+                              "id": "s61",
+                              "action": "ooa.list/add_item",
+                              "args": {
+                                "list": "$reasons$",
+                                "item": {
+                                  "expr": "if(contains($priv$, $x$), 'PRIVILEGED_EXTRA', 'EXTRA_GRANT')"
+                                }
+                              },
+                              "out": {
+                                "list": "reasons"
+                              },
+                              "description": "Reason"
+                            }
+                          ],
+                          "description": "Not already proposed"
+                        }
+                      ]
+                    }
+                  ],
+                  "description": "6. Each extra grant"
+                },
+                {
+                  "id": "s62",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$missing$",
+                    "as": "x"
+                  },
+                  "children": [
+                    {
+                      "id": "s63",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$actions$",
+                        "item": "add ${x}"
+                      },
+                      "out": {
+                        "list": "actions"
+                      },
+                      "description": "Add it"
+                    },
+                    {
+                      "id": "s64",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$reasons$",
+                        "item": "MISSING_GRANT"
+                      },
+                      "out": {
+                        "list": "reasons"
+                      },
+                      "description": "Reason"
+                    }
+                  ],
+                  "description": "6. Each missing grant"
+                },
+                {
+                  "id": "s65",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "toNumber($rec.days$) > $dormant_days$"
+                  },
+                  "children": [
+                    {
+                      "id": "s66",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$actions$",
+                        "item": "disable account"
+                      },
+                      "out": {
+                        "list": "actions"
+                      },
+                      "description": "Disable the account"
+                    },
+                    {
+                      "id": "s67",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$reasons$",
+                        "item": "DORMANT"
+                      },
+                      "out": {
+                        "list": "reasons"
+                      },
+                      "description": "Reason"
+                    }
+                  ],
+                  "description": "3. Dormant?"
+                },
+                {
+                  "id": "s68",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$owners$",
+                    "column": "role",
+                    "value": "$role$",
+                    "return_column": "owner"
+                  },
+                  "out": {
+                    "value": "owner"
+                  },
+                  "description": "4. Role owner"
+                },
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sev",
+                    "value": {
+                      "expr": "if(len($privx$) > 0 or len($sod$) > 0 or contains($reasons$, 'INHERITED_GRP-QA-ADMINS'), 'high', if(contains($reasons$, 'DORMANT'), 'medium', if(len($actions$) > 0, 'low', 'none')))"
+                    }
+                  },
+                  "description": "5. Severity by rule"
+                },
+                {
+                  "id": "s70",
+                  "action": "ooa.database/execute",
+                  "args": {
+                    "session": "pol",
+                    "sql": "INSERT INTO baseline VALUES (?, ?, CURRENT_TIMESTAMP)",
+                    "parameters": [
+                      "$rec.key$",
+                      "$rec.grants$"
+                    ]
+                  },
+                  "description": "8. Keep the baseline"
+                },
+                {
+                  "id": "s71",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "upn": "$rec.upn$",
+                      "role": "$role$",
+                      "version": "$version$",
+                      "owner": "$owner$",
+                      "manager": "$rec.manager$",
+                      "expected": {
+                        "expr": "join($expected$, ';')"
+                      },
+                      "actual": "$rec.grants$",
+                      "missing": {
+                        "expr": "join($missing$, ';')"
+                      },
+                      "extra": {
+                        "expr": "join($extra$, ';')"
+                      },
+                      "privileged": {
+                        "expr": "join($privx$, ';')"
+                      },
+                      "sod": {
+                        "expr": "join($sod$, ';')"
+                      },
+                      "dormant": {
+                        "expr": "toNumber($rec.days$) > $dormant_days$"
+                      },
+                      "severity": "$sev$",
+                      "actions": {
+                        "expr": "join($actions$, ';')"
+                      },
+                      "reasons": {
+                        "expr": "join($reasons$, ';')"
+                      }
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "9. Profile with reason codes"
+                },
+                {
+                  "id": "s72",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not contains($known$, $rec.manager$) or $rec.mapping$ != 'ok'"
+                  },
+                  "children": [
+                    {
+                      "id": "s73",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.REVIEW",
+                        "message": "${rec.upn}: ${if($rec.mapping$ != 'ok', $rec.mapping$, 'manager ' + $rec.manager$ + ' is neither a role owner nor an app owner')}"
+                      },
+                      "description": "Send it to review"
+                    }
+                  ],
+                  "description": "7. Ambiguous (4. unknown manager, or app mapping unclear)?"
+                },
+                {
+                  "id": "s74",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${sev}: ${len($actions$)} action(s)"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s75",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s76",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s77",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s78",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW05-B3 - record ${rec.key}",
+                        "message": "RW05-B3: record ${$i + 1} of ${len($records$)}\n\n${rec.upn} (${role})\nSeverity ${sev}\nActions: ${join($actions$, '; ')}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s79",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s80",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s81",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s82",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s83",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s84",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW05-B3 - exception",
+                            "message": "RW05-B3: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s85",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s86",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 access profiles"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s87",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s88",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s89",
+          "action": "ooa.database/query",
+          "args": {
+            "session": "pol",
+            "sql": "SELECT pkey AS \"key\", grants AS \"grants\" FROM baseline"
+          },
+          "out": {
+            "table": "exp_t"
+          },
+          "description": "The baseline as kept"
+        },
+        {
+          "id": "s90",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$exp_t$",
+            "path": "${out_dir}/baseline.csv"
+          },
+          "description": "8. Save the baseline"
+        },
+        {
+          "id": "s91",
+          "action": "ooa.database/disconnect",
+          "args": {
+            "session": "pol"
+          },
+          "description": "Close the policy database"
+        },
+        {
+          "id": "s92",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s93",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s94",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s95",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s96",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s97",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW05-B3 Policy and SoD analyzer finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s98",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s99",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW05-B3 finished",
+                "message": "RW05-B3 Policy and SoD analyzer finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

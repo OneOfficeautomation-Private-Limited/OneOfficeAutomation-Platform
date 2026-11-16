@@ -1,0 +1,5 @@
+key,upn,actions,changeset_hash,reviewer,second,approval_1,approval_2,status,policy_version,token
+I02,qa.ben.ray@ooa-qa.test,remove sf:Modify_All_Data,3fb1349ab643e6028be32acc4d64c5ed6ed377800f4c5cc109b0f333d14224c5,owner.sf@ooa-qa.test,lead.security2@ooa-qa.test,APR-161F065E,APR-A3743891,approved,v3,72f85a0ebb38a7cd843768e20a70d64fd23ba53af7e267e6c7d77004b176e8ad
+I03,qa.cara.ng@ooa-qa.test,remove sn:change_approver,3f4e7a327e50b4583fc94109a8739a9fcc59024228eca1fba62212ca7b2482a5,lead.security@ooa-qa.test,lead.security2@ooa-qa.test,APR-4F6F2377,APR-09A22D55,approved,v3,614cf6d623d3cceea62bc8d0b48dbb99101798e09bd853a386650fa6e09aed9a
+I04,qa.dev.rao@ooa-qa.test,disable account,da6d0aa52379d0a7b0a9e0a5de916d3ebf65469e0c1b8f5c698747c00e86612f,owner.entra@ooa-qa.test,lead.security2@ooa-qa.test,APR-D98D172C,APR-46B2C877,approved,v3,85854795006e58572a7306044645af82510a91070832e7809207c126b6de5b37
+I06,qa.fay.ito@ooa-qa.test,remove entra:GRP-QA-Nest-A,8658e593f92db59d83683cda801c428b352637d574e1323f683a03285044a80d,owner.entra@ooa-qa.test,lead.security2@ooa-qa.test,APR-63C2F3A1,APR-6A213E9F,approved,v3,d57fb834bc2cf9ac446969021438ba44025bb741eb32d46c57a3d1c75b525025

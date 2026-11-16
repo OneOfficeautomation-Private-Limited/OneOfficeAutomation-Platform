@@ -1,0 +1,1833 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw05_b5",
+  "name": "RW05-B5 QA remediation executor",
+  "description": "RW05-B5 (RW05 real-world test). For each approved changeset: checks the QA prefix, the tenant and the approval token before every write, removes or adds the approved group and role grants, disables the test identity only when approved, reads the app back, compares the change made with the approved one (undoing anything unexpected), keeps the response ids and stops on a host that is not QA.",
+  "tags": [
+    "real-world-test",
+    "RW05"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "acts",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "a",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "verb",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "app",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "name",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "uid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "u",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "tok",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "host",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "q",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ids",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "present",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "done",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "groups",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "gid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "okg",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "sfid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "snid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "jacc",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "jg",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "cnt",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "grp",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "mo",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "upn",
+          "applied",
+          "response_ids",
+          "verified"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: For each approved changeset: checks the QA prefix, the tenant and the approval token before every write, removes or adds the approved group and role grants, disables the test identity only when approved, reads the app back, compares the change made with the approved one (undoing anything unexpected), keeps the response ids and stops on a host that is not QA. It works through 10 approved changesets (the approved ones) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW05-B5"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW05-B5 QA remediation executor started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW05-B5 starts",
+                "message": "RW05-B5 QA remediation executor\n\nFor each approved changeset: checks the QA prefix, the tenant and the approval token before every write, removes or adds the approved group and role grants, disables the test identity only when approved, reads the app back, compares the change made with the approved one (undoing anything unexpected), keeps the response ids and stops on a host that is not QA.\n\nRecords: 10 approved changesets (the approved ones)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Only approved changesets; read the Entra groups (names to ids)."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "graph",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s17",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW05-B4/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW05-B4/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW05-B4 evidence"
+            }
+          ],
+          "description": "RW05-B4 ran in this run?",
+          "else": [
+            {
+              "id": "s19",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW05-B4's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW05/fixtures/RW05-B4-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW05-B4 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.rest/request",
+          "args": {
+            "method": "GET",
+            "url": "${standin}/graph/v1.0/groups",
+            "bearer_token": {
+              "$credential": "rw_qa_standins/graph/token"
+            }
+          },
+          "out": {
+            "json": "groups"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "Entra groups"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s22",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s23",
+          "action": "core/comment",
+          "args": {
+            "text": "Per changeset: guards, then each change: apply, read back, compare, undo if unexpected."
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s26",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "ooa.crypto/hmac",
+                  "args": {
+                    "text": "${rec.changeset_hash}|${rec.approval_1}|${rec.approval_2}",
+                    "key": {
+                      "$credential": "rw_qa_standins/sign_key/token"
+                    }
+                  },
+                  "out": {
+                    "signature": "tok"
+                  },
+                  "description": "Recompute the approval token"
+                },
+                {
+                  "id": "s28",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$tok$",
+                      "right": "$rec.token$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s29",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "APPROVAL.TOKEN",
+                        "message": "${rec.key}: the approval token does not match"
+                      },
+                      "description": "No change without a valid approval"
+                    }
+                  ],
+                  "description": "Token does not match?"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "acts",
+                    "value": {
+                      "expr": "split($rec.actions$, ';')"
+                    }
+                  },
+                  "description": "The approved changes"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "done",
+                    "value": []
+                  },
+                  "description": "Nothing applied yet"
+                },
+                {
+                  "id": "s32",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ids",
+                    "value": []
+                  },
+                  "description": "No response ids yet"
+                },
+                {
+                  "id": "s33",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "GET",
+                    "url": "${standin}/graph/v1.0/users/${rec.upn}",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    }
+                  },
+                  "out": {
+                    "json": "u"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "The Entra identity"
+                },
+                {
+                  "id": "s34",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$acts$",
+                    "as": "a"
+                  },
+                  "children": [
+                    {
+                      "id": "s35",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "not (startsWith(lower($rec.upn$), 'qa.') and endsWith(lower($rec.upn$), '@ooa-qa.test'))"
+                      },
+                      "children": [
+                        {
+                          "id": "s36",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "SCOPE.NOT_QA",
+                            "message": "${rec.key}: not a tagged QA principal; nothing is read or changed"
+                          },
+                          "description": "Fail closed"
+                        }
+                      ],
+                      "description": "Not a tagged QA principal?"
+                    },
+                    {
+                      "id": "s37",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "host",
+                        "value": {
+                          "expr": "regexExtract($standin$, '//([^:/]+)', 1)"
+                        }
+                      },
+                      "description": "1. Target host"
+                    },
+                    {
+                      "id": "s38",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$host$",
+                          "right": "127.0.0.1"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s39",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "SCOPE.HOST",
+                            "message": "Write target ${host} is not the QA tenant: stopped"
+                          },
+                          "description": "Stop on host mismatch"
+                        }
+                      ],
+                      "description": "9. Host is not the QA tenant?"
+                    },
+                    {
+                      "id": "s40",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "rid",
+                        "value": ""
+                      },
+                      "description": "No response id yet"
+                    },
+                    {
+                      "id": "s41",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "gid",
+                        "value": ""
+                      },
+                      "description": "No group yet"
+                    },
+                    {
+                      "id": "s42",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "verb",
+                        "value": {
+                          "expr": "split($a$, ' ')[0]"
+                        }
+                      },
+                      "description": "add, remove or disable"
+                    },
+                    {
+                      "id": "s43",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "app",
+                        "value": {
+                          "expr": "if($verb$ == 'disable', 'account', split(split($a$, ' ')[1], ':')[0])"
+                        }
+                      },
+                      "description": "Which app"
+                    },
+                    {
+                      "id": "s44",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "name",
+                        "value": {
+                          "expr": "if($verb$ == 'disable', '', substring(split($a$, ' ')[1], len($app$) + 1))"
+                        }
+                      },
+                      "description": "Which grant"
+                    },
+                    {
+                      "id": "s45",
+                      "action": "core/switch",
+                      "args": {
+                        "value": "$app$",
+                        "match": "equals",
+                        "ignore_case": true
+                      },
+                      "description": "2.-3. Apply the change in its app",
+                      "cases": [
+                        {
+                          "values": [
+                            "sf"
+                          ],
+                          "children": [
+                            {
+                              "id": "s46",
+                              "action": "ooa.salesforce/query",
+                              "args": {
+                                "soql": "SELECT Id FROM User WHERE Email = '${rec.upn}'",
+                                "instance_url": "$standin$",
+                                "access_token": {
+                                  "$credential": "rw_qa_standins/salesforce/token"
+                                }
+                              },
+                              "out": {
+                                "table": "q"
+                              },
+                              "description": "Salesforce user"
+                            },
+                            {
+                              "id": "s47",
+                              "action": "ooa.datatable/get_value",
+                              "args": {
+                                "table": "$q$",
+                                "row": 0,
+                                "column": "Id"
+                              },
+                              "out": {
+                                "value": "sfid"
+                              },
+                              "description": "Its id"
+                            },
+                            {
+                              "id": "s48",
+                              "action": "ooa.salesforce/query",
+                              "args": {
+                                "instance_url": "$standin$",
+                                "access_token": {
+                                  "$credential": "rw_qa_standins/salesforce/token"
+                                },
+                                "soql": "SELECT Id FROM PermissionSetAssignment WHERE AssigneeId = '${sfid}' AND PermissionSet.Name = '${name}'"
+                              },
+                              "out": {
+                                "table": "q"
+                              },
+                              "description": "The assignment"
+                            },
+                            {
+                              "id": "s49",
+                              "action": "ooa.datatable/get_value",
+                              "args": {
+                                "table": "$q$",
+                                "row": 0,
+                                "column": "Id"
+                              },
+                              "out": {
+                                "value": "rid"
+                              },
+                              "description": "Its id"
+                            },
+                            {
+                              "id": "s50",
+                              "action": "ooa.salesforce/query",
+                              "args": {
+                                "instance_url": "$standin$",
+                                "access_token": {
+                                  "$credential": "rw_qa_standins/salesforce/token"
+                                },
+                                "soql": "SELECT Id FROM PermissionSetAssignment WHERE Id = '${rid}' AND PermissionSet.Name = '${name}'"
+                              },
+                              "out": {
+                                "table": "q",
+                                "count": "cnt"
+                              },
+                              "description": "Confirm the record about to be removed is the approved grant"
+                            },
+                            {
+                              "id": "s51",
+                              "action": "core/if",
+                              "args": {
+                                "condition": "$cnt$ != 1"
+                              },
+                              "children": [
+                                {
+                                  "id": "s52",
+                                  "action": "core/throw",
+                                  "args": {
+                                    "code": "REMEDIATE.WRONG_TARGET",
+                                    "message": "${rec.key}: record ${rid} is not ${name}; nothing removed"
+                                  },
+                                  "description": "Remove nothing"
+                                }
+                              ],
+                              "description": "Not the approved grant?"
+                            },
+                            {
+                              "id": "s53",
+                              "action": "ooa.salesforce/delete_record",
+                              "args": {
+                                "object": "PermissionSetAssignment",
+                                "id": "$rid$",
+                                "instance_url": "$standin$",
+                                "access_token": {
+                                  "$credential": "rw_qa_standins/salesforce/token"
+                                }
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "Remove the permission set"
+                            },
+                            {
+                              "id": "s54",
+                              "action": "ooa.salesforce/query",
+                              "args": {
+                                "instance_url": "$standin$",
+                                "access_token": {
+                                  "$credential": "rw_qa_standins/salesforce/token"
+                                },
+                                "soql": "SELECT Id FROM PermissionSetAssignment WHERE AssigneeId = '${sfid}' AND PermissionSet.Name = '${name}'"
+                              },
+                              "out": {
+                                "table": "q"
+                              },
+                              "description": "4. Read back"
+                            },
+                            {
+                              "id": "s55",
+                              "action": "ooa.datatable/row_count",
+                              "args": {
+                                "table": "$q$"
+                              },
+                              "out": {
+                                "count": "cnt"
+                              },
+                              "description": "Still there?"
+                            },
+                            {
+                              "id": "s56",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "present",
+                                "value": {
+                                  "expr": "$cnt$ > 0"
+                                }
+                              },
+                              "description": "Present?"
+                            }
+                          ]
+                        },
+                        {
+                          "values": [
+                            "sn"
+                          ],
+                          "children": [
+                            {
+                              "id": "s57",
+                              "action": "ooa.servicenow/query",
+                              "args": {
+                                "table": "sys_user",
+                                "query": "email=${rec.upn}",
+                                "instance_url": "$standin$",
+                                "access_token": {
+                                  "$credential": "rw_qa_standins/servicenow/token"
+                                }
+                              },
+                              "out": {
+                                "table": "q"
+                              },
+                              "description": "ServiceNow user"
+                            },
+                            {
+                              "id": "s58",
+                              "action": "ooa.datatable/get_value",
+                              "args": {
+                                "table": "$q$",
+                                "row": 0,
+                                "column": "sys_id"
+                              },
+                              "out": {
+                                "value": "snid"
+                              },
+                              "description": "Its sys_id"
+                            },
+                            {
+                              "id": "s59",
+                              "action": "ooa.servicenow/query",
+                              "args": {
+                                "table": "sys_user_has_role",
+                                "query": "user=${snid}^role=${name}",
+                                "instance_url": "$standin$",
+                                "access_token": {
+                                  "$credential": "rw_qa_standins/servicenow/token"
+                                }
+                              },
+                              "out": {
+                                "table": "q"
+                              },
+                              "description": "The role grant"
+                            },
+                            {
+                              "id": "s60",
+                              "action": "ooa.datatable/get_value",
+                              "args": {
+                                "table": "$q$",
+                                "row": 0,
+                                "column": "sys_id"
+                              },
+                              "out": {
+                                "value": "rid"
+                              },
+                              "description": "Its sys_id"
+                            },
+                            {
+                              "id": "s61",
+                              "action": "ooa.servicenow/delete_record",
+                              "args": {
+                                "table": "sys_user_has_role",
+                                "sys_id": "$rid$",
+                                "instance_url": "$standin$",
+                                "access_token": {
+                                  "$credential": "rw_qa_standins/servicenow/token"
+                                }
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "Remove the role"
+                            },
+                            {
+                              "id": "s62",
+                              "action": "ooa.servicenow/query",
+                              "args": {
+                                "table": "sys_user_has_role",
+                                "query": "user=${snid}^role=${name}",
+                                "instance_url": "$standin$",
+                                "access_token": {
+                                  "$credential": "rw_qa_standins/servicenow/token"
+                                }
+                              },
+                              "out": {
+                                "table": "q"
+                              },
+                              "description": "4. Read back"
+                            },
+                            {
+                              "id": "s63",
+                              "action": "ooa.datatable/row_count",
+                              "args": {
+                                "table": "$q$"
+                              },
+                              "out": {
+                                "count": "cnt"
+                              },
+                              "description": "Still there?"
+                            },
+                            {
+                              "id": "s64",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "present",
+                                "value": {
+                                  "expr": "$cnt$ > 0"
+                                }
+                              },
+                              "description": "Present?"
+                            }
+                          ]
+                        },
+                        {
+                          "values": [
+                            "entra"
+                          ],
+                          "children": [
+                            {
+                              "id": "s65",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "gid",
+                                "value": ""
+                              },
+                              "description": "Find the group id"
+                            },
+                            {
+                              "id": "s66",
+                              "action": "core/loop",
+                              "args": {
+                                "iterator": "list",
+                                "over": "$groups.value$",
+                                "as": "grp"
+                              },
+                              "children": [
+                                {
+                                  "id": "s67",
+                                  "action": "core/if",
+                                  "args": {
+                                    "condition": {
+                                      "op": "eq",
+                                      "left": "$grp.displayName$",
+                                      "right": "$name$"
+                                    }
+                                  },
+                                  "children": [
+                                    {
+                                      "id": "s68",
+                                      "action": "core/set",
+                                      "args": {
+                                        "variable": "gid",
+                                        "value": "$grp.id$"
+                                      },
+                                      "description": "Its id"
+                                    }
+                                  ],
+                                  "description": "This one?"
+                                }
+                              ],
+                              "description": "Group by name"
+                            },
+                            {
+                              "id": "s69",
+                              "action": "ooa.rest/request",
+                              "args": {
+                                "method": "DELETE",
+                                "url": "${standin}/graph/v1.0/groups/${gid}/members/${u.id}/$ref",
+                                "bearer_token": {
+                                  "$credential": "rw_qa_standins/graph/token"
+                                }
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "Remove the membership"
+                            },
+                            {
+                              "id": "s70",
+                              "action": "ooa.rest/request",
+                              "args": {
+                                "method": "GET",
+                                "url": "${standin}/graph/v1.0/users/${u.id}/memberOf",
+                                "bearer_token": {
+                                  "$credential": "rw_qa_standins/graph/token"
+                                }
+                              },
+                              "out": {
+                                "json": "mo"
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "4. Read back the direct groups"
+                            },
+                            {
+                              "id": "s71",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "present",
+                                "value": {
+                                  "expr": "contains(join($mo.value$, ','), $gid$)"
+                                }
+                              },
+                              "description": "Still a member?"
+                            }
+                          ]
+                        },
+                        {
+                          "values": [
+                            "okta"
+                          ],
+                          "children": [
+                            {
+                              "id": "s72",
+                              "action": "core/if",
+                              "args": {
+                                "condition": {
+                                  "op": "eq",
+                                  "left": "$verb$",
+                                  "right": "add"
+                                }
+                              },
+                              "children": [
+                                {
+                                  "id": "s73",
+                                  "action": "ooa.okta/add_user_to_group",
+                                  "args": {
+                                    "group": "$name$",
+                                    "user": "$rec.upn$",
+                                    "org_url": "${standin}/okta",
+                                    "api_token": {
+                                      "$credential": "rw_qa_standins/okta/token"
+                                    }
+                                  },
+                                  "retry": {
+                                    "max": 3,
+                                    "backoff": "exponential",
+                                    "delayMs": 1000
+                                  },
+                                  "description": "Add to the Okta group"
+                                }
+                              ],
+                              "description": "Add or remove?",
+                              "else": [
+                                {
+                                  "id": "s74",
+                                  "action": "ooa.okta/remove_user_from_group",
+                                  "args": {
+                                    "group": "$name$",
+                                    "user": "$rec.upn$",
+                                    "org_url": "${standin}/okta",
+                                    "api_token": {
+                                      "$credential": "rw_qa_standins/okta/token"
+                                    }
+                                  },
+                                  "retry": {
+                                    "max": 3,
+                                    "backoff": "exponential",
+                                    "delayMs": 1000
+                                  },
+                                  "description": "Remove from the Okta group"
+                                }
+                              ]
+                            },
+                            {
+                              "id": "s75",
+                              "action": "ooa.okta/list_user_groups",
+                              "args": {
+                                "user": "$rec.upn$",
+                                "org_url": "${standin}/okta",
+                                "api_token": {
+                                  "$credential": "rw_qa_standins/okta/token"
+                                }
+                              },
+                              "out": {
+                                "names": "okg"
+                              },
+                              "description": "4. Read back"
+                            },
+                            {
+                              "id": "s76",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "present",
+                                "value": {
+                                  "expr": "contains($okg$, $name$)"
+                                }
+                              },
+                              "description": "Member now?"
+                            }
+                          ]
+                        },
+                        {
+                          "values": [
+                            "jira"
+                          ],
+                          "children": [
+                            {
+                              "id": "s77",
+                              "action": "ooa.rest/request",
+                              "args": {
+                                "method": "GET",
+                                "url": "${standin}/rest/api/2/user/search/qa",
+                                "bearer_token": {
+                                  "$credential": "rw_qa_standins/jira/token"
+                                },
+                                "query": {
+                                  "query": "$rec.upn$"
+                                }
+                              },
+                              "out": {
+                                "json": "jacc"
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "Jira account"
+                            },
+                            {
+                              "id": "s78",
+                              "action": "core/if",
+                              "args": {
+                                "condition": {
+                                  "op": "eq",
+                                  "left": "$verb$",
+                                  "right": "add"
+                                }
+                              },
+                              "children": [
+                                {
+                                  "id": "s79",
+                                  "action": "ooa.rest/request",
+                                  "args": {
+                                    "json": {
+                                      "accountId": {
+                                        "expr": "first($jacc$).accountId"
+                                      }
+                                    },
+                                    "method": "POST",
+                                    "url": "${standin}/rest/api/2/group/user",
+                                    "bearer_token": {
+                                      "$credential": "rw_qa_standins/jira/token"
+                                    },
+                                    "query": {
+                                      "groupname": "$name$"
+                                    }
+                                  },
+                                  "retry": {
+                                    "max": 3,
+                                    "backoff": "exponential",
+                                    "delayMs": 1000
+                                  },
+                                  "description": "Add to the Jira group"
+                                }
+                              ],
+                              "description": "Add or remove?",
+                              "else": [
+                                {
+                                  "id": "s80",
+                                  "action": "ooa.rest/request",
+                                  "args": {
+                                    "method": "DELETE",
+                                    "url": "${standin}/rest/api/2/group/user",
+                                    "bearer_token": {
+                                      "$credential": "rw_qa_standins/jira/token"
+                                    },
+                                    "query": {
+                                      "groupname": "$name$",
+                                      "accountId": {
+                                        "expr": "first($jacc$).accountId"
+                                      }
+                                    }
+                                  },
+                                  "retry": {
+                                    "max": 3,
+                                    "backoff": "exponential",
+                                    "delayMs": 1000
+                                  },
+                                  "description": "Remove from the Jira group"
+                                }
+                              ]
+                            },
+                            {
+                              "id": "s81",
+                              "action": "ooa.rest/request",
+                              "args": {
+                                "method": "GET",
+                                "url": "${standin}/rest/api/2/user/groups",
+                                "bearer_token": {
+                                  "$credential": "rw_qa_standins/jira/token"
+                                },
+                                "query": {
+                                  "accountId": {
+                                    "expr": "first($jacc$).accountId"
+                                  }
+                                }
+                              },
+                              "out": {
+                                "json": "jg"
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "4. Read back"
+                            },
+                            {
+                              "id": "s82",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "present",
+                                "value": {
+                                  "expr": "contains(join($jg$, ','), $name$)"
+                                }
+                              },
+                              "description": "Member now?"
+                            }
+                          ]
+                        },
+                        {
+                          "values": [
+                            "account"
+                          ],
+                          "children": [
+                            {
+                              "id": "s83",
+                              "action": "ooa.rest/request",
+                              "args": {
+                                "json": {
+                                  "accountEnabled": false
+                                },
+                                "method": "PATCH",
+                                "url": "${standin}/graph/v1.0/users/${u.id}",
+                                "bearer_token": {
+                                  "$credential": "rw_qa_standins/graph/token"
+                                }
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "3. Disable the test identity in Entra"
+                            },
+                            {
+                              "id": "s84",
+                              "action": "ooa.okta/deactivate_user",
+                              "args": {
+                                "user": "$rec.upn$",
+                                "org_url": "${standin}/okta",
+                                "api_token": {
+                                  "$credential": "rw_qa_standins/okta/token"
+                                }
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "3. And in Okta"
+                            },
+                            {
+                              "id": "s85",
+                              "action": "ooa.rest/request",
+                              "args": {
+                                "method": "GET",
+                                "url": "${standin}/graph/v1.0/users/${u.id}",
+                                "bearer_token": {
+                                  "$credential": "rw_qa_standins/graph/token"
+                                }
+                              },
+                              "out": {
+                                "json": "u"
+                              },
+                              "retry": {
+                                "max": 3,
+                                "backoff": "exponential",
+                                "delayMs": 1000
+                              },
+                              "description": "4. Read back"
+                            },
+                            {
+                              "id": "s86",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "present",
+                                "value": {
+                                  "expr": "not $u.accountEnabled$"
+                                }
+                              },
+                              "description": "Disabled now? (true = the change is there)"
+                            }
+                          ]
+                        }
+                      ],
+                      "default": [
+                        {
+                          "id": "s87",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "REMEDIATE.UNKNOWN_APP",
+                            "message": "${rec.key}: no executor for ${a}"
+                          },
+                          "description": "Unknown app"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "s88",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "present",
+                        "value": {
+                          "expr": "toBoolean($present$)"
+                        }
+                      },
+                      "description": "As yes/no"
+                    },
+                    {
+                      "id": "s89",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "($verb$ == 'remove' and $present$) or ($verb$ == 'add' and not $present$) or ($verb$ == 'disable' and not $present$)"
+                      },
+                      "children": [
+                        {
+                          "id": "s90",
+                          "action": "ooa.log/write",
+                          "args": {
+                            "path": "$log_file$",
+                            "level": "ERROR",
+                            "message": "${rec.key}: ${a} not reflected by the app"
+                          },
+                          "description": "6. Unexpected delta: report it (the next run's restore puts the baseline back)"
+                        },
+                        {
+                          "id": "s91",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "REMEDIATE.DELTA",
+                            "message": "${rec.key}: ${a} did not take effect as approved"
+                          },
+                          "description": "Stop this changeset"
+                        }
+                      ],
+                      "description": "5. The app does not show the approved change?"
+                    },
+                    {
+                      "id": "s92",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$done$",
+                        "item": "$a$"
+                      },
+                      "out": {
+                        "list": "done"
+                      },
+                      "description": "7. Applied"
+                    },
+                    {
+                      "id": "s93",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$ids$",
+                        "item": {
+                          "expr": "coalesce($rid$, $gid$, $u.id$)"
+                        }
+                      },
+                      "out": {
+                        "list": "ids"
+                      },
+                      "description": "8. Response id"
+                    }
+                  ],
+                  "description": "Each approved change"
+                },
+                {
+                  "id": "s94",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "upn": "$rec.upn$",
+                      "applied": {
+                        "expr": "join($done$, ';')"
+                      },
+                      "response_ids": {
+                        "expr": "join($ids$, ';')"
+                      },
+                      "verified": true
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Changeset row"
+                },
+                {
+                  "id": "s95",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "evidence_file",
+                    "value": "${out_dir}/evidence.csv"
+                  },
+                  "description": "Name of the evidence file"
+                },
+                {
+                  "id": "s96",
+                  "action": "ooa.datatable/write_to_file",
+                  "args": {
+                    "table": "$evidence$",
+                    "path": "$evidence_file$"
+                  },
+                  "description": "Save the evidence rows"
+                },
+                {
+                  "id": "s97",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${len($done$)} change(s) applied and verified"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s98",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s99",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s100",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s101",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW05-B5 - record ${rec.key}",
+                        "message": "RW05-B5: record ${$i + 1} of ${len($records$)}\n\n${rec.upn}\nApplied: ${join($done$, '; ')}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s102",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s103",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s104",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s105",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s106",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s107",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW05-B5 - exception",
+                            "message": "RW05-B5: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s108",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s109",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 approved changesets (the approved ones)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s110",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s111",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s112",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s113",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s114",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s115",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s116",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s117",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW05-B5 QA remediation executor finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s118",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s119",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW05-B5 finished",
+                "message": "RW05-B5 QA remediation executor finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

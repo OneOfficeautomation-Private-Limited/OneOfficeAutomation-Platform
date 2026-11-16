@@ -1,0 +1,11 @@
+key,status,note,time
+I01,done,1 groups,04:34:42
+I02,done,1 groups,04:34:43
+I03,done,1 groups,04:34:43
+I04,done,"1 groups, stale",04:34:43
+I05,done,1 groups,04:34:43
+I06,done,"4 groups, cycle",04:34:43
+I07,exception,SCOPE.OUTSIDE_QA_OU: qa.gus.kim@ooa-qa.test is outside the QA OU: nothing is read further,04:34:43
+I08,done,1 groups,04:34:43
+I09,done,1 groups,04:34:43
+I10,done,1 groups,04:34:43

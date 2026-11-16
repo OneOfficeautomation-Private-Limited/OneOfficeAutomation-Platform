@@ -1,0 +1,5 @@
+key,upn,applied,response_ids,verified
+I02,qa.ben.ray@ooa-qa.test,remove sf:Modify_All_Data,0PaQA0002000000002,true
+I03,qa.cara.ng@ooa-qa.test,remove sn:change_approver,dd27e2bc1504973e4a379faee0220a5e,true
+I04,qa.dev.rao@ooa-qa.test,disable account,u-qa-i04,true
+I06,qa.fay.ito@ooa-qa.test,remove entra:GRP-QA-Nest-A,g-nest-a,true

@@ -68,7 +68,7 @@ def soql(q: str):
     conds = []
     if m.group(3):
         for part in re.split(r"\s+AND\s+", m.group(3), flags=re.I):
-            c = re.match(r"\s*(\w+)\s*(=|!=|LIKE)\s*'(.*)'\s*$", part, re.I)
+            c = re.match(r"\s*([\w.]+)\s*(=|!=|LIKE)\s*'(.*)'\s*$", part, re.I)
             if c:
                 conds.append((c.group(1), c.group(2).upper(), c.group(3)))
     return fields, m.group(2), conds, int(m.group(4)) if m.group(4) else None
@@ -331,6 +331,9 @@ def salesforce(h: H, m, path, q):
         if m == "PATCH":
             rec.update(h.body())
             return h.send(204)
+        if m == "DELETE":
+            rows.remove(rec)
+            return h.send(204)
     raise KeyError(path)
 
 
@@ -403,7 +406,11 @@ def directory(h: H, m, p, q):
             ms = re.search(r"startswith\((\w+),\s*'([^']*)'\)", flt)
             if ms:
                 found = [u for u in found if str(u.get(ms.group(1), "")).lower().startswith(ms.group(2).lower())]
-            return h.send(200, {"value": found})
+            top, skip = int(q.get("$top", 999)), int(q.get("$skiptoken", 0))
+            page = {"value": found[skip:skip + top]}
+            if skip + top < len(found):      # Graph paging: follow @odata.nextLink
+                page["@odata.nextLink"] = "http://127.0.0.1:%d/graph/v1.0/users?$top=%d&$skiptoken=%d&$filter=%s" % (PORT, top, skip + top, flt)
+            return h.send(200, page)
         if p == "/users" and m == "POST":
             b = h.body()
             if any(u["userPrincipalName"].lower() == str(b.get("userPrincipalName", "")).lower() for u in users):
@@ -444,10 +451,14 @@ def directory(h: H, m, p, q):
                     return h.send(404, {"error": {"code": "Request_ResourceNotFound", "message": "Not a member"}})
                 lst.remove(uid)
                 return h.send(204)
+        mo = re.match(r"/groups/([^/]+)/memberOf$", p)
+        if mo:      # the groups this group is a direct member of (nesting)
+            return h.send(200, {"value": [dict(g, **{"@odata.type": "#microsoft.graph.group"}) for g in d["groups"] if mo.group(1) in members.get(g["id"], [])]})
         mg = re.match(r"/groups/([^/]+)/members$", p)
         if mg:
             ids = members.get(mg.group(1), [])
-            return h.send(200, {"value": [u for u in users if u["id"] in ids]})
+            return h.send(200, {"value": [dict(u, **{"@odata.type": "#microsoft.graph.user"}) for u in users if u["id"] in ids] +
+                                         [dict(g, **{"@odata.type": "#microsoft.graph.group"}) for g in d["groups"] if g["id"] in ids]})
         if p == "/groups":
             return h.send(200, {"value": d["groups"]})
     raise KeyError(p)
@@ -496,6 +507,8 @@ def graph(h: H, m, path, q):
     if "/drive/root:" in p:
         return drive(h, m, p, q)
     if p.startswith("/groups") or p == "/users" or (p.startswith("/users/") and "@" not in p.split("/")[2]):
+        return directory(h, m, p, q)
+    if re.fullmatch(r"/users/[^/]+", p):      # one user by id or sign-in name
         return directory(h, m, p, q)
     mail = STATE.setdefault("mail", {})
     mu = re.match(r"/users/([^/]+)(/.*)$", p) or re.match(r"/(me)(/.*)$", p)
@@ -806,6 +819,94 @@ def kafka(h: H, m, path, q):
     raise KeyError(path)
 
 
+def jira_groups(h: H, m, path, q):
+    """Jira Cloud user search and group membership (RW05)."""
+    store = STATE.setdefault("jira_directory", {"users": [], "groups": {}})
+    with LOCK:
+        if path == "/rest/api/2/user/groups":
+            acc = q.get("accountId", "")
+            return h.send(200, [{"name": g} for g, ids in store["groups"].items() if acc in ids])
+        if path == "/rest/api/2/user/search/qa":
+            email = q.get("query", "").lower()
+            return h.send(200, [u for u in store["users"] if u.get("emailAddress", "").lower() == email])
+        if path == "/rest/api/2/group/user":
+            g = q.get("groupname", "")
+            ids = store["groups"].setdefault(g, [])
+            if m == "POST":
+                acc = h.body().get("accountId", "")
+                if acc not in ids:
+                    ids.append(acc)
+                return h.send(201, {"name": g})
+            if m == "DELETE":
+                acc = q.get("accountId", "")
+                if acc not in ids:
+                    return h.send(404, {"errorMessages": ["The user is not a member of the group"]})
+                ids.remove(acc)
+                return h.send(200, {})
+    raise KeyError(path)
+
+
+def slack(h: H, m, path, q):
+    """Slack Web API (RW05): users.lookupByEmail, users.info, users.list with cursor paging; read only."""
+    store = STATE.setdefault("slack", {"users": []})
+    method = path.split("/")[-1]
+    args = h.body() if m == "POST" else {}
+    args = args if isinstance(args, dict) else {}
+    args.update(q)
+    with LOCK:
+        if method == "users.lookupByEmail":
+            u = next((x for x in store["users"] if x["profile"]["email"].lower() == str(args.get("email", "")).lower()), None)
+            return h.send(200, {"ok": True, "user": u} if u else {"ok": False, "error": "users_not_found"})
+        if method == "users.info":
+            u = next((x for x in store["users"] if x["id"] == args.get("user")), None)
+            return h.send(200, {"ok": True, "user": u} if u else {"ok": False, "error": "user_not_found"})
+        if method == "users.list":
+            cur, lim = int(args.get("cursor") or 0), int(args.get("limit") or 4)
+            page = store["users"][cur:cur + lim]
+            nxt = str(cur + lim) if cur + lim < len(store["users"]) else ""
+            return h.send(200, {"ok": True, "members": page, "response_metadata": {"next_cursor": nxt}})
+    return h.send(200, {"ok": False, "error": "unknown_method"})
+
+
+def okta(h: H, m, path, q):
+    """Okta Users and Groups API (RW05): users, their groups, group membership, deactivate/activate."""
+    store = STATE.setdefault("okta", {"users": [], "groups": []})
+    p = path[len("/okta"):]
+    users, groups = store["users"], store["groups"]
+
+    def user(ref):
+        ref = unquote(ref).lower()
+        return next((u for u in users if u["id"].lower() == ref or u["profile"]["login"].lower() == ref), None)
+    with LOCK:
+        mu = re.match(r"/api/v1/users/([^/]+)(/groups|/lifecycle/(activate|deactivate))?$", p)
+        if mu:
+            u = user(mu.group(1))
+            if u is None:
+                return h.send(404, {"errorCode": "E0000007", "errorSummary": "Not found: Resource not found: %s (User)" % mu.group(1)})
+            if mu.group(2) == "/groups":
+                return h.send(200, [g for g in groups if u["id"] in g.get("_members", [])])
+            if mu.group(3):
+                u["status"] = "ACTIVE" if mu.group(3) == "activate" else "DEPROVISIONED"
+                return h.send(200, {})
+            return h.send(200, u)
+        if p == "/api/v1/groups":
+            qq = q.get("q", "").lower()
+            return h.send(200, [{k: v for k, v in g.items() if k != "_members"} for g in groups if not qq or g["profile"]["name"].lower().startswith(qq)])
+        mg = re.match(r"/api/v1/groups/([^/]+)/users/([^/]+)$", p)
+        if mg:
+            g = next((x for x in groups if x["id"] == mg.group(1)), None)
+            u = user(mg.group(2))
+            if g is None or u is None:
+                return h.send(404, {"errorCode": "E0000007", "errorSummary": "Not found"})
+            mem = g.setdefault("_members", [])
+            if m == "PUT" and u["id"] not in mem:
+                mem.append(u["id"])
+            if m == "DELETE" and u["id"] in mem:
+                mem.remove(u["id"])
+            return h.send(204)
+    raise KeyError(path)
+
+
 AI_LABELS = {"supplier": "Supplier", "invoice_number": "Invoice number", "invoice_date": "Invoice date", "po_number": "PO number",
              "currency": "Currency", "net": "Net", "tax": "Tax", "total": "Total"}
 
@@ -858,11 +959,12 @@ def soap(h: H, m, path, q):
     return h.send(status, env, ctype="text/xml")
 
 
-SERVICES = ["servicenow", "salesforce", "jira", "graph", "workday", "approvals", "sap", "ai", "soap", "shopify", "carrier", "kafka"]
+SERVICES = ["servicenow", "salesforce", "jira", "graph", "workday", "approvals", "sap", "ai", "soap", "shopify", "carrier", "kafka", "slack", "okta"]
 ROUTES = [
     ("/qa/", qa, None), ("/kb/", kb, None),
+    ("/rest/api/2/user/groups", jira_groups, "jira"), ("/rest/api/2/user/search/qa", jira_groups, "jira"), ("/rest/api/2/group/user", jira_groups, "jira"),
     ("/api/now/", servicenow, "servicenow"), ("/services/", salesforce, "salesforce"), ("/rest/api/", jira, "jira"),
-    ("/graph/v1.0/", graph, "graph"), ("/ccx/", workday, "workday"), ("/approvals/", approvals, "approvals"), ("/sap/", sap, "sap"), ("/v1/", ai, "ai"), ("/soap/", soap, "soap"), ("/admin/api/", shopify, "shopify"), ("/carrier/", carrier, "carrier"), ("/kafka/", kafka, "kafka"),
+    ("/graph/v1.0/", graph, "graph"), ("/ccx/", workday, "workday"), ("/approvals/", approvals, "approvals"), ("/sap/", sap, "sap"), ("/v1/", ai, "ai"), ("/soap/", soap, "soap"), ("/admin/api/", shopify, "shopify"), ("/carrier/", carrier, "carrier"), ("/kafka/", kafka, "kafka"), ("/slack/api/", slack, "slack"), ("/okta/", okta, "okta"),
 ]
 
 
