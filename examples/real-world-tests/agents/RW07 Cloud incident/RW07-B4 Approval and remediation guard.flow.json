@@ -1,0 +1,1244 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw07_b4",
+  "name": "RW07-B4 Approval and remediation guard",
+  "description": "RW07-B4 (RW07 real-world test). For each incident with an allowed action: writes the recommendation, asks the incident commander (and a second approver for severity 1 or a high blast radius), checks the tag and region again right before the change, then starts or reboots the disposable QA instance with a bounded retry, tracks the action id, never terminates or powers off and stops when an approval is revoked.",
+  "tags": [
+    "real-world-test",
+    "RW07"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "b1",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "sev",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "r1",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "r2",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ans",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "two",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "inst",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "tags",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "aid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "chg",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "resource",
+          "action",
+          "recommendation",
+          "approval_1",
+          "approval_2",
+          "action_id",
+          "status"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: For each incident with an allowed action: writes the recommendation, asks the incident commander (and a second approver for severity 1 or a high blast radius), checks the tag and region again right before the change, then starts or reboots the disposable QA instance with a bounded retry, tracks the action id, never terminates or powers off and stops when an approval is revoked. It works through 10 approved remediation plans (the cloud resources) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW07-B4"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07-B4 Approval and remediation guard started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07-B4 starts",
+                "message": "RW07-B4 Approval and remediation guard\n\nFor each incident with an allowed action: writes the recommendation, asks the incident commander (and a second approver for severity 1 or a high blast radius), checks the tag and region again right before the change, then starts or reboots the disposable QA instance with a bounded retry, tracks the action id, never terminates or powers off and stops when an approval is revoked.\n\nRecords: 10 approved remediation plans (the cloud resources)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Cloud resources with an action to take; the incidents (severity); connect to EC2."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "approvals",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s17",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B2/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW07-B2 evidence"
+            }
+          ],
+          "description": "RW07-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s19",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW07-B2's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW07/fixtures/RW07-B2-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW07-B2 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.datatable/filter",
+          "args": {
+            "table": "$records$",
+            "column": "allowed_action",
+            "operator": "ne",
+            "value": "none",
+            "more_conditions": [
+              {
+                "column": "allowed_action",
+                "operator": "not_empty"
+              }
+            ],
+            "match": "all"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Incidents with an action"
+        },
+        {
+          "id": "s22",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s23",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B1/evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW07-B1 evidence"
+            }
+          ],
+          "description": "RW07-B1 ran in this run?",
+          "else": [
+            {
+              "id": "s24",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW07-B1's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s25",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW07/fixtures/RW07-B1-evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW07-B1 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s26",
+          "action": "ooa.aws_ec2/connect",
+          "args": {
+            "region": "us-east-1",
+            "endpoint": "${standin}/ec2",
+            "access_key_id": {
+              "$credential": "rw_qa_standins/aws/access_key_id"
+            },
+            "secret_access_key": {
+              "$credential": "rw_qa_standins/aws/secret_access_key"
+            }
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "Connect to EC2 (us-east-1, QA account; stand-in address)"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s27",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s28",
+          "action": "core/comment",
+          "args": {
+            "text": "Per plan: recommendation, forbidden actions refused, approvals (two-person when needed), re-check, act with retry, action id."
+          }
+        },
+        {
+          "id": "s29",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s31",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s32",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_text",
+                    "value": "${rec.allowed_action} ${rec.resource} (health ${rec.health}, CPU ${rec.cpu}, blast ${rec.blast_radius})"
+                  },
+                  "description": "1. Recommendation"
+                },
+                {
+                  "id": "s33",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "startsWith($rec.allowed_action$, 'forbidden') or contains(['terminate', 'power_off'], $rec.allowed_action$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s34",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "REMEDIATE.FORBIDDEN",
+                        "message": "${rec.key}: ${rec.allowed_action} is never done by an agent"
+                      },
+                      "description": "Refuse"
+                    }
+                  ],
+                  "description": "6. Terminate or power off?"
+                },
+                {
+                  "id": "s35",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$rec.kind$",
+                      "right": "windows"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s36",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "REMEDIATE.ADVISE_ONLY",
+                        "message": "${rec.key}: restart of ${rec.resource} is advised; this computer is not a disposable QA host, so nothing is restarted"
+                      },
+                      "description": "Advise only: this runner is not a QA service host"
+                    }
+                  ],
+                  "description": "Windows service restart?"
+                },
+                {
+                  "id": "s37",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b1$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "severity"
+                  },
+                  "out": {
+                    "value": "sev"
+                  },
+                  "description": "Severity"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "two",
+                    "value": {
+                      "expr": "toNumber($sev$) == 1 or $rec.blast_radius$ == 'high'"
+                    }
+                  },
+                  "description": "3. Two-person rule needed?"
+                },
+                {
+                  "id": "s39",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "POST",
+                    "url": "${standin}/approvals/requests",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    },
+                    "json": {
+                      "subject": "remediate ${rec.key}",
+                      "approver": "commander.ops@ooa-qa.test",
+                      "requester": "ops-bot@ooa-qa.test",
+                      "comment": "$rec_text$",
+                      "run": "$run_id$"
+                    }
+                  },
+                  "out": {
+                    "json": "r1"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "2. Ask the incident commander"
+                },
+                {
+                  "id": "s40",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "${standin}/approvals/requests/${r1.id}",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    }
+                  },
+                  "out": {
+                    "json": "ans"
+                  },
+                  "description": "Commander's answer"
+                },
+                {
+                  "id": "s41",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$ans.status$",
+                      "right": "approved"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s42",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "APPROVAL.NOT_GRANTED",
+                        "message": "${rec.key}: the commander answered ${ans.status}"
+                      },
+                      "description": "No change"
+                    }
+                  ],
+                  "description": "Not approved?"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$two$"
+                  },
+                  "children": [
+                    {
+                      "id": "s44",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "method": "POST",
+                        "url": "${standin}/approvals/requests",
+                        "bearer_token": {
+                          "$credential": "rw_qa_standins/servicenow/token"
+                        },
+                        "json": {
+                          "subject": "remediate ${rec.key}#2",
+                          "approver": "lead.sre@ooa-qa.test",
+                          "requester": "ops-bot@ooa-qa.test",
+                          "comment": "$rec_text$",
+                          "run": "$run_id$"
+                        }
+                      },
+                      "out": {
+                        "json": "r2"
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "Ask the second approver"
+                    }
+                  ],
+                  "description": "3. Second approver"
+                },
+                {
+                  "id": "s45",
+                  "action": "ooa.aws_ec2/describe_instances",
+                  "args": {
+                    "instance_ids": [
+                      "$rec.resource$"
+                    ]
+                  },
+                  "out": {
+                    "instances": "inst"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "4. Tag and region again, right before the change"
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$inst$",
+                    "row": 0,
+                    "column": "tags"
+                  },
+                  "out": {
+                    "value": "tags"
+                  },
+                  "description": "Tags now"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "get($tags$, 'OOA-QA', '') != 'true'"
+                  },
+                  "children": [
+                    {
+                      "id": "s48",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "SCOPE.UNTAGGED",
+                        "message": "${rec.resource} lost its OOA-QA tag"
+                      },
+                      "description": "Stop"
+                    }
+                  ],
+                  "description": "Tag gone?"
+                },
+                {
+                  "id": "s49",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$two$"
+                  },
+                  "children": [
+                    {
+                      "id": "s50",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "url": "${standin}/approvals/requests/${r2.id}",
+                        "bearer_token": {
+                          "$credential": "rw_qa_standins/servicenow/token"
+                        }
+                      },
+                      "out": {
+                        "json": "ans"
+                      },
+                      "description": "Re-read the second approval"
+                    },
+                    {
+                      "id": "s51",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$ans.status$",
+                          "right": "approved"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s52",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "APPROVAL.REVOKED",
+                            "message": "${rec.key}: the second approval is ${ans.status}; nothing changed"
+                          },
+                          "description": "Stop on revocation"
+                        }
+                      ],
+                      "description": "Revoked or declined?"
+                    }
+                  ],
+                  "description": "9. Second approval still standing?"
+                },
+                {
+                  "id": "s53",
+                  "action": "core/switch",
+                  "args": {
+                    "value": "$rec.allowed_action$",
+                    "match": "equals",
+                    "ignore_case": true
+                  },
+                  "description": "5. The allowed action",
+                  "cases": [
+                    {
+                      "values": [
+                        "reboot"
+                      ],
+                      "children": [
+                        {
+                          "id": "s54",
+                          "action": "ooa.aws_ec2/reboot_instances",
+                          "args": {
+                            "instance_ids": [
+                              "$rec.resource$"
+                            ]
+                          },
+                          "retry": {
+                            "max": 3,
+                            "backoff": "exponential",
+                            "delayMs": 1000
+                          },
+                          "description": "Reboot the disposable QA instance"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        "start"
+                      ],
+                      "children": [
+                        {
+                          "id": "s55",
+                          "action": "ooa.aws_ec2/start_instances",
+                          "args": {
+                            "instance_ids": [
+                              "$rec.resource$"
+                            ]
+                          },
+                          "out": {
+                            "changes": "chg"
+                          },
+                          "retry": {
+                            "max": 3,
+                            "backoff": "exponential",
+                            "delayMs": 1000
+                          },
+                          "description": "Start the disposable QA instance"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        "stop"
+                      ],
+                      "children": [
+                        {
+                          "id": "s56",
+                          "action": "ooa.aws_ec2/stop_instances",
+                          "args": {
+                            "instance_ids": [
+                              "$rec.resource$"
+                            ]
+                          },
+                          "out": {
+                            "changes": "chg"
+                          },
+                          "retry": {
+                            "max": 3,
+                            "backoff": "exponential",
+                            "delayMs": 1000
+                          },
+                          "description": "Stop the disposable QA instance"
+                        }
+                      ]
+                    }
+                  ],
+                  "default": [
+                    {
+                      "id": "s57",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "REMEDIATE.FORBIDDEN",
+                        "message": "${rec.allowed_action} is not allowed"
+                      },
+                      "description": "Not an allowed action"
+                    }
+                  ]
+                },
+                {
+                  "id": "s58",
+                  "action": "ooa.crypto/hash_text",
+                  "args": {
+                    "text": "${run_id}|${rec.key}|${rec.allowed_action}|${r1.id}"
+                  },
+                  "out": {
+                    "hash": "aid"
+                  },
+                  "description": "8. Action id"
+                },
+                {
+                  "id": "s59",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "resource": "$rec.resource$",
+                      "action": "$rec.allowed_action$",
+                      "recommendation": "$rec_text$",
+                      "approval_1": "$r1.id$",
+                      "approval_2": {
+                        "expr": "if($two$, $r2.id$, '')"
+                      },
+                      "action_id": {
+                        "expr": "substring($aid$, 0, 16)"
+                      },
+                      "status": "done"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Action row"
+                },
+                {
+                  "id": "s60",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${rec.allowed_action} done"
+                  },
+                  "description": "Note"
+                },
+                {
+                  "id": "s61",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s62",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s63",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s64",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW07-B4 - record ${rec.key}",
+                        "message": "RW07-B4: record ${$i + 1} of ${len($records$)}\n\n${rec.key}: ${rec.allowed_action} on ${rec.resource}\nApprovals ${r1.id} ${if($two$, $r2.id$, '')}\nAction ${aid}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s65",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s66",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s67",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s68",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s69",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s70",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW07-B4 - exception",
+                            "message": "RW07-B4: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s71",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s72",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 approved remediation plans (the cloud resources)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s73",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s74",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s75",
+          "action": "ooa.aws_ec2/disconnect",
+          "args": {},
+          "description": "Disconnect"
+        },
+        {
+          "id": "s76",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s77",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s78",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s79",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s80",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s81",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07-B4 Approval and remediation guard finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s82",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s83",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07-B4 finished",
+                "message": "RW07-B4 Approval and remediation guard finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

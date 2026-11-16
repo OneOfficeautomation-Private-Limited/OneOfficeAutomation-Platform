@@ -1,0 +1,2095 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw07_main",
+  "name": "RW07 Main - Cloud incident",
+  "description": "RW07 real-world test: Cloud operations incident: ServiceNow -> AWS EC2 / Windows diagnostics -> approvals -> verification -> Teams. Runs its six child agents, then cleans up the run's test records and sums up.",
+  "tags": [
+    "real-world-test",
+    "RW07",
+    "main"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "concurrency",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "1 runs the children one after another (to watch); 2 or 3 runs children whose inputs are ready together."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "files",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "canary",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "leaks",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "failed",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "handled",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "routed",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "summary",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "agent",
+          "status",
+          "handled",
+          "exceptions",
+          "results"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every child agent finished."
+    },
+    {
+      "name": "summary_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "One row per child agent."
+    },
+    {
+      "name": "child",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "child_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "child_error",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "child1",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "child_status1",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "child_error1",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "child2",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "child_status2",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "child_error2",
+      "type": "Dictionary",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Make the run id every child shares, the output folder and the log; say what will happen."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context"
+        },
+        {
+          "id": "s4",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s5",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "RW07-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for this run"
+            }
+          ],
+          "description": "No run id given: make one"
+        },
+        {
+          "id": "s6",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}"
+          },
+          "description": "Output folder of the run"
+        },
+        {
+          "id": "s7",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s8",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/RW07-main-log.txt"
+          },
+          "description": "Log file of the main agent"
+        },
+        {
+          "id": "s9",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07 Main - Cloud incident started; run ${run_id}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s10",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s11",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07 starts",
+                "message": "RW07 Main - Cloud incident\n\nRW07-B1 Incident intake and correlation\nRW07-B2 Cloud inventory reader\nRW07-B3 Windows diagnostics bot\nRW07-B4 Approval and remediation guard\nRW07-B5 Post-action verification\nRW07-B6 Teams and evidence reporter\n\nRun: ${run_id}",
+                "timeout_seconds": 5,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s12",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s13",
+          "action": "core/comment",
+          "args": {
+            "text": "Start the QA stand-ins (if they are not running) and, for a resilience run, arm their faults."
+          }
+        },
+        {
+          "id": "s14",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw00_standins",
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$"
+            }
+          },
+          "description": "Start the QA stand-ins"
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "all",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the injected faults on every stand-in service"
+            }
+          ],
+          "description": "Resilience run?"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s17",
+      "action": "core/step",
+      "args": {
+        "title": "3. Run the child agents"
+      },
+      "children": [
+        {
+          "id": "s18",
+          "action": "core/comment",
+          "args": {
+            "text": "Each child works through its 10 records; a failing child is noted and the next one still runs."
+          }
+        },
+        {
+          "id": "s19",
+          "action": "core/if",
+          "args": {
+            "condition": "$concurrency$ <= 1"
+          },
+          "children": [
+            {
+              "id": "s20",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s21",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "RW07 main",
+                    "message": "Next: RW07-B1 Incident intake and correlation",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s22",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "rw07_b1",
+                "fail_on_error": false,
+                "inputs": {
+                  "base": "$base$",
+                  "run_id": "$run_id$",
+                  "standin": "$standin$",
+                  "watch": "$watch$",
+                  "pause_seconds": "$pause_seconds$",
+                  "fault_profile": "$fault_profile$"
+                }
+              },
+              "out": {
+                "outputs": "child",
+                "status": "child_status",
+                "error": "child_error"
+              },
+              "description": "Run RW07-B1 Incident intake and correlation"
+            },
+            {
+              "id": "s23",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$summary$",
+                "values": {
+                  "agent": "RW07-B1",
+                  "status": "$child_status$",
+                  "handled": "${child.processed}",
+                  "exceptions": "${child.exceptions}",
+                  "results": "${child.result_file}"
+                }
+              },
+              "out": {
+                "table": "summary"
+              },
+              "description": "Note how RW07-B1 went"
+            },
+            {
+              "id": "s24",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$child_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed$ + 1"
+                    }
+                  },
+                  "description": "Count the failed child"
+                },
+                {
+                  "id": "s26",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "RW07-B1 failed: ${child_error.code} ${child_error.message}"
+                  },
+                  "description": "Log the failure"
+                }
+              ],
+              "description": "Did the child agent fail?"
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "handled",
+                "value": {
+                  "expr": "$handled$ + toNumber(coalesce($child.processed, 0))"
+                }
+              },
+              "description": "Add up handled records"
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "routed",
+                "value": {
+                  "expr": "$routed$ + toNumber(coalesce($child.exceptions, 0))"
+                }
+              },
+              "description": "Add up routed exceptions"
+            },
+            {
+              "id": "s29",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "RW07 main",
+                    "message": "Next: RW07-B2 Cloud inventory reader",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s31",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "rw07_b2",
+                "fail_on_error": false,
+                "inputs": {
+                  "base": "$base$",
+                  "run_id": "$run_id$",
+                  "standin": "$standin$",
+                  "watch": "$watch$",
+                  "pause_seconds": "$pause_seconds$",
+                  "fault_profile": "$fault_profile$"
+                }
+              },
+              "out": {
+                "outputs": "child",
+                "status": "child_status",
+                "error": "child_error"
+              },
+              "description": "Run RW07-B2 Cloud inventory reader"
+            },
+            {
+              "id": "s32",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$summary$",
+                "values": {
+                  "agent": "RW07-B2",
+                  "status": "$child_status$",
+                  "handled": "${child.processed}",
+                  "exceptions": "${child.exceptions}",
+                  "results": "${child.result_file}"
+                }
+              },
+              "out": {
+                "table": "summary"
+              },
+              "description": "Note how RW07-B2 went"
+            },
+            {
+              "id": "s33",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$child_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed$ + 1"
+                    }
+                  },
+                  "description": "Count the failed child"
+                },
+                {
+                  "id": "s35",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "RW07-B2 failed: ${child_error.code} ${child_error.message}"
+                  },
+                  "description": "Log the failure"
+                }
+              ],
+              "description": "Did the child agent fail?"
+            },
+            {
+              "id": "s36",
+              "action": "core/set",
+              "args": {
+                "variable": "handled",
+                "value": {
+                  "expr": "$handled$ + toNumber(coalesce($child.processed, 0))"
+                }
+              },
+              "description": "Add up handled records"
+            },
+            {
+              "id": "s37",
+              "action": "core/set",
+              "args": {
+                "variable": "routed",
+                "value": {
+                  "expr": "$routed$ + toNumber(coalesce($child.exceptions, 0))"
+                }
+              },
+              "description": "Add up routed exceptions"
+            },
+            {
+              "id": "s38",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s39",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "RW07 main",
+                    "message": "Next: RW07-B3 Windows diagnostics bot",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s40",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "rw07_b3",
+                "fail_on_error": false,
+                "inputs": {
+                  "base": "$base$",
+                  "run_id": "$run_id$",
+                  "standin": "$standin$",
+                  "watch": "$watch$",
+                  "pause_seconds": "$pause_seconds$",
+                  "fault_profile": "$fault_profile$"
+                }
+              },
+              "out": {
+                "outputs": "child",
+                "status": "child_status",
+                "error": "child_error"
+              },
+              "description": "Run RW07-B3 Windows diagnostics bot"
+            },
+            {
+              "id": "s41",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$summary$",
+                "values": {
+                  "agent": "RW07-B3",
+                  "status": "$child_status$",
+                  "handled": "${child.processed}",
+                  "exceptions": "${child.exceptions}",
+                  "results": "${child.result_file}"
+                }
+              },
+              "out": {
+                "table": "summary"
+              },
+              "description": "Note how RW07-B3 went"
+            },
+            {
+              "id": "s42",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$child_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed$ + 1"
+                    }
+                  },
+                  "description": "Count the failed child"
+                },
+                {
+                  "id": "s44",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "RW07-B3 failed: ${child_error.code} ${child_error.message}"
+                  },
+                  "description": "Log the failure"
+                }
+              ],
+              "description": "Did the child agent fail?"
+            },
+            {
+              "id": "s45",
+              "action": "core/set",
+              "args": {
+                "variable": "handled",
+                "value": {
+                  "expr": "$handled$ + toNumber(coalesce($child.processed, 0))"
+                }
+              },
+              "description": "Add up handled records"
+            },
+            {
+              "id": "s46",
+              "action": "core/set",
+              "args": {
+                "variable": "routed",
+                "value": {
+                  "expr": "$routed$ + toNumber(coalesce($child.exceptions, 0))"
+                }
+              },
+              "description": "Add up routed exceptions"
+            },
+            {
+              "id": "s47",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "RW07 main",
+                    "message": "Next: RW07-B4 Approval and remediation guard",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s49",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "rw07_b4",
+                "fail_on_error": false,
+                "inputs": {
+                  "base": "$base$",
+                  "run_id": "$run_id$",
+                  "standin": "$standin$",
+                  "watch": "$watch$",
+                  "pause_seconds": "$pause_seconds$",
+                  "fault_profile": "$fault_profile$"
+                }
+              },
+              "out": {
+                "outputs": "child",
+                "status": "child_status",
+                "error": "child_error"
+              },
+              "description": "Run RW07-B4 Approval and remediation guard"
+            },
+            {
+              "id": "s50",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$summary$",
+                "values": {
+                  "agent": "RW07-B4",
+                  "status": "$child_status$",
+                  "handled": "${child.processed}",
+                  "exceptions": "${child.exceptions}",
+                  "results": "${child.result_file}"
+                }
+              },
+              "out": {
+                "table": "summary"
+              },
+              "description": "Note how RW07-B4 went"
+            },
+            {
+              "id": "s51",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$child_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s52",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed$ + 1"
+                    }
+                  },
+                  "description": "Count the failed child"
+                },
+                {
+                  "id": "s53",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "RW07-B4 failed: ${child_error.code} ${child_error.message}"
+                  },
+                  "description": "Log the failure"
+                }
+              ],
+              "description": "Did the child agent fail?"
+            },
+            {
+              "id": "s54",
+              "action": "core/set",
+              "args": {
+                "variable": "handled",
+                "value": {
+                  "expr": "$handled$ + toNumber(coalesce($child.processed, 0))"
+                }
+              },
+              "description": "Add up handled records"
+            },
+            {
+              "id": "s55",
+              "action": "core/set",
+              "args": {
+                "variable": "routed",
+                "value": {
+                  "expr": "$routed$ + toNumber(coalesce($child.exceptions, 0))"
+                }
+              },
+              "description": "Add up routed exceptions"
+            },
+            {
+              "id": "s56",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "RW07 main",
+                    "message": "Next: RW07-B5 Post-action verification",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s58",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "rw07_b5",
+                "fail_on_error": false,
+                "inputs": {
+                  "base": "$base$",
+                  "run_id": "$run_id$",
+                  "standin": "$standin$",
+                  "watch": "$watch$",
+                  "pause_seconds": "$pause_seconds$",
+                  "fault_profile": "$fault_profile$"
+                }
+              },
+              "out": {
+                "outputs": "child",
+                "status": "child_status",
+                "error": "child_error"
+              },
+              "description": "Run RW07-B5 Post-action verification"
+            },
+            {
+              "id": "s59",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$summary$",
+                "values": {
+                  "agent": "RW07-B5",
+                  "status": "$child_status$",
+                  "handled": "${child.processed}",
+                  "exceptions": "${child.exceptions}",
+                  "results": "${child.result_file}"
+                }
+              },
+              "out": {
+                "table": "summary"
+              },
+              "description": "Note how RW07-B5 went"
+            },
+            {
+              "id": "s60",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$child_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed$ + 1"
+                    }
+                  },
+                  "description": "Count the failed child"
+                },
+                {
+                  "id": "s62",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "RW07-B5 failed: ${child_error.code} ${child_error.message}"
+                  },
+                  "description": "Log the failure"
+                }
+              ],
+              "description": "Did the child agent fail?"
+            },
+            {
+              "id": "s63",
+              "action": "core/set",
+              "args": {
+                "variable": "handled",
+                "value": {
+                  "expr": "$handled$ + toNumber(coalesce($child.processed, 0))"
+                }
+              },
+              "description": "Add up handled records"
+            },
+            {
+              "id": "s64",
+              "action": "core/set",
+              "args": {
+                "variable": "routed",
+                "value": {
+                  "expr": "$routed$ + toNumber(coalesce($child.exceptions, 0))"
+                }
+              },
+              "description": "Add up routed exceptions"
+            },
+            {
+              "id": "s65",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s66",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "RW07 main",
+                    "message": "Next: RW07-B6 Teams and evidence reporter",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s67",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "rw07_b6",
+                "fail_on_error": false,
+                "inputs": {
+                  "base": "$base$",
+                  "run_id": "$run_id$",
+                  "standin": "$standin$",
+                  "watch": "$watch$",
+                  "pause_seconds": "$pause_seconds$",
+                  "fault_profile": "$fault_profile$"
+                }
+              },
+              "out": {
+                "outputs": "child",
+                "status": "child_status",
+                "error": "child_error"
+              },
+              "description": "Run RW07-B6 Teams and evidence reporter"
+            },
+            {
+              "id": "s68",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$summary$",
+                "values": {
+                  "agent": "RW07-B6",
+                  "status": "$child_status$",
+                  "handled": "${child.processed}",
+                  "exceptions": "${child.exceptions}",
+                  "results": "${child.result_file}"
+                }
+              },
+              "out": {
+                "table": "summary"
+              },
+              "description": "Note how RW07-B6 went"
+            },
+            {
+              "id": "s69",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$child_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s70",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed$ + 1"
+                    }
+                  },
+                  "description": "Count the failed child"
+                },
+                {
+                  "id": "s71",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "RW07-B6 failed: ${child_error.code} ${child_error.message}"
+                  },
+                  "description": "Log the failure"
+                }
+              ],
+              "description": "Did the child agent fail?"
+            },
+            {
+              "id": "s72",
+              "action": "core/set",
+              "args": {
+                "variable": "handled",
+                "value": {
+                  "expr": "$handled$ + toNumber(coalesce($child.processed, 0))"
+                }
+              },
+              "description": "Add up handled records"
+            },
+            {
+              "id": "s73",
+              "action": "core/set",
+              "args": {
+                "variable": "routed",
+                "value": {
+                  "expr": "$routed$ + toNumber(coalesce($child.exceptions, 0))"
+                }
+              },
+              "description": "Add up routed exceptions"
+            }
+          ],
+          "description": "One after another (to watch)",
+          "else": [
+            {
+              "id": "s74",
+              "action": "core/comment",
+              "args": {
+                "text": "Two at a time where it is safe: the intake child first (the others use what it accepts), then the next two together, then the rest in order."
+              }
+            },
+            {
+              "id": "s75",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s76",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "RW07 main",
+                    "message": "Next: RW07-B1 Incident intake and correlation",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s77",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "rw07_b1",
+                "fail_on_error": false,
+                "inputs": {
+                  "base": "$base$",
+                  "run_id": "$run_id$",
+                  "standin": "$standin$",
+                  "watch": "$watch$",
+                  "pause_seconds": "$pause_seconds$",
+                  "fault_profile": "$fault_profile$"
+                }
+              },
+              "out": {
+                "outputs": "child",
+                "status": "child_status",
+                "error": "child_error"
+              },
+              "description": "Run RW07-B1 Incident intake and correlation"
+            },
+            {
+              "id": "s78",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$summary$",
+                "values": {
+                  "agent": "RW07-B1",
+                  "status": "$child_status$",
+                  "handled": "${child.processed}",
+                  "exceptions": "${child.exceptions}",
+                  "results": "${child.result_file}"
+                }
+              },
+              "out": {
+                "table": "summary"
+              },
+              "description": "Note how RW07-B1 went"
+            },
+            {
+              "id": "s79",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$child_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s80",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed$ + 1"
+                    }
+                  },
+                  "description": "Count the failed child"
+                },
+                {
+                  "id": "s81",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "RW07-B1 failed: ${child_error.code} ${child_error.message}"
+                  },
+                  "description": "Log the failure"
+                }
+              ],
+              "description": "Did the child agent fail?"
+            },
+            {
+              "id": "s82",
+              "action": "core/set",
+              "args": {
+                "variable": "handled",
+                "value": {
+                  "expr": "$handled$ + toNumber(coalesce($child.processed, 0))"
+                }
+              },
+              "description": "Add up handled records"
+            },
+            {
+              "id": "s83",
+              "action": "core/set",
+              "args": {
+                "variable": "routed",
+                "value": {
+                  "expr": "$routed$ + toNumber(coalesce($child.exceptions, 0))"
+                }
+              },
+              "description": "Add up routed exceptions"
+            },
+            {
+              "id": "s84",
+              "action": "core/parallel",
+              "args": {
+                "max_concurrency": "$concurrency$"
+              },
+              "children": [
+                {
+                  "id": "s85",
+                  "action": "core/step",
+                  "args": {
+                    "title": "RW07-B2"
+                  },
+                  "children": [
+                    {
+                      "id": "s86",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s87",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW07 main",
+                            "message": "Next: RW07-B2 Cloud inventory reader",
+                            "timeout_seconds": 2,
+                            "icon": "information",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    },
+                    {
+                      "id": "s88",
+                      "action": "core/run_bot",
+                      "args": {
+                        "automation": "rw07_b2",
+                        "fail_on_error": false,
+                        "inputs": {
+                          "base": "$base$",
+                          "run_id": "$run_id$",
+                          "standin": "$standin$",
+                          "watch": "$watch$",
+                          "pause_seconds": "$pause_seconds$",
+                          "fault_profile": "$fault_profile$"
+                        }
+                      },
+                      "out": {
+                        "outputs": "child1",
+                        "status": "child_status1",
+                        "error": "child_error1"
+                      },
+                      "description": "Run RW07-B2 Cloud inventory reader"
+                    },
+                    {
+                      "id": "s89",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$summary$",
+                        "values": {
+                          "agent": "RW07-B2",
+                          "status": "$child_status1$",
+                          "handled": "${child1.processed}",
+                          "exceptions": "${child1.exceptions}",
+                          "results": "${child1.result_file}"
+                        }
+                      },
+                      "out": {
+                        "table": "summary"
+                      },
+                      "description": "Note how RW07-B2 went"
+                    },
+                    {
+                      "id": "s90",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$child_status1$",
+                          "right": "success"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s91",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "failed",
+                            "value": {
+                              "expr": "$failed$ + 1"
+                            }
+                          },
+                          "description": "Count the failed child"
+                        },
+                        {
+                          "id": "s92",
+                          "action": "ooa.log/write",
+                          "args": {
+                            "path": "$log_file$",
+                            "level": "ERROR",
+                            "message": "RW07-B2 failed: ${child_error1.code} ${child_error1.message}"
+                          },
+                          "description": "Log the failure"
+                        }
+                      ],
+                      "description": "Did the child agent fail?"
+                    },
+                    {
+                      "id": "s93",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "handled",
+                        "value": {
+                          "expr": "$handled$ + toNumber(coalesce($child1.processed, 0))"
+                        }
+                      },
+                      "description": "Add up handled records"
+                    },
+                    {
+                      "id": "s94",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "routed",
+                        "value": {
+                          "expr": "$routed$ + toNumber(coalesce($child1.exceptions, 0))"
+                        }
+                      },
+                      "description": "Add up routed exceptions"
+                    }
+                  ],
+                  "description": "RW07-B2"
+                },
+                {
+                  "id": "s95",
+                  "action": "core/step",
+                  "args": {
+                    "title": "RW07-B3"
+                  },
+                  "children": [
+                    {
+                      "id": "s96",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s97",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW07 main",
+                            "message": "Next: RW07-B3 Windows diagnostics bot",
+                            "timeout_seconds": 2,
+                            "icon": "information",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    },
+                    {
+                      "id": "s98",
+                      "action": "core/run_bot",
+                      "args": {
+                        "automation": "rw07_b3",
+                        "fail_on_error": false,
+                        "inputs": {
+                          "base": "$base$",
+                          "run_id": "$run_id$",
+                          "standin": "$standin$",
+                          "watch": "$watch$",
+                          "pause_seconds": "$pause_seconds$",
+                          "fault_profile": "$fault_profile$"
+                        }
+                      },
+                      "out": {
+                        "outputs": "child2",
+                        "status": "child_status2",
+                        "error": "child_error2"
+                      },
+                      "description": "Run RW07-B3 Windows diagnostics bot"
+                    },
+                    {
+                      "id": "s99",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$summary$",
+                        "values": {
+                          "agent": "RW07-B3",
+                          "status": "$child_status2$",
+                          "handled": "${child2.processed}",
+                          "exceptions": "${child2.exceptions}",
+                          "results": "${child2.result_file}"
+                        }
+                      },
+                      "out": {
+                        "table": "summary"
+                      },
+                      "description": "Note how RW07-B3 went"
+                    },
+                    {
+                      "id": "s100",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$child_status2$",
+                          "right": "success"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s101",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "failed",
+                            "value": {
+                              "expr": "$failed$ + 1"
+                            }
+                          },
+                          "description": "Count the failed child"
+                        },
+                        {
+                          "id": "s102",
+                          "action": "ooa.log/write",
+                          "args": {
+                            "path": "$log_file$",
+                            "level": "ERROR",
+                            "message": "RW07-B3 failed: ${child_error2.code} ${child_error2.message}"
+                          },
+                          "description": "Log the failure"
+                        }
+                      ],
+                      "description": "Did the child agent fail?"
+                    },
+                    {
+                      "id": "s103",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "handled",
+                        "value": {
+                          "expr": "$handled$ + toNumber(coalesce($child2.processed, 0))"
+                        }
+                      },
+                      "description": "Add up handled records"
+                    },
+                    {
+                      "id": "s104",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "routed",
+                        "value": {
+                          "expr": "$routed$ + toNumber(coalesce($child2.exceptions, 0))"
+                        }
+                      },
+                      "description": "Add up routed exceptions"
+                    }
+                  ],
+                  "description": "RW07-B3"
+                }
+              ],
+              "description": "Children that need only the intake's results"
+            },
+            {
+              "id": "s105",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s106",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "RW07 main",
+                    "message": "Next: RW07-B4 Approval and remediation guard",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s107",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "rw07_b4",
+                "fail_on_error": false,
+                "inputs": {
+                  "base": "$base$",
+                  "run_id": "$run_id$",
+                  "standin": "$standin$",
+                  "watch": "$watch$",
+                  "pause_seconds": "$pause_seconds$",
+                  "fault_profile": "$fault_profile$"
+                }
+              },
+              "out": {
+                "outputs": "child",
+                "status": "child_status",
+                "error": "child_error"
+              },
+              "description": "Run RW07-B4 Approval and remediation guard"
+            },
+            {
+              "id": "s108",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$summary$",
+                "values": {
+                  "agent": "RW07-B4",
+                  "status": "$child_status$",
+                  "handled": "${child.processed}",
+                  "exceptions": "${child.exceptions}",
+                  "results": "${child.result_file}"
+                }
+              },
+              "out": {
+                "table": "summary"
+              },
+              "description": "Note how RW07-B4 went"
+            },
+            {
+              "id": "s109",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$child_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s110",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed$ + 1"
+                    }
+                  },
+                  "description": "Count the failed child"
+                },
+                {
+                  "id": "s111",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "RW07-B4 failed: ${child_error.code} ${child_error.message}"
+                  },
+                  "description": "Log the failure"
+                }
+              ],
+              "description": "Did the child agent fail?"
+            },
+            {
+              "id": "s112",
+              "action": "core/set",
+              "args": {
+                "variable": "handled",
+                "value": {
+                  "expr": "$handled$ + toNumber(coalesce($child.processed, 0))"
+                }
+              },
+              "description": "Add up handled records"
+            },
+            {
+              "id": "s113",
+              "action": "core/set",
+              "args": {
+                "variable": "routed",
+                "value": {
+                  "expr": "$routed$ + toNumber(coalesce($child.exceptions, 0))"
+                }
+              },
+              "description": "Add up routed exceptions"
+            },
+            {
+              "id": "s114",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s115",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "RW07 main",
+                    "message": "Next: RW07-B5 Post-action verification",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s116",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "rw07_b5",
+                "fail_on_error": false,
+                "inputs": {
+                  "base": "$base$",
+                  "run_id": "$run_id$",
+                  "standin": "$standin$",
+                  "watch": "$watch$",
+                  "pause_seconds": "$pause_seconds$",
+                  "fault_profile": "$fault_profile$"
+                }
+              },
+              "out": {
+                "outputs": "child",
+                "status": "child_status",
+                "error": "child_error"
+              },
+              "description": "Run RW07-B5 Post-action verification"
+            },
+            {
+              "id": "s117",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$summary$",
+                "values": {
+                  "agent": "RW07-B5",
+                  "status": "$child_status$",
+                  "handled": "${child.processed}",
+                  "exceptions": "${child.exceptions}",
+                  "results": "${child.result_file}"
+                }
+              },
+              "out": {
+                "table": "summary"
+              },
+              "description": "Note how RW07-B5 went"
+            },
+            {
+              "id": "s118",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$child_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s119",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed$ + 1"
+                    }
+                  },
+                  "description": "Count the failed child"
+                },
+                {
+                  "id": "s120",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "RW07-B5 failed: ${child_error.code} ${child_error.message}"
+                  },
+                  "description": "Log the failure"
+                }
+              ],
+              "description": "Did the child agent fail?"
+            },
+            {
+              "id": "s121",
+              "action": "core/set",
+              "args": {
+                "variable": "handled",
+                "value": {
+                  "expr": "$handled$ + toNumber(coalesce($child.processed, 0))"
+                }
+              },
+              "description": "Add up handled records"
+            },
+            {
+              "id": "s122",
+              "action": "core/set",
+              "args": {
+                "variable": "routed",
+                "value": {
+                  "expr": "$routed$ + toNumber(coalesce($child.exceptions, 0))"
+                }
+              },
+              "description": "Add up routed exceptions"
+            },
+            {
+              "id": "s123",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s124",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "RW07 main",
+                    "message": "Next: RW07-B6 Teams and evidence reporter",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s125",
+              "action": "core/run_bot",
+              "args": {
+                "automation": "rw07_b6",
+                "fail_on_error": false,
+                "inputs": {
+                  "base": "$base$",
+                  "run_id": "$run_id$",
+                  "standin": "$standin$",
+                  "watch": "$watch$",
+                  "pause_seconds": "$pause_seconds$",
+                  "fault_profile": "$fault_profile$"
+                }
+              },
+              "out": {
+                "outputs": "child",
+                "status": "child_status",
+                "error": "child_error"
+              },
+              "description": "Run RW07-B6 Teams and evidence reporter"
+            },
+            {
+              "id": "s126",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$summary$",
+                "values": {
+                  "agent": "RW07-B6",
+                  "status": "$child_status$",
+                  "handled": "${child.processed}",
+                  "exceptions": "${child.exceptions}",
+                  "results": "${child.result_file}"
+                }
+              },
+              "out": {
+                "table": "summary"
+              },
+              "description": "Note how RW07-B6 went"
+            },
+            {
+              "id": "s127",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$child_status$",
+                  "right": "success"
+                }
+              },
+              "children": [
+                {
+                  "id": "s128",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed$ + 1"
+                    }
+                  },
+                  "description": "Count the failed child"
+                },
+                {
+                  "id": "s129",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "RW07-B6 failed: ${child_error.code} ${child_error.message}"
+                  },
+                  "description": "Log the failure"
+                }
+              ],
+              "description": "Did the child agent fail?"
+            },
+            {
+              "id": "s130",
+              "action": "core/set",
+              "args": {
+                "variable": "handled",
+                "value": {
+                  "expr": "$handled$ + toNumber(coalesce($child.processed, 0))"
+                }
+              },
+              "description": "Add up handled records"
+            },
+            {
+              "id": "s131",
+              "action": "core/set",
+              "args": {
+                "variable": "routed",
+                "value": {
+                  "expr": "$routed$ + toNumber(coalesce($child.exceptions, 0))"
+                }
+              },
+              "description": "Add up routed exceptions"
+            }
+          ]
+        }
+      ],
+      "description": "3. Run the child agents"
+    },
+    {
+      "id": "s132",
+      "action": "core/step",
+      "args": {
+        "title": "4. Clean up and attest"
+      },
+      "children": [
+        {
+          "id": "s133",
+          "action": "core/comment",
+          "args": {
+            "text": "Remove only this run's OOA-QA records from the stand-ins, and check no output file holds the secret canary."
+          }
+        },
+        {
+          "id": "s134",
+          "action": "ooa.rest/request",
+          "args": {
+            "method": "POST",
+            "url": "${standin}/qa/cleanup",
+            "json": {
+              "run_id": "$run_id$"
+            }
+          },
+          "description": "Remove this run's test records from the stand-ins"
+        },
+        {
+          "id": "s135",
+          "action": "ooa.global_values/get",
+          "args": {
+            "name": "rw_canary",
+            "default": "",
+            "type": "String"
+          },
+          "out": {
+            "value": "canary"
+          },
+          "description": "Read the canary text (also kept as a vault secret)"
+        },
+        {
+          "id": "s136",
+          "action": "ooa.file/list",
+          "args": {
+            "folder": "$out_dir$",
+            "pattern": "*.csv",
+            "include_subfolders": true
+          },
+          "out": {
+            "files": "files"
+          },
+          "description": "List every file the run wrote"
+        },
+        {
+          "id": "s137",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": "$files$",
+            "as": "file"
+          },
+          "children": [
+            {
+              "id": "s138",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "$file$"
+              },
+              "out": {
+                "text": "text"
+              },
+              "description": "Read the file"
+            },
+            {
+              "id": "s139",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "all": [
+                    {
+                      "op": "ne",
+                      "left": "$canary$",
+                      "right": ""
+                    },
+                    {
+                      "op": "contains",
+                      "left": "$text$",
+                      "right": "$canary$"
+                    }
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "id": "s140",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "leaks",
+                    "value": {
+                      "expr": "$leaks$ + 1"
+                    }
+                  },
+                  "description": "Count the leak"
+                },
+                {
+                  "id": "s141",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "ERROR",
+                    "message": "Secret canary found in ${file}"
+                  },
+                  "description": "Log the leak"
+                }
+              ],
+              "description": "Does it hold the canary?"
+            }
+          ],
+          "description": "Each output file"
+        }
+      ],
+      "description": "4. Clean up and attest"
+    },
+    {
+      "id": "s142",
+      "action": "core/step",
+      "args": {
+        "title": "5. Sum up"
+      },
+      "children": [
+        {
+          "id": "s143",
+          "action": "core/comment",
+          "args": {
+            "text": "Save one row per child, record the totals for Insights, and say how the run went."
+          }
+        },
+        {
+          "id": "s144",
+          "action": "core/set",
+          "args": {
+            "variable": "summary_file",
+            "value": "${out_dir}/RW07-summary.csv"
+          },
+          "description": "Name of the summary file"
+        },
+        {
+          "id": "s145",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$summary$",
+            "path": "$summary_file$"
+          },
+          "description": "Save the summary"
+        },
+        {
+          "id": "s146",
+          "action": "ooa.insights/tag_values",
+          "args": {
+            "category": "real_world_tests",
+            "values": {
+              "test": "RW07",
+              "handled": "$handled$",
+              "exceptions": "$routed$",
+              "failed_children": "$failed$",
+              "canary_leaks": "$leaks$"
+            }
+          },
+          "description": "Record the run's totals for Insights"
+        },
+        {
+          "id": "s147",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": {
+              "expr": "if($failed$ == 0 and $leaks$ == 0, 'success', 'failed')"
+            }
+          },
+          "description": "Overall result"
+        },
+        {
+          "id": "s148",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s149",
+              "action": "ooa.sound/beep",
+              "args": {
+                "times": 2
+              },
+              "description": "Beep"
+            }
+          ],
+          "description": "A sound at the end (watch is on)"
+        },
+        {
+          "id": "s150",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s151",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07 finished",
+                "message": "RW07 Main - Cloud incident finished: ${status}\n\nRecords handled: ${handled}\nRouted to exceptions: ${routed}\nChild agents failed: ${failed}\nCanary leaks: ${leaks}\n\nSummary: ${summary_file}",
+                "timeout_seconds": 6,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        },
+        {
+          "id": "s152",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07 Main - Cloud incident finished: ${status}"
+          },
+          "description": "Log the end"
+        }
+      ],
+      "description": "5. Sum up"
+    }
+  ]
+}

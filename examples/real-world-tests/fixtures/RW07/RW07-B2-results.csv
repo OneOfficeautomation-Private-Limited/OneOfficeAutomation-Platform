@@ -1,0 +1,9 @@
+key,status,note,time
+N01,done,"running/impaired, blast medium",04:57:37
+N04,done,"stopped/not-applicable, blast medium",04:57:37
+N05,exception,SCOPE.UNTAGGED: i-0000000000000f005 (prod) has no OOA-QA tag: no action,04:57:37
+N06,exception,"SCOPE.REGION: i-0000000000000a006 is in eu-west-1, which is not allow-listed",04:57:37
+N07,done,Windows service: diagnostics in RW07-B3,04:57:37
+N08,done,"running/impaired, blast high",04:57:37
+N09,done,"running/impaired, blast low",04:57:37
+N10,done,"running/impaired, blast medium",04:57:37

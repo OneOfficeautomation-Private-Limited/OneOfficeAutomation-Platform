@@ -1,0 +1,7 @@
+key,resource,kind,region,state,health,cpu,baseline,dependents,blast_radius,allowed_action,before_hash,before
+N01,i-0000000000000a001,ec2,us-east-1,running,impaired,95,30,2,medium,reboot,2dc2a25e3920f08719658bd32281de1efcffb630adc3a8cd969810817109b8e0,"i-0000000000000a001|running|impaired|95|{""OOA-QA"":""true"",""env"":""qa"",""Name"":""web-qa-1""}"
+N04,i-0000000000000a004,ec2,us-east-1,stopped,not-applicable,95,30,3,medium,start,cd239e5f33ed6852625ef2804d58f02c3a25caed468fe7243941ad7b690ba424,"i-0000000000000a004|stopped|not-applicable|95|{""OOA-QA"":""true"",""env"":""qa"",""Name"":""api-qa-1""}"
+N07,svc:Spooler,windows,,,,,,,low,restart_service,,
+N08,i-0000000000000a008,ec2,us-east-1,running,impaired,95,30,7,high,reboot,51d0065b01f6d9b8e678160b5b932a1ed7a58d2e937ef211857b30e5e909253e,"i-0000000000000a008|running|impaired|95|{""OOA-QA"":""true"",""env"":""qa"",""Name"":""db-qa-1""}"
+N09,i-0000000000000a009,ec2,us-east-1,running,impaired,95,30,1,low,forbidden: terminate,995676e96816920a3971a25ab8e90525ded529e909888990e2f37284cd659c6a,"i-0000000000000a009|running|impaired|95|{""OOA-QA"":""true"",""env"":""qa"",""Name"":""cache-qa-1""}"
+N10,i-0000000000000a00a,ec2,us-east-1,running,impaired,95,30,2,medium,reboot,b1e79a62475fdadcc1c5e1538a9031a39f871c63be3a0f8881889fa3f1f8cde9,"i-0000000000000a00a|running|impaired|95|{""OOA-QA"":""true"",""env"":""qa"",""Name"":""queue-qa-1""}"

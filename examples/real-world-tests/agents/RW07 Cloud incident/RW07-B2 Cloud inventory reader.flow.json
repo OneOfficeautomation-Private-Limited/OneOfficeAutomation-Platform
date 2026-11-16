@@ -1,0 +1,1152 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw07_b2",
+  "name": "RW07-B2 Cloud inventory reader",
+  "description": "RW07-B2 (RW07 real-world test). Reads each affected EC2 instance in the approved account and region: tags, state, health checks, CPU window and dependents; rejects untagged or production resources and other regions, keeps an immutable before snapshot with its hash, works out the blast radius and which action is allowed. It never changes anything.",
+  "tags": [
+    "real-world-test",
+    "RW07"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "regions",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "allowed",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "inst",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "tags",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "state",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "az",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "region",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rok",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "st",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "health",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "met",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "blast",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "act_ok",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "snap",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "hash",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "resource",
+          "kind",
+          "region",
+          "state",
+          "health",
+          "cpu",
+          "baseline",
+          "dependents",
+          "blast_radius",
+          "allowed_action",
+          "before_hash",
+          "before"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Reads each affected EC2 instance in the approved account and region: tags, state, health checks, CPU window and dependents; rejects untagged or production resources and other regions, keeps an immutable before snapshot with its hash, works out the blast radius and which action is allowed. It never changes anything. It works through 10 disposable EC2 resources (the accepted incidents) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW07-B2"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07-B2 Cloud inventory reader started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07-B2 starts",
+                "message": "RW07-B2 Cloud inventory reader\n\nReads each affected EC2 instance in the approved account and region: tags, state, health checks, CPU window and dependents; rejects untagged or production resources and other regions, keeps an immutable before snapshot with its hash, works out the blast radius and which action is allowed. It never changes anything.\n\nRecords: 10 disposable EC2 resources (the accepted incidents)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the accepted incidents, the region allow-list and the allowed actions; connect to EC2 (read only from here on)."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "ec2",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s17",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B1/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW07-B1 evidence"
+            }
+          ],
+          "description": "RW07-B1 ran in this run?",
+          "else": [
+            {
+              "id": "s19",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW07-B1's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW07/fixtures/RW07-B1-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW07-B1 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW07/regions.csv"
+          },
+          "out": {
+            "table": "regions"
+          },
+          "description": "Allowed regions"
+        },
+        {
+          "id": "s22",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW07/allowed_actions.csv"
+          },
+          "out": {
+            "table": "allowed"
+          },
+          "description": "Allowed actions"
+        },
+        {
+          "id": "s23",
+          "action": "ooa.aws_ec2/connect",
+          "args": {
+            "region": "us-east-1",
+            "endpoint": "${standin}/ec2",
+            "access_key_id": {
+              "$credential": "rw_qa_standins/aws/access_key_id"
+            },
+            "secret_access_key": {
+              "$credential": "rw_qa_standins/aws/secret_access_key"
+            }
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "Connect to EC2 (us-east-1, QA account; stand-in address)"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s24",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s25",
+          "action": "core/comment",
+          "args": {
+            "text": "Per resource: describe, QA tag, region, health, CPU window and dependents, before snapshot, blast radius, allowed action."
+          }
+        },
+        {
+          "id": "s26",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s28",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$rec.kind$",
+                      "right": "windows"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s30",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$allowed$",
+                        "column": "action",
+                        "value": "$rec.wanted_action$",
+                        "return_column": "kind",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "act_ok"
+                      },
+                      "description": "Is a service restart an allowed action?"
+                    },
+                    {
+                      "id": "s31",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$evidence$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "resource": "$rec.resource$",
+                          "kind": "windows",
+                          "allowed_action": {
+                            "expr": "if(isEmpty($act_ok$), 'none', $rec.wanted_action$)"
+                          },
+                          "blast_radius": "low"
+                        }
+                      },
+                      "out": {
+                        "table": "evidence"
+                      },
+                      "description": "Windows row"
+                    },
+                    {
+                      "id": "s32",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "rec_note",
+                        "value": "Windows service: diagnostics in RW07-B3"
+                      },
+                      "description": "Note"
+                    }
+                  ],
+                  "description": "A Windows service incident (no cloud resource)?",
+                  "else": [
+                    {
+                      "id": "s33",
+                      "action": "ooa.aws_ec2/describe_instances",
+                      "args": {
+                        "instance_ids": [
+                          "$rec.resource$"
+                        ]
+                      },
+                      "out": {
+                        "instances": "inst",
+                        "count": "n"
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "1. Describe the instance"
+                    },
+                    {
+                      "id": "s34",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$n$ == 0"
+                      },
+                      "children": [
+                        {
+                          "id": "s35",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "CLOUD.NOT_FOUND",
+                            "message": "${rec.resource} is not in the QA account"
+                          },
+                          "description": "Reject"
+                        }
+                      ],
+                      "description": "Not found?"
+                    },
+                    {
+                      "id": "s36",
+                      "action": "ooa.datatable/get_value",
+                      "args": {
+                        "table": "$inst$",
+                        "row": 0,
+                        "column": "tags"
+                      },
+                      "out": {
+                        "value": "tags"
+                      },
+                      "description": "Tags"
+                    },
+                    {
+                      "id": "s37",
+                      "action": "ooa.datatable/get_value",
+                      "args": {
+                        "table": "$inst$",
+                        "row": 0,
+                        "column": "state"
+                      },
+                      "out": {
+                        "value": "state"
+                      },
+                      "description": "State"
+                    },
+                    {
+                      "id": "s38",
+                      "action": "ooa.datatable/get_value",
+                      "args": {
+                        "table": "$inst$",
+                        "row": 0,
+                        "column": "availability_zone"
+                      },
+                      "out": {
+                        "value": "az"
+                      },
+                      "description": "Zone"
+                    },
+                    {
+                      "id": "s39",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "get($tags$, 'OOA-QA', '') != 'true'"
+                      },
+                      "children": [
+                        {
+                          "id": "s40",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "SCOPE.UNTAGGED",
+                            "message": "${rec.resource} (${get($tags$, 'env', '?')}) has no OOA-QA tag: no action"
+                          },
+                          "description": "Reject: not a QA resource"
+                        }
+                      ],
+                      "description": "2.-6. Not tagged OOA-QA (or production)?"
+                    },
+                    {
+                      "id": "s41",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "region",
+                        "value": {
+                          "expr": "substring($az$, 0, len($az$) - 1)"
+                        }
+                      },
+                      "description": "Region from the zone"
+                    },
+                    {
+                      "id": "s42",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$regions$",
+                        "column": "region",
+                        "value": "$region$",
+                        "return_column": "region",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "rok"
+                      },
+                      "description": "1. Region allowed?"
+                    },
+                    {
+                      "id": "s43",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "isEmpty($rok$)"
+                      },
+                      "children": [
+                        {
+                          "id": "s44",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "SCOPE.REGION",
+                            "message": "${rec.resource} is in ${region}, which is not allow-listed"
+                          },
+                          "description": "Reject: region"
+                        }
+                      ],
+                      "description": "Region not on the allow-list?"
+                    },
+                    {
+                      "id": "s45",
+                      "action": "ooa.aws_ec2/get_instance_status",
+                      "args": {
+                        "instance_ids": [
+                          "$rec.resource$"
+                        ]
+                      },
+                      "out": {
+                        "statuses": "st"
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "3. Health checks"
+                    },
+                    {
+                      "id": "s46",
+                      "action": "ooa.datatable/get_value",
+                      "args": {
+                        "table": "$st$",
+                        "row": 0,
+                        "column": "instance_status"
+                      },
+                      "out": {
+                        "value": "health"
+                      },
+                      "description": "Instance check"
+                    },
+                    {
+                      "id": "s47",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "url": "${standin}/ec2-qa/metrics/${rec.resource}"
+                      },
+                      "out": {
+                        "json": "met"
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "3. CPU window and dependents"
+                    },
+                    {
+                      "id": "s48",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "blast",
+                        "value": {
+                          "expr": "if(toNumber($met.dependents$) >= 5, 'high', if(toNumber($met.dependents$) >= 2, 'medium', 'low'))"
+                        }
+                      },
+                      "description": "5. Blast radius"
+                    },
+                    {
+                      "id": "s49",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$allowed$",
+                        "column": "action",
+                        "value": "$rec.wanted_action$",
+                        "return_column": "kind",
+                        "if_not_found": ""
+                      },
+                      "out": {
+                        "value": "act_ok"
+                      },
+                      "description": "7. Is the wanted action allowed?"
+                    },
+                    {
+                      "id": "s50",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "snap",
+                        "value": "${rec.resource}|${state}|${health}|${met.average}|${jsonStringify($tags$)}"
+                      },
+                      "description": "4. Before snapshot"
+                    },
+                    {
+                      "id": "s51",
+                      "action": "ooa.crypto/hash_text",
+                      "args": {
+                        "text": "$snap$"
+                      },
+                      "out": {
+                        "hash": "hash"
+                      },
+                      "description": "4. Its hash (immutable evidence)"
+                    },
+                    {
+                      "id": "s52",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$evidence$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "resource": "$rec.resource$",
+                          "kind": "ec2",
+                          "region": "$region$",
+                          "state": "$state$",
+                          "health": "$health$",
+                          "cpu": "$met.average$",
+                          "baseline": "$met.baseline$",
+                          "dependents": "$met.dependents$",
+                          "blast_radius": "$blast$",
+                          "allowed_action": {
+                            "expr": "if(isEmpty($act_ok$), 'forbidden: ' + $rec.wanted_action$, $rec.wanted_action$)"
+                          },
+                          "before_hash": "$hash$",
+                          "before": "$snap$"
+                        }
+                      },
+                      "out": {
+                        "table": "evidence"
+                      },
+                      "description": "8. Evidence row"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "rec_note",
+                        "value": "${state}/${health}, blast ${blast}"
+                      },
+                      "description": "Note"
+                    }
+                  ]
+                },
+                {
+                  "id": "s54",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s57",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW07-B2 - record ${rec.key}",
+                        "message": "RW07-B2: record ${$i + 1} of ${len($records$)}\n\n${rec.key} ${rec.resource}: ${state}/${health}\nCPU ${met.average} (baseline ${met.baseline}), dependents ${met.dependents} -> ${blast}\nAllowed: ${act_ok}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s58",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s59",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s60",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s61",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s62",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s63",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW07-B2 - exception",
+                            "message": "RW07-B2: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 disposable EC2 resources (the accepted incidents)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s66",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s67",
+          "action": "core/comment",
+          "args": {
+            "text": "9. Only Describe calls were made; disconnect and save."
+          }
+        },
+        {
+          "id": "s68",
+          "action": "ooa.aws_ec2/disconnect",
+          "args": {},
+          "description": "Disconnect"
+        },
+        {
+          "id": "s69",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s70",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s71",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s72",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s73",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s74",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07-B2 Cloud inventory reader finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s75",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s76",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07-B2 finished",
+                "message": "RW07-B2 Cloud inventory reader finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+key,resource,action,recommendation,approval_1,approval_2,action_id,status
+N01,i-0000000000000a001,reboot,"reboot i-0000000000000a001 (health impaired, CPU 95, blast medium)",APR-043FD248,,aae4e5a018dd770e,done
+N04,i-0000000000000a004,start,"start i-0000000000000a004 (health not-applicable, CPU 95, blast medium)",APR-F9EFD714,APR-DFCC63BE,bfc52cf266bca22d,done
+N10,i-0000000000000a00a,reboot,"reboot i-0000000000000a00a (health impaired, CPU 95, blast medium)",APR-D3E33E1C,,bf8d9756fd30065e,done

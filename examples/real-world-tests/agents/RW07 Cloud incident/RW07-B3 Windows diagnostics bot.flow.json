@@ -1,0 +1,1135 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw07_b3",
+  "name": "RW07-B3 Windows diagnostics bot",
+  "description": "RW07-B3 (RW07 real-world test). On this QA runner, read only: the service status, the latest system events, process health, disk space and uptime, through an allow-listed PowerShell script with argument arrays; keeps output and exit codes, redacts secrets, compares thresholds, takes a screenshot only on an unlocked desktop and packages the logs. It never runs a free-form shell command.",
+  "tags": [
+    "real-world-test",
+    "RW07"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "svc",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "kinds",
+      "type": "List",
+      "direction": "local",
+      "default": [
+        "events",
+        "disk",
+        "process"
+      ]
+    },
+    {
+      "name": "k",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "out",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "errout",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "code",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "disk",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "free",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "ticks",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "uptime_h",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "locked",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "desktop",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "shot",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "zip",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "warn",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "free_pct_min",
+      "type": "Number",
+      "direction": "input",
+      "default": 10,
+      "description": "Free disk space below this per cent is a finding."
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "service",
+          "status",
+          "disk_free_pct",
+          "uptime_hours",
+          "exit_codes",
+          "screenshot",
+          "package",
+          "finding"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: On this QA runner, read only: the service status, the latest system events, process health, disk space and uptime, through an allow-listed PowerShell script with argument arrays; keeps output and exit codes, redacts secrets, compares thresholds, takes a screenshot only on an unlocked desktop and packages the logs. It never runs a free-form shell command. It works through 10 QA Windows service incidents (the accepted incidents) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW07-B3"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07-B3 Windows diagnostics bot started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07-B3 starts",
+                "message": "RW07-B3 Windows diagnostics bot\n\nOn this QA runner, read only: the service status, the latest system events, process health, disk space and uptime, through an allow-listed PowerShell script with argument arrays; keeps output and exit codes, redacts secrets, compares thresholds, takes a screenshot only on an unlocked desktop and packages the logs. It never runs a free-form shell command.\n\nRecords: 10 QA Windows service incidents (the accepted incidents)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the accepted incidents; write the allow-listed diagnostics script; is the desktop unlocked?"
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B1/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW07-B1 evidence"
+            }
+          ],
+          "description": "RW07-B1 ran in this run?",
+          "else": [
+            {
+              "id": "s17",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW07-B1's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW07/fixtures/RW07-B1-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW07-B1 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s19",
+          "action": "ooa.file/write_text",
+          "args": {
+            "path": "${out_dir}/diag.ps1",
+            "text": "param([string]$Kind, [string]$Name)\n# Read-only diagnostics for RW07-B3. Only these kinds exist; there is no way to run anything else.\nswitch ($Kind) {\n  'events'  { Get-WinEvent -LogName System -MaxEvents 5 -ErrorAction SilentlyContinue | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName | ConvertTo-Json -Compress }\n  'disk'    { $d = Get-PSDrive -Name C; [pscustomobject]@{ used_gb = [math]::Round($d.Used / 1GB, 1); free_gb = [math]::Round($d.Free / 1GB, 1); free_pct = [math]::Round(100 * $d.Free / ($d.Used + $d.Free), 1) } | ConvertTo-Json -Compress }\n  'process' { Get-Process -Name $Name -ErrorAction SilentlyContinue | Select-Object -First 3 Id, CPU, WorkingSet64 | ConvertTo-Json -Compress }\n  default   { Write-Error \"kind not allowed\"; exit 3 }\n}\n"
+          },
+          "description": "9. The one allow-listed diagnostics script"
+        },
+        {
+          "id": "s20",
+          "action": "core/set",
+          "args": {
+            "variable": "locked",
+            "value": {
+              "expr": "false"
+            }
+          },
+          "description": "Assume unlocked"
+        },
+        {
+          "id": "s21",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.triggerloop/process_running",
+              "args": {
+                "process_name": "LogonUI"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "locked",
+                "value": true
+              },
+              "description": "Locked"
+            }
+          ],
+          "description": "7. Is the session locked (sign-in screen running)?"
+        },
+        {
+          "id": "s23",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.triggerloop/process_running",
+              "args": {
+                "process_name": "explorer"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s24",
+              "action": "core/set",
+              "args": {
+                "variable": "desktop",
+                "value": true
+              },
+              "description": "Desktop present"
+            }
+          ],
+          "description": "A desktop session?"
+        },
+        {
+          "id": "s25",
+          "action": "ooa.dll/call",
+          "args": {
+            "library": "kernel32.dll",
+            "function": "GetTickCount64",
+            "return_type": "long",
+            "calling_convention": "stdcall"
+          },
+          "out": {
+            "result": "ticks"
+          },
+          "description": "8. Uptime from kernel32 (read only)"
+        },
+        {
+          "id": "s26",
+          "action": "core/set",
+          "args": {
+            "variable": "uptime_h",
+            "value": {
+              "expr": "round(toNumber($ticks$) / 3600000, 1)"
+            }
+          },
+          "description": "Uptime in hours"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s27",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s28",
+          "action": "core/comment",
+          "args": {
+            "text": "Per incident: service status, allow-listed diagnostics, exit codes, redaction, thresholds, screenshot if allowed, log package."
+          }
+        },
+        {
+          "id": "s29",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s30",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s31",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s32",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "svc",
+                    "value": {
+                      "expr": "if(startsWith($rec.resource$, 'svc:'), substring($rec.resource$, 4), 'W32Time')"
+                    }
+                  },
+                  "description": "Service to check (the clock service for cloud incidents)"
+                },
+                {
+                  "id": "s33",
+                  "action": "ooa.services/get_status",
+                  "args": {
+                    "name": "$svc$"
+                  },
+                  "out": {
+                    "status": "status"
+                  },
+                  "description": "1. Service status (read only)"
+                },
+                {
+                  "id": "s34",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "dir",
+                    "value": "${out_dir}/${rec.key}"
+                  },
+                  "description": "This incident's log folder"
+                },
+                {
+                  "id": "s35",
+                  "action": "ooa.folder/create",
+                  "args": {
+                    "path": "$dir$"
+                  },
+                  "description": "Its folder"
+                },
+                {
+                  "id": "s36",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "warn",
+                    "value": ""
+                  },
+                  "description": "No finding yet"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$kinds$",
+                    "as": "k"
+                  },
+                  "children": [
+                    {
+                      "id": "s38",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "not contains(['events', 'disk', 'process'], $k$)"
+                      },
+                      "children": [
+                        {
+                          "id": "s39",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "DIAG.NOT_ALLOWED",
+                            "message": "${k} is not an allow-listed diagnostic"
+                          },
+                          "description": "Refuse"
+                        }
+                      ],
+                      "description": "9. Not on the allow-list?"
+                    },
+                    {
+                      "id": "s40",
+                      "action": "ooa.script/run_powershell",
+                      "args": {
+                        "file": "${out_dir}/diag.ps1",
+                        "arguments": [
+                          "-Kind",
+                          "$k$",
+                          "-Name",
+                          "spoolsv"
+                        ],
+                        "fail_on_error": false,
+                        "timeout_seconds": 60
+                      },
+                      "out": {
+                        "output": "out",
+                        "error_output": "errout",
+                        "exit_code": "code"
+                      },
+                      "description": "2. Run it with an argument array"
+                    },
+                    {
+                      "id": "s41",
+                      "action": "ooa.string/replace",
+                      "args": {
+                        "text": {
+                          "expr": "coalesce($out$, '')"
+                        },
+                        "find": "(?i)(password|token|secret)[=:]\\S+",
+                        "replace_with": "$1=***",
+                        "regex": true
+                      },
+                      "out": {
+                        "result": "out"
+                      },
+                      "description": "4. Redact secrets"
+                    },
+                    {
+                      "id": "s42",
+                      "action": "ooa.file/write_text",
+                      "args": {
+                        "path": "${dir}/${k}.txt",
+                        "text": "exit ${code}\n${out}\n${errout}"
+                      },
+                      "description": "3. Keep the output and exit code"
+                    },
+                    {
+                      "id": "s43",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "eq",
+                          "left": "$k$",
+                          "right": "disk"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s44",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "free",
+                            "value": {
+                              "expr": "toNumber(get(jsonParse($out$), 'free_pct', 0))"
+                            }
+                          },
+                          "description": "Free space %"
+                        }
+                      ],
+                      "description": "Disk numbers?"
+                    }
+                  ],
+                  "description": "2. Each allow-listed diagnostic"
+                },
+                {
+                  "id": "s45",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$free$ < $free_pct_min$"
+                  },
+                  "children": [
+                    {
+                      "id": "s46",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "warn",
+                        "value": "disk free ${free}% below ${free_pct_min}%"
+                      },
+                      "description": "Finding"
+                    }
+                  ],
+                  "description": "5. Below the disk threshold?"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$status$",
+                      "right": "RUNNING"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s48",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "warn",
+                        "value": "${svc} is ${status}"
+                      },
+                      "description": "Finding"
+                    }
+                  ],
+                  "description": "Service not running?"
+                },
+                {
+                  "id": "s49",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "shot",
+                    "value": ""
+                  },
+                  "description": "No screenshot"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$desktop$ and not $locked$"
+                  },
+                  "children": [
+                    {
+                      "id": "s51",
+                      "action": "ooa.desktop/capture_screen",
+                      "args": {
+                        "path": "${dir}/screen.png"
+                      },
+                      "out": {
+                        "path": "shot"
+                      },
+                      "continueOnError": true,
+                      "description": "6. Screenshot for the evidence"
+                    }
+                  ],
+                  "description": "6. Desktop and unlocked?",
+                  "else": [
+                    {
+                      "id": "s52",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "message": "${rec.key}: no screenshot (no desktop or locked)"
+                      },
+                      "description": "No screenshot"
+                    }
+                  ]
+                },
+                {
+                  "id": "s53",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "zip",
+                    "value": "${out_dir}/${rec.key}-diagnostics.zip"
+                  },
+                  "description": "8. Log package"
+                },
+                {
+                  "id": "s54",
+                  "action": "ooa.file/zip",
+                  "args": {
+                    "source": "$dir$",
+                    "target": "$zip$",
+                    "overwrite": true
+                  },
+                  "description": "8. Package the logs"
+                },
+                {
+                  "id": "s55",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "service": "$svc$",
+                      "status": "$status$",
+                      "disk_free_pct": "$free$",
+                      "uptime_hours": "$uptime_h$",
+                      "exit_codes": "$code$",
+                      "screenshot": "$shot$",
+                      "package": "$zip$",
+                      "finding": {
+                        "expr": "if(isEmpty($warn$), 'none', $warn$)"
+                      }
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Diagnostics row"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${svc} ${status}"
+                  },
+                  "description": "Note"
+                },
+                {
+                  "id": "s57",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s58",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s59",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s60",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW07-B3 - record ${rec.key}",
+                        "message": "RW07-B3: record ${$i + 1} of ${len($records$)}\n\n${rec.key}: ${svc} ${status}\nDisk free ${free}%  uptime ${uptime_h} h\n${warn}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s61",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s62",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s63",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s64",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s65",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s66",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW07-B3 - exception",
+                            "message": "RW07-B3: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s67",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s68",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 QA Windows service incidents (the accepted incidents)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s69",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s70",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s71",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s72",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s73",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s74",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s75",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s76",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07-B3 Windows diagnostics bot finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s77",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s78",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07-B3 finished",
+                "message": "RW07-B3 Windows diagnostics bot finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

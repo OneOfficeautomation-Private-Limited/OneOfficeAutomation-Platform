@@ -1,0 +1,1276 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw07_b5",
+  "name": "RW07-B5 Post-action verification",
+  "description": "RW07-B5 (RW07 real-world test). For each remediated incident: waits for the expected state, polls the health checks, compares the CPU window with the baseline, pings and (with a lab device) reads SNMP, calls the local health address, makes sure the action ran once, cycles the instance safely if health got worse, keeps the after snapshot, updates ServiceNow and escalates what is not verified.",
+  "tags": [
+    "real-world-test",
+    "RW07"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "snmp_host",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "SNMP lab device to read (SNMPv2c sysUpTime); empty: skipped (no lab device here)."
+    },
+    {
+      "name": "b1",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "states",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "st",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "health",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "tries",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "met",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ping",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "snmp",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "local",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "acts",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "x",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "count",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "rolled",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "after",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "inc",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "sysid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ok",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "resource",
+          "state",
+          "health",
+          "cpu_after",
+          "baseline",
+          "actions_counted",
+          "rolled_back",
+          "after",
+          "verified"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: For each remediated incident: waits for the expected state, polls the health checks, compares the CPU window with the baseline, pings and (with a lab device) reads SNMP, calls the local health address, makes sure the action ran once, cycles the instance safely if health got worse, keeps the after snapshot, updates ServiceNow and escalates what is not verified. It works through 10 remediated incidents (the remediated ones) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW07-B5"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07-B5 Post-action verification started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07-B5 starts",
+                "message": "RW07-B5 Post-action verification\n\nFor each remediated incident: waits for the expected state, polls the health checks, compares the CPU window with the baseline, pings and (with a lab device) reads SNMP, calls the local health address, makes sure the action ran once, cycles the instance safely if health got worse, keeps the after snapshot, updates ServiceNow and escalates what is not verified.\n\nRecords: 10 remediated incidents (the remediated ones)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "The remediated incidents; connect to EC2."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B4/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B4/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW07-B4 evidence"
+            }
+          ],
+          "description": "RW07-B4 ran in this run?",
+          "else": [
+            {
+              "id": "s17",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW07-B4's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW07/fixtures/RW07-B4-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW07-B4 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s19",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s20",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW07-B1/evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW07-B1 evidence"
+            }
+          ],
+          "description": "RW07-B1 ran in this run?",
+          "else": [
+            {
+              "id": "s21",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW07-B1's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s22",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW07/fixtures/RW07-B1-evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW07-B1 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s23",
+          "action": "ooa.aws_ec2/connect",
+          "args": {
+            "region": "us-east-1",
+            "endpoint": "${standin}/ec2",
+            "access_key_id": {
+              "$credential": "rw_qa_standins/aws/access_key_id"
+            },
+            "secret_access_key": {
+              "$credential": "rw_qa_standins/aws/secret_access_key"
+            }
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "Connect to EC2 (us-east-1, QA account; stand-in address)"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s24",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s25",
+          "action": "core/comment",
+          "args": {
+            "text": "Per incident: state, health polling, metrics against baseline, ping/SNMP, local health, single action, rollback, after snapshot, ServiceNow."
+          }
+        },
+        {
+          "id": "s26",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s28",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "ooa.aws_ec2/wait_for_state",
+                  "args": {
+                    "instance_ids": [
+                      "$rec.resource$"
+                    ],
+                    "state": "running",
+                    "timeout_seconds": 60,
+                    "check_every_seconds": 2
+                  },
+                  "out": {
+                    "states": "states"
+                  },
+                  "description": "1. Wait until running"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "health",
+                    "value": ""
+                  },
+                  "description": "Not polled yet"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "tries",
+                    "value": 0
+                  },
+                  "description": "Count"
+                },
+                {
+                  "id": "s32",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "while",
+                    "condition": "$health$ != 'ok' and $tries$ < 3",
+                    "max_iterations": 4
+                  },
+                  "children": [
+                    {
+                      "id": "s33",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "tries",
+                        "value": {
+                          "expr": "$tries$ + 1"
+                        }
+                      },
+                      "description": "Count"
+                    },
+                    {
+                      "id": "s34",
+                      "action": "ooa.aws_ec2/get_instance_status",
+                      "args": {
+                        "instance_ids": [
+                          "$rec.resource$"
+                        ]
+                      },
+                      "out": {
+                        "statuses": "st"
+                      },
+                      "description": "Health checks"
+                    },
+                    {
+                      "id": "s35",
+                      "action": "ooa.datatable/get_value",
+                      "args": {
+                        "table": "$st$",
+                        "row": 0,
+                        "column": "instance_status"
+                      },
+                      "out": {
+                        "value": "health"
+                      },
+                      "description": "Instance check"
+                    },
+                    {
+                      "id": "s36",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$health$",
+                          "right": "ok"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s37",
+                          "action": "core/delay",
+                          "args": {
+                            "seconds": 1
+                          },
+                          "description": "Wait a second"
+                        }
+                      ],
+                      "description": "Not yet ok?"
+                    }
+                  ],
+                  "description": "2. Poll the health checks"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rolled",
+                    "value": false
+                  },
+                  "description": "No rollback yet"
+                },
+                {
+                  "id": "s39",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "ne",
+                          "left": "$health$",
+                          "right": "ok"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$rec.action$",
+                          "right": "reboot"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s40",
+                      "action": "ooa.aws_ec2/stop_instances",
+                      "args": {
+                        "instance_ids": [
+                          "$rec.resource$"
+                        ],
+                        "wait": true,
+                        "timeout_seconds": 60
+                      },
+                      "description": "Safe cycle: stop"
+                    },
+                    {
+                      "id": "s41",
+                      "action": "ooa.aws_ec2/start_instances",
+                      "args": {
+                        "instance_ids": [
+                          "$rec.resource$"
+                        ],
+                        "wait": true,
+                        "timeout_seconds": 60
+                      },
+                      "description": "Safe cycle: start"
+                    },
+                    {
+                      "id": "s42",
+                      "action": "ooa.aws_ec2/get_instance_status",
+                      "args": {
+                        "instance_ids": [
+                          "$rec.resource$"
+                        ]
+                      },
+                      "out": {
+                        "statuses": "st"
+                      },
+                      "description": "Health after the cycle"
+                    },
+                    {
+                      "id": "s43",
+                      "action": "ooa.datatable/get_value",
+                      "args": {
+                        "table": "$st$",
+                        "row": 0,
+                        "column": "instance_status"
+                      },
+                      "out": {
+                        "value": "health"
+                      },
+                      "description": "Instance check"
+                    },
+                    {
+                      "id": "s44",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "rolled",
+                        "value": true
+                      },
+                      "description": "Cycled"
+                    }
+                  ],
+                  "description": "7. Health got worse after a reboot?"
+                },
+                {
+                  "id": "s45",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "${standin}/ec2-qa/metrics/${rec.resource}"
+                  },
+                  "out": {
+                    "json": "met"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "3. CPU window against the baseline"
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.network/ping",
+                  "args": {
+                    "host": "127.0.0.1",
+                    "count": 1
+                  },
+                  "out": {
+                    "reachable": "ping"
+                  },
+                  "description": "4. Ping the QA network (loopback here)"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not isEmpty($snmp_host$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s48",
+                      "action": "ooa.network/snmp_get",
+                      "args": {
+                        "host": "$snmp_host$",
+                        "version": "v2c",
+                        "community": "public",
+                        "oids": [
+                          "1.3.6.1.2.1.1.3.0"
+                        ]
+                      },
+                      "out": {
+                        "values": "snmp"
+                      },
+                      "description": "4. SNMP GET sysUpTime"
+                    }
+                  ],
+                  "description": "4. SNMP lab device given?"
+                },
+                {
+                  "id": "s49",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "${standin}/qa/health"
+                  },
+                  "out": {
+                    "json": "local"
+                  },
+                  "description": "5. Local health address"
+                },
+                {
+                  "id": "s50",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "${standin}/ec2-qa/actions"
+                  },
+                  "out": {
+                    "json": "acts"
+                  },
+                  "description": "6. The EC2 action log"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "count",
+                    "value": 0
+                  },
+                  "description": "Count this incident's actions"
+                },
+                {
+                  "id": "s52",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$acts.actions$",
+                    "as": "x"
+                  },
+                  "children": [
+                    {
+                      "id": "s53",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "all": [
+                            {
+                              "op": "eq",
+                              "left": "$x.instance$",
+                              "right": "$rec.resource$"
+                            },
+                            {
+                              "op": "ne",
+                              "left": "$x.action$",
+                              "right": "StopInstances"
+                            }
+                          ]
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s54",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "count",
+                            "value": {
+                              "expr": "$count$ + 1"
+                            }
+                          },
+                          "description": "Count"
+                        }
+                      ],
+                      "description": "A remediation on it?"
+                    }
+                  ],
+                  "description": "Actions on this instance"
+                },
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": {
+                      "expr": "$health$ == 'ok' and toNumber($met.average$) <= toNumber($met.baseline$) * 1.5 and $ping$ and $count$ <= 2"
+                    }
+                  },
+                  "description": "Verified?"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "after",
+                    "value": "${rec.resource}|running|${health}|${met.average}"
+                  },
+                  "description": "8. After snapshot"
+                },
+                {
+                  "id": "s57",
+                  "action": "ooa.servicenow/query",
+                  "args": {
+                    "table": "incident",
+                    "query": "correlation_id=OOA-QA-RW07-${rec.key}",
+                    "max_records": 1,
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    }
+                  },
+                  "out": {
+                    "table": "inc"
+                  },
+                  "description": "The incident"
+                },
+                {
+                  "id": "s58",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$inc$",
+                    "row": 0,
+                    "column": "sys_id"
+                  },
+                  "out": {
+                    "value": "sysid"
+                  },
+                  "description": "Its sys_id"
+                },
+                {
+                  "id": "s59",
+                  "action": "ooa.servicenow/update_record",
+                  "args": {
+                    "table": "incident",
+                    "sys_id": "$sysid$",
+                    "fields": {
+                      "work_notes": "OOA-QA ${run_id}: ${rec.action} done; health ${health}; verified ${ok}",
+                      "state": {
+                        "expr": "if($ok$, '6', '2')"
+                      }
+                    },
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    }
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "9. Update ServiceNow"
+                },
+                {
+                  "id": "s60",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "resource": "$rec.resource$",
+                      "state": "running",
+                      "health": "$health$",
+                      "cpu_after": "$met.average$",
+                      "baseline": "$met.baseline$",
+                      "actions_counted": "$count$",
+                      "rolled_back": "$rolled$",
+                      "after": "$after$",
+                      "verified": "$ok$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Verification row"
+                },
+                {
+                  "id": "s61",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not $ok$"
+                  },
+                  "children": [
+                    {
+                      "id": "s62",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ESCALATE.UNVERIFIED",
+                        "message": "${rec.key}: still ${health} after ${rec.action}${if($rolled$, ' and a safe cycle', '')}; escalated"
+                      },
+                      "description": "Escalate"
+                    }
+                  ],
+                  "description": "10. Not verified?"
+                },
+                {
+                  "id": "s63",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "verified (${health})"
+                  },
+                  "description": "Note"
+                },
+                {
+                  "id": "s64",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s65",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s66",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s67",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW07-B5 - record ${rec.key}",
+                        "message": "RW07-B5: record ${$i + 1} of ${len($records$)}\n\n${rec.key}: ${health}, CPU ${met.average} vs ${met.baseline}\nActions ${count}, rolled back ${rolled}\nVerified ${ok}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s68",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s69",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s70",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s71",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s72",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s73",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW07-B5 - exception",
+                            "message": "RW07-B5: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s74",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s75",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 remediated incidents (the remediated ones)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s76",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s77",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s78",
+          "action": "ooa.aws_ec2/disconnect",
+          "args": {},
+          "description": "Disconnect"
+        },
+        {
+          "id": "s79",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s80",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s81",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s82",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s83",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s84",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07-B5 Post-action verification finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s85",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s86",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07-B5 finished",
+                "message": "RW07-B5 Post-action verification finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

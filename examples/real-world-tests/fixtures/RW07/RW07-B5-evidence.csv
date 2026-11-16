@@ -1,0 +1,4 @@
+key,resource,state,health,cpu_after,baseline,actions_counted,rolled_back,after,verified
+N01,i-0000000000000a001,running,ok,30,30,1,false,i-0000000000000a001|running|ok|30,true
+N04,i-0000000000000a004,running,ok,30,30,1,false,i-0000000000000a004|running|ok|30,true
+N10,i-0000000000000a00a,running,impaired,95,30,2,true,i-0000000000000a00a|running|impaired|95,false

@@ -1,0 +1,1218 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw07_b1",
+  "name": "RW07-B1 Incident intake and correlation",
+  "description": "RW07-B1 (RW07 real-world test). Reads the 10 QA incidents from ServiceNow and their alerts from Kafka, normalizes severity, service and time, drops repeat alerts, holds incidents inside a maintenance window, maps the affected QA resource, correlates earlier alerts, decides whether approval is needed, adds the runbook, makes the incident key and checkpoints it in the work queue.",
+  "tags": [
+    "real-world-test",
+    "RW07"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "alerts",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "inc",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "sev",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "service",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "opened",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "symptom",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "dkey",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "seen",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "maint",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "mstart",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "mend",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "in_maint",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "prior",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "a",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "runbooks",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "runbook",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ikey",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "item",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "kind",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "needs_ok",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "number",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "number",
+          "incident_key",
+          "severity",
+          "service",
+          "resource",
+          "kind",
+          "opened",
+          "dedupe_key",
+          "prior_alerts",
+          "needs_approval",
+          "runbook",
+          "wanted_action",
+          "queue_item"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Reads the 10 QA incidents from ServiceNow and their alerts from Kafka, normalizes severity, service and time, drops repeat alerts, holds incidents inside a maintenance window, maps the affected QA resource, correlates earlier alerts, decides whether approval is needed, adds the runbook, makes the incident key and checkpoints it in the work queue. It works through 10 QA incidents and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW07-B1"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07-B1 Incident intake and correlation started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07-B1 starts",
+                "message": "RW07-B1 Incident intake and correlation\n\nReads the 10 QA incidents from ServiceNow and their alerts from Kafka, normalizes severity, service and time, drops repeat alerts, holds incidents inside a maintenance window, maps the affected QA resource, correlates earlier alerts, decides whether approval is needed, adds the runbook, makes the incident key and checkpoints it in the work queue.\n\nRecords: 10 QA incidents\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the alert stream (Kafka, without moving the group on), the maintenance windows and the runbooks."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW07/incidents.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW07/incidents.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "servicenow",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s18",
+          "action": "ooa.kafka/read_messages",
+          "args": {
+            "base_url": "${standin}/kafka",
+            "access_token": {
+              "$credential": "rw_qa_standins/kafka/token"
+            },
+            "topics": [
+              "ooa-qa.alerts"
+            ],
+            "consumer_group": "rw07-intake",
+            "max_messages": 100,
+            "wait_seconds": 1,
+            "mark_as_read": false
+          },
+          "out": {
+            "messages": "alerts"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "Alerts on the QA alert topic"
+        },
+        {
+          "id": "s19",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW07/maintenance.csv"
+          },
+          "out": {
+            "table": "maint"
+          },
+          "description": "Maintenance windows"
+        },
+        {
+          "id": "s20",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW07/runbooks.csv"
+          },
+          "out": {
+            "table": "runbooks"
+          },
+          "description": "Runbooks"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s21",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s22",
+          "action": "core/comment",
+          "args": {
+            "text": "Per incident: read, normalize, dedupe, maintenance window, resource, earlier alerts, approval need, runbook, key, checkpoint."
+          }
+        },
+        {
+          "id": "s23",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s24",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s25",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s26",
+                  "action": "ooa.servicenow/query",
+                  "args": {
+                    "table": "incident",
+                    "query": "correlation_id=OOA-QA-RW07-${rec.key}",
+                    "max_records": 1,
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    }
+                  },
+                  "out": {
+                    "table": "inc"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "1. Read the incident"
+                },
+                {
+                  "id": "s27",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$inc$",
+                    "row": 0,
+                    "column": "number"
+                  },
+                  "out": {
+                    "value": "ikey"
+                  },
+                  "description": "Number"
+                },
+                {
+                  "id": "s28",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$inc$",
+                    "row": 0,
+                    "column": "impact"
+                  },
+                  "out": {
+                    "value": "sev"
+                  },
+                  "description": "Impact"
+                },
+                {
+                  "id": "s29",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$inc$",
+                    "row": 0,
+                    "column": "u_service"
+                  },
+                  "out": {
+                    "value": "service"
+                  },
+                  "description": "Service"
+                },
+                {
+                  "id": "s30",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$inc$",
+                    "row": 0,
+                    "column": "opened_at"
+                  },
+                  "out": {
+                    "value": "item"
+                  },
+                  "description": "Opened"
+                },
+                {
+                  "id": "s31",
+                  "action": "ooa.datetime/parse",
+                  "args": {
+                    "text": "$item$",
+                    "pattern": "yyyy-MM-dd HH:mm:ss",
+                    "time_zone": "UTC"
+                  },
+                  "out": {
+                    "value": "opened"
+                  },
+                  "description": "2. Opened time (UTC)"
+                },
+                {
+                  "id": "s32",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$inc$",
+                    "row": 0,
+                    "column": "urgency"
+                  },
+                  "out": {
+                    "value": "item"
+                  },
+                  "description": "Urgency"
+                },
+                {
+                  "id": "s33",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sev",
+                    "value": {
+                      "expr": "min(toNumber($sev$), toNumber($item$))"
+                    }
+                  },
+                  "description": "2. Severity (the higher of impact and urgency)"
+                },
+                {
+                  "id": "s34",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "service",
+                    "value": {
+                      "expr": "lower(trim($service$))"
+                    }
+                  },
+                  "description": "2. Service name"
+                },
+                {
+                  "id": "s35",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "kind",
+                    "value": {
+                      "expr": "if(startsWith($rec.resource$, 'svc:'), 'windows', 'ec2')"
+                    }
+                  },
+                  "description": "5. Resource kind"
+                },
+                {
+                  "id": "s36",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "symptom",
+                    "value": ""
+                  },
+                  "description": "Symptom from the alert"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "prior",
+                    "value": 0
+                  },
+                  "description": "Earlier alerts"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$alerts$",
+                    "as": "a"
+                  },
+                  "children": [
+                    {
+                      "id": "s39",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "eq",
+                          "left": "$a.key$",
+                          "right": "$rec.resource$"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s40",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "prior",
+                            "value": {
+                              "expr": "$prior$ + 1"
+                            }
+                          },
+                          "description": "Count it"
+                        },
+                        {
+                          "id": "s41",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "symptom",
+                            "value": "$a.value.symptom$"
+                          },
+                          "description": "Its symptom"
+                        }
+                      ],
+                      "description": "Same resource?"
+                    }
+                  ],
+                  "description": "6. Alerts for this resource"
+                },
+                {
+                  "id": "s42",
+                  "action": "ooa.crypto/hash_text",
+                  "args": {
+                    "text": "${service}|${rec.resource}|${symptom}"
+                  },
+                  "out": {
+                    "hash": "dkey"
+                  },
+                  "description": "3. Alert dedupe key"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "$seen$",
+                      "right": "$dkey$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s44",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.DUPLICATE_ALERT",
+                        "message": "${rec.key} repeats an alert already handled (${substring($dkey$, 0, 10)})"
+                      },
+                      "description": "Drop the repeat"
+                    }
+                  ],
+                  "description": "Repeat alert?"
+                },
+                {
+                  "id": "s45",
+                  "action": "ooa.list/add_item",
+                  "args": {
+                    "list": "$seen$",
+                    "item": "$dkey$"
+                  },
+                  "out": {
+                    "list": "seen"
+                  },
+                  "description": "Remember the key"
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$maint$",
+                    "column": "service",
+                    "value": "$service$",
+                    "return_column": "start",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "mstart"
+                  },
+                  "description": "4. Maintenance window start"
+                },
+                {
+                  "id": "s47",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$maint$",
+                    "column": "service",
+                    "value": "$service$",
+                    "return_column": "end",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "mend"
+                  },
+                  "description": "4. Maintenance window end"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "in_maint",
+                    "value": {
+                      "expr": "not isEmpty($mstart$) and dateDiff($mstart$, now(), 'minutes') >= 0 and dateDiff(now(), $mend$, 'minutes') >= 0"
+                    }
+                  },
+                  "description": "Inside a maintenance window?"
+                },
+                {
+                  "id": "s49",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$in_maint$"
+                  },
+                  "children": [
+                    {
+                      "id": "s50",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.MAINTENANCE",
+                        "message": "${rec.key}: ${service} is in maintenance until ${mend}"
+                      },
+                      "description": "Hold until the window ends"
+                    }
+                  ],
+                  "description": "Planned work?"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "needs_ok",
+                    "value": {
+                      "expr": "$sev$ <= 2 or $rec.wanted_action$ != 'none'"
+                    }
+                  },
+                  "description": "7. Approval needed (severity 1-2 or any change)"
+                },
+                {
+                  "id": "s52",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$runbooks$",
+                    "column": "service",
+                    "value": "$service$",
+                    "return_column": "url",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "runbook"
+                  },
+                  "description": "8. Runbook"
+                },
+                {
+                  "id": "s53",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "number",
+                    "value": "$ikey$"
+                  },
+                  "description": "The ServiceNow number"
+                },
+                {
+                  "id": "s54",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ikey",
+                    "value": "OOA-QA-${run_id}-${rec.key}"
+                  },
+                  "description": "9. Incident key"
+                },
+                {
+                  "id": "s55",
+                  "action": "ooa.workload/add_item",
+                  "args": {
+                    "queue": "rw07-incidents",
+                    "reference": "$ikey$",
+                    "if_exists": "skip",
+                    "data": {
+                      "key": "$rec.key$",
+                      "resource": "$rec.resource$",
+                      "severity": "$sev$"
+                    }
+                  },
+                  "out": {
+                    "item_id": "item"
+                  },
+                  "description": "10. Checkpoint in the incident queue"
+                },
+                {
+                  "id": "s56",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "number": "$number$",
+                      "incident_key": "$ikey$",
+                      "severity": "$sev$",
+                      "service": "$service$",
+                      "resource": "$rec.resource$",
+                      "kind": "$kind$",
+                      "opened": "${formatDate($opened$, '%Y-%m-%dT%H:%M:%SZ')}",
+                      "dedupe_key": "$dkey$",
+                      "prior_alerts": "$prior$",
+                      "needs_approval": "$needs_ok$",
+                      "runbook": "$runbook$",
+                      "wanted_action": "$rec.wanted_action$",
+                      "queue_item": "$item$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Incident row"
+                },
+                {
+                  "id": "s57",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "SEV${sev} ${kind}"
+                  },
+                  "description": "Note"
+                },
+                {
+                  "id": "s58",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s60",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s61",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW07-B1 - record ${rec.key}",
+                        "message": "RW07-B1: record ${$i + 1} of ${len($records$)}\n\n${rec.key} SEV${sev} ${service} on ${rec.resource}\nPrior alerts ${prior}; approval needed ${needs_ok}\nKey ${ikey}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s62",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s63",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s64",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s65",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s66",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s67",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW07-B1 - exception",
+                            "message": "RW07-B1: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s68",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 QA incidents"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s70",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s71",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s72",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s73",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s74",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s75",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s76",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s77",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW07-B1 Incident intake and correlation finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s78",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s79",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW07-B1 finished",
+                "message": "RW07-B1 Incident intake and correlation finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

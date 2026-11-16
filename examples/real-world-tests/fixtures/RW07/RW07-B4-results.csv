@@ -1,0 +1,7 @@
+key,status,note,time
+N01,done,reboot done,04:59:56
+N04,done,start done,04:59:56
+N07,exception,"REMEDIATE.ADVISE_ONLY: N07: restart of svc:Spooler is advised; this computer is not a disposable QA host, so nothing is restarted",04:59:56
+N08,exception,APPROVAL.REVOKED: N08: the second approval is declined; nothing changed,04:59:56
+N09,exception,REMEDIATE.FORBIDDEN: N09: forbidden: terminate is never done by an agent,04:59:56
+N10,done,reboot done,04:59:57

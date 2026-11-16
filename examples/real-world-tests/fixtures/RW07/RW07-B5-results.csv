@@ -1,0 +1,4 @@
+key,status,note,time
+N01,done,verified (ok),05:00:09
+N04,done,verified (ok),05:00:10
+N10,exception,ESCALATE.UNVERIFIED: N10: still impaired after reboot and a safe cycle; escalated,05:00:13

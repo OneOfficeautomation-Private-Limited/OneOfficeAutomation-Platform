@@ -247,6 +247,13 @@ def kb(h: H, m, path, q):
 
 def servicenow(h: H, m, path, q):
     parts = path.split("/")          # ['', 'api', 'now', 'table', table, sys_id?]
+    if len(parts) > 3 and parts[3] == "attachment" and m == "POST":      # attach a file to a record (RW07)
+        data = h.raw()
+        with LOCK:
+            att = {"sys_id": sys_id(), "table_name": q.get("table_name", ""), "table_sys_id": q.get("table_sys_id", ""), "file_name": q.get("file_name", "file"),
+                   "size_bytes": str(len(data)), "sys_created_on": now_iso(), "_created": True}
+            STATE.setdefault("servicenow", {}).setdefault("sys_attachment", []).append(att)
+        return h.send(201, {"result": {k: v for k, v in att.items() if not k.startswith("_")}})
     table, rid = parts[4], (parts[5] if len(parts) > 5 else None)
     with LOCK:
         rows = STATE.setdefault("servicenow", {}).setdefault(table, [])
@@ -911,6 +918,92 @@ def okta(h: H, m, path, q):
     raise KeyError(path)
 
 
+def ec2(h: H, m, path, q):
+    """AWS EC2 query API (RW07): describe, status, start/stop/reboot on OOA-QA tagged instances only; terminate is always refused.
+    Signatures are not checked (the stand-in has no AWS keys). Instances flagged regress stay impaired after a reboot."""
+    store = STATE.setdefault("ec2", {"instances": [], "actions": []})
+    f = parse_qs(h.raw().decode("utf-8"))
+    act = f.get("Action", [""])[0]
+    ids = [v[0] for k, v in sorted(f.items()) if k.startswith("InstanceId.")]
+    filters = {}
+    for k, v in f.items():
+        mf = re.match(r"Filter\.(\d+)\.Name", k)
+        if mf:
+            filters[v[0]] = [vv[0] for kk, vv in f.items() if kk.startswith("Filter.%s.Value." % mf.group(1))]
+    ns = ' xmlns="http://ec2.amazonaws.com/doc/2016-11-15/"'
+
+    def xml(body):
+        return h.send(200, '<?xml version="1.0" encoding="UTF-8"?><%sResponse%s><requestId>qa-%s</requestId>%s</%sResponse>' % (act, ns, uuid.uuid4().hex[:8], body, act),
+                      ctype="text/xml")
+
+    def err(code, msg, status=400):
+        return h.send(status, '<?xml version="1.0" encoding="UTF-8"?><Response><Errors><Error><Code>%s</Code><Message>%s</Message></Error></Errors><RequestID>qa</RequestID></Response>'
+                      % (code, msg), ctype="text/xml")
+
+    def tags(i):
+        return "".join("<item><key>%s</key><value>%s</value></item>" % (k, v) for k, v in i["tags"].items())
+
+    def inst(i):
+        return ("<item><instanceId>%s</instanceId><imageId>ami-qa</imageId><instanceState><code>16</code><name>%s</name></instanceState>"
+                "<privateIpAddress>10.20.0.%d</privateIpAddress><instanceType>t3.micro</instanceType><launchTime>2026-11-01T00:00:00.000Z</launchTime>"
+                "<placement><availabilityZone>%sa</availabilityZone></placement><monitoring><state>disabled</state></monitoring><tagSet>%s</tagSet></item>"
+                % (i["id"], i["state"], i["n"], i["region"], tags(i)))
+    with LOCK:
+        insts = store["instances"]
+        pick = [i for i in insts if (not ids or i["id"] in ids)]
+        for name, vals in filters.items():
+            if name.startswith("tag:"):
+                pick = [i for i in pick if i["tags"].get(name[4:]) in vals]
+            elif name == "instance-state-name":
+                pick = [i for i in pick if i["state"] in vals]
+        if act == "DescribeRegions":
+            return xml("<regionInfo><item><regionName>%s</regionName><regionEndpoint>ec2.qa</regionEndpoint></item></regionInfo>" % f.get("RegionName.1", ["us-east-1"])[0])
+        if act == "DescribeInstances":
+            return xml("<reservationSet>" + "".join("<item><reservationId>r-qa</reservationId><instancesSet>%s</instancesSet></item>" % inst(i) for i in pick) + "</reservationSet>")
+        if act == "DescribeInstanceStatus":
+            return xml("<instanceStatusSet>" + "".join(
+                "<item><instanceId>%s</instanceId><availabilityZone>%sa</availabilityZone><instanceState><name>%s</name></instanceState>"
+                "<systemStatus><status>%s</status></systemStatus><instanceStatus><status>%s</status></instanceStatus></item>"
+                % (i["id"], i["region"], i["state"], "ok" if i["state"] == "running" else "not-applicable", i["health"] if i["state"] == "running" else "not-applicable")
+                for i in pick) + "</instanceStatusSet>")
+        if act in ("StartInstances", "StopInstances", "RebootInstances", "TerminateInstances"):
+            if act == "TerminateInstances":
+                return err("UnauthorizedOperation", "QA stand-in: terminate is forbidden in the real-world tests", 403)
+            for i in pick:
+                if i["tags"].get("OOA-QA") != "true":
+                    return err("UnauthorizedOperation", "QA stand-in: %s is not tagged OOA-QA; only disposable QA instances may change" % i["id"], 403)
+            rows = ""
+            for i in pick:
+                before = i["state"]
+                if act == "StartInstances":
+                    i["state"], i["health"] = "running", ("impaired" if i.get("regress") else "ok")
+                elif act == "StopInstances":
+                    i["state"] = "stopped"
+                else:
+                    i["health"] = "impaired" if i.get("regress") else "ok"
+                store["actions"].append({"action": act, "instance": i["id"], "at": now_iso(), "run": f.get("ClientToken", [""])[0], "_created": True})
+                rows += "<item><instanceId>%s</instanceId><previousState><name>%s</name></previousState><currentState><name>%s</name></currentState></item>" % (i["id"], before, i["state"])
+            return xml("<return>true</return>" if act == "RebootInstances" else "<instancesSet>%s</instancesSet>" % rows)
+        return err("InvalidAction", "QA stand-in: %s is not supported" % act)
+
+
+def ec2_metrics(h: H, m, path, q):
+    """CPU metric window per instance (RW07-B2/B5), and the EC2 action log (B5 duplicate check, B6 reconciliation)."""
+    store = STATE.setdefault("ec2", {"instances": [], "actions": []})
+    with LOCK:
+        if path == "/ec2-qa/actions":
+            return h.send(200, {"actions": [{k: v for k, v in a.items() if not k.startswith("_")} for a in store["actions"]]})
+        mi = re.match(r"/ec2-qa/metrics/([^/]+)$", path)
+        if mi:
+            i = next((x for x in store["instances"] if x["id"] == mi.group(1)), None)
+            if i is None:
+                return h.send(404, {"error": "no instance"})
+            cpu = i.get("cpu_bad", 95) if i["health"] != "ok" or i["state"] != "running" else i.get("cpu_ok", 30)
+            return h.send(200, {"instance": i["id"], "metric": "CPUUtilization", "window_minutes": 15, "average": cpu, "baseline": i.get("cpu_ok", 30),
+                                "dependents": i.get("dependents", 0)})
+    raise KeyError(path)
+
+
 AI_LABELS = {"supplier": "Supplier", "invoice_number": "Invoice number", "invoice_date": "Invoice date", "po_number": "PO number",
              "currency": "Currency", "net": "Net", "tax": "Tax", "total": "Total"}
 
@@ -989,12 +1082,12 @@ def soap(h: H, m, path, q):
     return h.send(status, env, ctype="text/xml")
 
 
-SERVICES = ["servicenow", "salesforce", "jira", "graph", "workday", "approvals", "sap", "ai", "soap", "shopify", "carrier", "kafka", "slack", "okta"]
+SERVICES = ["servicenow", "salesforce", "jira", "graph", "workday", "approvals", "sap", "ai", "soap", "shopify", "carrier", "kafka", "slack", "okta", "ec2"]
 ROUTES = [
     ("/qa/", qa, None), ("/kb/", kb, None),
     ("/rest/api/2/user/groups", jira_groups, "jira"), ("/rest/api/2/user/search/qa", jira_groups, "jira"), ("/rest/api/2/group/user", jira_groups, "jira"),
     ("/api/now/", servicenow, "servicenow"), ("/services/", salesforce, "salesforce"), ("/rest/api/", jira, "jira"),
-    ("/graph/v1.0/", graph, "graph"), ("/ccx/", workday, "workday"), ("/approvals/", approvals, "approvals"), ("/sap/", sap, "sap"), ("/v1/", ai, "ai"), ("/soap/", soap, "soap"), ("/admin/api/", shopify, "shopify"), ("/carrier/", carrier, "carrier"), ("/kafka/", kafka, "kafka"), ("/slack/api/", slack, "slack"), ("/okta/", okta, "okta"),
+    ("/graph/v1.0/", graph, "graph"), ("/ccx/", workday, "workday"), ("/approvals/", approvals, "approvals"), ("/sap/", sap, "sap"), ("/v1/", ai, "ai"), ("/soap/", soap, "soap"), ("/admin/api/", shopify, "shopify"), ("/carrier/", carrier, "carrier"), ("/kafka/", kafka, "kafka"), ("/slack/api/", slack, "slack"), ("/okta/", okta, "okta"), ("/ec2/", ec2, "ec2"), ("/ec2-qa/", ec2_metrics, "ec2"),
 ]
 
 
