@@ -88,6 +88,8 @@ def agent_actions():
                 acts.add(s["action"])
         text = json.dumps(d)
         acts |= set(re.findall(r'"(ooa\.[a-z_0-9]+/[a-z_0-9]+)"', text))
+        if '"$credential"' in text:
+            acts.add("$credential")
         used[code] = acts
     return used
 
@@ -105,6 +107,33 @@ def latest_run(rw):
 def results(run, code):
     p = os.path.join(BASE, "output", run or "-", code, "results.csv")
     return list(csv.DictReader(open(p, encoding="utf-8"))) if os.path.exists(p) else None
+
+
+def newest(code, pinned=None):
+    """The newest complete run of one child (CHECK runs in One CommandCenter, LOCAL runs on this PC), or the pinned run."""
+    if pinned:
+        return pinned, results(pinned, code)
+    found = [(os.path.getmtime(p), p) for p in glob.glob(os.path.join(BASE, "output", "*", code, "results.csv"))]
+    found = [x for x in found if re.search(r"-(CHECK|LOCAL|SOLO)-", x[1])]
+    if not found:
+        return None, None
+    p = max(found)[1]
+    run = os.path.basename(os.path.dirname(os.path.dirname(p)))
+    return run, results(run, code)
+
+
+def expand(cmds):
+    """'ooa.desktop/type_text, press_keys' -> both commands; 'core/try, core/throw' as given; 'ooa.number' as a toolkit."""
+    keys, prefix = [], None
+    for part in re.split(r"[,+;]| and ", cmds):
+        part = part.strip().strip("`")
+        m = re.match(r"(ooa\.[a-z_0-9]+|core)(/[a-z_0-9*]+)?", part)
+        if m:
+            prefix = m.group(1)
+            keys.append(m.group(0))
+        elif prefix and re.fullmatch(r"[a-z_0-9*]+", part):
+            keys.append(prefix + "/" + part)
+    return keys
 
 
 def style(ws, widths):
@@ -127,8 +156,7 @@ def main():
     for a in sys.argv[3:]:
         k, v = a.split("=", 1)
         runs[k] = v
-    for k in runs:
-        runs[k] = runs[k] or latest_run(k)
+    pinned = {k: v for k, v in runs.items() if v}
     wb_src = openpyxl.load_workbook(src, data_only=True)
     child_rows = [r for r in wb_src["Child Bots"].iter_rows(min_row=2, values_only=True) if r[0] and re.match(r"RW\d\d-B\d", str(r[0]))]
     used = agent_actions()
@@ -138,21 +166,28 @@ def main():
     ws.title = "Summary"
     ws.append(["Automation", "Run id", "Where it ran", "Children passed", "Records handled", "Routed to exceptions", "Main agent", "Notes"])
     child_status = {}
-    for rw, run in runs.items():
-        passed, handled, routed = 0, 0, 0
+    for rw in runs:
+        passed, handled, routed, used_runs = 0, 0, 0, []
         for b in range(1, 7):
             code = "%s-B%d" % (rw, b)
-            res = results(run, code)
+            run, res = newest(code, pinned.get(rw))
             ok = res is not None and len(res) > 0
             child_status[code] = (run, res)
+            if run and run not in used_runs:
+                used_runs.append(run)
             if ok:
                 passed += 1
                 handled += sum(1 for r in res if r["status"] == "done")
                 routed += sum(1 for r in res if r["status"] == "exception")
-        where = "One CommandCenter" if run and "CHECK" in run else ("this PC, ooa run (local vault)" if run else "not run")
-        main_state = "ran in One CommandCenter" if rw in ("RW01", "RW02") else "checked in; runs after sign-in"
+        run = ", ".join(used_runs)
+        where = "; ".join(sorted({"One CommandCenter" if "CHECK" in r else "this PC (ooa run, local vault)" for r in used_runs})) or "not run"
+        mains = [p for p in glob.glob(os.path.join(BASE, "output", rw + "-*", rw + "-summary.csv"))]
+        main_ok = bool(mains)
+        main_state = ("ran in One CommandCenter (" + os.path.basename(os.path.dirname(mains[-1])) + ")") if main_ok else "checked in; runs after sign-in"
+        child_status[rw] = (run, [{"status": "done"}] if main_ok else None)
         ws.append([rw, run or "", where, "%d of 6" % passed, handled, routed, main_state,
-                   "Exceptions are the records each test routes on purpose (duplicates, policy breaks, approvals declined ...)."])
+                   "Routed records are the ones each test sends aside on purpose (duplicates, policy breaks, declined approvals ...). "
+                   "A child after the first works on what the child before it accepted, so later children see fewer than 10 records."])
     style(ws, [11, 22, 26, 14, 14, 18, 28, 60])
 
     ws = wb.create_sheet("Child bots")
@@ -171,6 +206,8 @@ def main():
     ws = wb.create_sheet("Records")
     ws.append(["Test case", "Record", "Result", "Note", "Time", "Run id"])
     for code, (run, res) in sorted(child_status.items()):
+        if "-B" not in code:
+            continue
         for x in res or []:
             ws.append([code, x["key"], "handled" if x["status"] == "done" else "routed: " + x["note"].split(":")[0], x["note"], x["time"], run])
     style(ws, [10, 12, 34, 90, 10, 18])
@@ -181,15 +218,22 @@ def main():
         if not isinstance(r[0], (int, float)):
             continue
         cmds = str(r[3] or "")
-        keys = re.findall(r"(ooa\.[a-z_0-9]+(?:/[a-z_0-9*]+)?|core/[a-z_]+)", cmds)
-        agents = sorted({code for code, acts in used.items() if any(a == k or a.startswith(k.rstrip("*") + ("/" if "/" not in k else "")) for k in keys for a in acts)})
-        ran = [a for a in agents if child_status.get(a, (None, None))[1]]
+        keys = expand(cmds)
+        def hit(a, k):
+            return a == k or ("/" not in k and a.startswith(k + "/")) or (k.endswith("*") and a.startswith(k[:-1]))
+        agents = sorted({code for code, acts in used.items() if any(hit(a, k) for k in keys for a in acts)})
+        if re.search(r"(?i)vault|locker", cmds + str(r[2])):
+            agents = sorted(code for code, acts in used.items() if "$credential" in acts)
+        ran_shared = any(child_status.get(x, (None, None))[1] for x in ("RW01", "RW02"))
+        ran = [a for a in agents if child_status.get(a, (None, None))[1] or (a == "RW00" and ran_shared)]
         if agents and ran:
             result, how = "Ran", "Passed in " + ", ".join(ran[:8]) + (" ..." if len(ran) > 8 else "")
         elif agents:
             result, how = "Built", "Used by " + ", ".join(agents[:8])
         else:
             result, how = "Not exercised", "No agent uses it (" + (str(r[4] or "")) + ")"
+        if int(r[0]) in BRANCH_ONLY and result == "Ran":
+            result, how = BRANCH_ONLY[int(r[0])]
         ws.append([int(r[0]), r[1], r[2], cmds, r[4], ", ".join(agents), result, how])
     style(ws, [5, 18, 26, 36, 16, 40, 14, 60])
 
@@ -211,6 +255,16 @@ def main():
     print("results written to", dst)
 
 
+BRANCH_ONLY = {   # catalogue rows whose step sits on a branch that runs only when its system is given
+    37: ("Built, not run here", "RW07-B3 terminal path runs when terminal_host is given (no terminal host here)."),
+    38: ("Simulator ran; GUI built", "RW03-B5 parked drafts in the SAP QA simulator; the SAP GUI path (MIR7, park) runs with sap_mode=gui on a PC with SAP Logon."),
+    42: ("Built, not run here", "RW03-B1 Outlook desktop path runs when outlook_mailbox is given (Outlook has no mail profile here)."),
+    61: ("Built, not run here", "RW08-B2 SFTP path runs when sftp_host is given (no SFTP server here)."),
+    62: ("Built, not run here", "RW05-B1 Active Directory path runs when ad_server is given (no QA domain here)."),
+    74: ("Ping ran; SNMP built", "RW07-B5 pings; its SNMP GET runs when snmp_host is given (no lab device here)."),
+    84: ("Built, set aside", "RW06-B2 sends to Document Automation only when docflow_process is given; Document Automation testing is set aside."),
+}
+
 FINDINGS = [
     (1, "String and data table commands refuse empty text ('resolved to empty').", "RW01, RW02 build", "Agents must guard every Trim, Replace or Lookup on a value that may be empty.",
      "Let text inputs accept an empty value where an empty result makes sense (Trim of '' is '')."),
@@ -226,6 +280,8 @@ FINDINGS = [
      "Cache the window's UI Automation element between steps of the same window."),
     (7, "A Credential variable cannot take a vault reference as its default; only a run input can.", "RW04-B1", "The main agent must pass the demo password in.",
      "Allow a Credential variable to name a vault reference, as Credential fields of commands do."),
+    (8, "Java applications: Get text on a label returns its accessible name, not the text it shows, when the two differ.", "RW02-B6 (Java desk app)",
+     "A status label with its own accessible name always reads back that name.", "Return the label's text (AccessibleText or JLabel.getText) for get_text; keep the name in get_properties."),
 ]
 
 if __name__ == "__main__":
