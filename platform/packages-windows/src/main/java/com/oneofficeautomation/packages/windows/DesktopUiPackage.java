@@ -58,22 +58,71 @@ public final class DesktopUiPackage {
     static List<Object> windowHandles(ActionContext ctx, DesktopObject.WindowSpec spec) {
         List<Object> handles = new ArrayList<>();
         if (spec.active()) { handles.add(call(ctx, "foreground", Map.of())); return handles; }
-        for (Object o : (List<Object>) call(ctx, "windows", Map.of())) {
-            Map<String, Object> w = (Map<String, Object>) o;
-            if (spec.test(String.valueOf(w.get("title")), String.valueOf(w.get("process")), String.valueOf(w.get("class_name")))) handles.add(w.get("handle"));
+        // top-level windows first (one UI Automation call); the dialogs windows own (a validation pop-up, a Save As box) only
+        // when no top-level window matches, since listing them asks every open window (real-world tests finding 6)
+        for (boolean owned : new boolean[]{false, true}) {
+            for (Object o : (List<Object>) call(ctx, "windows", Map.of("owned", owned))) {
+                Map<String, Object> w = (Map<String, Object>) o;
+                if (spec.test(String.valueOf(w.get("title")), String.valueOf(w.get("process")), String.valueOf(w.get("class_name")))) handles.add(w.get("handle"));
+            }
+            if (!handles.isEmpty()) break;
         }
         return handles;
     }
 
-    /** Every element in the matching windows that satisfies all rules, in UI Automation tree order. */
+    /** The control each search of this run found, by window and rules, with the window it was in (see {@link #findAll}). */
+    static final String FOUND = "ooa.desktop_ui.found";
+
+    record Remembered(Object window, Element element) {}
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Remembered> found(ActionContext ctx) {
+        if (ctx.sessions().get(FOUND) instanceof Map<?, ?> m) return (Map<String, Remembered>) m;
+        Map<String, Remembered> m = new java.util.concurrent.ConcurrentHashMap<>();
+        ctx.sessions().put(FOUND, m);
+        return m;
+    }
+
+    /**
+     * Every element in the matching windows that satisfies all rules, in UI Automation tree order.
+     * <p>A search that found one control in one window is remembered for the rest of the run: while that window still
+     * matches the window rule, the next step re-checks the control (still there, still matching every rule) instead of
+     * searching the window again, which costs one cross-process call per control for WinForms windows, about a second
+     * each step (real-world tests finding 6). A failed re-check searches again. Searches by control type alone, or that
+     * need the extra properties, are not remembered.
+     */
     @SuppressWarnings("unchecked")
     static List<Element> findAll(ActionContext ctx, DesktopObject.WindowSpec spec, List<DesktopObject.Rule> rules) {
-        Map<String, Object> args = new LinkedHashMap<>();
-        if (!spec.isEmpty()) {
-            List<Object> handles = windowHandles(ctx, spec);
-            if (handles.isEmpty()) return List.of();
-            args.put("windows", handles);
+        boolean remember = !spec.active() && !DesktopObject.needsDetail(rules) && rules.stream().anyMatch(r -> !r.name().equals("ControlType"));
+        String key = remember ? spec + "|" + rules : null;
+        List<Object> handles = spec.isEmpty() ? null : windowHandles(ctx, spec);
+        if (handles != null && handles.isEmpty()) {
+            if (key != null) found(ctx).remove(key);
+            return List.of();
         }
+        Remembered known = key == null ? null : found(ctx).get(key);
+        if (known != null) {
+            if (handles == null || handles.contains(known.window())) {
+                try {
+                    List<Object> names = new ArrayList<>();
+                    for (DesktopObject.Rule r : rules) if (!names.contains(r.name())) names.add(r.name());
+                    Map<String, Object> live = new LinkedHashMap<>(known.element().props());   // the other properties as the search read them
+                    live.putAll((Map<String, Object>) call(ctx, "recheck", Map.of("ref", known.element().ref(), "props", names)));
+                    if (DesktopObject.matchesAll(rules, live)) return List.of(new Element(live));
+                } catch (ActionException gone) { /* searched again below */ }
+            }
+            found(ctx).remove(key);
+        }
+        List<Element> out = search(ctx, handles, rules);
+        if (key != null && out.size() == 1 && (handles == null || handles.size() == 1))
+            found(ctx).put(key, new Remembered(handles == null ? null : handles.get(0), out.get(0)));
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Element> search(ActionContext ctx, List<Object> handles, List<DesktopObject.Rule> rules) {
+        Map<String, Object> args = new LinkedHashMap<>();
+        if (handles != null) args.put("windows", handles);
         Map<String, Object> pre = new LinkedHashMap<>();
         for (DesktopObject.Rule r : rules)
             if (r.match().equals("equals") && (r.name().equals("ControlType") || r.name().equals("AutomationId")) && !r.value().isEmpty()) pre.put(r.name(), r.value());
