@@ -83,6 +83,7 @@ def b2_build():
                     ("pol", "String", ""), ("bad_lic", "List", []), ("tests", "Any", None), ("passed", "Number", 0), ("tfailed", "Number", 0), ("ver", "String", ""),
                     ("x", "Dictionary", None), ("kp", "String", "")]:
         f.var(n, t, "local", d)
+    f.var("sftp_host", "String", "input", "", "QA artifact store reached by SFTP; empty: skipped (no SFTP server here).")
     evidence_var(f, ["key", "run_id", "head_sha", "artifact", "digest", "signature", "signer", "licences", "tests_passed", "tests_failed", "version"])
     c.start()
     with c.prepare("Accepted candidates; the licence policy; QA release engineering signs the QA artifacts with the test signing key (PGP)."):
@@ -149,6 +150,11 @@ def b2_build():
         f.act("ooa.datatable/add_row", desc="9. Record the digest", table="$evidence$",
               values={"key": "$rec.key$", "run_id": "$run.id$", "head_sha": "$rec.head_sha$", "artifact": "$art.name$", "digest": "sha256:${digest}", "signature": "${zip}.sig",
                       "signer": "$fp$", "licences": "ok", "tests_passed": "$passed$", "tests_failed": "$tfailed$", "version": {"expr": "trim($ver$)"}}, out={"table": "evidence"})
+        with f.if_("not isEmpty($sftp_host$)", desc="A QA artifact SFTP server given?"):
+            f.act("ooa.file_transfer/connect", desc="Connect to the QA artifact store (SFTP)", protocol="sftp", host="$sftp_host$", user="ooa-qa",
+                  password=cred("sftp", "password"), session="sftp")
+            f.act("ooa.file_transfer/upload", desc="Publish the verified artifact to QA staging", local_path="$zip$", remote_path="/qa-staging/${art.name}", session="sftp")
+            f.act("ooa.file_transfer/disconnect", desc="Disconnect", session="sftp")
         f.act("ooa.folder/delete", desc="10. Clean the unpacked files", path="${stage}/content", recursive=True)
         f.set("rec_note", "${art.name} ok", desc="Note")
     with c.finish():

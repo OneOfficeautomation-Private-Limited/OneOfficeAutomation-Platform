@@ -1153,8 +1153,13 @@ def ai(h: H, m, path, q):
         content = json.dumps(answer)
     elif b.get("tools") and not any(x.get("role") == "tool" for x in msgs):
         # an AI agent's first turn: call its first tool (an agent) with no arguments
-        name = b["tools"][0].get("function", {}).get("name", "tool")
-        msg = {"role": "assistant", "content": None, "tool_calls": [{"id": "call_qa_1", "type": "function", "function": {"name": name, "arguments": "{}"}}]}
+        names = [t.get("function", {}).get("name", "tool") for t in b["tools"]]
+        if "finish" in names:      # a web goal agent: report what the page shows and finish
+            title = re.search(r"(?i)title[\"':\s]+([^\n\"]{3,80})", user)
+            args = {"success": True, "answer": "QA scripted model read the page" + (": " + title.group(1).strip() if title else ""), "data": {}}
+            msg = {"role": "assistant", "content": None, "tool_calls": [{"id": "call_qa_f", "type": "function", "function": {"name": "finish", "arguments": json.dumps(args)}}]}
+        else:
+            msg = {"role": "assistant", "content": None, "tool_calls": [{"id": "call_qa_1", "type": "function", "function": {"name": names[0], "arguments": "{}"}}]}
         usage.append({"model": b.get("model", "qa-scripted"), "prompt_tokens": len(system + user) // 4, "completion_tokens": 10})
         return h.send(200, {"id": "chatcmpl-qa", "object": "chat.completion", "model": b.get("model", "qa-scripted"),
                             "choices": [{"index": 0, "message": msg, "finish_reason": "tool_calls"}], "usage": {"prompt_tokens": 1, "completion_tokens": 10}})

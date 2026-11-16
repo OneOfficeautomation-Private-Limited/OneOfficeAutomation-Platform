@@ -98,6 +98,300 @@
     "file": "agents/RW02 Employee lifecycle/RW02 Main - Employee lifecycle.flow.json"
   },
   {
+    "id": "rw03_b1",
+    "name": "RW03-B1 Invoice mail intake",
+    "folder": "Real-world tests/RW03 Procure-to-pay",
+    "path": "Real-world tests/RW03 Procure-to-pay/RW03-B1 Invoice mail intake.flow.json",
+    "file": "agents/RW03 Procure-to-pay/RW03-B1 Invoice mail intake.flow.json"
+  },
+  {
+    "id": "rw03_b2",
+    "name": "RW03-B2 PDF and OCR extraction",
+    "folder": "Real-world tests/RW03 Procure-to-pay",
+    "path": "Real-world tests/RW03 Procure-to-pay/RW03-B2 PDF and OCR extraction.flow.json",
+    "file": "agents/RW03 Procure-to-pay/RW03-B2 PDF and OCR extraction.flow.json"
+  },
+  {
+    "id": "rw03_b3",
+    "name": "RW03-B3 PO and receipt matcher",
+    "folder": "Real-world tests/RW03 Procure-to-pay",
+    "path": "Real-world tests/RW03 Procure-to-pay/RW03-B3 PO and receipt matcher.flow.json",
+    "file": "agents/RW03 Procure-to-pay/RW03-B3 PO and receipt matcher.flow.json"
+  },
+  {
+    "id": "rw03_b4",
+    "name": "RW03-B4 Approval and SoD controller",
+    "folder": "Real-world tests/RW03 Procure-to-pay",
+    "path": "Real-world tests/RW03 Procure-to-pay/RW03-B4 Approval and SoD controller.flow.json",
+    "file": "agents/RW03 Procure-to-pay/RW03-B4 Approval and SoD controller.flow.json"
+  },
+  {
+    "id": "rw03_b5",
+    "name": "RW03-B5 SAP QA draft operator",
+    "folder": "Real-world tests/RW03 Procure-to-pay",
+    "path": "Real-world tests/RW03 Procure-to-pay/RW03-B5 SAP QA draft operator.flow.json",
+    "file": "agents/RW03 Procure-to-pay/RW03-B5 SAP QA draft operator.flow.json"
+  },
+  {
+    "id": "rw03_b6",
+    "name": "RW03-B6 Excel control and close-out",
+    "folder": "Real-world tests/RW03 Procure-to-pay",
+    "path": "Real-world tests/RW03 Procure-to-pay/RW03-B6 Excel control and close-out.flow.json",
+    "file": "agents/RW03 Procure-to-pay/RW03-B6 Excel control and close-out.flow.json"
+  },
+  {
+    "id": "rw03_main",
+    "name": "RW03 Main - Procure-to-pay",
+    "folder": "Real-world tests/RW03 Procure-to-pay",
+    "path": "Real-world tests/RW03 Procure-to-pay/RW03 Main - Procure-to-pay.flow.json",
+    "file": "agents/RW03 Procure-to-pay/RW03 Main - Procure-to-pay.flow.json"
+  },
+  {
+    "id": "rw04_b1",
+    "name": "RW04-B1 Catalog and price reader",
+    "folder": "Real-world tests/RW04 Order-to-cash",
+    "path": "Real-world tests/RW04 Order-to-cash/RW04-B1 Catalog and price reader.flow.json",
+    "file": "agents/RW04 Order-to-cash/RW04-B1 Catalog and price reader.flow.json"
+  },
+  {
+    "id": "rw04_b2",
+    "name": "RW04-B2 Order intake and risk",
+    "folder": "Real-world tests/RW04 Order-to-cash",
+    "path": "Real-world tests/RW04 Order-to-cash/RW04-B2 Order intake and risk.flow.json",
+    "file": "agents/RW04 Order-to-cash/RW04-B2 Order intake and risk.flow.json"
+  },
+  {
+    "id": "rw04_b3",
+    "name": "RW04-B3 Inventory reservation",
+    "folder": "Real-world tests/RW04 Order-to-cash",
+    "path": "Real-world tests/RW04 Order-to-cash/RW04-B3 Inventory reservation.flow.json",
+    "file": "agents/RW04 Order-to-cash/RW04-B3 Inventory reservation.flow.json"
+  },
+  {
+    "id": "rw04_b4",
+    "name": "RW04-B4 Salesforce CRM updater",
+    "folder": "Real-world tests/RW04 Order-to-cash",
+    "path": "Real-world tests/RW04 Order-to-cash/RW04-B4 Salesforce CRM updater.flow.json",
+    "file": "agents/RW04 Order-to-cash/RW04-B4 Salesforce CRM updater.flow.json"
+  },
+  {
+    "id": "rw04_b5",
+    "name": "RW04-B5 Fulfilment and customer notice",
+    "folder": "Real-world tests/RW04 Order-to-cash",
+    "path": "Real-world tests/RW04 Order-to-cash/RW04-B5 Fulfilment and customer notice.flow.json",
+    "file": "agents/RW04 Order-to-cash/RW04-B5 Fulfilment and customer notice.flow.json"
+  },
+  {
+    "id": "rw04_b6",
+    "name": "RW04-B6 Windows revenue reconciler",
+    "folder": "Real-world tests/RW04 Order-to-cash",
+    "path": "Real-world tests/RW04 Order-to-cash/RW04-B6 Windows revenue reconciler.flow.json",
+    "file": "agents/RW04 Order-to-cash/RW04-B6 Windows revenue reconciler.flow.json"
+  },
+  {
+    "id": "rw04_main",
+    "name": "RW04 Main - Order-to-cash",
+    "folder": "Real-world tests/RW04 Order-to-cash",
+    "path": "Real-world tests/RW04 Order-to-cash/RW04 Main - Order-to-cash.flow.json",
+    "file": "agents/RW04 Order-to-cash/RW04 Main - Order-to-cash.flow.json"
+  },
+  {
+    "id": "rw05_b1",
+    "name": "RW05-B1 Identity census",
+    "folder": "Real-world tests/RW05 Access review",
+    "path": "Real-world tests/RW05 Access review/RW05-B1 Identity census.flow.json",
+    "file": "agents/RW05 Access review/RW05-B1 Identity census.flow.json"
+  },
+  {
+    "id": "rw05_b2",
+    "name": "RW05-B2 SaaS entitlement collectors",
+    "folder": "Real-world tests/RW05 Access review",
+    "path": "Real-world tests/RW05 Access review/RW05-B2 SaaS entitlement collectors.flow.json",
+    "file": "agents/RW05 Access review/RW05-B2 SaaS entitlement collectors.flow.json"
+  },
+  {
+    "id": "rw05_b3",
+    "name": "RW05-B3 Policy and SoD analyzer",
+    "folder": "Real-world tests/RW05 Access review",
+    "path": "Real-world tests/RW05 Access review/RW05-B3 Policy and SoD analyzer.flow.json",
+    "file": "agents/RW05 Access review/RW05-B3 Policy and SoD analyzer.flow.json"
+  },
+  {
+    "id": "rw05_b4",
+    "name": "RW05-B4 Approval and change guard",
+    "folder": "Real-world tests/RW05 Access review",
+    "path": "Real-world tests/RW05 Access review/RW05-B4 Approval and change guard.flow.json",
+    "file": "agents/RW05 Access review/RW05-B4 Approval and change guard.flow.json"
+  },
+  {
+    "id": "rw05_b5",
+    "name": "RW05-B5 QA remediation executor",
+    "folder": "Real-world tests/RW05 Access review",
+    "path": "Real-world tests/RW05 Access review/RW05-B5 QA remediation executor.flow.json",
+    "file": "agents/RW05 Access review/RW05-B5 QA remediation executor.flow.json"
+  },
+  {
+    "id": "rw05_b6",
+    "name": "RW05-B6 Excel evidence and restore",
+    "folder": "Real-world tests/RW05 Access review",
+    "path": "Real-world tests/RW05 Access review/RW05-B6 Excel evidence and restore.flow.json",
+    "file": "agents/RW05 Access review/RW05-B6 Excel evidence and restore.flow.json"
+  },
+  {
+    "id": "rw05_main",
+    "name": "RW05 Main - Access review",
+    "folder": "Real-world tests/RW05 Access review",
+    "path": "Real-world tests/RW05 Access review/RW05 Main - Access review.flow.json",
+    "file": "agents/RW05 Access review/RW05 Main - Access review.flow.json"
+  },
+  {
+    "id": "rw06_b1",
+    "name": "RW06-B1 Document intake and split",
+    "folder": "Real-world tests/RW06 Claims documents",
+    "path": "Real-world tests/RW06 Claims documents/RW06-B1 Document intake and split.flow.json",
+    "file": "agents/RW06 Claims documents/RW06-B1 Document intake and split.flow.json"
+  },
+  {
+    "id": "rw06_b2",
+    "name": "RW06-B2 Extraction and provenance",
+    "folder": "Real-world tests/RW06 Claims documents",
+    "path": "Real-world tests/RW06 Claims documents/RW06-B2 Extraction and provenance.flow.json",
+    "file": "agents/RW06 Claims documents/RW06-B2 Extraction and provenance.flow.json"
+  },
+  {
+    "id": "rw06_b3",
+    "name": "RW06-B3 Policy and fraud rules",
+    "folder": "Real-world tests/RW06 Claims documents",
+    "path": "Real-world tests/RW06 Claims documents/RW06-B3 Policy and fraud rules.flow.json",
+    "file": "agents/RW06 Claims documents/RW06-B3 Policy and fraud rules.flow.json"
+  },
+  {
+    "id": "rw06_b4",
+    "name": "RW06-B4 Human review coordinator",
+    "folder": "Real-world tests/RW06 Claims documents",
+    "path": "Real-world tests/RW06 Claims documents/RW06-B4 Human review coordinator.flow.json",
+    "file": "agents/RW06 Claims documents/RW06-B4 Human review coordinator.flow.json"
+  },
+  {
+    "id": "rw06_b5",
+    "name": "RW06-B5 ERP draft adapter",
+    "folder": "Real-world tests/RW06 Claims documents",
+    "path": "Real-world tests/RW06 Claims documents/RW06-B5 ERP draft adapter.flow.json",
+    "file": "agents/RW06 Claims documents/RW06-B5 ERP draft adapter.flow.json"
+  },
+  {
+    "id": "rw06_b6",
+    "name": "RW06-B6 Governance and reconciliation",
+    "folder": "Real-world tests/RW06 Claims documents",
+    "path": "Real-world tests/RW06 Claims documents/RW06-B6 Governance and reconciliation.flow.json",
+    "file": "agents/RW06 Claims documents/RW06-B6 Governance and reconciliation.flow.json"
+  },
+  {
+    "id": "rw06_main",
+    "name": "RW06 Main - Claims documents",
+    "folder": "Real-world tests/RW06 Claims documents",
+    "path": "Real-world tests/RW06 Claims documents/RW06 Main - Claims documents.flow.json",
+    "file": "agents/RW06 Claims documents/RW06 Main - Claims documents.flow.json"
+  },
+  {
+    "id": "rw07_b1",
+    "name": "RW07-B1 Incident intake and correlation",
+    "folder": "Real-world tests/RW07 Cloud incident",
+    "path": "Real-world tests/RW07 Cloud incident/RW07-B1 Incident intake and correlation.flow.json",
+    "file": "agents/RW07 Cloud incident/RW07-B1 Incident intake and correlation.flow.json"
+  },
+  {
+    "id": "rw07_b2",
+    "name": "RW07-B2 Cloud inventory reader",
+    "folder": "Real-world tests/RW07 Cloud incident",
+    "path": "Real-world tests/RW07 Cloud incident/RW07-B2 Cloud inventory reader.flow.json",
+    "file": "agents/RW07 Cloud incident/RW07-B2 Cloud inventory reader.flow.json"
+  },
+  {
+    "id": "rw07_b3",
+    "name": "RW07-B3 Windows diagnostics bot",
+    "folder": "Real-world tests/RW07 Cloud incident",
+    "path": "Real-world tests/RW07 Cloud incident/RW07-B3 Windows diagnostics bot.flow.json",
+    "file": "agents/RW07 Cloud incident/RW07-B3 Windows diagnostics bot.flow.json"
+  },
+  {
+    "id": "rw07_b4",
+    "name": "RW07-B4 Approval and remediation guard",
+    "folder": "Real-world tests/RW07 Cloud incident",
+    "path": "Real-world tests/RW07 Cloud incident/RW07-B4 Approval and remediation guard.flow.json",
+    "file": "agents/RW07 Cloud incident/RW07-B4 Approval and remediation guard.flow.json"
+  },
+  {
+    "id": "rw07_b5",
+    "name": "RW07-B5 Post-action verification",
+    "folder": "Real-world tests/RW07 Cloud incident",
+    "path": "Real-world tests/RW07 Cloud incident/RW07-B5 Post-action verification.flow.json",
+    "file": "agents/RW07 Cloud incident/RW07-B5 Post-action verification.flow.json"
+  },
+  {
+    "id": "rw07_b6",
+    "name": "RW07-B6 Teams and evidence reporter",
+    "folder": "Real-world tests/RW07 Cloud incident",
+    "path": "Real-world tests/RW07 Cloud incident/RW07-B6 Teams and evidence reporter.flow.json",
+    "file": "agents/RW07 Cloud incident/RW07-B6 Teams and evidence reporter.flow.json"
+  },
+  {
+    "id": "rw07_main",
+    "name": "RW07 Main - Cloud incident",
+    "folder": "Real-world tests/RW07 Cloud incident",
+    "path": "Real-world tests/RW07 Cloud incident/RW07 Main - Cloud incident.flow.json",
+    "file": "agents/RW07 Cloud incident/RW07 Main - Cloud incident.flow.json"
+  },
+  {
+    "id": "rw08_b1",
+    "name": "RW08-B1 Source and work item reader",
+    "folder": "Real-world tests/RW08 Release readiness",
+    "path": "Real-world tests/RW08 Release readiness/RW08-B1 Source and work item reader.flow.json",
+    "file": "agents/RW08 Release readiness/RW08-B1 Source and work item reader.flow.json"
+  },
+  {
+    "id": "rw08_b2",
+    "name": "RW08-B2 Build and artifact verifier",
+    "folder": "Real-world tests/RW08 Release readiness",
+    "path": "Real-world tests/RW08 Release readiness/RW08-B2 Build and artifact verifier.flow.json",
+    "file": "agents/RW08 Release readiness/RW08-B2 Build and artifact verifier.flow.json"
+  },
+  {
+    "id": "rw08_b3",
+    "name": "RW08-B3 Change risk analyzer",
+    "folder": "Real-world tests/RW08 Release readiness",
+    "path": "Real-world tests/RW08 Release readiness/RW08-B3 Change risk analyzer.flow.json",
+    "file": "agents/RW08 Release readiness/RW08-B3 Change risk analyzer.flow.json"
+  },
+  {
+    "id": "rw08_b4",
+    "name": "RW08-B4 Approval and environment lock",
+    "folder": "Real-world tests/RW08 Release readiness",
+    "path": "Real-world tests/RW08 Release readiness/RW08-B4 Approval and environment lock.flow.json",
+    "file": "agents/RW08 Release readiness/RW08-B4 Approval and environment lock.flow.json"
+  },
+  {
+    "id": "rw08_b5",
+    "name": "RW08-B5 QA deployment and rollback",
+    "folder": "Real-world tests/RW08 Release readiness",
+    "path": "Real-world tests/RW08 Release readiness/RW08-B5 QA deployment and rollback.flow.json",
+    "file": "agents/RW08 Release readiness/RW08-B5 QA deployment and rollback.flow.json"
+  },
+  {
+    "id": "rw08_b6",
+    "name": "RW08-B6 Microsoft 365 release pack",
+    "folder": "Real-world tests/RW08 Release readiness",
+    "path": "Real-world tests/RW08 Release readiness/RW08-B6 Microsoft 365 release pack.flow.json",
+    "file": "agents/RW08 Release readiness/RW08-B6 Microsoft 365 release pack.flow.json"
+  },
+  {
+    "id": "rw08_main",
+    "name": "RW08 Main - Release readiness",
+    "folder": "Real-world tests/RW08 Release readiness",
+    "path": "Real-world tests/RW08 Release readiness/RW08 Main - Release readiness.flow.json",
+    "file": "agents/RW08 Release readiness/RW08 Main - Release readiness.flow.json"
+  },
+  {
     "id": "rw00_standins",
     "name": "Start QA stand-ins",
     "folder": "Real-world tests/Shared",

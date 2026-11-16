@@ -198,6 +198,18 @@
       "default": 0
     },
     {
+      "name": "wxml",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "wxid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
       "name": "evidence",
       "type": "Table",
       "direction": "local",
@@ -735,6 +747,50 @@
                 },
                 {
                   "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "wxml",
+                    "value": "<wd:Worker xmlns:wd=\"urn:com.workday/bsvc\"><wd:Request_ID>${rec.request_id}</wd:Request_ID><wd:Worker_ID>${wid}</wd:Worker_ID><wd:Action>${rec.action}</wd:Action><wd:Rehire>${rehire}</wd:Rehire></wd:Worker>"
+                  },
+                  "description": "The reconciliation record as Workday-style XML"
+                },
+                {
+                  "id": "s47",
+                  "action": "ooa.xml/get_value",
+                  "args": {
+                    "xml": "$wxml$",
+                    "xpath": "//*[local-name()='Worker_ID']"
+                  },
+                  "out": {
+                    "value": "wxid"
+                  },
+                  "description": "Read the worker id back from the XML"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$wxid$",
+                      "right": "$wid$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s49",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VERIFY.XML",
+                        "message": "${rec.request_id}: XML holds ${wxid}, expected ${wid}"
+                      },
+                      "description": "Report it"
+                    }
+                  ],
+                  "description": "XML disagrees?"
+                },
+                {
+                  "id": "s50",
                   "action": "ooa.log/write",
                   "args": {
                     "path": "$log_file$",
@@ -743,7 +799,7 @@
                   "description": "Write the reconciliation event"
                 },
                 {
-                  "id": "s47",
+                  "id": "s51",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$evidence$",
@@ -764,7 +820,7 @@
                   "description": "Record it"
                 },
                 {
-                  "id": "s48",
+                  "id": "s52",
                   "action": "core/set",
                   "args": {
                     "variable": "rec_note",
@@ -773,7 +829,7 @@
                   "description": "Note for the results"
                 },
                 {
-                  "id": "s49",
+                  "id": "s53",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$results$",
@@ -790,7 +846,7 @@
                   "description": "Add the record's result to the results table"
                 },
                 {
-                  "id": "s50",
+                  "id": "s54",
                   "action": "core/set",
                   "args": {
                     "variable": "processed",
@@ -801,14 +857,14 @@
                   "description": "Count the record as handled"
                 },
                 {
-                  "id": "s51",
+                  "id": "s55",
                   "action": "core/if",
                   "args": {
                     "condition": "$watch$"
                   },
                   "children": [
                     {
-                      "id": "s52",
+                      "id": "s56",
                       "action": "ooa.desktop/message_box",
                       "args": {
                         "title": "RW02-B2 - record ${rec.key}",
@@ -831,14 +887,14 @@
                   ],
                   "children": [
                     {
-                      "id": "s53",
+                      "id": "s57",
                       "action": "core/comment",
                       "args": {
                         "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
                       }
                     },
                     {
-                      "id": "s54",
+                      "id": "s58",
                       "action": "ooa.datatable/add_row",
                       "args": {
                         "table": "$results$",
@@ -855,7 +911,7 @@
                       "description": "Add the failure to the results table"
                     },
                     {
-                      "id": "s55",
+                      "id": "s59",
                       "action": "core/set",
                       "args": {
                         "variable": "exceptions",
@@ -866,7 +922,7 @@
                       "description": "Count the exception"
                     },
                     {
-                      "id": "s56",
+                      "id": "s60",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -876,14 +932,14 @@
                       "description": "Log the exception"
                     },
                     {
-                      "id": "s57",
+                      "id": "s61",
                       "action": "core/if",
                       "args": {
                         "condition": "$watch$"
                       },
                       "children": [
                         {
-                          "id": "s58",
+                          "id": "s62",
                           "action": "ooa.desktop/message_box",
                           "args": {
                             "title": "RW02-B2 - exception",
@@ -904,14 +960,14 @@
               ]
             },
             {
-              "id": "s59",
+              "id": "s63",
               "action": "core/if",
               "args": {
                 "condition": "$watch$"
               },
               "children": [
                 {
-                  "id": "s60",
+                  "id": "s64",
                   "action": "core/delay",
                   "args": {
                     "seconds": "$pause_seconds$"
@@ -928,21 +984,21 @@
       "description": "3. Work through the records"
     },
     {
-      "id": "s61",
+      "id": "s65",
       "action": "core/step",
       "args": {
         "title": "4. Finish"
       },
       "children": [
         {
-          "id": "s62",
+          "id": "s66",
           "action": "core/comment",
           "args": {
             "text": "Save the results, set the outputs and say how it went."
           }
         },
         {
-          "id": "s63",
+          "id": "s67",
           "action": "core/set",
           "args": {
             "variable": "evidence_file",
@@ -951,7 +1007,7 @@
           "description": "Name of the evidence file"
         },
         {
-          "id": "s64",
+          "id": "s68",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$evidence$",
@@ -960,7 +1016,7 @@
           "description": "Save the evidence rows"
         },
         {
-          "id": "s65",
+          "id": "s69",
           "action": "core/set",
           "args": {
             "variable": "result_file",
@@ -969,7 +1025,7 @@
           "description": "Name of the results file"
         },
         {
-          "id": "s66",
+          "id": "s70",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$results$",
@@ -978,7 +1034,7 @@
           "description": "Save one row per record"
         },
         {
-          "id": "s67",
+          "id": "s71",
           "action": "core/set",
           "args": {
             "variable": "status",
@@ -987,7 +1043,7 @@
           "description": "Every record was handled (exceptions are routed, not lost)"
         },
         {
-          "id": "s68",
+          "id": "s72",
           "action": "ooa.log/write",
           "args": {
             "path": "$log_file$",
@@ -996,14 +1052,14 @@
           "description": "Log the end"
         },
         {
-          "id": "s69",
+          "id": "s73",
           "action": "core/if",
           "args": {
             "condition": "$watch$"
           },
           "children": [
             {
-              "id": "s70",
+              "id": "s74",
               "action": "ooa.desktop/message_box",
               "args": {
                 "title": "RW02-B2 finished",

@@ -263,6 +263,12 @@
       "default": ""
     },
     {
+      "name": "total_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
       "name": "lines",
       "type": "Table",
       "direction": "local",
@@ -1068,15 +1074,26 @@
                 },
                 {
                   "id": "s65",
+                  "action": "ooa.number/format",
+                  "args": {
+                    "value": "$total$"
+                  },
+                  "out": {
+                    "text": "total_text"
+                  },
+                  "description": "The total formatted for the note"
+                },
+                {
+                  "id": "s66",
                   "action": "core/set",
                   "args": {
                     "variable": "rec_note",
-                    "value": "${ai.currency} ${total} (${how})"
+                    "value": "${ai.currency} ${total_text} (${how})"
                   },
                   "description": "Note for the results"
                 },
                 {
-                  "id": "s66",
+                  "id": "s67",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$results$",
@@ -1093,7 +1110,7 @@
                   "description": "Add the record's result to the results table"
                 },
                 {
-                  "id": "s67",
+                  "id": "s68",
                   "action": "core/set",
                   "args": {
                     "variable": "processed",
@@ -1104,14 +1121,14 @@
                   "description": "Count the record as handled"
                 },
                 {
-                  "id": "s68",
+                  "id": "s69",
                   "action": "core/if",
                   "args": {
                     "condition": "$watch$"
                   },
                   "children": [
                     {
-                      "id": "s69",
+                      "id": "s70",
                       "action": "ooa.desktop/message_box",
                       "args": {
                         "title": "RW03-B2 - record ${rec.key}",
@@ -1134,14 +1151,14 @@
                   ],
                   "children": [
                     {
-                      "id": "s70",
+                      "id": "s71",
                       "action": "core/comment",
                       "args": {
                         "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
                       }
                     },
                     {
-                      "id": "s71",
+                      "id": "s72",
                       "action": "ooa.datatable/add_row",
                       "args": {
                         "table": "$results$",
@@ -1158,7 +1175,7 @@
                       "description": "Add the failure to the results table"
                     },
                     {
-                      "id": "s72",
+                      "id": "s73",
                       "action": "core/set",
                       "args": {
                         "variable": "exceptions",
@@ -1169,7 +1186,7 @@
                       "description": "Count the exception"
                     },
                     {
-                      "id": "s73",
+                      "id": "s74",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -1179,14 +1196,14 @@
                       "description": "Log the exception"
                     },
                     {
-                      "id": "s74",
+                      "id": "s75",
                       "action": "core/if",
                       "args": {
                         "condition": "$watch$"
                       },
                       "children": [
                         {
-                          "id": "s75",
+                          "id": "s76",
                           "action": "ooa.desktop/message_box",
                           "args": {
                             "title": "RW03-B2 - exception",
@@ -1207,14 +1224,14 @@
               ]
             },
             {
-              "id": "s76",
+              "id": "s77",
               "action": "core/if",
               "args": {
                 "condition": "$watch$"
               },
               "children": [
                 {
-                  "id": "s77",
+                  "id": "s78",
                   "action": "core/delay",
                   "args": {
                     "seconds": "$pause_seconds$"
@@ -1231,21 +1248,21 @@
       "description": "3. Work through the records"
     },
     {
-      "id": "s78",
+      "id": "s79",
       "action": "core/step",
       "args": {
         "title": "4. Finish"
       },
       "children": [
         {
-          "id": "s79",
+          "id": "s80",
           "action": "core/comment",
           "args": {
             "text": "Save the results, set the outputs and say how it went."
           }
         },
         {
-          "id": "s80",
+          "id": "s81",
           "action": "core/set",
           "args": {
             "variable": "evidence_file",
@@ -1254,7 +1271,7 @@
           "description": "Name of the evidence file"
         },
         {
-          "id": "s81",
+          "id": "s82",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$evidence$",
@@ -1263,7 +1280,7 @@
           "description": "Save the evidence rows"
         },
         {
-          "id": "s82",
+          "id": "s83",
           "action": "core/set",
           "args": {
             "variable": "lines_file",
@@ -1272,7 +1289,7 @@
           "description": "Name of the lines file"
         },
         {
-          "id": "s83",
+          "id": "s84",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$lines$",
@@ -1281,7 +1298,7 @@
           "description": "Save the invoice lines"
         },
         {
-          "id": "s84",
+          "id": "s85",
           "action": "core/set",
           "args": {
             "variable": "result_file",
@@ -1290,7 +1307,7 @@
           "description": "Name of the results file"
         },
         {
-          "id": "s85",
+          "id": "s86",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$results$",
@@ -1299,7 +1316,7 @@
           "description": "Save one row per record"
         },
         {
-          "id": "s86",
+          "id": "s87",
           "action": "core/set",
           "args": {
             "variable": "status",
@@ -1308,7 +1325,7 @@
           "description": "Every record was handled (exceptions are routed, not lost)"
         },
         {
-          "id": "s87",
+          "id": "s88",
           "action": "ooa.log/write",
           "args": {
             "path": "$log_file$",
@@ -1317,14 +1334,14 @@
           "description": "Log the end"
         },
         {
-          "id": "s88",
+          "id": "s89",
           "action": "core/if",
           "args": {
             "condition": "$watch$"
           },
           "children": [
             {
-              "id": "s89",
+              "id": "s90",
               "action": "ooa.desktop/message_box",
               "args": {
                 "title": "RW03-B2 finished",

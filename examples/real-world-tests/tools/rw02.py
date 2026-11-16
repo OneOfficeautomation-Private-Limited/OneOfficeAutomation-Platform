@@ -89,7 +89,7 @@ def b2_workday():
               "10 Workday sandbox workers", data_file="RW02/requests.csv")
     f = c.f
     for n, t, d in [("found", "Table", None), ("hits", "List", None), ("hit", "Dictionary", None), ("again", "Any", None), ("wid", "String", ""),
-                    ("staged", "Any", None), ("rehire", "Boolean", False), ("cnt", "Number", 0)]:
+                    ("staged", "Any", None), ("rehire", "Boolean", False), ("cnt", "Number", 0), ("wxml", "String", ""), ("wxid", "String", "")]:
         f.var(n, t, "local", d)
     evidence_var(f, ["key", "request_id", "action", "worker_id", "rehire", "staged"])
     c.start()
@@ -124,6 +124,11 @@ def b2_workday():
                 with f.if_({"op": "ne", "left": "$hit.status$", "right": "Active"}, desc="Not active?"):
                     f.act("core/throw", desc="Reject it", code="VALIDATION.NOT_ACTIVE", message="${rec.first} ${rec.last} is not active in Workday")
                 f.set("wid", "$hit.employeeId$", desc="Keep the worker id")
+        f.set("wxml", "<wd:Worker xmlns:wd=\"urn:com.workday/bsvc\"><wd:Request_ID>${rec.request_id}</wd:Request_ID><wd:Worker_ID>${wid}</wd:Worker_ID>"
+                      "<wd:Action>${rec.action}</wd:Action><wd:Rehire>${rehire}</wd:Rehire></wd:Worker>", desc="The reconciliation record as Workday-style XML")
+        f.act("ooa.xml/get_value", desc="Read the worker id back from the XML", xml="$wxml$", xpath="//*[local-name()='Worker_ID']", out={"value": "wxid"})
+        with f.if_({"op": "ne", "left": "$wxid$", "right": "$wid$"}, desc="XML disagrees?"):
+            f.act("core/throw", desc="Report it", code="VERIFY.XML", message="${rec.request_id}: XML holds ${wxid}, expected ${wid}")
         f.act("ooa.log/write", desc="Write the reconciliation event", path="$log_file$", message="${rec.request_id}: Workday ${wid} rehire ${rehire}")
         f.act("ooa.datatable/add_row", desc="Record it", table="$evidence$",
               values={"key": "$rec.key$", "request_id": "$rec.request_id$", "action": "$rec.action$", "worker_id": "$wid$", "rehire": "$rehire$",
@@ -333,11 +338,24 @@ def b6_readiness():
                     ("bundle", "Table", {"columns": ["key", "request_id", "action", "workday", "entra", "servicenow", "mail", "state"], "rows": []})]:
         f.var(n, t, "local", d)
     f.var("workbook", "String", "output", "", "The evidence workbook.")
+    for n, t, d in [("jhome", "String", ""), ("jpid", "Number", 0), ("japps", "List", None), ("desk", "Boolean", False), ("jstatus", "Any", None),
+                    ("pa", "List", None), ("pb", "List", None), ("same_img", "Boolean", False), ("diff_img", "Number", 0)]:
+        f.var(n, t, "local", d)
     c.start()
     with c.prepare("Read this computer's details and every child's evidence."):
         f.act("ooa.file/write_text", desc="A small VBScript that names this computer", path="${out_dir}/computer.vbs",
               text='Set n = CreateObject("WScript.Network")\nWScript.Echo n.ComputerName')
         f.act("ooa.script/run_vbscript", desc="Read the computer name (VBScript)", file="${out_dir}/computer.vbs", out={"output": "computer"})
+        f.comment("The HR team's legacy Java desk app records each readiness confirmation; the Java applications commands drive it.")
+        f.act("ooa.system/get_environment_variable", desc="Where Java is", name="JAVA_HOME", out={"value": "jhome"}, cont=True)
+        with f.if_({"condition": "ooa.file/exists", "args": {"path": "${base}/data/RW02/qa-desk.jar"}}, desc="Desk app available?") as hasj:
+            f.act("ooa.application/start_program", desc="Start the Java desk app", program={"expr": "if(isEmpty($jhome$), 'java', $jhome$ + '/bin/java.exe')"},
+                  arguments=["-jar", "${base}/data/RW02/qa-desk.jar", "${out_dir}/desk-confirmations.txt"], window_state="normal", out={"process_id": "jpid"})
+            f.act("ooa.window/wait_for", desc="Wait for its window", title="OOA QA Desk", timeout_seconds=30)
+            f.act("ooa.java_apps/list_apps", desc="Java programs with windows", out={"apps": "japps"})
+            f.set("desk", True, desc="Desk app running")
+        with f.else_(hasj):
+            f.act("ooa.log/write", desc="No desk app", path="$log_file$", level="WARN", message="qa-desk.jar not built (no JDK): Java steps skipped")
         for k, code in src.items():
             with f.if_({"condition": "ooa.file/exists", "args": {"path": "${base}/output/${run_id}/" + code + "/evidence.csv"}}, desc=code + " evidence present?"):
                 f.act("ooa.csv/read", desc="Read " + code + " evidence", path="${base}/output/${run_id}/" + code + "/evidence.csv", out={"table": k})
@@ -352,6 +370,15 @@ def b6_readiness():
         with f.if_({"op": "eq", "left": "$state$", "right": "mismatch"}, desc="A mismatch?"):
             f.act("ooa.log/write", desc="Highlight it", path="$log_file$", level="WARN", message="${rec.request_id}: Workday ${wd}, Entra ${entra}, task ${task}")
         f.set("line", "${rec.request_id};${state};${wd};${entra};${task}", desc="The line")
+        with f.if_("$desk$", desc="Desk app running?"):
+            f.act("ooa.java_apps/object_action", desc="Java app: employee field", window_title="OOA QA Desk", role="text", name="Employee", action_="set_text",
+                  value="${rec.request_id} ${rec.first} ${rec.last}")
+            f.act("ooa.java_apps/object_action", desc="Java app: readiness field", window_title="OOA QA Desk", role="text", name="Readiness", action_="set_text", value="$state$")
+            f.act("ooa.java_apps/object_action", desc="Java app: confirm", window_title="OOA QA Desk", role="push button", name="Confirm", action_="do_action")
+            f.act("ooa.java_apps/object_action", desc="Java app: read its status", window_title="OOA QA Desk", role="label", index=4, action_="get_text",
+                  out={"result": "jstatus"})
+            with f.if_("not startsWith(toString($jstatus$), 'Confirmed')", desc="Not confirmed?"):
+                f.act("core/throw", desc="Report it", code="VERIFY.DESK_APP", message="${rec.request_id}: the desk app says ${jstatus}")
         f.act("ooa.desktop/clipboard_set", desc="Put the line on the clipboard", text="$line$")
         f.act("ooa.desktop/clipboard_get", desc="Read it back", out={"text": "clip"})
         with f.if_({"op": "ne", "left": "$clip$", "right": "$line$"}, desc="Clipboard changed on the way?"):
@@ -368,6 +395,14 @@ def b6_readiness():
         f.act("ooa.excel/save", desc="Save it")
         f.act("ooa.excel/close", desc="Close it")
         f.act("ooa.excel_desktop/export_pdf", desc="Export it as PDF with Excel", path="$workbook$", target="${out_dir}/RW02-evidence.pdf")
+        f.act("ooa.pdf/to_images", desc="Picture of the PDF's first page", path="${out_dir}/RW02-evidence.pdf", pages="1", target_folder="${out_dir}/pdf-a", out={"files": "pa"})
+        f.act("ooa.pdf/to_images", desc="And again (a second rendering)", path="${out_dir}/RW02-evidence.pdf", pages="1", target_folder="${out_dir}/pdf-b", out={"files": "pb"})
+        f.act("ooa.image/compare_images", desc="Image check: both renderings are the same picture", image="${first($pa$)}", other="${first($pb$)}", tolerance=10,
+              out={"same": "same_img", "difference_percent": "diff_img"})
+        with f.if_("not $same_img$", desc="Pictures differ?"):
+            f.act("core/throw", desc="Report it", code="VERIFY.PDF_RENDER", message="The PDF renders differently each time (${diff_img}%)")
+        with f.if_("$desk$", desc="Close the Java desk app"):
+            f.act("ooa.application/stop_program", desc="Stop it", process_id="$jpid$", force=True, cont=True)
         f.act("ooa.microsoft365/upload_file", desc="Store the workbook in the QA SharePoint site", local_path="$workbook$", remote_path="OOA-QA/${run_id}/RW02-evidence.xlsx",
               drive="sites/ooa-qa/drive", access_token=cred("graph"), base_url="${standin}/graph/v1.0", out={"item_id": "item"})
         f.act("ooa.datatable/write_to_file", desc="Export the CSV", table="$bundle$", path="${out_dir}/RW02-evidence.csv")

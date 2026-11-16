@@ -212,6 +212,12 @@
       "default": 0
     },
     {
+      "name": "go_ahead",
+      "type": "Boolean",
+      "direction": "local",
+      "default": true
+    },
+    {
       "name": "evidence",
       "type": "Table",
       "direction": "local",
@@ -364,7 +370,7 @@
           "id": "s14",
           "action": "core/comment",
           "args": {
-            "text": "Read the approved reply template, the cases and the customers."
+            "text": "Read the approved reply template, the cases and the customers; ask the supervisor once (answers yes by itself after 5 s)."
           }
         },
         {
@@ -408,6 +414,40 @@
         },
         {
           "id": "s18",
+          "action": "ooa.desktop/prompt_yes_no",
+          "args": {
+            "title": "RW01-B5 replies",
+            "question": "Send the approved OOA-QA replies now?",
+            "timeout_seconds": 5,
+            "answer_on_timeout": true
+          },
+          "out": {
+            "answer": "go_ahead"
+          },
+          "continueOnError": true,
+          "description": "Ask the supervisor: send the approved replies now? (yes after 5 s without an answer)"
+        },
+        {
+          "id": "s19",
+          "action": "core/if",
+          "args": {
+            "condition": "not $go_ahead$"
+          },
+          "children": [
+            {
+              "id": "s20",
+              "action": "core/throw",
+              "args": {
+                "code": "REVIEW.HELD",
+                "message": "The supervisor held the replies"
+              },
+              "description": "Stop: replies held"
+            }
+          ],
+          "description": "The supervisor said no?"
+        },
+        {
+          "id": "s21",
           "action": "ooa.file/read_text",
           "args": {
             "path": "${base}/data/RW01/reply_template.txt"
@@ -418,7 +458,7 @@
           "description": "Read the approved template"
         },
         {
-          "id": "s19",
+          "id": "s22",
           "action": "ooa.csv/read",
           "args": {
             "path": "${base}/data/RW01/cases.csv"
@@ -429,7 +469,7 @@
           "description": "Read the cases"
         },
         {
-          "id": "s20",
+          "id": "s23",
           "action": "ooa.csv/read",
           "args": {
             "path": "${base}/data/RW01/customers.csv"
@@ -443,21 +483,21 @@
       "description": "2. Prepare"
     },
     {
-      "id": "s21",
+      "id": "s24",
       "action": "core/step",
       "args": {
         "title": "3. Work through the records"
       },
       "children": [
         {
-          "id": "s22",
+          "id": "s25",
           "action": "core/comment",
           "args": {
             "text": "Per draft: fill the template, scan for personal data, check approval and separation of duties, allow only QA recipients, send, reconcile and log."
           }
         },
         {
-          "id": "s23",
+          "id": "s26",
           "action": "core/loop",
           "args": {
             "iterator": "table_rows",
@@ -467,7 +507,7 @@
           },
           "children": [
             {
-              "id": "s24",
+              "id": "s27",
               "action": "core/set",
               "args": {
                 "variable": "rec_note",
@@ -476,12 +516,12 @@
               "description": "Clear the note of the previous record"
             },
             {
-              "id": "s25",
+              "id": "s28",
               "action": "core/try",
               "args": {},
               "children": [
                 {
-                  "id": "s26",
+                  "id": "s29",
                   "action": "ooa.datatable/lookup",
                   "args": {
                     "table": "$cases$",
@@ -496,7 +536,7 @@
                   "description": "The case's account"
                 },
                 {
-                  "id": "s27",
+                  "id": "s30",
                   "action": "ooa.datatable/lookup",
                   "args": {
                     "table": "$customers$",
@@ -511,7 +551,7 @@
                   "description": "The customer's name"
                 },
                 {
-                  "id": "s28",
+                  "id": "s31",
                   "action": "ooa.string/replace",
                   "args": {
                     "text": "$template$",
@@ -524,7 +564,7 @@
                   "description": "Fill in the name"
                 },
                 {
-                  "id": "s29",
+                  "id": "s32",
                   "action": "ooa.string/replace",
                   "args": {
                     "text": "$reply$",
@@ -537,7 +577,7 @@
                   "description": "Fill in the case"
                 },
                 {
-                  "id": "s30",
+                  "id": "s33",
                   "action": "ooa.string/replace",
                   "args": {
                     "text": {
@@ -552,7 +592,7 @@
                   "description": "Fill in severity and type"
                 },
                 {
-                  "id": "s31",
+                  "id": "s34",
                   "action": "ooa.string/replace",
                   "args": {
                     "text": {
@@ -567,7 +607,7 @@
                   "description": "Fill in team and hours"
                 },
                 {
-                  "id": "s32",
+                  "id": "s35",
                   "action": "ooa.string/replace",
                   "args": {
                     "text": "$reply$",
@@ -580,7 +620,7 @@
                   "description": "Fill in the facts"
                 },
                 {
-                  "id": "s33",
+                  "id": "s36",
                   "action": "ooa.string/count_occurrences",
                   "args": {
                     "text": {
@@ -594,14 +634,14 @@
                   "description": "Scan for card numbers left in the text"
                 },
                 {
-                  "id": "s34",
+                  "id": "s37",
                   "action": "core/if",
                   "args": {
                     "condition": "$pii$ > 0"
                   },
                   "children": [
                     {
-                      "id": "s35",
+                      "id": "s38",
                       "action": "core/throw",
                       "args": {
                         "code": "POLICY.PII_IN_REPLY",
@@ -613,7 +653,7 @@
                   "description": "Personal data in the reply?"
                 },
                 {
-                  "id": "s36",
+                  "id": "s39",
                   "action": "core/if",
                   "args": {
                     "condition": {
@@ -624,7 +664,7 @@
                   },
                   "children": [
                     {
-                      "id": "s37",
+                      "id": "s40",
                       "action": "core/throw",
                       "args": {
                         "code": "POLICY.SEPARATION_OF_DUTIES",
@@ -636,7 +676,7 @@
                   "description": "Would the agent approve its own reply?"
                 },
                 {
-                  "id": "s38",
+                  "id": "s41",
                   "action": "core/set",
                   "args": {
                     "variable": "decision",
@@ -645,7 +685,7 @@
                   "description": "The approver's decision"
                 },
                 {
-                  "id": "s39",
+                  "id": "s42",
                   "action": "core/set",
                   "args": {
                     "variable": "seen",
@@ -654,7 +694,7 @@
                   "description": "Nothing sent yet"
                 },
                 {
-                  "id": "s40",
+                  "id": "s43",
                   "action": "core/if",
                   "args": {
                     "condition": {
@@ -665,7 +705,7 @@
                   },
                   "children": [
                     {
-                      "id": "s41",
+                      "id": "s44",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -677,14 +717,14 @@
                   "description": "Declined?",
                   "else": [
                     {
-                      "id": "s42",
+                      "id": "s45",
                       "action": "core/if",
                       "args": {
                         "condition": "not endsWith(lower($rec.to$), '@ooa-qa.test')"
                       },
                       "children": [
                         {
-                          "id": "s43",
+                          "id": "s46",
                           "action": "core/throw",
                           "args": {
                             "code": "POLICY.EXTERNAL_RECIPIENT",
@@ -696,7 +736,7 @@
                       "description": "Only the QA tenant's addresses"
                     },
                     {
-                      "id": "s44",
+                      "id": "s47",
                       "action": "ooa.microsoft365/send_mail",
                       "args": {
                         "to": "$rec.to$",
@@ -711,7 +751,7 @@
                       "description": "Send the approved reply to the QA mailbox"
                     },
                     {
-                      "id": "s45",
+                      "id": "s48",
                       "action": "ooa.microsoft365/list_mail",
                       "args": {
                         "folder": "inbox",
@@ -730,14 +770,14 @@
                       "description": "Reconcile: find it in the recipient's mailbox"
                     },
                     {
-                      "id": "s46",
+                      "id": "s49",
                       "action": "core/if",
                       "args": {
                         "condition": "$seen$ == 0"
                       },
                       "children": [
                         {
-                          "id": "s47",
+                          "id": "s50",
                           "action": "core/throw",
                           "args": {
                             "code": "VERIFY.NOT_DELIVERED",
@@ -751,7 +791,7 @@
                   ]
                 },
                 {
-                  "id": "s48",
+                  "id": "s51",
                   "action": "ooa.log/write",
                   "args": {
                     "path": "$log_file$",
@@ -760,7 +800,7 @@
                   "description": "Log the approval decision"
                 },
                 {
-                  "id": "s49",
+                  "id": "s52",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$evidence$",
@@ -782,7 +822,7 @@
                   "description": "Record the result"
                 },
                 {
-                  "id": "s50",
+                  "id": "s53",
                   "action": "core/set",
                   "args": {
                     "variable": "rec_note",
@@ -791,7 +831,7 @@
                   "description": "Note for the results"
                 },
                 {
-                  "id": "s51",
+                  "id": "s54",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$results$",
@@ -808,7 +848,7 @@
                   "description": "Add the record's result to the results table"
                 },
                 {
-                  "id": "s52",
+                  "id": "s55",
                   "action": "core/set",
                   "args": {
                     "variable": "processed",
@@ -819,14 +859,14 @@
                   "description": "Count the record as handled"
                 },
                 {
-                  "id": "s53",
+                  "id": "s56",
                   "action": "core/if",
                   "args": {
                     "condition": "$watch$"
                   },
                   "children": [
                     {
-                      "id": "s54",
+                      "id": "s57",
                       "action": "ooa.desktop/message_box",
                       "args": {
                         "title": "RW01-B5 - record ${rec.key}",
@@ -849,14 +889,14 @@
                   ],
                   "children": [
                     {
-                      "id": "s55",
+                      "id": "s58",
                       "action": "core/comment",
                       "args": {
                         "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
                       }
                     },
                     {
-                      "id": "s56",
+                      "id": "s59",
                       "action": "ooa.datatable/add_row",
                       "args": {
                         "table": "$results$",
@@ -873,7 +913,7 @@
                       "description": "Add the failure to the results table"
                     },
                     {
-                      "id": "s57",
+                      "id": "s60",
                       "action": "core/set",
                       "args": {
                         "variable": "exceptions",
@@ -884,7 +924,7 @@
                       "description": "Count the exception"
                     },
                     {
-                      "id": "s58",
+                      "id": "s61",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -894,14 +934,14 @@
                       "description": "Log the exception"
                     },
                     {
-                      "id": "s59",
+                      "id": "s62",
                       "action": "core/if",
                       "args": {
                         "condition": "$watch$"
                       },
                       "children": [
                         {
-                          "id": "s60",
+                          "id": "s63",
                           "action": "ooa.desktop/message_box",
                           "args": {
                             "title": "RW01-B5 - exception",
@@ -922,14 +962,14 @@
               ]
             },
             {
-              "id": "s61",
+              "id": "s64",
               "action": "core/if",
               "args": {
                 "condition": "$watch$"
               },
               "children": [
                 {
-                  "id": "s62",
+                  "id": "s65",
                   "action": "core/delay",
                   "args": {
                     "seconds": "$pause_seconds$"
@@ -946,21 +986,21 @@
       "description": "3. Work through the records"
     },
     {
-      "id": "s63",
+      "id": "s66",
       "action": "core/step",
       "args": {
         "title": "4. Finish"
       },
       "children": [
         {
-          "id": "s64",
+          "id": "s67",
           "action": "core/comment",
           "args": {
             "text": "Save the results, set the outputs and say how it went."
           }
         },
         {
-          "id": "s65",
+          "id": "s68",
           "action": "core/set",
           "args": {
             "variable": "evidence_file",
@@ -969,7 +1009,7 @@
           "description": "Name of the evidence file"
         },
         {
-          "id": "s66",
+          "id": "s69",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$evidence$",
@@ -978,7 +1018,7 @@
           "description": "Save the evidence rows"
         },
         {
-          "id": "s67",
+          "id": "s70",
           "action": "core/set",
           "args": {
             "variable": "result_file",
@@ -987,7 +1027,7 @@
           "description": "Name of the results file"
         },
         {
-          "id": "s68",
+          "id": "s71",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$results$",
@@ -996,7 +1036,7 @@
           "description": "Save one row per record"
         },
         {
-          "id": "s69",
+          "id": "s72",
           "action": "core/set",
           "args": {
             "variable": "status",
@@ -1005,7 +1045,7 @@
           "description": "Every record was handled (exceptions are routed, not lost)"
         },
         {
-          "id": "s70",
+          "id": "s73",
           "action": "ooa.log/write",
           "args": {
             "path": "$log_file$",
@@ -1014,14 +1054,14 @@
           "description": "Log the end"
         },
         {
-          "id": "s71",
+          "id": "s74",
           "action": "core/if",
           "args": {
             "condition": "$watch$"
           },
           "children": [
             {
-              "id": "s72",
+              "id": "s75",
               "action": "ooa.desktop/message_box",
               "args": {
                 "title": "RW01-B5 finished",

@@ -60,8 +60,9 @@ def b1_mail_intake():
     for n, t, d in [("email", "Dictionary", None), ("invoice", "String", ""), ("supplier_id", "String", ""), ("case_id", "String", ""),
                     ("files", "List", None), ("pdf", "String", ""), ("info", "Dictionary", None), ("sha", "String", ""), ("seen", "List", []),
                     ("period", "String", ""), ("cfg", "Dictionary", None), ("suppliers", "Table", None), ("intake", "String", ""),
-                    ("arrived", "Dictionary", None), ("handed", "Number", 0)]:
+                    ("arrived", "Dictionary", None), ("handed", "Number", 0), ("olk", "Number", 0)]:
         f.var(n, t, "local", d)
+    f.var("outlook_mailbox", "String", "input", "", "Outlook desktop mailbox to cross-check (needs Outlook with a mail profile); empty: skipped.")
     evidence_var(f, ["key", "case_id", "invoice", "sender", "supplier_id", "file", "hash", "size_bytes", "received", "period"])
     c.start()
     with c.prepare("Read the 10 tagged invoice mails (oldest first), the supplier allow-list and the open accounting period."):
@@ -70,6 +71,10 @@ def b1_mail_intake():
               oldest_first=True, max_results=10, retry=RETRY, out={"table": "records"}, **graph(MAILBOX))
         f.act("ooa.csv/read", desc="Read the supplier master (sender allow-list)", path="${base}/data/RW03/suppliers.csv", out={"table": "suppliers"})
         f.act("ooa.json/read_file", desc="Read the open accounting period", path="${base}/data/RW03/period.json", out={"value": "cfg"})
+        with f.if_("not isEmpty($outlook_mailbox$)", desc="Outlook desktop given (a PC with an Outlook mail profile)?"):
+            f.act("ooa.outlook_desktop/list", desc="The same tagged invoice mails through Outlook desktop", mailbox="$outlook_mailbox$", folder="Inbox",
+                  subject_contains="OOA-QA invoice", max=10, out={"count": "olk"})
+            f.act("ooa.log/write", desc="Compare with Graph", path="$log_file$", message="Outlook desktop sees ${olk} tagged mails")
         f.set("intake", "${out_dir}/intake", desc="Intake folder: the accepted PDFs, one per case")
         f.act("ooa.folder/create", desc="Create the intake folder", path="$intake$")
     with c.records("Per mail: read it, check the sender, route a missing attachment, save the PDF, check type and size, hash and drop duplicates, "
@@ -135,7 +140,7 @@ def b2_extraction():
     for n, t, d in [("b1", "Table", None), ("pdf", "String", ""), ("text", "String", ""), ("pages", "Number", 0), ("imgs", "List", None),
                     ("ocr", "String", ""), ("ai", "Dictionary", None), ("conf", "Dictionary", None), ("review", "Boolean", False),
                     ("parsed", "Any", None), ("ln", "Dictionary", None), ("net", "Number", 0), ("tax", "Number", 0), ("total", "Number", 0),
-                    ("sum_lines", "Number", 0), ("ok", "Boolean", False), ("dup_key", "String", ""), ("seen", "List", []), ("how", "String", ""),
+                    ("sum_lines", "Number", 0), ("ok", "Boolean", False), ("dup_key", "String", ""), ("seen", "List", []), ("how", "String", ""), ("total_text", "String", ""),
                     ("lines", "Table", {"columns": ["key", "invoice", "sku", "qty", "unit_price", "amount"], "rows": []})]:
         f.var(n, t, "local", d)
     f.var("threshold", "Number", "input", 0.8, "AI confidence below this sends a field to a person (unless the bot can prove it by calculation).")
@@ -201,7 +206,8 @@ def b2_extraction():
                       "invoice_date": "$ai.invoice_date$", "locale": "$parsed.locale$", "net": "$net$", "tax_rate": "$parsed.tax_rate$", "tax": "$tax$",
                       "total": "$total$", "line_count": {"expr": "len($parsed.lines$)"}, "ai_review": "$review$", "how": "$how$",
                       "page_image": "${first($imgs$)}"}, out={"table": "evidence"})
-        f.set("rec_note", "${ai.currency} ${total} (${how})", desc="Note for the results")
+        f.act("ooa.number/format", desc="The total formatted for the note", value="$total$", out={"text": "total_text"})
+        f.set("rec_note", "${ai.currency} ${total_text} (${how})", desc="Note for the results")
     with c.finish():
         save_evidence(f)
         f.set("lines_file", "${out_dir}/lines.csv", desc="Name of the lines file")
@@ -280,7 +286,8 @@ def b3_matcher():
                   xpath="//*[local-name()='price']", retry=RETRY, out={"values": "erp"})
             with f.if_("abs(toNumber(first($erp$)) - toNumber($ln.po_price$)) > 0.001", desc="ERP and PO prices differ?"):
                 f.act("core/throw", desc="Stop: master data differs", code="DATA.PRICE_MASTER", message="${ln.sku}: ERP price ${first($erp$)}, PO price ${ln.po_price}")
-            f.expr("var", "round((toNumber($ln.unit_price$) - toNumber($ln.po_price$)) / toNumber($ln.po_price$) * 100, 2)", desc="4. Price variance (%)")
+            f.act("ooa.number/round", desc="4. Price variance (%), rounded", value={"expr": "(toNumber($ln.unit_price$) - toNumber($ln.po_price$)) / toNumber($ln.po_price$) * 100"},
+                  decimals=2, out={"result": "var"})
             f.expr("max_var", "max($max_var$, abs($var$))", desc="Keep the largest")
             f.expr("short", "$short$ + max(0, toNumber($ln.qty$) - toNumber($ln.received$))", desc="4. Invoiced but not received")
         f.expr("tax_var", "round(toNumber($rec.tax$) - round(toNumber($rec.net$) * toNumber($rec.tax_rate$) / 100, 2), 2)", desc="4. Tax variance")

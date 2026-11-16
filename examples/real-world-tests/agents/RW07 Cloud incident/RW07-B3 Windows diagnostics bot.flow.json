@@ -260,6 +260,19 @@
       "description": "Free disk space below this per cent is a finding."
     },
     {
+      "name": "terminal_host",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "A QA terminal host for read-only checks over SSH; empty: skipped (no terminal host here)."
+    },
+    {
+      "name": "term_screen",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
       "name": "evidence",
       "type": "Table",
       "direction": "local",
@@ -555,26 +568,87 @@
             }
           },
           "description": "Uptime in hours"
+        },
+        {
+          "id": "s27",
+          "action": "core/if",
+          "args": {
+            "condition": "not isEmpty($terminal_host$)"
+          },
+          "children": [
+            {
+              "id": "s28",
+              "action": "ooa.terminal/connect",
+              "args": {
+                "host": "$terminal_host$",
+                "terminal_type": "vt-ssh",
+                "user": "ooa-qa",
+                "password": {
+                  "$credential": "rw_qa_standins/terminal/password"
+                },
+                "session": "term"
+              },
+              "description": "Sign in to the QA terminal host"
+            },
+            {
+              "id": "s29",
+              "action": "ooa.terminal/send_text",
+              "args": {
+                "text": "uptime",
+                "session": "term"
+              },
+              "description": "Read-only command: uptime"
+            },
+            {
+              "id": "s30",
+              "action": "ooa.terminal/send_key",
+              "args": {
+                "key": "Enter",
+                "session": "term"
+              },
+              "description": "Enter"
+            },
+            {
+              "id": "s31",
+              "action": "ooa.terminal/get_screen",
+              "args": {
+                "session": "term"
+              },
+              "out": {
+                "text": "term_screen"
+              },
+              "description": "Read the screen"
+            },
+            {
+              "id": "s32",
+              "action": "ooa.terminal/disconnect",
+              "args": {
+                "session": "term"
+              },
+              "description": "Sign off"
+            }
+          ],
+          "description": "A QA terminal host given (VT over SSH)?"
         }
       ],
       "description": "2. Prepare"
     },
     {
-      "id": "s27",
+      "id": "s33",
       "action": "core/step",
       "args": {
         "title": "3. Work through the records"
       },
       "children": [
         {
-          "id": "s28",
+          "id": "s34",
           "action": "core/comment",
           "args": {
             "text": "Per incident: service status, allow-listed diagnostics, exit codes, redaction, thresholds, screenshot if allowed, log package."
           }
         },
         {
-          "id": "s29",
+          "id": "s35",
           "action": "core/loop",
           "args": {
             "iterator": "table_rows",
@@ -584,7 +658,7 @@
           },
           "children": [
             {
-              "id": "s30",
+              "id": "s36",
               "action": "core/set",
               "args": {
                 "variable": "rec_note",
@@ -593,12 +667,12 @@
               "description": "Clear the note of the previous record"
             },
             {
-              "id": "s31",
+              "id": "s37",
               "action": "core/try",
               "args": {},
               "children": [
                 {
-                  "id": "s32",
+                  "id": "s38",
                   "action": "core/set",
                   "args": {
                     "variable": "svc",
@@ -609,7 +683,7 @@
                   "description": "Service to check (the clock service for cloud incidents)"
                 },
                 {
-                  "id": "s33",
+                  "id": "s39",
                   "action": "ooa.services/get_status",
                   "args": {
                     "name": "$svc$"
@@ -620,7 +694,7 @@
                   "description": "1. Service status (read only)"
                 },
                 {
-                  "id": "s34",
+                  "id": "s40",
                   "action": "core/set",
                   "args": {
                     "variable": "dir",
@@ -629,7 +703,7 @@
                   "description": "This incident's log folder"
                 },
                 {
-                  "id": "s35",
+                  "id": "s41",
                   "action": "ooa.folder/create",
                   "args": {
                     "path": "$dir$"
@@ -637,7 +711,7 @@
                   "description": "Its folder"
                 },
                 {
-                  "id": "s36",
+                  "id": "s42",
                   "action": "core/set",
                   "args": {
                     "variable": "warn",
@@ -646,7 +720,7 @@
                   "description": "No finding yet"
                 },
                 {
-                  "id": "s37",
+                  "id": "s43",
                   "action": "core/loop",
                   "args": {
                     "iterator": "list",
@@ -655,14 +729,14 @@
                   },
                   "children": [
                     {
-                      "id": "s38",
+                      "id": "s44",
                       "action": "core/if",
                       "args": {
                         "condition": "not contains(['events', 'disk', 'process'], $k$)"
                       },
                       "children": [
                         {
-                          "id": "s39",
+                          "id": "s45",
                           "action": "core/throw",
                           "args": {
                             "code": "DIAG.NOT_ALLOWED",
@@ -674,7 +748,7 @@
                       "description": "9. Not on the allow-list?"
                     },
                     {
-                      "id": "s40",
+                      "id": "s46",
                       "action": "ooa.script/run_powershell",
                       "args": {
                         "file": "${out_dir}/diag.ps1",
@@ -695,7 +769,7 @@
                       "description": "2. Run it with an argument array"
                     },
                     {
-                      "id": "s41",
+                      "id": "s47",
                       "action": "ooa.string/replace",
                       "args": {
                         "text": {
@@ -711,7 +785,7 @@
                       "description": "4. Redact secrets"
                     },
                     {
-                      "id": "s42",
+                      "id": "s48",
                       "action": "ooa.file/write_text",
                       "args": {
                         "path": "${dir}/${k}.txt",
@@ -720,7 +794,7 @@
                       "description": "3. Keep the output and exit code"
                     },
                     {
-                      "id": "s43",
+                      "id": "s49",
                       "action": "core/if",
                       "args": {
                         "condition": {
@@ -731,7 +805,7 @@
                       },
                       "children": [
                         {
-                          "id": "s44",
+                          "id": "s50",
                           "action": "core/set",
                           "args": {
                             "variable": "free",
@@ -748,14 +822,14 @@
                   "description": "2. Each allow-listed diagnostic"
                 },
                 {
-                  "id": "s45",
+                  "id": "s51",
                   "action": "core/if",
                   "args": {
                     "condition": "$free$ < $free_pct_min$"
                   },
                   "children": [
                     {
-                      "id": "s46",
+                      "id": "s52",
                       "action": "core/set",
                       "args": {
                         "variable": "warn",
@@ -767,7 +841,7 @@
                   "description": "5. Below the disk threshold?"
                 },
                 {
-                  "id": "s47",
+                  "id": "s53",
                   "action": "core/if",
                   "args": {
                     "condition": {
@@ -778,7 +852,7 @@
                   },
                   "children": [
                     {
-                      "id": "s48",
+                      "id": "s54",
                       "action": "core/set",
                       "args": {
                         "variable": "warn",
@@ -790,7 +864,7 @@
                   "description": "Service not running?"
                 },
                 {
-                  "id": "s49",
+                  "id": "s55",
                   "action": "core/set",
                   "args": {
                     "variable": "shot",
@@ -799,14 +873,14 @@
                   "description": "No screenshot"
                 },
                 {
-                  "id": "s50",
+                  "id": "s56",
                   "action": "core/if",
                   "args": {
                     "condition": "$desktop$ and not $locked$"
                   },
                   "children": [
                     {
-                      "id": "s51",
+                      "id": "s57",
                       "action": "ooa.desktop/capture_screen",
                       "args": {
                         "path": "${dir}/screen.png"
@@ -821,7 +895,7 @@
                   "description": "6. Desktop and unlocked?",
                   "else": [
                     {
-                      "id": "s52",
+                      "id": "s58",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -832,7 +906,7 @@
                   ]
                 },
                 {
-                  "id": "s53",
+                  "id": "s59",
                   "action": "core/set",
                   "args": {
                     "variable": "zip",
@@ -841,7 +915,7 @@
                   "description": "8. Log package"
                 },
                 {
-                  "id": "s54",
+                  "id": "s60",
                   "action": "ooa.file/zip",
                   "args": {
                     "source": "$dir$",
@@ -851,7 +925,7 @@
                   "description": "8. Package the logs"
                 },
                 {
-                  "id": "s55",
+                  "id": "s61",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$evidence$",
@@ -875,7 +949,7 @@
                   "description": "Diagnostics row"
                 },
                 {
-                  "id": "s56",
+                  "id": "s62",
                   "action": "core/set",
                   "args": {
                     "variable": "rec_note",
@@ -884,7 +958,7 @@
                   "description": "Note"
                 },
                 {
-                  "id": "s57",
+                  "id": "s63",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$results$",
@@ -901,7 +975,7 @@
                   "description": "Add the record's result to the results table"
                 },
                 {
-                  "id": "s58",
+                  "id": "s64",
                   "action": "core/set",
                   "args": {
                     "variable": "processed",
@@ -912,14 +986,14 @@
                   "description": "Count the record as handled"
                 },
                 {
-                  "id": "s59",
+                  "id": "s65",
                   "action": "core/if",
                   "args": {
                     "condition": "$watch$"
                   },
                   "children": [
                     {
-                      "id": "s60",
+                      "id": "s66",
                       "action": "ooa.desktop/message_box",
                       "args": {
                         "title": "RW07-B3 - record ${rec.key}",
@@ -942,14 +1016,14 @@
                   ],
                   "children": [
                     {
-                      "id": "s61",
+                      "id": "s67",
                       "action": "core/comment",
                       "args": {
                         "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
                       }
                     },
                     {
-                      "id": "s62",
+                      "id": "s68",
                       "action": "ooa.datatable/add_row",
                       "args": {
                         "table": "$results$",
@@ -966,7 +1040,7 @@
                       "description": "Add the failure to the results table"
                     },
                     {
-                      "id": "s63",
+                      "id": "s69",
                       "action": "core/set",
                       "args": {
                         "variable": "exceptions",
@@ -977,7 +1051,7 @@
                       "description": "Count the exception"
                     },
                     {
-                      "id": "s64",
+                      "id": "s70",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -987,14 +1061,14 @@
                       "description": "Log the exception"
                     },
                     {
-                      "id": "s65",
+                      "id": "s71",
                       "action": "core/if",
                       "args": {
                         "condition": "$watch$"
                       },
                       "children": [
                         {
-                          "id": "s66",
+                          "id": "s72",
                           "action": "ooa.desktop/message_box",
                           "args": {
                             "title": "RW07-B3 - exception",
@@ -1015,14 +1089,14 @@
               ]
             },
             {
-              "id": "s67",
+              "id": "s73",
               "action": "core/if",
               "args": {
                 "condition": "$watch$"
               },
               "children": [
                 {
-                  "id": "s68",
+                  "id": "s74",
                   "action": "core/delay",
                   "args": {
                     "seconds": "$pause_seconds$"
@@ -1039,21 +1113,21 @@
       "description": "3. Work through the records"
     },
     {
-      "id": "s69",
+      "id": "s75",
       "action": "core/step",
       "args": {
         "title": "4. Finish"
       },
       "children": [
         {
-          "id": "s70",
+          "id": "s76",
           "action": "core/comment",
           "args": {
             "text": "Save the results, set the outputs and say how it went."
           }
         },
         {
-          "id": "s71",
+          "id": "s77",
           "action": "core/set",
           "args": {
             "variable": "evidence_file",
@@ -1062,7 +1136,7 @@
           "description": "Name of the evidence file"
         },
         {
-          "id": "s72",
+          "id": "s78",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$evidence$",
@@ -1071,7 +1145,7 @@
           "description": "Save the evidence rows"
         },
         {
-          "id": "s73",
+          "id": "s79",
           "action": "core/set",
           "args": {
             "variable": "result_file",
@@ -1080,7 +1154,7 @@
           "description": "Name of the results file"
         },
         {
-          "id": "s74",
+          "id": "s80",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$results$",
@@ -1089,7 +1163,7 @@
           "description": "Save one row per record"
         },
         {
-          "id": "s75",
+          "id": "s81",
           "action": "core/set",
           "args": {
             "variable": "status",
@@ -1098,7 +1172,7 @@
           "description": "Every record was handled (exceptions are routed, not lost)"
         },
         {
-          "id": "s76",
+          "id": "s82",
           "action": "ooa.log/write",
           "args": {
             "path": "$log_file$",
@@ -1107,14 +1181,14 @@
           "description": "Log the end"
         },
         {
-          "id": "s77",
+          "id": "s83",
           "action": "core/if",
           "args": {
             "condition": "$watch$"
           },
           "children": [
             {
-              "id": "s78",
+              "id": "s84",
               "action": "ooa.desktop/message_box",
               "args": {
                 "title": "RW07-B3 finished",

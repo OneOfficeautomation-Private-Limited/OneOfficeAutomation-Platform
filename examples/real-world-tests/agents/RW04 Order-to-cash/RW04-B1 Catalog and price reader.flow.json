@@ -238,6 +238,11 @@
       "default": 0
     },
     {
+      "name": "search_val",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
       "name": "prod",
       "type": "Dictionary",
       "direction": "local"
@@ -1065,6 +1070,562 @@
             },
             {
               "id": "s67",
+              "action": "ooa.browser/element_action",
+              "args": {
+                "value": "Cierra",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://demoqa.com/webtables",
+                    "title": "demosite",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "searchBox",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "type",
+                      "value": "text",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "placeholder",
+                      "value": "Type to search",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "class",
+                      "value": "form-control",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "value",
+                      "value": "",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "autocomplete",
+                      "value": "off",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='searchBox']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#searchBox",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/div/div/div/div[2]/div[1]/div[2]/div[2]/div[2]/div/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/1/1/2/1/2/2/2/1/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div.mb-3.input-group",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "304",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "659",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "231",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "230",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "38",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://demoqa.com/webtables",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input autocomplete=\"off\" placeholder=\"Type to search\" id=\"searchBox\" class=\"form-control\" type=\"text\" value=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 659,
+                    "top": 231,
+                    "width": 230,
+                    "height": 38
+                  }
+                },
+                "action": "set_text"
+              },
+              "description": "Captured object: type in the search box (filters the view only)"
+            },
+            {
+              "id": "s68",
+              "action": "ooa.browser/element_action",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://demoqa.com/webtables",
+                    "title": "demosite",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "searchBox",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "type",
+                      "value": "text",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "placeholder",
+                      "value": "Type to search",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "class",
+                      "value": "form-control",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "value",
+                      "value": "",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "autocomplete",
+                      "value": "off",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='searchBox']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#searchBox",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/div/div/div/div[2]/div[1]/div[2]/div[2]/div[2]/div/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/1/1/2/1/2/2/2/1/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div.mb-3.input-group",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "304",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "659",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "231",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "230",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "38",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://demoqa.com/webtables",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input autocomplete=\"off\" placeholder=\"Type to search\" id=\"searchBox\" class=\"form-control\" type=\"text\" value=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 659,
+                    "top": 231,
+                    "width": 230,
+                    "height": 38
+                  }
+                },
+                "action": "get_value"
+              },
+              "out": {
+                "result": "search_val"
+              },
+              "description": "Captured object: read the search box back"
+            },
+            {
+              "id": "s69",
+              "action": "ooa.browser/element_action",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://demoqa.com/webtables",
+                    "title": "demosite",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "searchBox",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "type",
+                      "value": "text",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "placeholder",
+                      "value": "Type to search",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "class",
+                      "value": "form-control",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "value",
+                      "value": "",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "autocomplete",
+                      "value": "off",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='searchBox']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#searchBox",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/div/div/div/div[2]/div[1]/div[2]/div[2]/div[2]/div/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/1/1/2/1/2/2/2/1/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div.mb-3.input-group",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "304",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "659",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "231",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "230",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "38",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://demoqa.com/webtables",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input autocomplete=\"off\" placeholder=\"Type to search\" id=\"searchBox\" class=\"form-control\" type=\"text\" value=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 659,
+                    "top": 231,
+                    "width": 230,
+                    "height": 38
+                  }
+                },
+                "action": "clear"
+              },
+              "description": "Captured object: clear it again"
+            },
+            {
+              "id": "s70",
               "action": "ooa.datatable/row_count",
               "args": {
                 "table": "$demoqa$"
@@ -1075,7 +1636,7 @@
               "description": "Rows shown"
             },
             {
-              "id": "s68",
+              "id": "s71",
               "action": "ooa.browser/close",
               "args": {},
               "description": "Close the browser"
@@ -1089,7 +1650,7 @@
               ],
               "children": [
                 {
-                  "id": "s69",
+                  "id": "s72",
                   "action": "ooa.browser/close",
                   "args": {},
                   "continueOnError": true,
@@ -1100,7 +1661,7 @@
           ]
         },
         {
-          "id": "s70",
+          "id": "s73",
           "action": "ooa.log/write",
           "args": {
             "path": "$log_file$",
@@ -1112,21 +1673,21 @@
       "description": "2. Prepare"
     },
     {
-      "id": "s71",
+      "id": "s74",
       "action": "core/step",
       "args": {
         "title": "3. Work through the records"
       },
       "children": [
         {
-          "id": "s72",
+          "id": "s75",
           "action": "core/comment",
           "args": {
             "text": "Per SKU: product detail, normalize, public twin, identity, EUR prices, drift, snapshot row."
           }
         },
         {
-          "id": "s73",
+          "id": "s76",
           "action": "core/loop",
           "args": {
             "iterator": "table_rows",
@@ -1136,7 +1697,7 @@
           },
           "children": [
             {
-              "id": "s74",
+              "id": "s77",
               "action": "core/set",
               "args": {
                 "variable": "rec_note",
@@ -1145,12 +1706,12 @@
               "description": "Clear the note of the previous record"
             },
             {
-              "id": "s75",
+              "id": "s78",
               "action": "core/try",
               "args": {},
               "children": [
                 {
-                  "id": "s76",
+                  "id": "s79",
                   "action": "ooa.rest/request",
                   "args": {
                     "method": "GET",
@@ -1170,7 +1731,7 @@
                   "description": "2. Product detail from the store"
                 },
                 {
-                  "id": "s77",
+                  "id": "s80",
                   "action": "core/set",
                   "args": {
                     "variable": "variant",
@@ -1181,7 +1742,7 @@
                   "description": "Its variant"
                 },
                 {
-                  "id": "s78",
+                  "id": "s81",
                   "action": "core/set",
                   "args": {
                     "variable": "sku",
@@ -1192,7 +1753,7 @@
                   "description": "3. Normalize the SKU"
                 },
                 {
-                  "id": "s79",
+                  "id": "s82",
                   "action": "core/set",
                   "args": {
                     "variable": "price",
@@ -1203,7 +1764,7 @@
                   "description": "3. Normalize the price (USD)"
                 },
                 {
-                  "id": "s80",
+                  "id": "s83",
                   "action": "core/set",
                   "args": {
                     "variable": "stock",
@@ -1214,7 +1775,7 @@
                   "description": "3. Stock"
                 },
                 {
-                  "id": "s81",
+                  "id": "s84",
                   "action": "core/if",
                   "args": {
                     "condition": {
@@ -1225,7 +1786,7 @@
                   },
                   "children": [
                     {
-                      "id": "s82",
+                      "id": "s85",
                       "action": "core/throw",
                       "args": {
                         "code": "ROUTE.IDENTITY",
@@ -1237,7 +1798,7 @@
                   "description": "5. SKU differs from the test list?"
                 },
                 {
-                  "id": "s83",
+                  "id": "s86",
                   "action": "core/set",
                   "args": {
                     "variable": "pprice",
@@ -1248,14 +1809,14 @@
                   "description": "4. Public twin's price"
                 },
                 {
-                  "id": "s84",
+                  "id": "s87",
                   "action": "core/if",
                   "args": {
                     "condition": "isEmpty($pprice$)"
                   },
                   "children": [
                     {
-                      "id": "s85",
+                      "id": "s88",
                       "action": "core/throw",
                       "args": {
                         "code": "ROUTE.NOT_ON_SITE",
@@ -1267,7 +1828,7 @@
                   "description": "Not on the public site?"
                 },
                 {
-                  "id": "s86",
+                  "id": "s89",
                   "action": "ooa.fuzzy/best_match",
                   "args": {
                     "text": "$prod.product.title$",
@@ -1284,14 +1845,14 @@
                   "description": "5. Same product? (title against the public name)"
                 },
                 {
-                  "id": "s87",
+                  "id": "s90",
                   "action": "core/if",
                   "args": {
                     "condition": "not $found$"
                   },
                   "children": [
                     {
-                      "id": "s88",
+                      "id": "s91",
                       "action": "core/throw",
                       "args": {
                         "code": "ROUTE.IDENTITY",
@@ -1303,7 +1864,7 @@
                   "description": "Titles too different?"
                 },
                 {
-                  "id": "s89",
+                  "id": "s92",
                   "action": "core/set",
                   "args": {
                     "variable": "pcur",
@@ -1314,7 +1875,7 @@
                   "description": "Public currency"
                 },
                 {
-                  "id": "s90",
+                  "id": "s93",
                   "action": "core/set",
                   "args": {
                     "variable": "source",
@@ -1325,7 +1886,7 @@
                   "description": "6. Capture the source"
                 },
                 {
-                  "id": "s91",
+                  "id": "s94",
                   "action": "core/set",
                   "args": {
                     "variable": "pprice",
@@ -1336,7 +1897,7 @@
                   "description": "Public price"
                 },
                 {
-                  "id": "s92",
+                  "id": "s95",
                   "action": "ooa.currency/convert",
                   "args": {
                     "amount": "$price$",
@@ -1352,7 +1913,7 @@
                   "description": "Store price in EUR"
                 },
                 {
-                  "id": "s93",
+                  "id": "s96",
                   "action": "ooa.currency/convert",
                   "args": {
                     "amount": "$pprice$",
@@ -1368,7 +1929,7 @@
                   "description": "Public price in EUR"
                 },
                 {
-                  "id": "s94",
+                  "id": "s97",
                   "action": "core/set",
                   "args": {
                     "variable": "drift",
@@ -1379,7 +1940,7 @@
                   "description": "7. Price drift (%)"
                 },
                 {
-                  "id": "s95",
+                  "id": "s98",
                   "action": "core/set",
                   "args": {
                     "variable": "flag",
@@ -1390,7 +1951,7 @@
                   "description": "Flag it"
                 },
                 {
-                  "id": "s96",
+                  "id": "s99",
                   "action": "core/if",
                   "args": {
                     "condition": {
@@ -1401,7 +1962,7 @@
                   },
                   "children": [
                     {
-                      "id": "s97",
+                      "id": "s100",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -1414,7 +1975,7 @@
                   "description": "Drift?"
                 },
                 {
-                  "id": "s98",
+                  "id": "s101",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$evidence$",
@@ -1442,7 +2003,7 @@
                   "description": "8. Snapshot row"
                 },
                 {
-                  "id": "s99",
+                  "id": "s102",
                   "action": "core/set",
                   "args": {
                     "variable": "rec_note",
@@ -1451,7 +2012,7 @@
                   "description": "Note for the results"
                 },
                 {
-                  "id": "s100",
+                  "id": "s103",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$results$",
@@ -1468,7 +2029,7 @@
                   "description": "Add the record's result to the results table"
                 },
                 {
-                  "id": "s101",
+                  "id": "s104",
                   "action": "core/set",
                   "args": {
                     "variable": "processed",
@@ -1479,14 +2040,14 @@
                   "description": "Count the record as handled"
                 },
                 {
-                  "id": "s102",
+                  "id": "s105",
                   "action": "core/if",
                   "args": {
                     "condition": "$watch$"
                   },
                   "children": [
                     {
-                      "id": "s103",
+                      "id": "s106",
                       "action": "ooa.desktop/message_box",
                       "args": {
                         "title": "RW04-B1 - record ${rec.key}",
@@ -1509,14 +2070,14 @@
                   ],
                   "children": [
                     {
-                      "id": "s104",
+                      "id": "s107",
                       "action": "core/comment",
                       "args": {
                         "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
                       }
                     },
                     {
-                      "id": "s105",
+                      "id": "s108",
                       "action": "ooa.datatable/add_row",
                       "args": {
                         "table": "$results$",
@@ -1533,7 +2094,7 @@
                       "description": "Add the failure to the results table"
                     },
                     {
-                      "id": "s106",
+                      "id": "s109",
                       "action": "core/set",
                       "args": {
                         "variable": "exceptions",
@@ -1544,7 +2105,7 @@
                       "description": "Count the exception"
                     },
                     {
-                      "id": "s107",
+                      "id": "s110",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -1554,14 +2115,14 @@
                       "description": "Log the exception"
                     },
                     {
-                      "id": "s108",
+                      "id": "s111",
                       "action": "core/if",
                       "args": {
                         "condition": "$watch$"
                       },
                       "children": [
                         {
-                          "id": "s109",
+                          "id": "s112",
                           "action": "ooa.desktop/message_box",
                           "args": {
                             "title": "RW04-B1 - exception",
@@ -1582,14 +2143,14 @@
               ]
             },
             {
-              "id": "s110",
+              "id": "s113",
               "action": "core/if",
               "args": {
                 "condition": "$watch$"
               },
               "children": [
                 {
-                  "id": "s111",
+                  "id": "s114",
                   "action": "core/delay",
                   "args": {
                     "seconds": "$pause_seconds$"
@@ -1606,21 +2167,21 @@
       "description": "3. Work through the records"
     },
     {
-      "id": "s112",
+      "id": "s115",
       "action": "core/step",
       "args": {
         "title": "4. Finish"
       },
       "children": [
         {
-          "id": "s113",
+          "id": "s116",
           "action": "core/comment",
           "args": {
             "text": "Prove no product was written, then save the snapshot (CSV and JSON)."
           }
         },
         {
-          "id": "s114",
+          "id": "s117",
           "action": "ooa.rest/request",
           "args": {
             "method": "GET",
@@ -1640,14 +2201,14 @@
           "description": "9. Products in the store after"
         },
         {
-          "id": "s115",
+          "id": "s118",
           "action": "core/if",
           "args": {
             "condition": "toNumber($count_after.count$) != $count_before$"
           },
           "children": [
             {
-              "id": "s116",
+              "id": "s119",
               "action": "core/throw",
               "args": {
                 "code": "VERIFY.PRODUCT_WRITE",
@@ -1659,7 +2220,7 @@
           "description": "Product count changed?"
         },
         {
-          "id": "s117",
+          "id": "s120",
           "action": "core/set",
           "args": {
             "variable": "evidence_file",
@@ -1668,7 +2229,7 @@
           "description": "Name of the evidence file"
         },
         {
-          "id": "s118",
+          "id": "s121",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$evidence$",
@@ -1677,7 +2238,7 @@
           "description": "Save the evidence rows"
         },
         {
-          "id": "s119",
+          "id": "s122",
           "action": "ooa.datatable/to_records",
           "args": {
             "table": "$evidence$"
@@ -1688,7 +2249,7 @@
           "description": "Snapshot as records"
         },
         {
-          "id": "s120",
+          "id": "s123",
           "action": "ooa.json/write_file",
           "args": {
             "path": "${out_dir}/catalog-snapshot.json",
@@ -1698,7 +2259,7 @@
           "description": "Catalogue snapshot (JSON)"
         },
         {
-          "id": "s121",
+          "id": "s124",
           "action": "core/set",
           "args": {
             "variable": "result_file",
@@ -1707,7 +2268,7 @@
           "description": "Name of the results file"
         },
         {
-          "id": "s122",
+          "id": "s125",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$results$",
@@ -1716,7 +2277,7 @@
           "description": "Save one row per record"
         },
         {
-          "id": "s123",
+          "id": "s126",
           "action": "core/set",
           "args": {
             "variable": "status",
@@ -1725,7 +2286,7 @@
           "description": "Every record was handled (exceptions are routed, not lost)"
         },
         {
-          "id": "s124",
+          "id": "s127",
           "action": "ooa.log/write",
           "args": {
             "path": "$log_file$",
@@ -1734,14 +2295,14 @@
           "description": "Log the end"
         },
         {
-          "id": "s125",
+          "id": "s128",
           "action": "core/if",
           "args": {
             "condition": "$watch$"
           },
           "children": [
             {
-              "id": "s126",
+              "id": "s129",
               "action": "ooa.desktop/message_box",
               "args": {
                 "title": "RW04-B1 finished",

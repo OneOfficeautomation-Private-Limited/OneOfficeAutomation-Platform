@@ -298,6 +298,13 @@
       "default": ""
     },
     {
+      "name": "sftp_host",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "QA artifact store reached by SFTP; empty: skipped (no SFTP server here)."
+    },
+    {
       "name": "evidence",
       "type": "Table",
       "direction": "local",
@@ -1176,6 +1183,48 @@
                 },
                 {
                   "id": "s78",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not isEmpty($sftp_host$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s79",
+                      "action": "ooa.file_transfer/connect",
+                      "args": {
+                        "protocol": "sftp",
+                        "host": "$sftp_host$",
+                        "user": "ooa-qa",
+                        "password": {
+                          "$credential": "rw_qa_standins/sftp/password"
+                        },
+                        "session": "sftp"
+                      },
+                      "description": "Connect to the QA artifact store (SFTP)"
+                    },
+                    {
+                      "id": "s80",
+                      "action": "ooa.file_transfer/upload",
+                      "args": {
+                        "local_path": "$zip$",
+                        "remote_path": "/qa-staging/${art.name}",
+                        "session": "sftp"
+                      },
+                      "description": "Publish the verified artifact to QA staging"
+                    },
+                    {
+                      "id": "s81",
+                      "action": "ooa.file_transfer/disconnect",
+                      "args": {
+                        "session": "sftp"
+                      },
+                      "description": "Disconnect"
+                    }
+                  ],
+                  "description": "A QA artifact SFTP server given?"
+                },
+                {
+                  "id": "s82",
                   "action": "ooa.folder/delete",
                   "args": {
                     "path": "${stage}/content",
@@ -1184,7 +1233,7 @@
                   "description": "10. Clean the unpacked files"
                 },
                 {
-                  "id": "s79",
+                  "id": "s83",
                   "action": "core/set",
                   "args": {
                     "variable": "rec_note",
@@ -1193,7 +1242,7 @@
                   "description": "Note"
                 },
                 {
-                  "id": "s80",
+                  "id": "s84",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$results$",
@@ -1210,7 +1259,7 @@
                   "description": "Add the record's result to the results table"
                 },
                 {
-                  "id": "s81",
+                  "id": "s85",
                   "action": "core/set",
                   "args": {
                     "variable": "processed",
@@ -1221,14 +1270,14 @@
                   "description": "Count the record as handled"
                 },
                 {
-                  "id": "s82",
+                  "id": "s86",
                   "action": "core/if",
                   "args": {
                     "condition": "$watch$"
                   },
                   "children": [
                     {
-                      "id": "s83",
+                      "id": "s87",
                       "action": "ooa.desktop/message_box",
                       "args": {
                         "title": "RW08-B2 - record ${rec.key}",
@@ -1251,14 +1300,14 @@
                   ],
                   "children": [
                     {
-                      "id": "s84",
+                      "id": "s88",
                       "action": "core/comment",
                       "args": {
                         "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
                       }
                     },
                     {
-                      "id": "s85",
+                      "id": "s89",
                       "action": "ooa.datatable/add_row",
                       "args": {
                         "table": "$results$",
@@ -1275,7 +1324,7 @@
                       "description": "Add the failure to the results table"
                     },
                     {
-                      "id": "s86",
+                      "id": "s90",
                       "action": "core/set",
                       "args": {
                         "variable": "exceptions",
@@ -1286,7 +1335,7 @@
                       "description": "Count the exception"
                     },
                     {
-                      "id": "s87",
+                      "id": "s91",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -1296,14 +1345,14 @@
                       "description": "Log the exception"
                     },
                     {
-                      "id": "s88",
+                      "id": "s92",
                       "action": "core/if",
                       "args": {
                         "condition": "$watch$"
                       },
                       "children": [
                         {
-                          "id": "s89",
+                          "id": "s93",
                           "action": "ooa.desktop/message_box",
                           "args": {
                             "title": "RW08-B2 - exception",
@@ -1324,14 +1373,14 @@
               ]
             },
             {
-              "id": "s90",
+              "id": "s94",
               "action": "core/if",
               "args": {
                 "condition": "$watch$"
               },
               "children": [
                 {
-                  "id": "s91",
+                  "id": "s95",
                   "action": "core/delay",
                   "args": {
                     "seconds": "$pause_seconds$"
@@ -1348,21 +1397,21 @@
       "description": "3. Work through the records"
     },
     {
-      "id": "s92",
+      "id": "s96",
       "action": "core/step",
       "args": {
         "title": "4. Finish"
       },
       "children": [
         {
-          "id": "s93",
+          "id": "s97",
           "action": "core/comment",
           "args": {
             "text": "Save the results, set the outputs and say how it went."
           }
         },
         {
-          "id": "s94",
+          "id": "s98",
           "action": "core/set",
           "args": {
             "variable": "evidence_file",
@@ -1371,7 +1420,7 @@
           "description": "Name of the evidence file"
         },
         {
-          "id": "s95",
+          "id": "s99",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$evidence$",
@@ -1380,7 +1429,7 @@
           "description": "Save the evidence rows"
         },
         {
-          "id": "s96",
+          "id": "s100",
           "action": "core/set",
           "args": {
             "variable": "result_file",
@@ -1389,7 +1438,7 @@
           "description": "Name of the results file"
         },
         {
-          "id": "s97",
+          "id": "s101",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$results$",
@@ -1398,7 +1447,7 @@
           "description": "Save one row per record"
         },
         {
-          "id": "s98",
+          "id": "s102",
           "action": "core/set",
           "args": {
             "variable": "status",
@@ -1407,7 +1456,7 @@
           "description": "Every record was handled (exceptions are routed, not lost)"
         },
         {
-          "id": "s99",
+          "id": "s103",
           "action": "ooa.log/write",
           "args": {
             "path": "$log_file$",
@@ -1416,14 +1465,14 @@
           "description": "Log the end"
         },
         {
-          "id": "s100",
+          "id": "s104",
           "action": "core/if",
           "args": {
             "condition": "$watch$"
           },
           "children": [
             {
-              "id": "s101",
+              "id": "s105",
               "action": "ooa.desktop/message_box",
               "args": {
                 "title": "RW08-B2 finished",

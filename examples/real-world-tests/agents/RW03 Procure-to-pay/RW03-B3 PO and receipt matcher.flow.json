@@ -1106,14 +1106,17 @@
                     },
                     {
                       "id": "s69",
-                      "action": "core/set",
+                      "action": "ooa.number/round",
                       "args": {
-                        "variable": "var",
                         "value": {
-                          "expr": "round((toNumber($ln.unit_price$) - toNumber($ln.po_price$)) / toNumber($ln.po_price$) * 100, 2)"
-                        }
+                          "expr": "(toNumber($ln.unit_price$) - toNumber($ln.po_price$)) / toNumber($ln.po_price$) * 100"
+                        },
+                        "decimals": 2
                       },
-                      "description": "4. Price variance (%)"
+                      "out": {
+                        "result": "var"
+                      },
+                      "description": "4. Price variance (%), rounded"
                     },
                     {
                       "id": "s70",

@@ -287,6 +287,56 @@
       "direction": "output",
       "default": "",
       "description": "The evidence workbook."
+    },
+    {
+      "name": "jhome",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "jpid",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "japps",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "desk",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "jstatus",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "pa",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "pb",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "same_img",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "diff_img",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
     }
   ],
   "steps": [
@@ -453,6 +503,98 @@
         },
         {
           "id": "s18",
+          "action": "core/comment",
+          "args": {
+            "text": "The HR team's legacy Java desk app records each readiness confirmation; the Java applications commands drive it."
+          }
+        },
+        {
+          "id": "s19",
+          "action": "ooa.system/get_environment_variable",
+          "args": {
+            "name": "JAVA_HOME"
+          },
+          "out": {
+            "value": "jhome"
+          },
+          "continueOnError": true,
+          "description": "Where Java is"
+        },
+        {
+          "id": "s20",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/data/RW02/qa-desk.jar"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s21",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": {
+                  "expr": "if(isEmpty($jhome$), 'java', $jhome$ + '/bin/java.exe')"
+                },
+                "arguments": [
+                  "-jar",
+                  "${base}/data/RW02/qa-desk.jar",
+                  "${out_dir}/desk-confirmations.txt"
+                ],
+                "window_state": "normal"
+              },
+              "out": {
+                "process_id": "jpid"
+              },
+              "description": "Start the Java desk app"
+            },
+            {
+              "id": "s22",
+              "action": "ooa.window/wait_for",
+              "args": {
+                "title": "OOA QA Desk",
+                "timeout_seconds": 30
+              },
+              "description": "Wait for its window"
+            },
+            {
+              "id": "s23",
+              "action": "ooa.java_apps/list_apps",
+              "args": {},
+              "out": {
+                "apps": "japps"
+              },
+              "description": "Java programs with windows"
+            },
+            {
+              "id": "s24",
+              "action": "core/set",
+              "args": {
+                "variable": "desk",
+                "value": true
+              },
+              "description": "Desk app running"
+            }
+          ],
+          "description": "Desk app available?",
+          "else": [
+            {
+              "id": "s25",
+              "action": "ooa.log/write",
+              "args": {
+                "path": "$log_file$",
+                "level": "WARN",
+                "message": "qa-desk.jar not built (no JDK): Java steps skipped"
+              },
+              "description": "No desk app"
+            }
+          ]
+        },
+        {
+          "id": "s26",
           "action": "core/if",
           "args": {
             "condition": {
@@ -464,7 +606,7 @@
           },
           "children": [
             {
-              "id": "s19",
+              "id": "s27",
               "action": "ooa.csv/read",
               "args": {
                 "path": "${base}/output/${run_id}/RW02-B1/evidence.csv"
@@ -478,7 +620,7 @@
           "description": "RW02-B1 evidence present?"
         },
         {
-          "id": "s20",
+          "id": "s28",
           "action": "core/if",
           "args": {
             "condition": {
@@ -490,7 +632,7 @@
           },
           "children": [
             {
-              "id": "s21",
+              "id": "s29",
               "action": "ooa.csv/read",
               "args": {
                 "path": "${base}/output/${run_id}/RW02-B2/evidence.csv"
@@ -504,7 +646,7 @@
           "description": "RW02-B2 evidence present?"
         },
         {
-          "id": "s22",
+          "id": "s30",
           "action": "core/if",
           "args": {
             "condition": {
@@ -516,7 +658,7 @@
           },
           "children": [
             {
-              "id": "s23",
+              "id": "s31",
               "action": "ooa.csv/read",
               "args": {
                 "path": "${base}/output/${run_id}/RW02-B3/evidence.csv"
@@ -530,7 +672,7 @@
           "description": "RW02-B3 evidence present?"
         },
         {
-          "id": "s24",
+          "id": "s32",
           "action": "core/if",
           "args": {
             "condition": {
@@ -542,7 +684,7 @@
           },
           "children": [
             {
-              "id": "s25",
+              "id": "s33",
               "action": "ooa.csv/read",
               "args": {
                 "path": "${base}/output/${run_id}/RW02-B4/evidence.csv"
@@ -556,7 +698,7 @@
           "description": "RW02-B4 evidence present?"
         },
         {
-          "id": "s26",
+          "id": "s34",
           "action": "core/if",
           "args": {
             "condition": {
@@ -568,7 +710,7 @@
           },
           "children": [
             {
-              "id": "s27",
+              "id": "s35",
               "action": "ooa.csv/read",
               "args": {
                 "path": "${base}/output/${run_id}/RW02-B5/evidence.csv"
@@ -585,21 +727,21 @@
       "description": "2. Prepare"
     },
     {
-      "id": "s28",
+      "id": "s36",
       "action": "core/step",
       "args": {
         "title": "3. Work through the records"
       },
       "children": [
         {
-          "id": "s29",
+          "id": "s37",
           "action": "core/comment",
           "args": {
             "text": "Per item: Workday, Entra, ServiceNow and mail side by side, the state, a clipboard check, the bundle row."
           }
         },
         {
-          "id": "s30",
+          "id": "s38",
           "action": "core/loop",
           "args": {
             "iterator": "table_rows",
@@ -609,7 +751,7 @@
           },
           "children": [
             {
-              "id": "s31",
+              "id": "s39",
               "action": "core/set",
               "args": {
                 "variable": "rec_note",
@@ -618,12 +760,12 @@
               "description": "Clear the note of the previous record"
             },
             {
-              "id": "s32",
+              "id": "s40",
               "action": "core/try",
               "args": {},
               "children": [
                 {
-                  "id": "s33",
+                  "id": "s41",
                   "action": "ooa.datatable/lookup",
                   "args": {
                     "table": "$b2$",
@@ -638,7 +780,7 @@
                   "description": "Workday id"
                 },
                 {
-                  "id": "s34",
+                  "id": "s42",
                   "action": "ooa.datatable/lookup",
                   "args": {
                     "table": "$b3$",
@@ -653,7 +795,7 @@
                   "description": "Entra object id"
                 },
                 {
-                  "id": "s35",
+                  "id": "s43",
                   "action": "ooa.datatable/lookup",
                   "args": {
                     "table": "$b4$",
@@ -668,7 +810,7 @@
                   "description": "ServiceNow task"
                 },
                 {
-                  "id": "s36",
+                  "id": "s44",
                   "action": "ooa.datatable/lookup",
                   "args": {
                     "table": "$b5$",
@@ -683,7 +825,7 @@
                   "description": "Mail delivered"
                 },
                 {
-                  "id": "s37",
+                  "id": "s45",
                   "action": "core/set",
                   "args": {
                     "variable": "state",
@@ -694,7 +836,7 @@
                   "description": "Complete, mismatch or not processed"
                 },
                 {
-                  "id": "s38",
+                  "id": "s46",
                   "action": "core/if",
                   "args": {
                     "condition": {
@@ -705,7 +847,7 @@
                   },
                   "children": [
                     {
-                      "id": "s39",
+                      "id": "s47",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -718,7 +860,7 @@
                   "description": "A mismatch?"
                 },
                 {
-                  "id": "s40",
+                  "id": "s48",
                   "action": "core/set",
                   "args": {
                     "variable": "line",
@@ -727,7 +869,85 @@
                   "description": "The line"
                 },
                 {
-                  "id": "s41",
+                  "id": "s49",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$desk$"
+                  },
+                  "children": [
+                    {
+                      "id": "s50",
+                      "action": "ooa.java_apps/object_action",
+                      "args": {
+                        "window_title": "OOA QA Desk",
+                        "role": "text",
+                        "name": "Employee",
+                        "value": "${rec.request_id} ${rec.first} ${rec.last}",
+                        "action": "set_text"
+                      },
+                      "description": "Java app: employee field"
+                    },
+                    {
+                      "id": "s51",
+                      "action": "ooa.java_apps/object_action",
+                      "args": {
+                        "window_title": "OOA QA Desk",
+                        "role": "text",
+                        "name": "Readiness",
+                        "value": "$state$",
+                        "action": "set_text"
+                      },
+                      "description": "Java app: readiness field"
+                    },
+                    {
+                      "id": "s52",
+                      "action": "ooa.java_apps/object_action",
+                      "args": {
+                        "window_title": "OOA QA Desk",
+                        "role": "push button",
+                        "name": "Confirm",
+                        "action": "do_action"
+                      },
+                      "description": "Java app: confirm"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "ooa.java_apps/object_action",
+                      "args": {
+                        "window_title": "OOA QA Desk",
+                        "role": "label",
+                        "index": 4,
+                        "action": "get_text"
+                      },
+                      "out": {
+                        "result": "jstatus"
+                      },
+                      "description": "Java app: read its status"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "not startsWith(toString($jstatus$), 'Confirmed')"
+                      },
+                      "children": [
+                        {
+                          "id": "s55",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "VERIFY.DESK_APP",
+                            "message": "${rec.request_id}: the desk app says ${jstatus}"
+                          },
+                          "description": "Report it"
+                        }
+                      ],
+                      "description": "Not confirmed?"
+                    }
+                  ],
+                  "description": "Desk app running?"
+                },
+                {
+                  "id": "s56",
                   "action": "ooa.desktop/clipboard_set",
                   "args": {
                     "text": "$line$"
@@ -735,7 +955,7 @@
                   "description": "Put the line on the clipboard"
                 },
                 {
-                  "id": "s42",
+                  "id": "s57",
                   "action": "ooa.desktop/clipboard_get",
                   "args": {},
                   "out": {
@@ -744,7 +964,7 @@
                   "description": "Read it back"
                 },
                 {
-                  "id": "s43",
+                  "id": "s58",
                   "action": "core/if",
                   "args": {
                     "condition": {
@@ -755,7 +975,7 @@
                   },
                   "children": [
                     {
-                      "id": "s44",
+                      "id": "s59",
                       "action": "core/throw",
                       "args": {
                         "code": "VERIFY.CLIPBOARD",
@@ -767,7 +987,7 @@
                   "description": "Clipboard changed on the way?"
                 },
                 {
-                  "id": "s45",
+                  "id": "s60",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$bundle$",
@@ -788,7 +1008,7 @@
                   "description": "Add the bundle row"
                 },
                 {
-                  "id": "s46",
+                  "id": "s61",
                   "action": "core/set",
                   "args": {
                     "variable": "rec_note",
@@ -797,7 +1017,7 @@
                   "description": "Note for the results"
                 },
                 {
-                  "id": "s47",
+                  "id": "s62",
                   "action": "ooa.datatable/add_row",
                   "args": {
                     "table": "$results$",
@@ -814,7 +1034,7 @@
                   "description": "Add the record's result to the results table"
                 },
                 {
-                  "id": "s48",
+                  "id": "s63",
                   "action": "core/set",
                   "args": {
                     "variable": "processed",
@@ -825,14 +1045,14 @@
                   "description": "Count the record as handled"
                 },
                 {
-                  "id": "s49",
+                  "id": "s64",
                   "action": "core/if",
                   "args": {
                     "condition": "$watch$"
                   },
                   "children": [
                     {
-                      "id": "s50",
+                      "id": "s65",
                       "action": "ooa.desktop/message_box",
                       "args": {
                         "title": "RW02-B6 - record ${rec.key}",
@@ -855,14 +1075,14 @@
                   ],
                   "children": [
                     {
-                      "id": "s51",
+                      "id": "s66",
                       "action": "core/comment",
                       "args": {
                         "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
                       }
                     },
                     {
-                      "id": "s52",
+                      "id": "s67",
                       "action": "ooa.datatable/add_row",
                       "args": {
                         "table": "$results$",
@@ -879,7 +1099,7 @@
                       "description": "Add the failure to the results table"
                     },
                     {
-                      "id": "s53",
+                      "id": "s68",
                       "action": "core/set",
                       "args": {
                         "variable": "exceptions",
@@ -890,7 +1110,7 @@
                       "description": "Count the exception"
                     },
                     {
-                      "id": "s54",
+                      "id": "s69",
                       "action": "ooa.log/write",
                       "args": {
                         "path": "$log_file$",
@@ -900,14 +1120,14 @@
                       "description": "Log the exception"
                     },
                     {
-                      "id": "s55",
+                      "id": "s70",
                       "action": "core/if",
                       "args": {
                         "condition": "$watch$"
                       },
                       "children": [
                         {
-                          "id": "s56",
+                          "id": "s71",
                           "action": "ooa.desktop/message_box",
                           "args": {
                             "title": "RW02-B6 - exception",
@@ -928,14 +1148,14 @@
               ]
             },
             {
-              "id": "s57",
+              "id": "s72",
               "action": "core/if",
               "args": {
                 "condition": "$watch$"
               },
               "children": [
                 {
-                  "id": "s58",
+                  "id": "s73",
                   "action": "core/delay",
                   "args": {
                     "seconds": "$pause_seconds$"
@@ -952,21 +1172,21 @@
       "description": "3. Work through the records"
     },
     {
-      "id": "s59",
+      "id": "s74",
       "action": "core/step",
       "args": {
         "title": "4. Finish"
       },
       "children": [
         {
-          "id": "s60",
+          "id": "s75",
           "action": "core/comment",
           "args": {
             "text": "The workbook (and its PDF through Excel), stored in SharePoint and read back."
           }
         },
         {
-          "id": "s61",
+          "id": "s76",
           "action": "core/set",
           "args": {
             "variable": "workbook",
@@ -975,7 +1195,7 @@
           "description": "Name of the workbook"
         },
         {
-          "id": "s62",
+          "id": "s77",
           "action": "ooa.excel/create_workbook",
           "args": {
             "path": "$workbook$",
@@ -985,7 +1205,7 @@
           "description": "Create the evidence workbook"
         },
         {
-          "id": "s63",
+          "id": "s78",
           "action": "ooa.excel/write_table",
           "args": {
             "table": "$bundle$",
@@ -994,7 +1214,7 @@
           "description": "Write the bundles"
         },
         {
-          "id": "s64",
+          "id": "s79",
           "action": "ooa.excel/set_cell",
           "args": {
             "cell": "J1",
@@ -1004,19 +1224,19 @@
           "description": "Note the computer"
         },
         {
-          "id": "s65",
+          "id": "s80",
           "action": "ooa.excel/save",
           "args": {},
           "description": "Save it"
         },
         {
-          "id": "s66",
+          "id": "s81",
           "action": "ooa.excel/close",
           "args": {},
           "description": "Close it"
         },
         {
-          "id": "s67",
+          "id": "s82",
           "action": "ooa.excel_desktop/export_pdf",
           "args": {
             "path": "$workbook$",
@@ -1025,7 +1245,86 @@
           "description": "Export it as PDF with Excel"
         },
         {
-          "id": "s68",
+          "id": "s83",
+          "action": "ooa.pdf/to_images",
+          "args": {
+            "path": "${out_dir}/RW02-evidence.pdf",
+            "pages": "1",
+            "target_folder": "${out_dir}/pdf-a"
+          },
+          "out": {
+            "files": "pa"
+          },
+          "description": "Picture of the PDF's first page"
+        },
+        {
+          "id": "s84",
+          "action": "ooa.pdf/to_images",
+          "args": {
+            "path": "${out_dir}/RW02-evidence.pdf",
+            "pages": "1",
+            "target_folder": "${out_dir}/pdf-b"
+          },
+          "out": {
+            "files": "pb"
+          },
+          "description": "And again (a second rendering)"
+        },
+        {
+          "id": "s85",
+          "action": "ooa.image/compare_images",
+          "args": {
+            "image": "${first($pa$)}",
+            "other": "${first($pb$)}",
+            "tolerance": 10
+          },
+          "out": {
+            "same": "same_img",
+            "difference_percent": "diff_img"
+          },
+          "description": "Image check: both renderings are the same picture"
+        },
+        {
+          "id": "s86",
+          "action": "core/if",
+          "args": {
+            "condition": "not $same_img$"
+          },
+          "children": [
+            {
+              "id": "s87",
+              "action": "core/throw",
+              "args": {
+                "code": "VERIFY.PDF_RENDER",
+                "message": "The PDF renders differently each time (${diff_img}%)"
+              },
+              "description": "Report it"
+            }
+          ],
+          "description": "Pictures differ?"
+        },
+        {
+          "id": "s88",
+          "action": "core/if",
+          "args": {
+            "condition": "$desk$"
+          },
+          "children": [
+            {
+              "id": "s89",
+              "action": "ooa.application/stop_program",
+              "args": {
+                "process_id": "$jpid$",
+                "force": true
+              },
+              "continueOnError": true,
+              "description": "Stop it"
+            }
+          ],
+          "description": "Close the Java desk app"
+        },
+        {
+          "id": "s90",
           "action": "ooa.microsoft365/upload_file",
           "args": {
             "local_path": "$workbook$",
@@ -1042,7 +1341,7 @@
           "description": "Store the workbook in the QA SharePoint site"
         },
         {
-          "id": "s69",
+          "id": "s91",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$bundle$",
@@ -1051,7 +1350,7 @@
           "description": "Export the CSV"
         },
         {
-          "id": "s70",
+          "id": "s92",
           "action": "core/set",
           "args": {
             "variable": "result_file",
@@ -1060,7 +1359,7 @@
           "description": "Name of the results file"
         },
         {
-          "id": "s71",
+          "id": "s93",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$results$",
@@ -1069,7 +1368,7 @@
           "description": "Save one row per record"
         },
         {
-          "id": "s72",
+          "id": "s94",
           "action": "core/set",
           "args": {
             "variable": "status",
@@ -1078,7 +1377,7 @@
           "description": "Every record was handled (exceptions are routed, not lost)"
         },
         {
-          "id": "s73",
+          "id": "s95",
           "action": "ooa.log/write",
           "args": {
             "path": "$log_file$",
@@ -1087,14 +1386,14 @@
           "description": "Log the end"
         },
         {
-          "id": "s74",
+          "id": "s96",
           "action": "core/if",
           "args": {
             "condition": "$watch$"
           },
           "children": [
             {
-              "id": "s75",
+              "id": "s97",
               "action": "ooa.desktop/message_box",
               "args": {
                 "title": "RW02-B6 finished",

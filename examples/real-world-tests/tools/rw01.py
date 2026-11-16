@@ -35,6 +35,8 @@ def b2_public_research():
                                ("index_file", "String", "")]:
         f.var(name, typ, "local", default)
     f.var("evidence_file", "String", "output", "", "Evidence packets: one row per query with URL, title, time and facts.")
+    for n, t, d in [("csv_text", "String", ""), ("js_summary", "Any", None), ("wa_ok", "Boolean", False), ("wa_answer", "String", "")]:
+        f.var(n, t, "local", d)
     c.start()
     with c.prepare("Read the 10 queries, the allowed sites and the internal knowledge base, and open the browser."):
         f.act("ooa.global_values/get", desc="Read the allow-list of hosts (global value rw_allowed_hosts)",
@@ -112,6 +114,21 @@ def b2_public_research():
         f.act("ooa.browser/close", desc="Close the browser", what="session")
         f.set("evidence_file", "${out_dir}/evidence.csv", desc="Name of the evidence file")
         f.act("ooa.datatable/write_to_file", desc="Save the evidence packets", table="$evidence$", path="$evidence_file$")
+        f.act("ooa.file/write_text", desc="A small JavaScript that sums up the verdicts", path="${out_dir}/summary.js", text='// Summarizes the research verdicts (JSON lines on standard input). Works with Node.js and with Windows\' JScript.\nvar text = (typeof WScript !== \'undefined\') ? WScript.StdIn.ReadAll() : require(\'fs\').readFileSync(0, \'utf8\');\nvar lines = text.split(/\\r?\\n/), agree = 0, hold = 0, none = 0;\nfor (var i = 1; i < lines.length; i++) {\n  if (!lines[i]) continue;\n  if (lines[i].indexOf(\'agrees with KB\') >= 0) agree++; else if (lines[i].indexOf(\'hold for review\') >= 0) hold++; else none++;\n}\nvar out = \'{"agree": \' + agree + \', "hold": \' + hold + \', "other": \' + none + \'}\';\nif (typeof WScript !== \'undefined\') WScript.Echo(out); else console.log(out);\n')
+        f.act("ooa.datatable/to_csv_text", desc="The evidence as text", table="$evidence$", out={"text": "csv_text"})
+        f.act("ooa.script/run_javascript", desc="Sum up the verdicts (JavaScript: Node.js, or Windows JScript)", file="${out_dir}/summary.js", input="$csv_text$",
+              out={"json": "js_summary"})
+        f.act("ooa.log/write", desc="Log the summary", path="$log_file$", message="Verdicts: ${jsonStringify($js_summary$)}")
+        with f.try_(desc="Web goal agent: the model works the public catalogue page itself (stand-in model, live site)") as wa:
+            f.act("ooa.browser/open", desc="A browser session for the web goal agent", url="https://books.toscrape.com/", session="webagent",
+                  headless={"expr": "not $watch$"}, engine="playwright", keep_open=True)
+            f.act("ooa.web_agent/run", desc="Ask the web goal agent to read the catalogue's first book", start_url="https://books.toscrape.com/",
+                  goal="Open the catalogue and report the title and price of the first book listed.", allowed_sites=["books.toscrape.com"], max_steps=3,
+                  model="qa-scripted", api_key=cred("ai"), base_url="${standin}/v1", session="webagent", out={"success": "wa_ok", "answer": "wa_answer"})
+            f.act("ooa.browser/close", desc="Close its browser", session="webagent", cont=True)
+        with f.catch(wa, message_to="wa_answer"):
+            f.act("ooa.log/write", desc="Note the web agent's problem", path="$log_file$", level="WARN", message="Web goal agent: ${wa_answer}")
+        f.act("ooa.log/write", desc="Log the web agent's answer", path="$log_file$", message="Web goal agent (${wa_ok}): ${wa_answer}")
     return c
 
 
@@ -303,12 +320,18 @@ def b5_review_messaging():
               "10 response drafts", data_file="RW01/replies.csv")
     f = c.f
     for n, t, d in [("template", "String", ""), ("reply", "String", ""), ("customers", "Table", None), ("cases", "Table", None), ("account", "String", ""),
-                    ("name", "String", ""), ("pii", "Number", 0), ("decision", "String", ""), ("got", "Table", None), ("seen", "Number", 0)]:
+                    ("name", "String", ""), ("pii", "Number", 0), ("decision", "String", ""), ("got", "Table", None), ("seen", "Number", 0),
+                    ("go_ahead", "Boolean", True)]:
         f.var(n, t, "local", d)
     evidence_var(f, ["key", "case", "to", "decision", "approver", "sent", "delivered"])
     c.start()
-    with c.prepare("Read the approved reply template, the cases and the customers."):
+    with c.prepare("Read the approved reply template, the cases and the customers; ask the supervisor once (answers yes by itself after 5 s)."):
         fault_setup(f, "graph")
+        f.act("ooa.desktop/prompt_yes_no", desc="Ask the supervisor: send the approved replies now? (yes after 5 s without an answer)",
+              title="RW01-B5 replies", question="Send the approved OOA-QA replies now?", timeout_seconds=5, answer_on_timeout=True, cont=True,
+              out={"answer": "go_ahead"})
+        with f.if_("not $go_ahead$", desc="The supervisor said no?"):
+            f.act("core/throw", desc="Stop: replies held", code="REVIEW.HELD", message="The supervisor held the replies")
         f.act("ooa.file/read_text", desc="Read the approved template", path="${base}/data/RW01/reply_template.txt", out={"text": "template"})
         f.act("ooa.csv/read", desc="Read the cases", path="${base}/data/RW01/cases.csv", out={"table": "cases"})
         f.act("ooa.csv/read", desc="Read the customers", path="${base}/data/RW01/customers.csv", out={"table": "customers"})

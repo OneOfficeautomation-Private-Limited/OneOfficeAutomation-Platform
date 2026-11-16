@@ -179,6 +179,8 @@ def b3_windows():
                     ("locked", "Boolean", False), ("desktop", "Boolean", False), ("shot", "String", ""), ("dir", "String", ""), ("zip", "String", ""), ("warn", "String", "")]:
         f.var(n, t, "local", d)
     f.var("free_pct_min", "Number", "input", 10, "Free disk space below this per cent is a finding.")
+    f.var("terminal_host", "String", "input", "", "A QA terminal host for read-only checks over SSH; empty: skipped (no terminal host here).")
+    f.var("term_screen", "String", "local", "")
     evidence_var(f, ["key", "service", "status", "disk_free_pct", "uptime_hours", "exit_codes", "screenshot", "package", "finding"])
     c.start()
     with c.prepare("Read the accepted incidents; write the allow-listed diagnostics script; is the desktop unlocked?"):
@@ -192,6 +194,13 @@ def b3_windows():
         f.act("ooa.dll/call", desc="8. Uptime from kernel32 (read only)", library="kernel32.dll", function="GetTickCount64", return_type="long", calling_convention="stdcall",
               out={"result": "ticks"})
         f.expr("uptime_h", "round(toNumber($ticks$) / 3600000, 1)", desc="Uptime in hours")
+        with f.if_("not isEmpty($terminal_host$)", desc="A QA terminal host given (VT over SSH)?"):
+            f.act("ooa.terminal/connect", desc="Sign in to the QA terminal host", host="$terminal_host$", terminal_type="vt-ssh", user="ooa-qa",
+                  password=cred("terminal", "password"), session="term")
+            f.act("ooa.terminal/send_text", desc="Read-only command: uptime", text="uptime", session="term")
+            f.act("ooa.terminal/send_key", desc="Enter", key="Enter", session="term")
+            f.act("ooa.terminal/get_screen", desc="Read the screen", session="term", out={"text": "term_screen"})
+            f.act("ooa.terminal/disconnect", desc="Sign off", session="term")
     with c.records("Per incident: service status, allow-listed diagnostics, exit codes, redaction, thresholds, screenshot if allowed, log package.",
                    summary="${rec.key}: ${svc} ${status}\nDisk free ${free}%  uptime ${uptime_h} h\n${warn}"):
         f.expr("svc", "if(startsWith($rec.resource$, 'svc:'), substring($rec.resource$, 4), 'W32Time')", desc="Service to check (the clock service for cloud incidents)")

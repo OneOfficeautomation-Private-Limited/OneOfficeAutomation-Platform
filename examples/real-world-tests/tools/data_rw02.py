@@ -45,6 +45,10 @@ def write(w):
     w("RW02/worker_types.csv", WORKER_TYPES, ["worker_type"])
     w("RW02/roles.csv", ROLES, ["role", "groups", "laptop", "software"])
     w("RW02/groups.csv", [(k, v) for k, v in GROUPS.items()], ["name", "id"])
+    import qa_desk      # the HR team's small Java desk app (RW02-B6 drives it with the Java applications commands)
+    jar = qa_desk.build()
+    if jar:
+        w("RW02/qa-desk.jar", jar)
 
 
 def seed():

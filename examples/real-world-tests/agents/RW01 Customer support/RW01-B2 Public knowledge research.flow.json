@@ -279,6 +279,29 @@
       "direction": "output",
       "default": "",
       "description": "Evidence packets: one row per query with URL, title, time and facts."
+    },
+    {
+      "name": "csv_text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "js_summary",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wa_ok",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "wa_answer",
+      "type": "String",
+      "direction": "local",
+      "default": ""
     }
   ],
   "steps": [
@@ -1148,6 +1171,130 @@
         },
         {
           "id": "s80",
+          "action": "ooa.file/write_text",
+          "args": {
+            "path": "${out_dir}/summary.js",
+            "text": "// Summarizes the research verdicts (JSON lines on standard input). Works with Node.js and with Windows' JScript.\nvar text = (typeof WScript !== 'undefined') ? WScript.StdIn.ReadAll() : require('fs').readFileSync(0, 'utf8');\nvar lines = text.split(/\\r?\\n/), agree = 0, hold = 0, none = 0;\nfor (var i = 1; i < lines.length; i++) {\n  if (!lines[i]) continue;\n  if (lines[i].indexOf('agrees with KB') >= 0) agree++; else if (lines[i].indexOf('hold for review') >= 0) hold++; else none++;\n}\nvar out = '{\"agree\": ' + agree + ', \"hold\": ' + hold + ', \"other\": ' + none + '}';\nif (typeof WScript !== 'undefined') WScript.Echo(out); else console.log(out);\n"
+          },
+          "description": "A small JavaScript that sums up the verdicts"
+        },
+        {
+          "id": "s81",
+          "action": "ooa.datatable/to_csv_text",
+          "args": {
+            "table": "$evidence$"
+          },
+          "out": {
+            "text": "csv_text"
+          },
+          "description": "The evidence as text"
+        },
+        {
+          "id": "s82",
+          "action": "ooa.script/run_javascript",
+          "args": {
+            "file": "${out_dir}/summary.js",
+            "input": "$csv_text$"
+          },
+          "out": {
+            "json": "js_summary"
+          },
+          "description": "Sum up the verdicts (JavaScript: Node.js, or Windows JScript)"
+        },
+        {
+          "id": "s83",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "Verdicts: ${jsonStringify($js_summary$)}"
+          },
+          "description": "Log the summary"
+        },
+        {
+          "id": "s84",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s85",
+              "action": "ooa.browser/open",
+              "args": {
+                "url": "https://books.toscrape.com/",
+                "session": "webagent",
+                "headless": {
+                  "expr": "not $watch$"
+                },
+                "engine": "playwright",
+                "keep_open": true
+              },
+              "description": "A browser session for the web goal agent"
+            },
+            {
+              "id": "s86",
+              "action": "ooa.web_agent/run",
+              "args": {
+                "start_url": "https://books.toscrape.com/",
+                "goal": "Open the catalogue and report the title and price of the first book listed.",
+                "allowed_sites": [
+                  "books.toscrape.com"
+                ],
+                "max_steps": 3,
+                "model": "qa-scripted",
+                "api_key": {
+                  "$credential": "rw_qa_standins/ai/token"
+                },
+                "base_url": "${standin}/v1",
+                "session": "webagent"
+              },
+              "out": {
+                "success": "wa_ok",
+                "answer": "wa_answer"
+              },
+              "description": "Ask the web goal agent to read the catalogue's first book"
+            },
+            {
+              "id": "s87",
+              "action": "ooa.browser/close",
+              "args": {
+                "session": "webagent"
+              },
+              "continueOnError": true,
+              "description": "Close its browser"
+            }
+          ],
+          "description": "Web goal agent: the model works the public catalogue page itself (stand-in model, live site)",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s88",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "level": "WARN",
+                    "message": "Web goal agent: ${wa_answer}"
+                  },
+                  "description": "Note the web agent's problem"
+                }
+              ],
+              "message_to": "wa_answer"
+            }
+          ]
+        },
+        {
+          "id": "s89",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "Web goal agent (${wa_ok}): ${wa_answer}"
+          },
+          "description": "Log the web agent's answer"
+        },
+        {
+          "id": "s90",
           "action": "core/set",
           "args": {
             "variable": "result_file",
@@ -1156,7 +1303,7 @@
           "description": "Name of the results file"
         },
         {
-          "id": "s81",
+          "id": "s91",
           "action": "ooa.datatable/write_to_file",
           "args": {
             "table": "$results$",
@@ -1165,7 +1312,7 @@
           "description": "Save one row per record"
         },
         {
-          "id": "s82",
+          "id": "s92",
           "action": "core/set",
           "args": {
             "variable": "status",
@@ -1174,7 +1321,7 @@
           "description": "Every record was handled (exceptions are routed, not lost)"
         },
         {
-          "id": "s83",
+          "id": "s93",
           "action": "ooa.log/write",
           "args": {
             "path": "$log_file$",
@@ -1183,14 +1330,14 @@
           "description": "Log the end"
         },
         {
-          "id": "s84",
+          "id": "s94",
           "action": "core/if",
           "args": {
             "condition": "$watch$"
           },
           "children": [
             {
-              "id": "s85",
+              "id": "s95",
               "action": "ooa.desktop/message_box",
               "args": {
                 "title": "RW01-B2 finished",
