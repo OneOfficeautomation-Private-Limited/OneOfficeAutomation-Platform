@@ -119,11 +119,21 @@ public final class DesktopPackage {
         }
         DesktopEvents d = DesktopEvents.installed().orElseThrow(() -> new ActionException("DESKTOP.WINDOW_UNAVAILABLE",
                 "Choosing a window needs a Windows runner with the Window toolkit installed", "Leave window empty to use the window in front."));
-        if (!d.activateWindow(window)) throw new ActionException("DESKTOP.WINDOW_NOT_FOUND", "No visible window matches '" + window + "'",
-                "Use Window > List windows to see the exact titles.", true);
+        if (!d.activateWindow(window)) throw activationError(window, d.windowBounds(window).isPresent());
         int[] b = d.windowBounds(window).orElse(null);
         if (needBounds && b == null) throw new ActionException("DESKTOP.WINDOW_UNAVAILABLE", "Cannot read the position of window '" + window + "'", "Use relative_to screen.");
         return b;
+    }
+
+    /**
+     * Why a window could not be brought to the front. Found but kept in the background is not "not found" (real-world tests
+     * finding 5): Windows lets only the program in front, or one the user just used, move another window to the front.
+     */
+    static ActionException activationError(String window, boolean exists) {
+        if (exists) return new ActionException("WINDOW.NOT_ACTIVATED", "Windows did not let '" + window + "' come to the front",
+                "Another program is holding the focus (for example a full-screen or elevated window); close it, or run the agent with the desktop unlocked. "
+                        + "Steps that act on a control (Desktop objects) work without bringing the window to the front.", true);
+        return new ActionException("DESKTOP.WINDOW_NOT_FOUND", "No visible window matches '" + window + "'", "Use Window > List windows to see the exact titles.", true);
     }
 
     // ---------- mouse ----------
