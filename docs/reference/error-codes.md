@@ -19,7 +19,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `ACTION.INPUT_INVALID` | Input '…' cannot be converted to …<br>Input '…' must be a whole number, got …<br>Input '…' is too large: … | Give a value of the type the input expects.<br>Round the value first (Number > Round), or check the calculation that produced it.<br>Give a smaller number. | runner |
-| `ACTION.INPUT_MISSING` | Input '…' resolved to empty | … | runner |
+| `ACTION.INPUT_MISSING` | Input '…' has no value…: what it refers to is empty or missing…… | … | runner |
 | `ACTION.NOT_IN_THIS_PROGRAM` | …/… cannot run in this program: … | Run the automation with the full install (bin\ooa.bat run) or on a runner. | runner |
 | `ACTION.OUTPUT_MISSING` | Action did not return output '…' | Update the toolkit; it did not return an output it declares. | runner |
 | `ACTION.UNEXPECTED` | …/… raised …: …<br>Cannot call …/…: … | Run the step again; if it keeps happening, report it to the toolkit's publisher with the run id.<br>Update the toolkit; if it keeps happening, report it with the run log.<br>Report this to the toolkit publisher with the run id. | runner |
