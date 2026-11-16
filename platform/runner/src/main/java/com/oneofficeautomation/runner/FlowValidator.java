@@ -414,6 +414,9 @@ public final class FlowValidator {
         for (String k : List.of("all", "any"))
             if (m.get(k) instanceof List<?> l) { for (int i = 0; i < l.size(); i++) checkCondition(p, sid, path + "/" + k + "/" + i, l.get(i), requires, kind, depth + 1); return; }
         if (m.containsKey("not")) { checkCondition(p, sid, path + "/not", m.get("not"), requires, kind, depth + 1); return; }
+        // a comparison {"op": ..., "left": ..., "right": ...}: the operator must be one the runner knows (it used to fail only at run time)
+        if (m.get("op") instanceof String op && !op.contains("$") && Conditions.canonical(op) == null)
+            p.add(sid, path + "/op", "Unknown comparison '" + op + "'", "Use one of " + String.join(", ", Conditions.OPS) + ".");
         if (!(m.get("condition") instanceof String addr)) return;
         ActionSpec spec = toolkitSpec(p, sid, path, addr, "condition", "condition", requires);
         if (spec == null) return;

@@ -832,6 +832,10 @@ def _all_actions(steps):
 
 
 def _compare(op: str, left, right) -> bool:
+    # the snake_case spellings the data table filter uses ("not_empty", "starts_with") mean the same as the camelCase ones
+    if isinstance(op, str) and "_" in op:
+        head, *rest = op.strip().split("_")
+        op = head + "".join(p[:1].upper() + p[1:] for p in rest)
     sym = {"eq": "==", "ne": "!=", "lt": "<", "le": "<=", "gt": ">", "ge": ">="}
     if op in sym:
         return bool(binary(sym[op], left, right))
@@ -852,5 +856,7 @@ def _compare(op: str, left, right) -> bool:
         return left not in (None, "", [], {})
     if op == "in":
         return left in (right or [])
+    if op in ("notIn", "notStartsWith", "notEndsWith", "notMatches"):
+        return not _compare(op[3].lower() + op[4:], left, right)
     raise OoaError(f"Unknown condition operator '{op}'", code="FLOW.BAD_CONDITION",
                    suggested_fix="Use eq, ne, lt, le, gt, ge, contains, notContains, startsWith, endsWith, matches, empty, notEmpty or in.")
