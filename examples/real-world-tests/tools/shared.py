@@ -95,7 +95,8 @@ def preflight():
             check("${app}", lambda: f.act("ooa.file/get_info", desc="Is the app installed?", path="$app$"), "installed")
     with f.step("4. Public practice sites", "Each allow-listed public site answers (read only, one request each)."):
         with f.loop(desc="Each site", iterator="list", over="$sites$", **{"as": "site"}):
-            check("${site}", lambda: f.act("ooa.rest/request", desc="Ask the site once", url="$site$", timeout_seconds=20, out={"status": "code"}), "HTTP ${code}")
+            check("${site}", lambda: f.act("ooa.rest/request", desc="Ask the site once (as a named client: some sites refuse anonymous ones)", url="$site$", timeout_seconds=20,
+                                                        headers={"User-Agent": "OOA-QA-preflight/1.0 (read-only practice check)"}, out={"status": "code"}), "HTTP ${code}")
             f.pause()
     with f.step("5. Report", "Save the report and say what is ready."):
         f.set("report_file", "${base}/output/preflight-${formatDate(now(), '%Y%m%d-%H%M%S')}.csv", desc="Name of the report")

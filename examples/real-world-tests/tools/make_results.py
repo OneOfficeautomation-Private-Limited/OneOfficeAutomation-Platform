@@ -114,7 +114,7 @@ def newest(code, pinned=None):
     if pinned:
         return pinned, results(pinned, code)
     found = [(os.path.getmtime(p), p) for p in glob.glob(os.path.join(BASE, "output", "*", code, "results.csv"))]
-    found = [x for x in found if re.search(r"-(CHECK|LOCAL|SOLO)-", x[1])]
+    found = [x for x in found if re.search(r"RW\d\d-(CHECK|LOCAL|SOLO)-|RW\d\d-\d{8}-\d{6}", x[1].replace("\\", "/"))]
     if not found:
         return None, None
     p = max(found)[1]
@@ -180,7 +180,7 @@ def main():
                 handled += sum(1 for r in res if r["status"] == "done")
                 routed += sum(1 for r in res if r["status"] == "exception")
         run = ", ".join(used_runs)
-        where = "; ".join(sorted({"One CommandCenter" if "CHECK" in r else "this PC (ooa run, local vault)" for r in used_runs})) or "not run"
+        where = "; ".join(sorted({"this PC (ooa run, local vault)" if re.search(r"LOCAL|SOLO", r) else "One CommandCenter" for r in used_runs})) or "not run"
         mains = [p for p in glob.glob(os.path.join(BASE, "output", rw + "-*", rw + "-summary.csv"))]
         main_ok = bool(mains)
         main_state = ("ran in One CommandCenter (" + os.path.basename(os.path.dirname(mains[-1])) + ")") if main_ok else "checked in; runs after sign-in"

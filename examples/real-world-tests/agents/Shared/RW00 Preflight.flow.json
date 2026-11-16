@@ -852,12 +852,15 @@
                   "action": "ooa.rest/request",
                   "args": {
                     "url": "$site$",
-                    "timeout_seconds": 20
+                    "timeout_seconds": 20,
+                    "headers": {
+                      "User-Agent": "OOA-QA-preflight/1.0 (read-only practice check)"
+                    }
                   },
                   "out": {
                     "status": "code"
                   },
-                  "description": "Ask the site once"
+                  "description": "Ask the site once (as a named client: some sites refuse anonymous ones)"
                 },
                 {
                   "id": "s58",
