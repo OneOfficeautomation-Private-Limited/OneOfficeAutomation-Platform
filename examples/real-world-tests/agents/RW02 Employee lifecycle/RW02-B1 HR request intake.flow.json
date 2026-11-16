@@ -1,0 +1,1012 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw02_b1",
+  "name": "RW02-B1 HR request intake",
+  "description": "RW02-B1 (RW02 real-world test). Reads the 10 HR requests, normalizes names, checks manager, cost centre and worker type, drops duplicate request ids, works out the effective-date branch, masks personal data in the log, checks the approval and creates one lifecycle item per valid request.",
+  "tags": [
+    "real-world-test",
+    "RW02"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "first",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "last",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "manager",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "cc",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "wtype",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "eff",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "days",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "branch",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "seen",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "idem",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "masked",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "managers",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ccs",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "wtypes",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "request_id",
+          "action",
+          "name",
+          "manager",
+          "cost_center",
+          "worker_type",
+          "effective",
+          "branch",
+          "idempotency"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Reads the 10 HR requests, normalizes names, checks manager, cost centre and worker type, drops duplicate request ids, works out the effective-date branch, masks personal data in the log, checks the approval and creates one lifecycle item per valid request. It works through 10 synthetic HR requests and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW02-B1"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW02-B1 HR request intake started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW02-B1 starts",
+                "message": "RW02-B1 HR request intake\n\nReads the 10 HR requests, normalizes names, checks manager, cost centre and worker type, drops duplicate request ids, works out the effective-date branch, masks personal data in the log, checks the approval and creates one lifecycle item per valid request.\n\nRecords: 10 synthetic HR requests\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the managers, cost centres and allowed worker types."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW02/requests.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW02/requests.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW02/managers.csv"
+          },
+          "out": {
+            "table": "managers"
+          },
+          "description": "Read the managers"
+        },
+        {
+          "id": "s17",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW02/cost_centers.csv"
+          },
+          "out": {
+            "table": "ccs"
+          },
+          "description": "Read the cost centres"
+        },
+        {
+          "id": "s18",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW02/worker_types.csv"
+          },
+          "out": {
+            "table": "wtypes"
+          },
+          "description": "Read the allowed worker types"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s19",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s20",
+          "action": "core/comment",
+          "args": {
+            "text": "Per request: normalize, validate manager, cost centre and worker type, drop duplicates, date branch, approval, create the item."
+          }
+        },
+        {
+          "id": "s21",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s23",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "ooa.string/change_case",
+                  "args": {
+                    "text": "$rec.first$",
+                    "case": "title"
+                  },
+                  "out": {
+                    "result": "first"
+                  },
+                  "description": "Normalize the first name"
+                },
+                {
+                  "id": "s25",
+                  "action": "ooa.string/change_case",
+                  "args": {
+                    "text": "$rec.last$",
+                    "case": "title"
+                  },
+                  "out": {
+                    "result": "last"
+                  },
+                  "description": "Normalize the last name"
+                },
+                {
+                  "id": "s26",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "contains",
+                      "left": "$seen$",
+                      "right": "$rec.request_id$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s27",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.DUPLICATE",
+                        "message": "${rec.request_id} was already taken in (row ${rec.key})"
+                      },
+                      "description": "Route the duplicate"
+                    }
+                  ],
+                  "description": "Request id seen already?"
+                },
+                {
+                  "id": "s28",
+                  "action": "ooa.list/add_item",
+                  "args": {
+                    "list": "$seen$",
+                    "item": "$rec.request_id$"
+                  },
+                  "out": {
+                    "list": "seen"
+                  },
+                  "description": "Remember the request id"
+                },
+                {
+                  "id": "s29",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$managers$",
+                    "column": "manager",
+                    "value": "$rec.manager$",
+                    "return_column": "name",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "manager"
+                  },
+                  "description": "Validate the manager"
+                },
+                {
+                  "id": "s30",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$ccs$",
+                    "column": "cost_center",
+                    "value": "$rec.cost_center$",
+                    "return_column": "name",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "cc"
+                  },
+                  "description": "Validate the cost centre"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "any": [
+                        {
+                          "op": "empty",
+                          "left": "$manager$"
+                        },
+                        {
+                          "op": "empty",
+                          "left": "$cc$"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s32",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VALIDATION.ORG_DATA",
+                        "message": "${rec.request_id}: unknown manager ${rec.manager} or cost centre ${rec.cost_center}"
+                      },
+                      "description": "Reject it"
+                    }
+                  ],
+                  "description": "Unknown manager or cost centre?"
+                },
+                {
+                  "id": "s33",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$wtypes$",
+                    "column": "worker_type",
+                    "value": "$rec.worker_type$",
+                    "return_column": "worker_type",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "wtype"
+                  },
+                  "description": "Validate the worker type"
+                },
+                {
+                  "id": "s34",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "empty",
+                      "left": "$wtype$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s35",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VALIDATION.WORKER_TYPE",
+                        "message": "${rec.request_id}: worker type ${rec.worker_type} is not allowed"
+                      },
+                      "description": "Reject it"
+                    }
+                  ],
+                  "description": "Worker type not allowed?"
+                },
+                {
+                  "id": "s36",
+                  "action": "ooa.datetime/parse",
+                  "args": {
+                    "text": "$rec.effective$",
+                    "pattern": "yyyy-MM-dd"
+                  },
+                  "out": {
+                    "value": "eff"
+                  },
+                  "description": "Read the effective date"
+                },
+                {
+                  "id": "s37",
+                  "action": "ooa.datetime/difference",
+                  "args": {
+                    "start": {
+                      "expr": "today()"
+                    },
+                    "end": "$eff$",
+                    "unit": "days"
+                  },
+                  "out": {
+                    "result": "days"
+                  },
+                  "description": "Days until it takes effect"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "branch",
+                    "value": {
+                      "expr": "if($days$ > 30, 'delayed', if($days$ < 0, 'overdue', 'now'))"
+                    }
+                  },
+                  "description": "Effective-date branch"
+                },
+                {
+                  "id": "s39",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$rec.approved$",
+                      "right": "yes"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s40",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "APPROVAL.MISSING",
+                        "message": "${rec.request_id} has no manager approval yet"
+                      },
+                      "description": "Hold it for approval"
+                    }
+                  ],
+                  "description": "No manager approval?"
+                },
+                {
+                  "id": "s41",
+                  "action": "ooa.string/replace",
+                  "args": {
+                    "text": "${first} ${last}",
+                    "find": "$last$",
+                    "replace_with": "***"
+                  },
+                  "out": {
+                    "result": "masked"
+                  },
+                  "description": "Mask the last name for the log"
+                },
+                {
+                  "id": "s42",
+                  "action": "ooa.crypto/hash_text",
+                  "args": {
+                    "text": "$rec.request_id$"
+                  },
+                  "out": {
+                    "hash": "idem"
+                  },
+                  "description": "Idempotency key (the HR request id)"
+                },
+                {
+                  "id": "s43",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "message": "${rec.request_id} ${rec.action} ${masked} -> ${branch}"
+                  },
+                  "description": "Checkpoint the source request (masked)"
+                },
+                {
+                  "id": "s44",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "request_id": "$rec.request_id$",
+                      "action": "$rec.action$",
+                      "name": "${first} ${last}",
+                      "manager": "$manager$",
+                      "cost_center": "$rec.cost_center$",
+                      "worker_type": "$wtype$",
+                      "effective": "$rec.effective$",
+                      "branch": "$branch$",
+                      "idempotency": "$idem$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Create the lifecycle item"
+                },
+                {
+                  "id": "s45",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${rec.action} ${branch}"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s49",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW02-B1 - record ${rec.key}",
+                        "message": "RW02-B1: record ${$i + 1} of ${len($records$)}\n\n${rec.request_id} ${rec.action}: ${first} ${last}\nBranch: ${branch}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s50",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s51",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s52",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s55",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW02-B1 - exception",
+                            "message": "RW02-B1: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s56",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 synthetic HR requests"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s58",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s59",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s60",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s61",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s62",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s63",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s64",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s65",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW02-B1 HR request intake finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s66",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s67",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW02-B1 finished",
+                "message": "RW02-B1 HR request intake finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

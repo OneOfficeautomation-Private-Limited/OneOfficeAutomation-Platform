@@ -1,0 +1,121 @@
+[
+  {
+    "id": "rw01_b1",
+    "name": "RW01-B1 Case intake and dedup",
+    "folder": "Real-world tests/RW01 Customer support",
+    "path": "Real-world tests/RW01 Customer support/RW01-B1 Case intake and dedup.flow.json",
+    "file": "agents/RW01 Customer support/RW01-B1 Case intake and dedup.flow.json"
+  },
+  {
+    "id": "rw01_b2",
+    "name": "RW01-B2 Public knowledge research",
+    "folder": "Real-world tests/RW01 Customer support",
+    "path": "Real-world tests/RW01 Customer support/RW01-B2 Public knowledge research.flow.json",
+    "file": "agents/RW01 Customer support/RW01-B2 Public knowledge research.flow.json"
+  },
+  {
+    "id": "rw01_b3",
+    "name": "RW01-B3 ServiceNow case worker",
+    "folder": "Real-world tests/RW01 Customer support",
+    "path": "Real-world tests/RW01 Customer support/RW01-B3 ServiceNow case worker.flow.json",
+    "file": "agents/RW01 Customer support/RW01-B3 ServiceNow case worker.flow.json"
+  },
+  {
+    "id": "rw01_b4",
+    "name": "RW01-B4 Salesforce and Jira linker",
+    "folder": "Real-world tests/RW01 Customer support",
+    "path": "Real-world tests/RW01 Customer support/RW01-B4 Salesforce and Jira linker.flow.json",
+    "file": "agents/RW01 Customer support/RW01-B4 Salesforce and Jira linker.flow.json"
+  },
+  {
+    "id": "rw01_b5",
+    "name": "RW01-B5 Human review and messaging",
+    "folder": "Real-world tests/RW01 Customer support",
+    "path": "Real-world tests/RW01 Customer support/RW01-B5 Human review and messaging.flow.json",
+    "file": "agents/RW01 Customer support/RW01-B5 Human review and messaging.flow.json"
+  },
+  {
+    "id": "rw01_b6",
+    "name": "RW01-B6 Excel and audit reconciler",
+    "folder": "Real-world tests/RW01 Customer support",
+    "path": "Real-world tests/RW01 Customer support/RW01-B6 Excel and audit reconciler.flow.json",
+    "file": "agents/RW01 Customer support/RW01-B6 Excel and audit reconciler.flow.json"
+  },
+  {
+    "id": "rw01_main",
+    "name": "RW01 Main - Customer support",
+    "folder": "Real-world tests/RW01 Customer support",
+    "path": "Real-world tests/RW01 Customer support/RW01 Main - Customer support.flow.json",
+    "file": "agents/RW01 Customer support/RW01 Main - Customer support.flow.json"
+  },
+  {
+    "id": "rw02_b1",
+    "name": "RW02-B1 HR request intake",
+    "folder": "Real-world tests/RW02 Employee lifecycle",
+    "path": "Real-world tests/RW02 Employee lifecycle/RW02-B1 HR request intake.flow.json",
+    "file": "agents/RW02 Employee lifecycle/RW02-B1 HR request intake.flow.json"
+  },
+  {
+    "id": "rw02_b2",
+    "name": "RW02-B2 Workday record validator",
+    "folder": "Real-world tests/RW02 Employee lifecycle",
+    "path": "Real-world tests/RW02 Employee lifecycle/RW02-B2 Workday record validator.flow.json",
+    "file": "agents/RW02 Employee lifecycle/RW02-B2 Workday record validator.flow.json"
+  },
+  {
+    "id": "rw02_b3",
+    "name": "RW02-B3 Entra and AD identity worker",
+    "folder": "Real-world tests/RW02 Employee lifecycle",
+    "path": "Real-world tests/RW02 Employee lifecycle/RW02-B3 Entra and AD identity worker.flow.json",
+    "file": "agents/RW02 Employee lifecycle/RW02-B3 Entra and AD identity worker.flow.json"
+  },
+  {
+    "id": "rw02_b4",
+    "name": "RW02-B4 IT fulfilment worker",
+    "folder": "Real-world tests/RW02 Employee lifecycle",
+    "path": "Real-world tests/RW02 Employee lifecycle/RW02-B4 IT fulfilment worker.flow.json",
+    "file": "agents/RW02 Employee lifecycle/RW02-B4 IT fulfilment worker.flow.json"
+  },
+  {
+    "id": "rw02_b5",
+    "name": "RW02-B5 Microsoft 365 access worker",
+    "folder": "Real-world tests/RW02 Employee lifecycle",
+    "path": "Real-world tests/RW02 Employee lifecycle/RW02-B5 Microsoft 365 access worker.flow.json",
+    "file": "agents/RW02 Employee lifecycle/RW02-B5 Microsoft 365 access worker.flow.json"
+  },
+  {
+    "id": "rw02_b6",
+    "name": "RW02-B6 Windows readiness and evidence",
+    "folder": "Real-world tests/RW02 Employee lifecycle",
+    "path": "Real-world tests/RW02 Employee lifecycle/RW02-B6 Windows readiness and evidence.flow.json",
+    "file": "agents/RW02 Employee lifecycle/RW02-B6 Windows readiness and evidence.flow.json"
+  },
+  {
+    "id": "rw02_main",
+    "name": "RW02 Main - Employee lifecycle",
+    "folder": "Real-world tests/RW02 Employee lifecycle",
+    "path": "Real-world tests/RW02 Employee lifecycle/RW02 Main - Employee lifecycle.flow.json",
+    "file": "agents/RW02 Employee lifecycle/RW02 Main - Employee lifecycle.flow.json"
+  },
+  {
+    "id": "rw00_standins",
+    "name": "Start QA stand-ins",
+    "folder": "Real-world tests/Shared",
+    "path": "Real-world tests/Shared/Start QA stand-ins.flow.json",
+    "file": "agents/Shared/Start QA stand-ins.flow.json"
+  },
+  {
+    "id": "rw00_preflight",
+    "name": "RW00 Preflight",
+    "folder": "Real-world tests/Shared",
+    "path": "Real-world tests/Shared/RW00 Preflight.flow.json",
+    "file": "agents/Shared/RW00 Preflight.flow.json"
+  },
+  {
+    "id": "rw00_run_all",
+    "name": "Run all eight",
+    "folder": "Real-world tests/Shared",
+    "path": "Real-world tests/Shared/Run all eight.flow.json",
+    "file": "agents/Shared/Run all eight.flow.json"
+  }
+]

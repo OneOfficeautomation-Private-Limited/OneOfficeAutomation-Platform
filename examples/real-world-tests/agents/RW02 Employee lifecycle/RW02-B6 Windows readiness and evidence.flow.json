@@ -1,0 +1,1115 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw02_b6",
+  "name": "RW02-B6 Windows readiness and evidence",
+  "description": "RW02-B6 (RW02 real-world test). Reads this computer's details with VBScript, reconciles Workday, Entra ID and ServiceNow for every lifecycle item, highlights orphans and mismatches, puts each line on the clipboard, writes the evidence workbook (also as a PDF through Excel) and stores it in the QA SharePoint site.",
+  "tags": [
+    "real-world-test",
+    "RW02"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "b1",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b2",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b3",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b4",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b5",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "computer",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "wd",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "entra",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "task",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "mail",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "state",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "line",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "clip",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "item",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "bundle",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "request_id",
+          "action",
+          "workday",
+          "entra",
+          "servicenow",
+          "mail",
+          "state"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "workbook",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The evidence workbook."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Reads this computer's details with VBScript, reconciles Workday, Entra ID and ServiceNow for every lifecycle item, highlights orphans and mismatches, puts each line on the clipboard, writes the evidence workbook (also as a PDF through Excel) and stores it in the QA SharePoint site. It works through 10 lifecycle bundles and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW02-B6"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW02-B6 Windows readiness and evidence started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW02-B6 starts",
+                "message": "RW02-B6 Windows readiness and evidence\n\nReads this computer's details with VBScript, reconciles Workday, Entra ID and ServiceNow for every lifecycle item, highlights orphans and mismatches, puts each line on the clipboard, writes the evidence workbook (also as a PDF through Excel) and stores it in the QA SharePoint site.\n\nRecords: 10 lifecycle bundles\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read this computer's details and every child's evidence."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW02/requests.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW02/requests.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "ooa.file/write_text",
+          "args": {
+            "path": "${out_dir}/computer.vbs",
+            "text": "Set n = CreateObject(\"WScript.Network\")\nWScript.Echo n.ComputerName"
+          },
+          "description": "A small VBScript that names this computer"
+        },
+        {
+          "id": "s17",
+          "action": "ooa.script/run_vbscript",
+          "args": {
+            "file": "${out_dir}/computer.vbs"
+          },
+          "out": {
+            "output": "computer"
+          },
+          "description": "Read the computer name (VBScript)"
+        },
+        {
+          "id": "s18",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s19",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B1/evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW02-B1 evidence"
+            }
+          ],
+          "description": "RW02-B1 evidence present?"
+        },
+        {
+          "id": "s20",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s21",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B2/evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW02-B2 evidence"
+            }
+          ],
+          "description": "RW02-B2 evidence present?"
+        },
+        {
+          "id": "s22",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B3/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s23",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B3/evidence.csv"
+              },
+              "out": {
+                "table": "b3"
+              },
+              "description": "Read RW02-B3 evidence"
+            }
+          ],
+          "description": "RW02-B3 evidence present?"
+        },
+        {
+          "id": "s24",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B4/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B4/evidence.csv"
+              },
+              "out": {
+                "table": "b4"
+              },
+              "description": "Read RW02-B4 evidence"
+            }
+          ],
+          "description": "RW02-B4 evidence present?"
+        },
+        {
+          "id": "s26",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B5/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s27",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B5/evidence.csv"
+              },
+              "out": {
+                "table": "b5"
+              },
+              "description": "Read RW02-B5 evidence"
+            }
+          ],
+          "description": "RW02-B5 evidence present?"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s28",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s29",
+          "action": "core/comment",
+          "args": {
+            "text": "Per item: Workday, Entra, ServiceNow and mail side by side, the state, a clipboard check, the bundle row."
+          }
+        },
+        {
+          "id": "s30",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s31",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s32",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b2$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "worker_id",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "wd"
+                  },
+                  "description": "Workday id"
+                },
+                {
+                  "id": "s34",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b3$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "user_id",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "entra"
+                  },
+                  "description": "Entra object id"
+                },
+                {
+                  "id": "s35",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b4$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "task",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "task"
+                  },
+                  "description": "ServiceNow task"
+                },
+                {
+                  "id": "s36",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b5$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "mail_delivered",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "mail"
+                  },
+                  "description": "Mail delivered"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "state",
+                    "value": {
+                      "expr": "if(isEmpty($wd$) and isEmpty($entra$), 'not processed', if(isEmpty($wd$) or isEmpty($entra$) or isEmpty($task$), 'mismatch', 'complete'))"
+                    }
+                  },
+                  "description": "Complete, mismatch or not processed"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$state$",
+                      "right": "mismatch"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s39",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "${rec.request_id}: Workday ${wd}, Entra ${entra}, task ${task}"
+                      },
+                      "description": "Highlight it"
+                    }
+                  ],
+                  "description": "A mismatch?"
+                },
+                {
+                  "id": "s40",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "line",
+                    "value": "${rec.request_id};${state};${wd};${entra};${task}"
+                  },
+                  "description": "The line"
+                },
+                {
+                  "id": "s41",
+                  "action": "ooa.desktop/clipboard_set",
+                  "args": {
+                    "text": "$line$"
+                  },
+                  "description": "Put the line on the clipboard"
+                },
+                {
+                  "id": "s42",
+                  "action": "ooa.desktop/clipboard_get",
+                  "args": {},
+                  "out": {
+                    "text": "clip"
+                  },
+                  "description": "Read it back"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$clip$",
+                      "right": "$line$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s44",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VERIFY.CLIPBOARD",
+                        "message": "The clipboard did not keep the line"
+                      },
+                      "description": "Report it"
+                    }
+                  ],
+                  "description": "Clipboard changed on the way?"
+                },
+                {
+                  "id": "s45",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$bundle$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "request_id": "$rec.request_id$",
+                      "action": "$rec.action$",
+                      "workday": "$wd$",
+                      "entra": "$entra$",
+                      "servicenow": "$task$",
+                      "mail": "$mail$",
+                      "state": "$state$"
+                    }
+                  },
+                  "out": {
+                    "table": "bundle"
+                  },
+                  "description": "Add the bundle row"
+                },
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "$state$"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s47",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s49",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s50",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW02-B6 - record ${rec.key}",
+                        "message": "RW02-B6: record ${$i + 1} of ${len($records$)}\n\n${rec.request_id}: ${state}\nWorkday ${wd} | Entra ${entra} | ${task}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s51",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s52",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s55",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s56",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW02-B6 - exception",
+                            "message": "RW02-B6: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 lifecycle bundles"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s59",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s60",
+          "action": "core/comment",
+          "args": {
+            "text": "The workbook (and its PDF through Excel), stored in SharePoint and read back."
+          }
+        },
+        {
+          "id": "s61",
+          "action": "core/set",
+          "args": {
+            "variable": "workbook",
+            "value": "${out_dir}/RW02-evidence.xlsx"
+          },
+          "description": "Name of the workbook"
+        },
+        {
+          "id": "s62",
+          "action": "ooa.excel/create_workbook",
+          "args": {
+            "path": "$workbook$",
+            "overwrite": true,
+            "sheet": "Lifecycle"
+          },
+          "description": "Create the evidence workbook"
+        },
+        {
+          "id": "s63",
+          "action": "ooa.excel/write_table",
+          "args": {
+            "table": "$bundle$",
+            "sheet": "Lifecycle"
+          },
+          "description": "Write the bundles"
+        },
+        {
+          "id": "s64",
+          "action": "ooa.excel/set_cell",
+          "args": {
+            "cell": "J1",
+            "value": "Computer: ${computer}",
+            "sheet": "Lifecycle"
+          },
+          "description": "Note the computer"
+        },
+        {
+          "id": "s65",
+          "action": "ooa.excel/save",
+          "args": {},
+          "description": "Save it"
+        },
+        {
+          "id": "s66",
+          "action": "ooa.excel/close",
+          "args": {},
+          "description": "Close it"
+        },
+        {
+          "id": "s67",
+          "action": "ooa.excel_desktop/export_pdf",
+          "args": {
+            "path": "$workbook$",
+            "target": "${out_dir}/RW02-evidence.pdf"
+          },
+          "description": "Export it as PDF with Excel"
+        },
+        {
+          "id": "s68",
+          "action": "ooa.microsoft365/upload_file",
+          "args": {
+            "local_path": "$workbook$",
+            "remote_path": "OOA-QA/${run_id}/RW02-evidence.xlsx",
+            "drive": "sites/ooa-qa/drive",
+            "access_token": {
+              "$credential": "rw_qa_standins/graph/token"
+            },
+            "base_url": "${standin}/graph/v1.0"
+          },
+          "out": {
+            "item_id": "item"
+          },
+          "description": "Store the workbook in the QA SharePoint site"
+        },
+        {
+          "id": "s69",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$bundle$",
+            "path": "${out_dir}/RW02-evidence.csv"
+          },
+          "description": "Export the CSV"
+        },
+        {
+          "id": "s70",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s71",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s72",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s73",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW02-B6 Windows readiness and evidence finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s74",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s75",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW02-B6 finished",
+                "message": "RW02-B6 Windows readiness and evidence finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

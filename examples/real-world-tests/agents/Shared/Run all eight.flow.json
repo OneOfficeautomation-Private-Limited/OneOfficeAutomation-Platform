@@ -1,0 +1,873 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw00_run_all",
+  "name": "Run all eight",
+  "description": "Runs the preflight, then the eight real-world test automations RW01-RW08 one after another, and sums up.",
+  "tags": [
+    "real-world-test",
+    "shared"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "concurrency",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Passed to each main agent."
+    },
+    {
+      "name": "r",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "rs",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "pre",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "summary",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "automation",
+          "status"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "failed",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "success when all eight succeeded."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Preflight"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Read-only checks first (runbook step 05)."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw00_preflight",
+            "fail_on_error": false,
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$",
+              "pause_seconds": "$pause_seconds$"
+            }
+          },
+          "out": {
+            "outputs": "pre"
+          },
+          "description": "Run the preflight"
+        }
+      ],
+      "description": "1. Preflight"
+    },
+    {
+      "id": "s4",
+      "action": "core/step",
+      "args": {
+        "title": "2. The eight automations"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "core/comment",
+          "args": {
+            "text": "One after another; each makes its own run id."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "Run all eight",
+                "message": "Next: RW01 Customer support",
+                "timeout_seconds": 3,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        },
+        {
+          "id": "s8",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw01_main",
+            "fail_on_error": false,
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$",
+              "pause_seconds": "$pause_seconds$",
+              "fault_profile": "$fault_profile$",
+              "concurrency": "$concurrency$"
+            }
+          },
+          "out": {
+            "outputs": "r",
+            "status": "rs"
+          },
+          "description": "Run RW01 Customer support"
+        },
+        {
+          "id": "s9",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$summary$",
+            "values": {
+              "automation": "RW01 Customer support",
+              "status": "${r.status}"
+            }
+          },
+          "out": {
+            "table": "summary"
+          },
+          "description": "Note the result"
+        },
+        {
+          "id": "s10",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "${r.status}",
+              "right": "success"
+            }
+          },
+          "children": [
+            {
+              "id": "s11",
+              "action": "core/set",
+              "args": {
+                "variable": "failed",
+                "value": {
+                  "expr": "$failed$ + 1"
+                }
+              },
+              "description": "Count it"
+            }
+          ],
+          "description": "Not a success?"
+        },
+        {
+          "id": "s12",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s13",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "Run all eight",
+                "message": "Next: RW02 Employee lifecycle",
+                "timeout_seconds": 3,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        },
+        {
+          "id": "s14",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw02_main",
+            "fail_on_error": false,
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$",
+              "pause_seconds": "$pause_seconds$",
+              "fault_profile": "$fault_profile$",
+              "concurrency": "$concurrency$"
+            }
+          },
+          "out": {
+            "outputs": "r",
+            "status": "rs"
+          },
+          "description": "Run RW02 Employee lifecycle"
+        },
+        {
+          "id": "s15",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$summary$",
+            "values": {
+              "automation": "RW02 Employee lifecycle",
+              "status": "${r.status}"
+            }
+          },
+          "out": {
+            "table": "summary"
+          },
+          "description": "Note the result"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "${r.status}",
+              "right": "success"
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "core/set",
+              "args": {
+                "variable": "failed",
+                "value": {
+                  "expr": "$failed$ + 1"
+                }
+              },
+              "description": "Count it"
+            }
+          ],
+          "description": "Not a success?"
+        },
+        {
+          "id": "s18",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s19",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "Run all eight",
+                "message": "Next: RW03 Procure-to-pay",
+                "timeout_seconds": 3,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        },
+        {
+          "id": "s20",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw03_main",
+            "fail_on_error": false,
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$",
+              "pause_seconds": "$pause_seconds$",
+              "fault_profile": "$fault_profile$",
+              "concurrency": "$concurrency$"
+            }
+          },
+          "out": {
+            "outputs": "r",
+            "status": "rs"
+          },
+          "description": "Run RW03 Procure-to-pay"
+        },
+        {
+          "id": "s21",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$summary$",
+            "values": {
+              "automation": "RW03 Procure-to-pay",
+              "status": "${r.status}"
+            }
+          },
+          "out": {
+            "table": "summary"
+          },
+          "description": "Note the result"
+        },
+        {
+          "id": "s22",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "${r.status}",
+              "right": "success"
+            }
+          },
+          "children": [
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "failed",
+                "value": {
+                  "expr": "$failed$ + 1"
+                }
+              },
+              "description": "Count it"
+            }
+          ],
+          "description": "Not a success?"
+        },
+        {
+          "id": "s24",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "Run all eight",
+                "message": "Next: RW04 Order-to-cash",
+                "timeout_seconds": 3,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        },
+        {
+          "id": "s26",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw04_main",
+            "fail_on_error": false,
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$",
+              "pause_seconds": "$pause_seconds$",
+              "fault_profile": "$fault_profile$",
+              "concurrency": "$concurrency$"
+            }
+          },
+          "out": {
+            "outputs": "r",
+            "status": "rs"
+          },
+          "description": "Run RW04 Order-to-cash"
+        },
+        {
+          "id": "s27",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$summary$",
+            "values": {
+              "automation": "RW04 Order-to-cash",
+              "status": "${r.status}"
+            }
+          },
+          "out": {
+            "table": "summary"
+          },
+          "description": "Note the result"
+        },
+        {
+          "id": "s28",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "${r.status}",
+              "right": "success"
+            }
+          },
+          "children": [
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "failed",
+                "value": {
+                  "expr": "$failed$ + 1"
+                }
+              },
+              "description": "Count it"
+            }
+          ],
+          "description": "Not a success?"
+        },
+        {
+          "id": "s30",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s31",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "Run all eight",
+                "message": "Next: RW05 Access review",
+                "timeout_seconds": 3,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        },
+        {
+          "id": "s32",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw05_main",
+            "fail_on_error": false,
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$",
+              "pause_seconds": "$pause_seconds$",
+              "fault_profile": "$fault_profile$",
+              "concurrency": "$concurrency$"
+            }
+          },
+          "out": {
+            "outputs": "r",
+            "status": "rs"
+          },
+          "description": "Run RW05 Access review"
+        },
+        {
+          "id": "s33",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$summary$",
+            "values": {
+              "automation": "RW05 Access review",
+              "status": "${r.status}"
+            }
+          },
+          "out": {
+            "table": "summary"
+          },
+          "description": "Note the result"
+        },
+        {
+          "id": "s34",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "${r.status}",
+              "right": "success"
+            }
+          },
+          "children": [
+            {
+              "id": "s35",
+              "action": "core/set",
+              "args": {
+                "variable": "failed",
+                "value": {
+                  "expr": "$failed$ + 1"
+                }
+              },
+              "description": "Count it"
+            }
+          ],
+          "description": "Not a success?"
+        },
+        {
+          "id": "s36",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s37",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "Run all eight",
+                "message": "Next: RW06 Claims documents",
+                "timeout_seconds": 3,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        },
+        {
+          "id": "s38",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw06_main",
+            "fail_on_error": false,
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$",
+              "pause_seconds": "$pause_seconds$",
+              "fault_profile": "$fault_profile$",
+              "concurrency": "$concurrency$"
+            }
+          },
+          "out": {
+            "outputs": "r",
+            "status": "rs"
+          },
+          "description": "Run RW06 Claims documents"
+        },
+        {
+          "id": "s39",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$summary$",
+            "values": {
+              "automation": "RW06 Claims documents",
+              "status": "${r.status}"
+            }
+          },
+          "out": {
+            "table": "summary"
+          },
+          "description": "Note the result"
+        },
+        {
+          "id": "s40",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "${r.status}",
+              "right": "success"
+            }
+          },
+          "children": [
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "failed",
+                "value": {
+                  "expr": "$failed$ + 1"
+                }
+              },
+              "description": "Count it"
+            }
+          ],
+          "description": "Not a success?"
+        },
+        {
+          "id": "s42",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s43",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "Run all eight",
+                "message": "Next: RW07 Cloud incident",
+                "timeout_seconds": 3,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        },
+        {
+          "id": "s44",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw07_main",
+            "fail_on_error": false,
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$",
+              "pause_seconds": "$pause_seconds$",
+              "fault_profile": "$fault_profile$",
+              "concurrency": "$concurrency$"
+            }
+          },
+          "out": {
+            "outputs": "r",
+            "status": "rs"
+          },
+          "description": "Run RW07 Cloud incident"
+        },
+        {
+          "id": "s45",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$summary$",
+            "values": {
+              "automation": "RW07 Cloud incident",
+              "status": "${r.status}"
+            }
+          },
+          "out": {
+            "table": "summary"
+          },
+          "description": "Note the result"
+        },
+        {
+          "id": "s46",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "${r.status}",
+              "right": "success"
+            }
+          },
+          "children": [
+            {
+              "id": "s47",
+              "action": "core/set",
+              "args": {
+                "variable": "failed",
+                "value": {
+                  "expr": "$failed$ + 1"
+                }
+              },
+              "description": "Count it"
+            }
+          ],
+          "description": "Not a success?"
+        },
+        {
+          "id": "s48",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s49",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "Run all eight",
+                "message": "Next: RW08 Release readiness",
+                "timeout_seconds": 3,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        },
+        {
+          "id": "s50",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw08_main",
+            "fail_on_error": false,
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$",
+              "pause_seconds": "$pause_seconds$",
+              "fault_profile": "$fault_profile$",
+              "concurrency": "$concurrency$"
+            }
+          },
+          "out": {
+            "outputs": "r",
+            "status": "rs"
+          },
+          "description": "Run RW08 Release readiness"
+        },
+        {
+          "id": "s51",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$summary$",
+            "values": {
+              "automation": "RW08 Release readiness",
+              "status": "${r.status}"
+            }
+          },
+          "out": {
+            "table": "summary"
+          },
+          "description": "Note the result"
+        },
+        {
+          "id": "s52",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "${r.status}",
+              "right": "success"
+            }
+          },
+          "children": [
+            {
+              "id": "s53",
+              "action": "core/set",
+              "args": {
+                "variable": "failed",
+                "value": {
+                  "expr": "$failed$ + 1"
+                }
+              },
+              "description": "Count it"
+            }
+          ],
+          "description": "Not a success?"
+        }
+      ],
+      "description": "2. The eight automations"
+    },
+    {
+      "id": "s54",
+      "action": "core/step",
+      "args": {
+        "title": "3. Sum up"
+      },
+      "children": [
+        {
+          "id": "s55",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$summary$",
+            "path": "${base}/output/run-all-${formatDate(now(), '%Y%m%d-%H%M%S')}.csv"
+          },
+          "description": "Save the summary"
+        },
+        {
+          "id": "s56",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": {
+              "expr": "if($failed$ == 0, 'success', 'failed')"
+            }
+          },
+          "description": "Overall result"
+        },
+        {
+          "id": "s57",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s58",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "Run all eight",
+                "message": "Run all eight: ${status}\nPreflight: ${pre.status}\nAutomations not succeeded: ${failed}",
+                "timeout_seconds": 8,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "3. Sum up"
+    }
+  ]
+}

@@ -1,0 +1,402 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw00_standins",
+  "name": "Start QA stand-ins",
+  "description": "Starts the local QA stand-in server (127.0.0.1 only) that answers like the test tenants' APIs, unless it already runs, and waits until it answers.",
+  "tags": [
+    "real-world-test",
+    "shared"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests (the stand-in is in its standin folder)."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the stand-in server."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes."
+    },
+    {
+      "name": "up",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "local",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "pyw",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "pys",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "py",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "tries",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "running when the stand-ins answer."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Is it running?"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "Ask the stand-in's health address; a server that answers is used as it is."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s4",
+              "action": "ooa.rest/request",
+              "args": {
+                "url": "${standin}/qa/health",
+                "timeout_seconds": 3
+              },
+              "out": {
+                "status": "tries"
+              },
+              "description": "Ask the stand-in's health address"
+            },
+            {
+              "id": "s5",
+              "action": "core/set",
+              "args": {
+                "variable": "up",
+                "value": {
+                  "expr": "$tries$ == 200"
+                }
+              },
+              "description": "Running when it answered 200"
+            }
+          ],
+          "description": "A refused connection means it is not running yet",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s6",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "up",
+                    "value": false
+                  },
+                  "description": "Not running"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "1. Is it running?"
+    },
+    {
+      "id": "s7",
+      "action": "core/step",
+      "args": {
+        "title": "2. Start it"
+      },
+      "children": [
+        {
+          "id": "s8",
+          "action": "core/comment",
+          "args": {
+            "text": "Start python standin.py in the background (no window), then wait until it answers, for up to 20 seconds."
+          }
+        },
+        {
+          "id": "s9",
+          "action": "core/if",
+          "args": {
+            "condition": "not $up$"
+          },
+          "children": [
+            {
+              "id": "s10",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s11",
+                  "action": "ooa.desktop/message_box",
+                  "args": {
+                    "title": "QA stand-ins",
+                    "message": "Starting the QA stand-in server on ${standin}",
+                    "timeout_seconds": 2,
+                    "icon": "information",
+                    "always_on_top": true
+                  },
+                  "description": "Message box that closes by itself"
+                }
+              ],
+              "description": "Show what is happening (watch is on)"
+            },
+            {
+              "id": "s12",
+              "action": "core/comment",
+              "args": {
+                "text": "The runner's PATH may not have Python: look in the usual per-user install folder first, then fall back to pythonw on the PATH."
+              }
+            },
+            {
+              "id": "s13",
+              "action": "ooa.system/get_environment_variable",
+              "args": {
+                "name": "LOCALAPPDATA"
+              },
+              "out": {
+                "value": "local"
+              },
+              "description": "Where per-user programs are"
+            },
+            {
+              "id": "s14",
+              "action": "core/comment",
+              "args": {
+                "text": "Window state stays normal (pythonw shows no window): the hidden start merges all arguments into one under Windows PowerShell 5.1 (platform gap, listed)."
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "pyw",
+                "value": "pythonw"
+              },
+              "description": "Fallback: pythonw on the PATH"
+            },
+            {
+              "id": "s16",
+              "action": "ooa.folder/list_subfolders",
+              "args": {
+                "path": "${local}/Programs/Python"
+              },
+              "out": {
+                "folders": "pys"
+              },
+              "continueOnError": true,
+              "description": "Installed Pythons (one folder each)"
+            },
+            {
+              "id": "s17",
+              "action": "core/loop",
+              "args": {
+                "iterator": "list",
+                "over": {
+                  "expr": "coalesce($pys$, [])"
+                },
+                "as": "py"
+              },
+              "children": [
+                {
+                  "id": "s18",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "condition": "ooa.file/exists",
+                      "args": {
+                        "path": "${py}/pythonw.exe"
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s19",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "pyw",
+                        "value": "${py}/pythonw.exe"
+                      },
+                      "description": "Use it"
+                    }
+                  ],
+                  "description": "Has pythonw.exe at its top?"
+                }
+              ],
+              "description": "Each installed Python"
+            },
+            {
+              "id": "s20",
+              "action": "ooa.application/start_program",
+              "args": {
+                "program": "$pyw$",
+                "arguments": [
+                  "${base}/standin/standin.py",
+                  "$base$"
+                ],
+                "working_folder": "${base}/standin",
+                "window_state": "normal"
+              },
+              "description": "Start the stand-in server in the background (pythonw: no window)"
+            },
+            {
+              "id": "s21",
+              "action": "core/set",
+              "args": {
+                "variable": "tries",
+                "value": 0
+              },
+              "description": "Start counting the checks"
+            },
+            {
+              "id": "s22",
+              "action": "core/loop",
+              "args": {
+                "iterator": "while",
+                "condition": "not $up$ and $tries$ < 20",
+                "max_iterations": 25
+              },
+              "children": [
+                {
+                  "id": "s23",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": 1
+                  },
+                  "description": "Wait a second"
+                },
+                {
+                  "id": "s24",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "tries",
+                    "value": {
+                      "expr": "$tries$ + 1"
+                    }
+                  },
+                  "description": "Count the check"
+                },
+                {
+                  "id": "s25",
+                  "action": "core/try",
+                  "args": {},
+                  "children": [
+                    {
+                      "id": "s26",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "url": "${standin}/qa/health",
+                        "timeout_seconds": 3
+                      },
+                      "description": "Ask the stand-in's health address"
+                    },
+                    {
+                      "id": "s27",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "up",
+                        "value": true
+                      },
+                      "description": "It answers"
+                    }
+                  ],
+                  "description": "Ask again",
+                  "catch": [
+                    {
+                      "codes": [
+                        "*"
+                      ],
+                      "children": [
+                        {
+                          "id": "s28",
+                          "action": "core/comment",
+                          "args": {
+                            "text": "Not yet: try again."
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "description": "Check every second until it answers"
+            },
+            {
+              "id": "s29",
+              "action": "core/if",
+              "args": {
+                "condition": "not $up$"
+              },
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "QA.STANDIN_DOWN",
+                    "message": "The QA stand-in did not start on ${standin}",
+                    "suggested_fix": "Check that Python is installed and that ${base}/standin/standin.py and seed.json exist (run make_data.py)."
+                  },
+                  "description": "Stop: no stand-in"
+                }
+              ],
+              "description": "Still not answering?"
+            }
+          ],
+          "description": "Not running yet?"
+        }
+      ],
+      "description": "2. Start it"
+    },
+    {
+      "id": "s31",
+      "action": "core/set",
+      "args": {
+        "variable": "status",
+        "value": "running"
+      },
+      "description": "The stand-ins answer"
+    }
+  ]
+}

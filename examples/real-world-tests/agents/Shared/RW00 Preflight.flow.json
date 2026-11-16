@@ -1,0 +1,1022 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw00_preflight",
+  "name": "RW00 Preflight",
+  "description": "Runbook step 05, read-only: checks the stand-ins, the vault, global values, the test data, the apps and the public sites before any test writes.",
+  "tags": [
+    "real-world-test",
+    "shared"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "report",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "check",
+          "result",
+          "detail"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "v",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "code",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "ok",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "bad",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "site",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "app",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sites",
+      "type": "List",
+      "direction": "local",
+      "default": [
+        "https://books.toscrape.com/",
+        "https://quotes.toscrape.com/js/",
+        "https://en.wikipedia.org/wiki/Main_Page",
+        "https://demoqa.com/webtables",
+        "https://www.saucedemo.com/",
+        "https://rpachallenge.com/"
+      ]
+    },
+    {
+      "name": "apps",
+      "type": "List",
+      "direction": "local",
+      "default": [
+        "C:/Program Files/Microsoft Office/root/Office16/EXCEL.EXE",
+        "C:/Program Files/Microsoft Office/root/Office16/WINWORD.EXE",
+        "C:/Program Files/Microsoft Office/root/Office16/POWERPNT.EXE",
+        "C:/Program Files/Tesseract-OCR/tesseract.exe"
+      ]
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "ready when every check passed; otherwise what failed is in the report."
+    },
+    {
+      "name": "report_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The preflight report."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/if",
+      "args": {
+        "condition": "$watch$"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "ooa.desktop/message_box",
+          "args": {
+            "title": "Preflight",
+            "message": "RW00 Preflight: read-only checks before the real-world tests",
+            "timeout_seconds": 3,
+            "icon": "information",
+            "always_on_top": true
+          },
+          "description": "Message box that closes by itself"
+        }
+      ],
+      "description": "Show what is happening (watch is on)"
+    },
+    {
+      "id": "s3",
+      "action": "core/step",
+      "args": {
+        "title": "1. Stand-ins and vault"
+      },
+      "children": [
+        {
+          "id": "s4",
+          "action": "core/comment",
+          "args": {
+            "text": "The stand-ins answer, and a vault secret reaches them (the run user may use the locker)."
+          }
+        },
+        {
+          "id": "s5",
+          "action": "core/run_bot",
+          "args": {
+            "automation": "rw00_standins",
+            "inputs": {
+              "base": "$base$",
+              "standin": "$standin$",
+              "watch": "$watch$"
+            }
+          },
+          "description": "Start the QA stand-ins"
+        },
+        {
+          "id": "s6",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.rest/request",
+              "args": {
+                "url": "${standin}/qa/health"
+              },
+              "out": {
+                "status": "code"
+              },
+              "description": "Health address"
+            },
+            {
+              "id": "s8",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$report$",
+                "values": {
+                  "check": "stand-in answers",
+                  "result": "pass",
+                  "detail": "${standin}"
+                }
+              },
+              "out": {
+                "table": "report"
+              },
+              "description": "Note the pass"
+            },
+            {
+              "id": "s9",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": {
+                  "expr": "$ok$ + 1"
+                }
+              },
+              "description": "Count the pass"
+            }
+          ],
+          "description": "Check: stand-in answers",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s10",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$report$",
+                    "values": {
+                      "check": "stand-in answers",
+                      "result": "fail",
+                      "detail": "$err_msg$"
+                    }
+                  },
+                  "out": {
+                    "table": "report"
+                  },
+                  "description": "Note the failure"
+                },
+                {
+                  "id": "s11",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "bad",
+                    "value": {
+                      "expr": "$bad$ + 1"
+                    }
+                  },
+                  "description": "Count the failure"
+                }
+              ],
+              "message_to": "err_msg"
+            }
+          ]
+        },
+        {
+          "id": "s12",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s13",
+              "action": "ooa.servicenow/query",
+              "args": {
+                "table": "incident",
+                "query": "correlation_id=OOA-QA-C001",
+                "max_records": 1,
+                "instance_url": "$standin$",
+                "access_token": {
+                  "$credential": "rw_qa_standins/servicenow/token"
+                }
+              },
+              "description": "A ServiceNow query signed in with the vault token"
+            },
+            {
+              "id": "s14",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$report$",
+                "values": {
+                  "check": "vault secret delivered",
+                  "result": "pass",
+                  "detail": "locker rw_qa_standins"
+                }
+              },
+              "out": {
+                "table": "report"
+              },
+              "description": "Note the pass"
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": {
+                  "expr": "$ok$ + 1"
+                }
+              },
+              "description": "Count the pass"
+            }
+          ],
+          "description": "Check: vault secret delivered",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$report$",
+                    "values": {
+                      "check": "vault secret delivered",
+                      "result": "fail",
+                      "detail": "$err_msg$"
+                    }
+                  },
+                  "out": {
+                    "table": "report"
+                  },
+                  "description": "Note the failure"
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "bad",
+                    "value": {
+                      "expr": "$bad$ + 1"
+                    }
+                  },
+                  "description": "Count the failure"
+                }
+              ],
+              "message_to": "err_msg"
+            }
+          ]
+        }
+      ],
+      "description": "1. Stand-ins and vault"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "2. Shared values and data"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Global values exist, the test data is in place, the clock and time zone are known."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s21",
+              "action": "ooa.global_values/get",
+              "args": {
+                "name": "rw_allowed_hosts"
+              },
+              "out": {
+                "value": "v"
+              },
+              "description": "Read the allow-list"
+            },
+            {
+              "id": "s22",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$report$",
+                "values": {
+                  "check": "global value rw_allowed_hosts",
+                  "result": "pass",
+                  "detail": "${v}"
+                }
+              },
+              "out": {
+                "table": "report"
+              },
+              "description": "Note the pass"
+            },
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": {
+                  "expr": "$ok$ + 1"
+                }
+              },
+              "description": "Count the pass"
+            }
+          ],
+          "description": "Check: global value rw_allowed_hosts",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$report$",
+                    "values": {
+                      "check": "global value rw_allowed_hosts",
+                      "result": "fail",
+                      "detail": "$err_msg$"
+                    }
+                  },
+                  "out": {
+                    "table": "report"
+                  },
+                  "description": "Note the failure"
+                },
+                {
+                  "id": "s25",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "bad",
+                    "value": {
+                      "expr": "$bad$ + 1"
+                    }
+                  },
+                  "description": "Count the failure"
+                }
+              ],
+              "message_to": "err_msg"
+            }
+          ]
+        },
+        {
+          "id": "s26",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s27",
+              "action": "ooa.global_values/get",
+              "args": {
+                "name": "rw_canary"
+              },
+              "out": {
+                "value": "v"
+              },
+              "description": "Read the canary"
+            },
+            {
+              "id": "s28",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$report$",
+                "values": {
+                  "check": "global value rw_canary",
+                  "result": "pass",
+                  "detail": "set"
+                }
+              },
+              "out": {
+                "table": "report"
+              },
+              "description": "Note the pass"
+            },
+            {
+              "id": "s29",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": {
+                  "expr": "$ok$ + 1"
+                }
+              },
+              "description": "Count the pass"
+            }
+          ],
+          "description": "Check: global value rw_canary",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$report$",
+                    "values": {
+                      "check": "global value rw_canary",
+                      "result": "fail",
+                      "detail": "$err_msg$"
+                    }
+                  },
+                  "out": {
+                    "table": "report"
+                  },
+                  "description": "Note the failure"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "bad",
+                    "value": {
+                      "expr": "$bad$ + 1"
+                    }
+                  },
+                  "description": "Count the failure"
+                }
+              ],
+              "message_to": "err_msg"
+            }
+          ]
+        },
+        {
+          "id": "s32",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s33",
+              "action": "ooa.file/read_text",
+              "args": {
+                "path": "${base}/data/RW01/cases.csv"
+              },
+              "description": "Read a data file"
+            },
+            {
+              "id": "s34",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$report$",
+                "values": {
+                  "check": "test data folder",
+                  "result": "pass",
+                  "detail": "${base}/data"
+                }
+              },
+              "out": {
+                "table": "report"
+              },
+              "description": "Note the pass"
+            },
+            {
+              "id": "s35",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": {
+                  "expr": "$ok$ + 1"
+                }
+              },
+              "description": "Count the pass"
+            }
+          ],
+          "description": "Check: test data folder",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s36",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$report$",
+                    "values": {
+                      "check": "test data folder",
+                      "result": "fail",
+                      "detail": "$err_msg$"
+                    }
+                  },
+                  "out": {
+                    "table": "report"
+                  },
+                  "description": "Note the failure"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "bad",
+                    "value": {
+                      "expr": "$bad$ + 1"
+                    }
+                  },
+                  "description": "Count the failure"
+                }
+              ],
+              "message_to": "err_msg"
+            }
+          ]
+        },
+        {
+          "id": "s38",
+          "action": "core/try",
+          "args": {},
+          "children": [
+            {
+              "id": "s39",
+              "action": "ooa.datetime/now",
+              "args": {},
+              "out": {
+                "value": "v"
+              },
+              "description": "Clock"
+            },
+            {
+              "id": "s40",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$report$",
+                "values": {
+                  "check": "time and zone",
+                  "result": "pass",
+                  "detail": "${v}"
+                }
+              },
+              "out": {
+                "table": "report"
+              },
+              "description": "Note the pass"
+            },
+            {
+              "id": "s41",
+              "action": "core/set",
+              "args": {
+                "variable": "ok",
+                "value": {
+                  "expr": "$ok$ + 1"
+                }
+              },
+              "description": "Count the pass"
+            }
+          ],
+          "description": "Check: time and zone",
+          "catch": [
+            {
+              "codes": [
+                "*"
+              ],
+              "children": [
+                {
+                  "id": "s42",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$report$",
+                    "values": {
+                      "check": "time and zone",
+                      "result": "fail",
+                      "detail": "$err_msg$"
+                    }
+                  },
+                  "out": {
+                    "table": "report"
+                  },
+                  "description": "Note the failure"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "bad",
+                    "value": {
+                      "expr": "$bad$ + 1"
+                    }
+                  },
+                  "description": "Count the failure"
+                }
+              ],
+              "message_to": "err_msg"
+            }
+          ]
+        }
+      ],
+      "description": "2. Shared values and data"
+    },
+    {
+      "id": "s44",
+      "action": "core/step",
+      "args": {
+        "title": "3. Apps on this computer"
+      },
+      "children": [
+        {
+          "id": "s45",
+          "action": "core/comment",
+          "args": {
+            "text": "Excel, Word, PowerPoint and Tesseract, which the desktop steps use."
+          }
+        },
+        {
+          "id": "s46",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": "$apps$",
+            "as": "app"
+          },
+          "children": [
+            {
+              "id": "s47",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s48",
+                  "action": "ooa.file/get_info",
+                  "args": {
+                    "path": "$app$"
+                  },
+                  "description": "Is the app installed?"
+                },
+                {
+                  "id": "s49",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$report$",
+                    "values": {
+                      "check": "${app}",
+                      "result": "pass",
+                      "detail": "installed"
+                    }
+                  },
+                  "out": {
+                    "table": "report"
+                  },
+                  "description": "Note the pass"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": {
+                      "expr": "$ok$ + 1"
+                    }
+                  },
+                  "description": "Count the pass"
+                }
+              ],
+              "description": "Check: ${app}",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s51",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$report$",
+                        "values": {
+                          "check": "${app}",
+                          "result": "fail",
+                          "detail": "$err_msg$"
+                        }
+                      },
+                      "out": {
+                        "table": "report"
+                      },
+                      "description": "Note the failure"
+                    },
+                    {
+                      "id": "s52",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "bad",
+                        "value": {
+                          "expr": "$bad$ + 1"
+                        }
+                      },
+                      "description": "Count the failure"
+                    }
+                  ],
+                  "message_to": "err_msg"
+                }
+              ]
+            }
+          ],
+          "description": "Each app"
+        }
+      ],
+      "description": "3. Apps on this computer"
+    },
+    {
+      "id": "s53",
+      "action": "core/step",
+      "args": {
+        "title": "4. Public practice sites"
+      },
+      "children": [
+        {
+          "id": "s54",
+          "action": "core/comment",
+          "args": {
+            "text": "Each allow-listed public site answers (read only, one request each)."
+          }
+        },
+        {
+          "id": "s55",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": "$sites$",
+            "as": "site"
+          },
+          "children": [
+            {
+              "id": "s56",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "$site$",
+                    "timeout_seconds": 20
+                  },
+                  "out": {
+                    "status": "code"
+                  },
+                  "description": "Ask the site once"
+                },
+                {
+                  "id": "s58",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$report$",
+                    "values": {
+                      "check": "${site}",
+                      "result": "pass",
+                      "detail": "HTTP ${code}"
+                    }
+                  },
+                  "out": {
+                    "table": "report"
+                  },
+                  "description": "Note the pass"
+                },
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": {
+                      "expr": "$ok$ + 1"
+                    }
+                  },
+                  "description": "Count the pass"
+                }
+              ],
+              "description": "Check: ${site}",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s60",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$report$",
+                        "values": {
+                          "check": "${site}",
+                          "result": "fail",
+                          "detail": "$err_msg$"
+                        }
+                      },
+                      "out": {
+                        "table": "report"
+                      },
+                      "description": "Note the failure"
+                    },
+                    {
+                      "id": "s61",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "bad",
+                        "value": {
+                          "expr": "$bad$ + 1"
+                        }
+                      },
+                      "description": "Count the failure"
+                    }
+                  ],
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s62",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s63",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Each site"
+        }
+      ],
+      "description": "4. Public practice sites"
+    },
+    {
+      "id": "s64",
+      "action": "core/step",
+      "args": {
+        "title": "5. Report"
+      },
+      "children": [
+        {
+          "id": "s65",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the report and say what is ready."
+          }
+        },
+        {
+          "id": "s66",
+          "action": "core/set",
+          "args": {
+            "variable": "report_file",
+            "value": "${base}/output/preflight-${formatDate(now(), '%Y%m%d-%H%M%S')}.csv"
+          },
+          "description": "Name of the report"
+        },
+        {
+          "id": "s67",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$report$",
+            "path": "$report_file$"
+          },
+          "description": "Save the report"
+        },
+        {
+          "id": "s68",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": {
+              "expr": "if($bad$ == 0, 'ready', 'not ready')"
+            }
+          },
+          "description": "Ready when nothing failed"
+        },
+        {
+          "id": "s69",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s70",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "Preflight",
+                "message": "Preflight: ${status}\n\nPassed: ${ok}\nFailed: ${bad}\n\nReport: ${report_file}",
+                "timeout_seconds": 5,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "5. Report"
+    }
+  ]
+}

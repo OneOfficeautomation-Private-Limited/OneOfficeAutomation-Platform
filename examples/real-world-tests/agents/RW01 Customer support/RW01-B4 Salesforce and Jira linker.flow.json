@@ -1,0 +1,1021 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw01_b4",
+  "name": "RW01-B4 Salesforce and Jira linker",
+  "description": "RW01-B4 (RW01 real-world test). Finds each Salesforce case by its external test id, links the ServiceNow incident, creates or reuses a Jira defect for defects only, maps the priority, adds an evidence comment, moves the issue to In Progress, re-reads both systems and reconciles the ids.",
+  "tags": [
+    "real-world-test",
+    "RW01"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "case",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "incs",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "sys_id",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "issues",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "issue_key",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "jprio",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "again",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "idem",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "hits",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "case",
+          "sf_id",
+          "servicenow",
+          "jira",
+          "jira_status",
+          "priority"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Finds each Salesforce case by its external test id, links the ServiceNow incident, creates or reuses a Jira defect for defects only, maps the priority, adds an evidence comment, moves the issue to In Progress, re-reads both systems and reconciles the ids. It works through 10 Salesforce cases and related Jira issues and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW01-B4"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW01-B4 Salesforce and Jira linker started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW01-B4 starts",
+                "message": "RW01-B4 Salesforce and Jira linker\n\nFinds each Salesforce case by its external test id, links the ServiceNow incident, creates or reuses a Jira defect for defects only, maps the priority, adds an evidence comment, moves the issue to In Progress, re-reads both systems and reconciles the ids.\n\nRecords: 10 Salesforce cases and related Jira issues\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the Salesforce cases to link."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW01/sf_cases.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW01/sf_cases.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "salesforce",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s18",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s19",
+          "action": "core/comment",
+          "args": {
+            "text": "Per case: look it up, link ServiceNow, Jira for defects only, map priority, comment, transition, re-read and reconcile."
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s21",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s22",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s23",
+                  "action": "ooa.salesforce/get_record",
+                  "args": {
+                    "object": "Case",
+                    "id": "OOA-QA-${rec.case_key}",
+                    "external_id_field": "External_Id__c",
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/salesforce/token"
+                    }
+                  },
+                  "out": {
+                    "record": "case"
+                  },
+                  "description": "Look up the sandbox case by its external test id"
+                },
+                {
+                  "id": "s24",
+                  "action": "ooa.crypto/hash_text",
+                  "args": {
+                    "text": "${run_id}|${rec.case_key}"
+                  },
+                  "out": {
+                    "hash": "idem"
+                  },
+                  "description": "Idempotency key of this link"
+                },
+                {
+                  "id": "s25",
+                  "action": "ooa.servicenow/query",
+                  "args": {
+                    "table": "incident",
+                    "query": "correlation_id=OOA-QA-${rec.case_key}",
+                    "max_records": 1,
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    }
+                  },
+                  "out": {
+                    "table": "found"
+                  },
+                  "description": "Find the ServiceNow incident"
+                },
+                {
+                  "id": "s26",
+                  "action": "ooa.datatable/to_records",
+                  "args": {
+                    "table": "$found$"
+                  },
+                  "out": {
+                    "records": "incs"
+                  },
+                  "description": "As records"
+                },
+                {
+                  "id": "s27",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sys_id",
+                    "value": {
+                      "expr": "if(len($incs$) > 0, get(first($incs$), 'number'), '')"
+                    }
+                  },
+                  "description": "Its number"
+                },
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "issue_key",
+                    "value": ""
+                  },
+                  "description": "No Jira issue yet"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/switch",
+                  "args": {
+                    "value": "$rec.priority$",
+                    "match": "equals",
+                    "ignore_case": true
+                  },
+                  "description": "Map the priority to Jira's",
+                  "cases": [
+                    {
+                      "values": [
+                        "High"
+                      ],
+                      "children": [
+                        {
+                          "id": "s30",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "jprio",
+                            "value": "High"
+                          },
+                          "description": "High"
+                        }
+                      ]
+                    },
+                    {
+                      "values": [
+                        "Medium"
+                      ],
+                      "children": [
+                        {
+                          "id": "s31",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "jprio",
+                            "value": "Medium"
+                          },
+                          "description": "Medium"
+                        }
+                      ]
+                    }
+                  ],
+                  "default": [
+                    {
+                      "id": "s32",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "jprio",
+                        "value": "Low"
+                      },
+                      "description": "Low"
+                    }
+                  ]
+                },
+                {
+                  "id": "s33",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$rec.type$",
+                      "right": "defect"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s34",
+                      "action": "ooa.jira/search",
+                      "args": {
+                        "jql": "project = OOAQA AND labels = \"OOA-QA-${rec.case_key}\"",
+                        "max_results": 1,
+                        "site_url": "$standin$",
+                        "personal_access_token": {
+                          "$credential": "rw_qa_standins/jira/token"
+                        }
+                      },
+                      "out": {
+                        "table": "issues",
+                        "count": "hits"
+                      },
+                      "description": "Is there an issue already (dedupe by label)?"
+                    },
+                    {
+                      "id": "s35",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$hits$ == 0"
+                      },
+                      "children": [
+                        {
+                          "id": "s36",
+                          "action": "ooa.jira/create_issue",
+                          "args": {
+                            "project": "OOAQA",
+                            "issue_type": "Bug",
+                            "summary": "OOA-QA ${rec.case_key} ${case.Subject}",
+                            "priority": "$jprio$",
+                            "labels": [
+                              "OOA-QA-${rec.case_key}",
+                              "OOA-QA-${run_id}"
+                            ],
+                            "description": "Linked from Salesforce ${case.Id}; ServiceNow ${sys_id}.",
+                            "site_url": "$standin$",
+                            "personal_access_token": {
+                              "$credential": "rw_qa_standins/jira/token"
+                            }
+                          },
+                          "out": {
+                            "key": "issue_key"
+                          },
+                          "description": "Create the test defect"
+                        }
+                      ],
+                      "description": "None yet: create it",
+                      "else": [
+                        {
+                          "id": "s37",
+                          "action": "ooa.datatable/get_value",
+                          "args": {
+                            "table": "$issues$",
+                            "row": 0,
+                            "column": "key"
+                          },
+                          "out": {
+                            "value": "issue_key"
+                          },
+                          "description": "Reuse the existing issue"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "s38",
+                      "action": "ooa.jira/add_comment",
+                      "args": {
+                        "key": "$issue_key$",
+                        "text": "Evidence: Salesforce ${case.Id}, ServiceNow ${sys_id}, run ${run_id} (no customer data).",
+                        "site_url": "$standin$",
+                        "personal_access_token": {
+                          "$credential": "rw_qa_standins/jira/token"
+                        }
+                      },
+                      "description": "Add the sanitized evidence link"
+                    },
+                    {
+                      "id": "s39",
+                      "action": "ooa.jira/transition",
+                      "args": {
+                        "key": "$issue_key$",
+                        "transition": "In Progress",
+                        "site_url": "$standin$",
+                        "personal_access_token": {
+                          "$credential": "rw_qa_standins/jira/token"
+                        }
+                      },
+                      "description": "Move it within the test workflow"
+                    }
+                  ],
+                  "description": "A defect? Only defects get a Jira issue"
+                },
+                {
+                  "id": "s40",
+                  "action": "ooa.salesforce/update_record",
+                  "args": {
+                    "object": "Case",
+                    "id": "$case.Id$",
+                    "fields": {
+                      "ServiceNow_Id__c": "$sys_id$",
+                      "Jira_Key__c": "$issue_key$",
+                      "Status": "Working"
+                    },
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/salesforce/token"
+                    }
+                  },
+                  "description": "Link the incident and the issue on the case"
+                },
+                {
+                  "id": "s41",
+                  "action": "ooa.salesforce/get_record",
+                  "args": {
+                    "object": "Case",
+                    "id": "$case.Id$",
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/salesforce/token"
+                    }
+                  },
+                  "out": {
+                    "record": "again"
+                  },
+                  "description": "Re-read the case"
+                },
+                {
+                  "id": "s42",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "${again.Jira_Key__c}",
+                      "right": "$issue_key$"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s43",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VERIFY.LINK_MISMATCH",
+                        "message": "Case ${case.Id} did not keep the Jira key"
+                      },
+                      "description": "Record the failed link for compensation"
+                    }
+                  ],
+                  "description": "Do the ids reconcile?"
+                },
+                {
+                  "id": "s44",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "case": "$rec.case_key$",
+                      "sf_id": "$case.Id$",
+                      "servicenow": "$sys_id$",
+                      "jira": "$issue_key$",
+                      "jira_status": {
+                        "expr": "if(isEmpty($issue_key$), '', 'In Progress')"
+                      },
+                      "priority": "$jprio$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Record the reconciled ids"
+                },
+                {
+                  "id": "s45",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${case.Id} linked ${sys_id} ${issue_key}"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s49",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW01-B4 - record ${rec.key}",
+                        "message": "RW01-B4: record ${$i + 1} of ${len($records$)}\n\n${case.Id}  ServiceNow ${sys_id}\nJira: ${issue_key}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s50",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s51",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s52",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s55",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW01-B4 - exception",
+                            "message": "RW01-B4: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s56",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s57",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 Salesforce cases and related Jira issues"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s58",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s59",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s60",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s61",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s62",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s63",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s64",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s65",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW01-B4 Salesforce and Jira linker finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s66",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s67",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW01-B4 finished",
+                "message": "RW01-B4 Salesforce and Jira linker finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

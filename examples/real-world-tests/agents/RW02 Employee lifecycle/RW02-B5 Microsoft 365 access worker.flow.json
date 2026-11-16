@@ -1,0 +1,1000 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw02_b5",
+  "name": "RW02-B5 Microsoft 365 access worker",
+  "description": "RW02-B5 (RW02 real-world test). Checks each test principal's group memberships, writes the onboarding note to the QA SharePoint site, posts to the QA Teams channel, sends the welcome (joiners) or the deprovision notice (leavers) only to QA addresses, and confirms delivery.",
+  "tags": [
+    "real-world-test",
+    "RW02"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "upn",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "users",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "uid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "have",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "item",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "post",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "seen",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "subject",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "request_id",
+          "groups",
+          "sharepoint_item",
+          "teams_post",
+          "mail_delivered"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Checks each test principal's group memberships, writes the onboarding note to the QA SharePoint site, posts to the QA Teams channel, sends the welcome (joiners) or the deprovision notice (leavers) only to QA addresses, and confirms delivery. It works through 10 test principals and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW02-B5"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW02-B5 Microsoft 365 access worker started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW02-B5 starts",
+                "message": "RW02-B5 Microsoft 365 access worker\n\nChecks each test principal's group memberships, writes the onboarding note to the QA SharePoint site, posts to the QA Teams channel, sends the welcome (joiners) or the deprovision notice (leavers) only to QA addresses, and confirms delivery.\n\nRecords: 10 test principals\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the accepted items; a folder for the onboarding notes."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW02/requests.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW02/requests.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "graph",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s18",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s19",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B1/evidence.csv"
+              },
+              "out": {
+                "table": "items"
+              },
+              "description": "Read the accepted lifecycle items"
+            },
+            {
+              "id": "s20",
+              "action": "ooa.datatable/join",
+              "args": {
+                "table": "$records$",
+                "key_columns": [
+                  "key"
+                ],
+                "other": "$items$",
+                "join_type": "inner"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Keep the requests intake accepted"
+            }
+          ],
+          "description": "Intake ran in this run?",
+          "else": [
+            {
+              "id": "s21",
+              "action": "ooa.datatable/filter",
+              "args": {
+                "table": "$records$",
+                "column": "approved",
+                "operator": "eq",
+                "value": "yes"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Approved requests only"
+            }
+          ]
+        },
+        {
+          "id": "s22",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "${out_dir}/notes"
+          },
+          "description": "Folder for the notes"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s23",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s24",
+          "action": "core/comment",
+          "args": {
+            "text": "Per principal: memberships, onboarding note to SharePoint, Teams post, QA-only mail, delivery check."
+          }
+        },
+        {
+          "id": "s25",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s27",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "upn",
+                    "value": "${replace(lower($rec.first + '.' + $rec.last), \"'\", '')}.qa@ooa-qa.test"
+                  },
+                  "description": "The principal"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not endsWith($upn$, '@ooa-qa.test')"
+                  },
+                  "children": [
+                    {
+                      "id": "s30",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "POLICY.NOT_QA_RECIPIENT",
+                        "message": "${upn} is outside the QA tenant"
+                      },
+                      "description": "Refuse others"
+                    }
+                  ],
+                  "description": "Only test recipients"
+                },
+                {
+                  "id": "s31",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "GET",
+                    "url": "${standin}/graph/v1.0/users",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    },
+                    "query": {
+                      "$filter": "userPrincipalName eq '${upn}'"
+                    }
+                  },
+                  "out": {
+                    "json": "users"
+                  },
+                  "description": "Find the principal"
+                },
+                {
+                  "id": "s32",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "len($users.value$) == 0"
+                  },
+                  "children": [
+                    {
+                      "id": "s33",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ROUTE.NO_PRINCIPAL",
+                        "message": "${upn} has no identity yet (identity worker first)"
+                      },
+                      "description": "Route it"
+                    }
+                  ],
+                  "description": "No principal?"
+                },
+                {
+                  "id": "s34",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "uid",
+                    "value": {
+                      "expr": "get(first($users.value$), 'id')"
+                    }
+                  },
+                  "description": "Its id"
+                },
+                {
+                  "id": "s35",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "GET",
+                    "url": "${standin}/graph/v1.0/users/${uid}/memberOf",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    }
+                  },
+                  "out": {
+                    "json": "have"
+                  },
+                  "description": "Verify its group memberships"
+                },
+                {
+                  "id": "s36",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "note",
+                    "value": "Onboarding note for ${rec.first} ${rec.last} (${rec.action}, ${rec.role}), effective ${rec.effective}. Run ${run_id}."
+                  },
+                  "description": "The note"
+                },
+                {
+                  "id": "s37",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "${out_dir}/notes/${rec.request_id}.txt",
+                    "text": "$note$"
+                  },
+                  "description": "Write the note"
+                },
+                {
+                  "id": "s38",
+                  "action": "ooa.microsoft365/upload_file",
+                  "args": {
+                    "local_path": "${out_dir}/notes/${rec.request_id}.txt",
+                    "remote_path": "OOA-QA/${run_id}/${rec.request_id}.txt",
+                    "drive": "sites/ooa-qa/drive",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    },
+                    "base_url": "${standin}/graph/v1.0"
+                  },
+                  "out": {
+                    "item_id": "item"
+                  },
+                  "description": "Store it in the QA SharePoint site"
+                },
+                {
+                  "id": "s39",
+                  "action": "ooa.microsoft365/teams_message",
+                  "args": {
+                    "team_id": "t-onboarding",
+                    "channel_id": "c-general",
+                    "message": "OOA-QA ${rec.request_id}: ${rec.action} for ${rec.first} effective ${rec.effective}",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    },
+                    "base_url": "${standin}/graph/v1.0"
+                  },
+                  "out": {
+                    "message_id": "post"
+                  },
+                  "description": "Post to the QA onboarding channel"
+                },
+                {
+                  "id": "s40",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "subject",
+                    "value": "OOA-QA ${run_id} ${rec.request_id} ${rec.action}"
+                  },
+                  "description": "Mail subject"
+                },
+                {
+                  "id": "s41",
+                  "action": "ooa.microsoft365/send_mail",
+                  "args": {
+                    "to": "$upn$",
+                    "subject": "$subject$",
+                    "body": {
+                      "expr": "if($rec.action$ == 'leaver', 'Your test access ends today.', 'Welcome to the QA tenant.')"
+                    },
+                    "access_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    },
+                    "base_url": "${standin}/graph/v1.0",
+                    "mailbox": "hr-qa@ooa-qa.test"
+                  },
+                  "description": "Welcome or deprovision notice, QA mailbox only"
+                },
+                {
+                  "id": "s42",
+                  "action": "ooa.microsoft365/list_mail",
+                  "args": {
+                    "folder": "inbox",
+                    "subject_contains": "$subject$",
+                    "max_results": 3,
+                    "access_token": {
+                      "$credential": "rw_qa_standins/graph/token"
+                    },
+                    "base_url": "${standin}/graph/v1.0",
+                    "mailbox": "$upn$"
+                  },
+                  "out": {
+                    "count": "seen"
+                  },
+                  "description": "Confirm delivery"
+                },
+                {
+                  "id": "s43",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$seen$ == 0"
+                  },
+                  "children": [
+                    {
+                      "id": "s44",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VERIFY.NOT_DELIVERED",
+                        "message": "Mail to ${upn} did not arrive"
+                      },
+                      "description": "Report it"
+                    }
+                  ],
+                  "description": "Not delivered?"
+                },
+                {
+                  "id": "s45",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "request_id": "$rec.request_id$",
+                      "groups": {
+                        "expr": "len($have.value$)"
+                      },
+                      "sharepoint_item": "$item$",
+                      "teams_post": "$post$",
+                      "mail_delivered": "$seen$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Write the audit row"
+                },
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${len($have.value$)} groups; mail ${seen}"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s47",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s49",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s50",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW02-B5 - record ${rec.key}",
+                        "message": "RW02-B5: record ${$i + 1} of ${len($records$)}\n\n${upn}\nSharePoint ${item}; Teams ${post}; mail ${seen}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s51",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s52",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s55",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s56",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW02-B5 - exception",
+                            "message": "RW02-B5: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s57",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s58",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 test principals"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s59",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s60",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s61",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s62",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s63",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s64",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s65",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s66",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW02-B5 Microsoft 365 access worker finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s67",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s68",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW02-B5 finished",
+                "message": "RW02-B5 Microsoft 365 access worker finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

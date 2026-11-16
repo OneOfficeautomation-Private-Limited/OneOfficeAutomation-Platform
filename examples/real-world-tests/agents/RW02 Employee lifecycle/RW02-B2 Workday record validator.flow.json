@@ -1,0 +1,1024 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw02_b2",
+  "name": "RW02-B2 Workday record validator",
+  "description": "RW02-B2 (RW02 real-world test). Finds each person in the Workday sandbox, checks movers and leavers exist and joiners do not (a terminated match is a rehire), validates dates and worker type, stages the joiner's worker record, reads it back and keeps the worker id.",
+  "tags": [
+    "real-world-test",
+    "RW02"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "found",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "hits",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "hit",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "again",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "staged",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "rehire",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "cnt",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "request_id",
+          "action",
+          "worker_id",
+          "rehire",
+          "staged"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "direction": "local"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Finds each person in the Workday sandbox, checks movers and leavers exist and joiners do not (a terminated match is a rehire), validates dates and worker type, stages the joiner's worker record, reads it back and keeps the worker id. It works through 10 Workday sandbox workers and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW02-B2"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW02-B2 Workday record validator started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW02-B2 starts",
+                "message": "RW02-B2 Workday record validator\n\nFinds each person in the Workday sandbox, checks movers and leavers exist and joiners do not (a terminated match is a rehire), validates dates and worker type, stages the joiner's worker record, reads it back and keeps the worker id.\n\nRecords: 10 Workday sandbox workers\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the requests intake accepted."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW02/requests.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW02/requests.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "workday",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s18",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s19",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW02-B1/evidence.csv"
+              },
+              "out": {
+                "table": "items"
+              },
+              "description": "Read the accepted lifecycle items"
+            },
+            {
+              "id": "s20",
+              "action": "ooa.datatable/join",
+              "args": {
+                "table": "$records$",
+                "key_columns": [
+                  "key"
+                ],
+                "other": "$items$",
+                "join_type": "inner"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Keep the requests intake accepted"
+            }
+          ],
+          "description": "Intake ran in this run?",
+          "else": [
+            {
+              "id": "s21",
+              "action": "ooa.datatable/filter",
+              "args": {
+                "table": "$records$",
+                "column": "approved",
+                "operator": "eq",
+                "value": "yes"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Approved requests only"
+            }
+          ]
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s22",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s23",
+          "action": "core/comment",
+          "args": {
+            "text": "Per request: search Workday, check existence by action, detect rehires, validate, stage joiners, read back, keep the id."
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s26",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s27",
+                  "action": "ooa.workday/search_workers",
+                  "args": {
+                    "search": "${rec.first} ${rec.last}",
+                    "max_results": 5,
+                    "host": "$standin$",
+                    "tenant": "ooa_qa",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/workday/token"
+                    }
+                  },
+                  "out": {
+                    "table": "found",
+                    "count": "cnt"
+                  },
+                  "description": "Search the sandbox for the person"
+                },
+                {
+                  "id": "s28",
+                  "action": "ooa.datatable/to_records",
+                  "args": {
+                    "table": "$found$"
+                  },
+                  "out": {
+                    "records": "hits"
+                  },
+                  "description": "As records"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rehire",
+                    "value": false
+                  },
+                  "description": "Not a rehire"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "wid",
+                    "value": ""
+                  },
+                  "description": "No worker id yet"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/switch",
+                  "args": {
+                    "value": "$rec.action$",
+                    "match": "equals",
+                    "ignore_case": true
+                  },
+                  "description": "What the request needs from Workday",
+                  "cases": [
+                    {
+                      "values": [
+                        "joiner"
+                      ],
+                      "children": [
+                        {
+                          "id": "s32",
+                          "action": "core/if",
+                          "args": {
+                            "condition": "$cnt$ > 0"
+                          },
+                          "children": [
+                            {
+                              "id": "s33",
+                              "action": "ooa.workday/get",
+                              "args": {
+                                "path": "/ccx/api/v1/ooa_qa/workers/${first($hits$).id}",
+                                "host": "$standin$",
+                                "access_token": {
+                                  "$credential": "rw_qa_standins/workday/token"
+                                }
+                              },
+                              "out": {
+                                "json": "hit"
+                              },
+                              "description": "Read the existing worker"
+                            },
+                            {
+                              "id": "s34",
+                              "action": "core/if",
+                              "args": {
+                                "condition": {
+                                  "op": "eq",
+                                  "left": "$hit.status$",
+                                  "right": "Active"
+                                }
+                              },
+                              "children": [
+                                {
+                                  "id": "s35",
+                                  "action": "core/throw",
+                                  "args": {
+                                    "code": "VALIDATION.DUPLICATE_WORKER",
+                                    "message": "${rec.first} ${rec.last} is already an active worker"
+                                  },
+                                  "description": "Duplicate person"
+                                }
+                              ],
+                              "description": "Active already?"
+                            },
+                            {
+                              "id": "s36",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "rehire",
+                                "value": true
+                              },
+                              "description": "A terminated worker returns: rehire"
+                            }
+                          ],
+                          "description": "Already in Workday?"
+                        },
+                        {
+                          "id": "s37",
+                          "action": "ooa.rest/request",
+                          "args": {
+                            "method": "POST",
+                            "url": "${standin}/ccx/api/v1/ooa_qa/staged",
+                            "bearer_token": {
+                              "$credential": "rw_qa_standins/workday/token"
+                            },
+                            "json": {
+                              "request_id": "$rec.request_id$",
+                              "descriptor": "${rec.first} ${rec.last}",
+                              "rehire": "$rehire$",
+                              "workerType": "$rec.worker_type$",
+                              "start": "$rec.effective$",
+                              "run": "$run_id$"
+                            }
+                          },
+                          "out": {
+                            "json": "staged"
+                          },
+                          "description": "Stage the joiner's worker record (approved only)"
+                        },
+                        {
+                          "id": "s38",
+                          "action": "ooa.workday/get",
+                          "args": {
+                            "path": "/ccx/api/v1/ooa_qa/staged/${staged.id}",
+                            "host": "$standin$",
+                            "access_token": {
+                              "$credential": "rw_qa_standins/workday/token"
+                            }
+                          },
+                          "out": {
+                            "json": "again"
+                          },
+                          "description": "Read the staged record back"
+                        },
+                        {
+                          "id": "s39",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "wid",
+                            "value": "$again.id$"
+                          },
+                          "description": "Keep the staged id"
+                        }
+                      ]
+                    }
+                  ],
+                  "default": [
+                    {
+                      "id": "s40",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$cnt$ == 0"
+                      },
+                      "children": [
+                        {
+                          "id": "s41",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "VALIDATION.NO_WORKER",
+                            "message": "${rec.first} ${rec.last} is not in Workday"
+                          },
+                          "description": "Reject it"
+                        }
+                      ],
+                      "description": "Mover or leaver not in Workday?"
+                    },
+                    {
+                      "id": "s42",
+                      "action": "ooa.workday/get",
+                      "args": {
+                        "path": "/ccx/api/v1/ooa_qa/workers/${first($hits$).id}",
+                        "host": "$standin$",
+                        "access_token": {
+                          "$credential": "rw_qa_standins/workday/token"
+                        }
+                      },
+                      "out": {
+                        "json": "hit"
+                      },
+                      "description": "Read the worker"
+                    },
+                    {
+                      "id": "s43",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$hit.status$",
+                          "right": "Active"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s44",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "VALIDATION.NOT_ACTIVE",
+                            "message": "${rec.first} ${rec.last} is not active in Workday"
+                          },
+                          "description": "Reject it"
+                        }
+                      ],
+                      "description": "Not active?"
+                    },
+                    {
+                      "id": "s45",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "wid",
+                        "value": "$hit.employeeId$"
+                      },
+                      "description": "Keep the worker id"
+                    }
+                  ]
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "message": "${rec.request_id}: Workday ${wid} rehire ${rehire}"
+                  },
+                  "description": "Write the reconciliation event"
+                },
+                {
+                  "id": "s47",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "request_id": "$rec.request_id$",
+                      "action": "$rec.action$",
+                      "worker_id": "$wid$",
+                      "rehire": "$rehire$",
+                      "staged": {
+                        "expr": "$rec.action$ == 'joiner'"
+                      }
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Record it"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${wid} rehire ${rehire}"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s49",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s50",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s52",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW02-B2 - record ${rec.key}",
+                        "message": "RW02-B2: record ${$i + 1} of ${len($records$)}\n\n${rec.first} ${rec.last} (${rec.action})\nWorker: ${wid}  rehire ${rehire}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s53",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s54",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s55",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s56",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s57",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s58",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW02-B2 - exception",
+                            "message": "RW02-B2: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s59",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s60",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 Workday sandbox workers"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s61",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s62",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s63",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s64",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s65",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s66",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s67",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s68",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW02-B2 Workday record validator finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s69",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s70",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW02-B2 finished",
+                "message": "RW02-B2 Workday record validator finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}
