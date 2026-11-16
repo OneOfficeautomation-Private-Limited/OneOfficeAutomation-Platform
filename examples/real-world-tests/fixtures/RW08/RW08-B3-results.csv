@@ -1,0 +1,5 @@
+key,status,note,time
+R01,done,go (risk low),05:10:02
+R08,exception,"RISK.NO_GO: R08: no-go (OPEN_CRITICAL_VULN, NO_ROLLBACK_PLAN)",05:10:02
+R09,done,go (risk low),05:10:02
+R10,done,go (risk low),05:10:02

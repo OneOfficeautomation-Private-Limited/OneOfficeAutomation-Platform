@@ -1,0 +1,8 @@
+key,status,note,time
+R01,done,R01-app-2.1.0.zip ok,05:09:49
+R05,exception,BUILD.FAILED: R05: unit=failure,05:09:49
+R06,exception,SIGNATURE.ARTIFACT: R06: R06-app-2.6.0.zip has no valid signature,05:09:49
+R07,exception,LICENCE.POLICY: R07: qa-report:AGPL-3.0 (forbidden),05:09:49
+R08,done,R08-app-2.8.0.zip ok,05:09:49
+R09,done,R09-app-2.9.0.zip ok,05:09:49
+R10,done,R10-app-2.10.0.zip ok,05:09:49

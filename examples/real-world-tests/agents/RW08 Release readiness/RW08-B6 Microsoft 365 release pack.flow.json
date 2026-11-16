@@ -1,0 +1,2274 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw08_b6",
+  "name": "RW08-B6 Microsoft 365 release pack",
+  "description": "RW08-B6 (RW08 real-world test). Builds the release matrix (Excel), the sign-off (Word, also as PDF) and the release briefing (PowerPoint) for the 10 dossiers, stores them in the QA SharePoint site, links the Teams sign-off thread, checks the files are shared with the QA groups only, reads them back, reconciles the dossiers, checks for secrets and archives the evidence.",
+  "tags": [
+    "real-world-test",
+    "RW08"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "b1",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b1r",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b2",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b2r",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b3",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b3r",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b4",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b4r",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b5",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "b5r",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "st",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "stage",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ver",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "appr",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "dep",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "item",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "perms",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "np",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "post",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "printers",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "cell",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "wtext",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "slides",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "canary",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "files",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "leaks",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "go",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "ws",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "matrix",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "stage",
+          "version",
+          "approval",
+          "deployed"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "archive",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The archived evidence."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Builds the release matrix (Excel), the sign-off (Word, also as PDF) and the release briefing (PowerPoint) for the 10 dossiers, stores them in the QA SharePoint site, links the Teams sign-off thread, checks the files are shared with the QA groups only, reads them back, reconciles the dossiers, checks for secrets and archives the evidence. It works through 10 release dossiers and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW08-B6"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW08-B6 Microsoft 365 release pack started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW08-B6 starts",
+                "message": "RW08-B6 Microsoft 365 release pack\n\nBuilds the release matrix (Excel), the sign-off (Word, also as PDF) and the release briefing (PowerPoint) for the 10 dossiers, stores them in the QA SharePoint site, links the Teams sign-off thread, checks the files are shared with the QA groups only, reads them back, reconciles the dossiers, checks for secrets and archives the evidence.\n\nRecords: 10 release dossiers\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read every child's evidence and results; the printers on the runner (read only, for the printed sign-off later)."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW08/candidates.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW08/candidates.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B1/evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW08-B1 evidence"
+            }
+          ],
+          "description": "RW08-B1 ran in this run?",
+          "else": [
+            {
+              "id": "s18",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B1's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s19",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B1-evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW08-B1 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s20",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B1/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s21",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B1/results.csv"
+              },
+              "out": {
+                "table": "b1r"
+              },
+              "description": "Read RW08-B1 results"
+            }
+          ],
+          "description": "RW08-B1 ran in this run?",
+          "else": [
+            {
+              "id": "s22",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B1's results from a checked run."
+              }
+            },
+            {
+              "id": "s23",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B1-results.csv"
+              },
+              "out": {
+                "table": "b1r"
+              },
+              "description": "Read RW08-B1 results (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s24",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B2/evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW08-B2 evidence"
+            }
+          ],
+          "description": "RW08-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s26",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B2's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s27",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B2-evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW08-B2 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s28",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B2/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s29",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B2/results.csv"
+              },
+              "out": {
+                "table": "b2r"
+              },
+              "description": "Read RW08-B2 results"
+            }
+          ],
+          "description": "RW08-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s30",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B2's results from a checked run."
+              }
+            },
+            {
+              "id": "s31",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B2-results.csv"
+              },
+              "out": {
+                "table": "b2r"
+              },
+              "description": "Read RW08-B2 results (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s32",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B3/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s33",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B3/evidence.csv"
+              },
+              "out": {
+                "table": "b3"
+              },
+              "description": "Read RW08-B3 evidence"
+            }
+          ],
+          "description": "RW08-B3 ran in this run?",
+          "else": [
+            {
+              "id": "s34",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B3's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s35",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B3-evidence.csv"
+              },
+              "out": {
+                "table": "b3"
+              },
+              "description": "Read RW08-B3 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s36",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B3/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s37",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B3/results.csv"
+              },
+              "out": {
+                "table": "b3r"
+              },
+              "description": "Read RW08-B3 results"
+            }
+          ],
+          "description": "RW08-B3 ran in this run?",
+          "else": [
+            {
+              "id": "s38",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B3's results from a checked run."
+              }
+            },
+            {
+              "id": "s39",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B3-results.csv"
+              },
+              "out": {
+                "table": "b3r"
+              },
+              "description": "Read RW08-B3 results (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s40",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B4/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s41",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B4/evidence.csv"
+              },
+              "out": {
+                "table": "b4"
+              },
+              "description": "Read RW08-B4 evidence"
+            }
+          ],
+          "description": "RW08-B4 ran in this run?",
+          "else": [
+            {
+              "id": "s42",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B4's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s43",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B4-evidence.csv"
+              },
+              "out": {
+                "table": "b4"
+              },
+              "description": "Read RW08-B4 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s44",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B4/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s45",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B4/results.csv"
+              },
+              "out": {
+                "table": "b4r"
+              },
+              "description": "Read RW08-B4 results"
+            }
+          ],
+          "description": "RW08-B4 ran in this run?",
+          "else": [
+            {
+              "id": "s46",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B4's results from a checked run."
+              }
+            },
+            {
+              "id": "s47",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B4-results.csv"
+              },
+              "out": {
+                "table": "b4r"
+              },
+              "description": "Read RW08-B4 results (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s48",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B5/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s49",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B5/evidence.csv"
+              },
+              "out": {
+                "table": "b5"
+              },
+              "description": "Read RW08-B5 evidence"
+            }
+          ],
+          "description": "RW08-B5 ran in this run?",
+          "else": [
+            {
+              "id": "s50",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B5's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s51",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B5-evidence.csv"
+              },
+              "out": {
+                "table": "b5"
+              },
+              "description": "Read RW08-B5 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s52",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B5/results.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s53",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B5/results.csv"
+              },
+              "out": {
+                "table": "b5r"
+              },
+              "description": "Read RW08-B5 results"
+            }
+          ],
+          "description": "RW08-B5 ran in this run?",
+          "else": [
+            {
+              "id": "s54",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B5's results from a checked run."
+              }
+            },
+            {
+              "id": "s55",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B5-results.csv"
+              },
+              "out": {
+                "table": "b5r"
+              },
+              "description": "Read RW08-B5 results (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s56",
+          "action": "ooa.printer/list_printers",
+          "args": {},
+          "out": {
+            "printers": "printers"
+          },
+          "continueOnError": true,
+          "description": "Printers here (read only; nothing is printed)"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s57",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s58",
+          "action": "core/comment",
+          "args": {
+            "text": "Per dossier: furthest stage, version, approval, deployment."
+          }
+        },
+        {
+          "id": "s59",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s60",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s61",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s62",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "stage",
+                    "value": "deployed to QA"
+                  },
+                  "description": "Furthest stage, from the end back"
+                },
+                {
+                  "id": "s63",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b1r$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "status",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "st"
+                  },
+                  "description": "Stopped at source?"
+                },
+                {
+                  "id": "s64",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "eq",
+                          "left": "$st$",
+                          "right": "exception"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$stage$",
+                          "right": "deployed to QA"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s65",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b1r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "note"
+                      },
+                      "out": {
+                        "value": "note"
+                      },
+                      "description": "Why"
+                    },
+                    {
+                      "id": "s66",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "stopped at source: ${regexExtract($note$, '^([A-Z_]+[.][A-Z_]+)', 1)}"
+                      },
+                      "description": "Stage"
+                    }
+                  ],
+                  "description": "Stopped at source"
+                },
+                {
+                  "id": "s67",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b2r$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "status",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "st"
+                  },
+                  "description": "Stopped at build?"
+                },
+                {
+                  "id": "s68",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "eq",
+                          "left": "$st$",
+                          "right": "exception"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$stage$",
+                          "right": "deployed to QA"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s69",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b2r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "note"
+                      },
+                      "out": {
+                        "value": "note"
+                      },
+                      "description": "Why"
+                    },
+                    {
+                      "id": "s70",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "stopped at build: ${regexExtract($note$, '^([A-Z_]+[.][A-Z_]+)', 1)}"
+                      },
+                      "description": "Stage"
+                    }
+                  ],
+                  "description": "Stopped at build"
+                },
+                {
+                  "id": "s71",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b3r$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "status",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "st"
+                  },
+                  "description": "Stopped at risk?"
+                },
+                {
+                  "id": "s72",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "eq",
+                          "left": "$st$",
+                          "right": "exception"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$stage$",
+                          "right": "deployed to QA"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s73",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b3r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "note"
+                      },
+                      "out": {
+                        "value": "note"
+                      },
+                      "description": "Why"
+                    },
+                    {
+                      "id": "s74",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "stopped at risk: ${regexExtract($note$, '^([A-Z_]+[.][A-Z_]+)', 1)}"
+                      },
+                      "description": "Stage"
+                    }
+                  ],
+                  "description": "Stopped at risk"
+                },
+                {
+                  "id": "s75",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b4r$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "status",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "st"
+                  },
+                  "description": "Stopped at approval?"
+                },
+                {
+                  "id": "s76",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "eq",
+                          "left": "$st$",
+                          "right": "exception"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$stage$",
+                          "right": "deployed to QA"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s77",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b4r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "note"
+                      },
+                      "out": {
+                        "value": "note"
+                      },
+                      "description": "Why"
+                    },
+                    {
+                      "id": "s78",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "stopped at approval: ${regexExtract($note$, '^([A-Z_]+[.][A-Z_]+)', 1)}"
+                      },
+                      "description": "Stage"
+                    }
+                  ],
+                  "description": "Stopped at approval"
+                },
+                {
+                  "id": "s79",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b5r$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "status",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "st"
+                  },
+                  "description": "Stopped at deployment?"
+                },
+                {
+                  "id": "s80",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "all": [
+                        {
+                          "op": "eq",
+                          "left": "$st$",
+                          "right": "exception"
+                        },
+                        {
+                          "op": "eq",
+                          "left": "$stage$",
+                          "right": "deployed to QA"
+                        }
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s81",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b5r$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "note"
+                      },
+                      "out": {
+                        "value": "note"
+                      },
+                      "description": "Why"
+                    },
+                    {
+                      "id": "s82",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "stage",
+                        "value": "stopped at deployment: ${regexExtract($note$, '^([A-Z_]+[.][A-Z_]+)', 1)}"
+                      },
+                      "description": "Stage"
+                    }
+                  ],
+                  "description": "Stopped at deployment"
+                },
+                {
+                  "id": "s83",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b2$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "version",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "ver"
+                  },
+                  "description": "Version"
+                },
+                {
+                  "id": "s84",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b4$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "approval",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "appr"
+                  },
+                  "description": "Approval"
+                },
+                {
+                  "id": "s85",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b5$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "deployed",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "dep"
+                  },
+                  "description": "Deployed version"
+                },
+                {
+                  "id": "s86",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$stage$",
+                      "right": "deployed to QA"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s87",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "go",
+                        "value": {
+                          "expr": "$go$ + 1"
+                        }
+                      },
+                      "description": "Count it"
+                    }
+                  ],
+                  "description": "Go and deployed?"
+                },
+                {
+                  "id": "s88",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$matrix$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "stage": "$stage$",
+                      "version": "$ver$",
+                      "approval": "$appr$",
+                      "deployed": "$dep$"
+                    }
+                  },
+                  "out": {
+                    "table": "matrix"
+                  },
+                  "description": "7. Matrix row"
+                },
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "$stage$"
+                  },
+                  "description": "Note"
+                },
+                {
+                  "id": "s90",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s91",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s92",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s93",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW08-B6 - record ${rec.key}",
+                        "message": "RW08-B6: record ${$i + 1} of ${len($records$)}\n\n${rec.key}: ${stage}\n${ver} approval ${appr} deployed ${dep}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s94",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s95",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s96",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s97",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s98",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s99",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW08-B6 - exception",
+                            "message": "RW08-B6: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s100",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s101",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 release dossiers"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s102",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s103",
+          "action": "core/comment",
+          "args": {
+            "text": "Excel, Word/PDF, PowerPoint, SharePoint, Teams link, permissions, read back, reconcile, secrets, archive."
+          }
+        },
+        {
+          "id": "s104",
+          "action": "core/set",
+          "args": {
+            "variable": "dir",
+            "value": "${out_dir}/pack"
+          },
+          "description": "The release pack folder"
+        },
+        {
+          "id": "s105",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$dir$"
+          },
+          "description": "Pack folder"
+        },
+        {
+          "id": "s106",
+          "action": "ooa.excel/create_workbook",
+          "args": {
+            "path": "${dir}/RW08-release-matrix.xlsx",
+            "overwrite": true,
+            "sheet": "Matrix"
+          },
+          "description": "1. Release matrix (Excel)"
+        },
+        {
+          "id": "s107",
+          "action": "ooa.excel/write_table",
+          "args": {
+            "table": "$matrix$",
+            "sheet": "Matrix"
+          },
+          "description": "The 10 dossiers"
+        },
+        {
+          "id": "s108",
+          "action": "ooa.excel/set_cell",
+          "args": {
+            "cell": "G1",
+            "value": "Deployed",
+            "sheet": "Matrix"
+          },
+          "description": "Label"
+        },
+        {
+          "id": "s109",
+          "action": "ooa.excel/set_formula",
+          "args": {
+            "cell": "H1",
+            "formula": "COUNTIF(B2:B11,\"deployed to QA\")",
+            "sheet": "Matrix"
+          },
+          "description": "Deployed count"
+        },
+        {
+          "id": "s110",
+          "action": "ooa.excel/save",
+          "args": {},
+          "description": "Save"
+        },
+        {
+          "id": "s111",
+          "action": "ooa.excel/close",
+          "args": {},
+          "description": "Close"
+        },
+        {
+          "id": "s112",
+          "action": "ooa.word/create_document",
+          "args": {
+            "path": "${dir}/RW08-sign-off.docx",
+            "overwrite": true,
+            "session": "signoff"
+          },
+          "description": "1. Sign-off (Word)"
+        },
+        {
+          "id": "s113",
+          "action": "ooa.word/add_paragraph",
+          "args": {
+            "text": "OOA-QA release sign-off, run ${run_id}",
+            "style": "Heading1",
+            "session": "signoff"
+          },
+          "description": "Title"
+        },
+        {
+          "id": "s114",
+          "action": "ooa.word/add_paragraph",
+          "args": {
+            "text": "${go} of 10 release candidates were deployed to QA; the others stopped at the stage shown.",
+            "session": "signoff"
+          },
+          "description": "Summary"
+        },
+        {
+          "id": "s115",
+          "action": "ooa.word/add_table",
+          "args": {
+            "table": "$matrix$",
+            "session": "signoff"
+          },
+          "description": "The matrix"
+        },
+        {
+          "id": "s116",
+          "action": "ooa.word/save",
+          "args": {
+            "session": "signoff"
+          },
+          "description": "Save"
+        },
+        {
+          "id": "s117",
+          "action": "ooa.word/save_as",
+          "args": {
+            "path": "${dir}/RW08-sign-off.pdf",
+            "format": "pdf",
+            "session": "signoff"
+          },
+          "description": "1. And as PDF"
+        },
+        {
+          "id": "s118",
+          "action": "ooa.word/close",
+          "args": {
+            "session": "signoff"
+          },
+          "description": "Close"
+        },
+        {
+          "id": "s119",
+          "action": "ooa.powerpoint/create_presentation",
+          "args": {
+            "path": "${dir}/RW08-briefing.pptx",
+            "overwrite": true,
+            "session": "brief"
+          },
+          "description": "2. Release briefing (PowerPoint)"
+        },
+        {
+          "id": "s120",
+          "action": "ooa.powerpoint/add_slide",
+          "args": {
+            "layout": "title",
+            "title": "OOA-QA release readiness",
+            "body": "Run ${run_id}",
+            "session": "brief"
+          },
+          "description": "Title slide"
+        },
+        {
+          "id": "s121",
+          "action": "ooa.powerpoint/add_slide",
+          "args": {
+            "layout": "title_and_content",
+            "title": "Result",
+            "body": "Deployed to QA: ${go} of 10\nStopped by the controls: ${10 - $go$}",
+            "session": "brief"
+          },
+          "description": "Result slide"
+        },
+        {
+          "id": "s122",
+          "action": "ooa.powerpoint/save",
+          "args": {
+            "session": "brief"
+          },
+          "description": "Save"
+        },
+        {
+          "id": "s123",
+          "action": "ooa.powerpoint/close",
+          "args": {
+            "session": "brief"
+          },
+          "description": "Close"
+        },
+        {
+          "id": "s124",
+          "action": "ooa.microsoft365/upload_file",
+          "args": {
+            "local_path": "${dir}/RW08-release-matrix.xlsx",
+            "remote_path": "OOA-QA/${run_id}/RW08-release-matrix.xlsx",
+            "drive": "sites/ooa-qa/drive",
+            "access_token": {
+              "$credential": "rw_qa_standins/graph/token"
+            },
+            "base_url": "${standin}/graph/v1.0"
+          },
+          "out": {
+            "item_id": "item"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "3. Store the matrix in QA SharePoint"
+        },
+        {
+          "id": "s125",
+          "action": "ooa.microsoft365/upload_file",
+          "args": {
+            "local_path": "${dir}/RW08-sign-off.pdf",
+            "remote_path": "OOA-QA/${run_id}/RW08-sign-off.pdf",
+            "drive": "sites/ooa-qa/drive",
+            "access_token": {
+              "$credential": "rw_qa_standins/graph/token"
+            },
+            "base_url": "${standin}/graph/v1.0"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "3. Store the sign-off PDF"
+        },
+        {
+          "id": "s126",
+          "action": "ooa.microsoft365/upload_file",
+          "args": {
+            "local_path": "${dir}/RW08-briefing.pptx",
+            "remote_path": "OOA-QA/${run_id}/RW08-briefing.pptx",
+            "drive": "sites/ooa-qa/drive",
+            "access_token": {
+              "$credential": "rw_qa_standins/graph/token"
+            },
+            "base_url": "${standin}/graph/v1.0"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "3. Store the briefing"
+        },
+        {
+          "id": "s127",
+          "action": "ooa.microsoft365/list_permissions",
+          "args": {
+            "item": "$item$",
+            "drive": "sites/ooa-qa/drive",
+            "access_token": {
+              "$credential": "rw_qa_standins/graph/token"
+            },
+            "base_url": "${standin}/graph/v1.0"
+          },
+          "out": {
+            "table": "perms",
+            "count": "np"
+          },
+          "description": "5. Who can open the matrix?"
+        },
+        {
+          "id": "s128",
+          "action": "ooa.datatable/to_csv_text",
+          "args": {
+            "table": "$perms$"
+          },
+          "out": {
+            "text": "text"
+          },
+          "description": "As text"
+        },
+        {
+          "id": "s129",
+          "action": "core/if",
+          "args": {
+            "condition": "contains(lower($text$), 'anyone') or contains(lower($text$), 'everyone')"
+          },
+          "children": [
+            {
+              "id": "s130",
+              "action": "core/throw",
+              "args": {
+                "code": "SECURITY.SHARING",
+                "message": "The release pack is shared beyond the QA groups"
+              },
+              "description": "Stop"
+            }
+          ],
+          "description": "Shared beyond the QA groups?"
+        },
+        {
+          "id": "s131",
+          "action": "ooa.microsoft365/teams_message",
+          "args": {
+            "team_id": "t-release",
+            "channel_id": "c-signoff",
+            "message": "OOA-QA ${run_id} release pack: matrix, sign-off and briefing stored in SharePoint (OOA-QA/${run_id}).",
+            "access_token": {
+              "$credential": "rw_qa_standins/graph/token"
+            },
+            "base_url": "${standin}/graph/v1.0"
+          },
+          "out": {
+            "message_id": "post"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "4. Link the Teams sign-off thread"
+        },
+        {
+          "id": "s132",
+          "action": "ooa.excel/open",
+          "args": {
+            "path": "${dir}/RW08-release-matrix.xlsx",
+            "session": "check"
+          },
+          "description": "6. Re-read the matrix"
+        },
+        {
+          "id": "s133",
+          "action": "ooa.excel/get_cell",
+          "args": {
+            "cell": "A11",
+            "sheet": "Matrix",
+            "session": "check"
+          },
+          "out": {
+            "value": "cell"
+          },
+          "description": "Last dossier row"
+        },
+        {
+          "id": "s134",
+          "action": "ooa.excel/close",
+          "args": {
+            "session": "check",
+            "save": false
+          },
+          "description": "Close"
+        },
+        {
+          "id": "s135",
+          "action": "ooa.word/open",
+          "args": {
+            "path": "${dir}/RW08-sign-off.docx",
+            "session": "check2"
+          },
+          "description": "6. Re-read the sign-off"
+        },
+        {
+          "id": "s136",
+          "action": "ooa.word/read_text",
+          "args": {
+            "session": "check2"
+          },
+          "out": {
+            "text": "wtext"
+          },
+          "description": "Its text"
+        },
+        {
+          "id": "s137",
+          "action": "ooa.word/close",
+          "args": {
+            "session": "check2"
+          },
+          "description": "Close"
+        },
+        {
+          "id": "s138",
+          "action": "ooa.powerpoint/open",
+          "args": {
+            "path": "${dir}/RW08-briefing.pptx",
+            "session": "check3"
+          },
+          "description": "6. Re-read the briefing"
+        },
+        {
+          "id": "s139",
+          "action": "ooa.powerpoint/slide_count",
+          "args": {
+            "session": "check3"
+          },
+          "out": {
+            "count": "slides"
+          },
+          "description": "Slides"
+        },
+        {
+          "id": "s140",
+          "action": "ooa.powerpoint/close",
+          "args": {
+            "session": "check3"
+          },
+          "description": "Close"
+        },
+        {
+          "id": "s141",
+          "action": "core/if",
+          "args": {
+            "condition": "$cell$ != 'R10' or not contains($wtext$, 'release sign-off') or $slides$ != 2"
+          },
+          "children": [
+            {
+              "id": "s142",
+              "action": "core/throw",
+              "args": {
+                "code": "VERIFY.READBACK",
+                "message": "Read back: A11=${cell}, slides ${slides}"
+              },
+              "description": "Stop"
+            }
+          ],
+          "description": "7. Files do not read back as written?"
+        },
+        {
+          "id": "s143",
+          "action": "ooa.global_values/get",
+          "args": {
+            "name": "rw_canary",
+            "default": "",
+            "type": "String"
+          },
+          "out": {
+            "value": "canary"
+          },
+          "description": "8. The canary text"
+        },
+        {
+          "id": "s144",
+          "action": "ooa.file/list",
+          "args": {
+            "folder": "${base}/output/${run_id}",
+            "pattern": "*.*",
+            "include_subfolders": true
+          },
+          "out": {
+            "files": "files"
+          },
+          "description": "Every text output of the run"
+        },
+        {
+          "id": "s145",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": "$files$",
+            "as": "file"
+          },
+          "children": [
+            {
+              "id": "s146",
+              "action": "core/if",
+              "args": {
+                "condition": "endsWith($file$, '.csv') or endsWith($file$, '.log') or endsWith($file$, '.txt')"
+              },
+              "children": [
+                {
+                  "id": "s147",
+                  "action": "ooa.file/read_text",
+                  "args": {
+                    "path": "$file$"
+                  },
+                  "out": {
+                    "text": "text"
+                  },
+                  "description": "Read it"
+                },
+                {
+                  "id": "s148",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not isEmpty($canary$) and contains($text$, $canary$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s149",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "leaks",
+                        "value": {
+                          "expr": "$leaks$ + 1"
+                        }
+                      },
+                      "description": "Count"
+                    }
+                  ],
+                  "description": "Canary?"
+                }
+              ],
+              "description": "Text file?"
+            }
+          ],
+          "description": "Each output"
+        },
+        {
+          "id": "s150",
+          "action": "core/if",
+          "args": {
+            "condition": "$leaks$ > 0"
+          },
+          "children": [
+            {
+              "id": "s151",
+              "action": "core/throw",
+              "args": {
+                "code": "SECURITY.CANARY",
+                "message": "The canary is in ${leaks} output file(s)"
+              },
+              "description": "Stop"
+            }
+          ],
+          "description": "Secret leaked?"
+        },
+        {
+          "id": "s152",
+          "action": "core/set",
+          "args": {
+            "variable": "archive",
+            "value": "${out_dir}/RW08-evidence.zip"
+          },
+          "description": "9. The archive"
+        },
+        {
+          "id": "s153",
+          "action": "ooa.file/zip",
+          "args": {
+            "source": "$dir$",
+            "target": "$archive$",
+            "overwrite": true
+          },
+          "description": "9. Archive the pack and logs"
+        },
+        {
+          "id": "s154",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$matrix$",
+            "path": "${out_dir}/RW08-matrix.csv"
+          },
+          "description": "The matrix as CSV"
+        },
+        {
+          "id": "s155",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "Release pack archived (${archive}); ${go} deployed; Teams ${post}"
+          },
+          "description": "Close the run"
+        },
+        {
+          "id": "s156",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s157",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s158",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s159",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW08-B6 Microsoft 365 release pack finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s160",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s161",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW08-B6 finished",
+                "message": "RW08-B6 Microsoft 365 release pack finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

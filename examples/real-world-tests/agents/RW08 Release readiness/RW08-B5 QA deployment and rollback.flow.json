@@ -1,0 +1,1149 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw08_b5",
+  "name": "RW08-B5 QA deployment and rollback",
+  "description": "RW08-B5 (RW08 real-world test). For each approved release: refuses endpoints outside the allow-list, deploys only the signed artifact to the QA app, runs health and smoke checks, verifies the build version, rolls back to the previous artifact when a check fails and verifies again, checks the runner's service state, keeps the logs, updates the change status and cleans the agent workspace.",
+  "tags": [
+    "real-world-test",
+    "RW08"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "b2",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "endpoint",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "allowed",
+      "type": "List",
+      "direction": "local",
+      "default": [
+        "127.0.0.1"
+      ]
+    },
+    {
+      "name": "ver",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "prev",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "health",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "smoke",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ok",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "rolled",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "svc",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "chg",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "sysid",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ws",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "art",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "res",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "deployed",
+          "health",
+          "smoke_failed",
+          "rolled_back",
+          "version_now",
+          "service",
+          "logs"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: For each approved release: refuses endpoints outside the allow-list, deploys only the signed artifact to the QA app, runs health and smoke checks, verifies the build version, rolls back to the previous artifact when a check fails and verifies again, checks the runner's service state, keeps the logs, updates the change status and cleans the agent workspace. It works through 10 QA deployments (the approved releases) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW08-B5"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW08-B5 QA deployment and rollback started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW08-B5 starts",
+                "message": "RW08-B5 QA deployment and rollback\n\nFor each approved release: refuses endpoints outside the allow-list, deploys only the signed artifact to the QA app, runs health and smoke checks, verifies the build version, rolls back to the previous artifact when a check fails and verifies again, checks the runner's service state, keeps the logs, updates the change status and cleans the agent workspace.\n\nRecords: 10 QA deployments (the approved releases)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Approved releases; the build details; 9. the QA endpoint must be on the allow-list."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B4/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B4/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW08-B4 evidence"
+            }
+          ],
+          "description": "RW08-B4 ran in this run?",
+          "else": [
+            {
+              "id": "s17",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B4's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B4-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW08-B4 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s19",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s20",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B2/evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW08-B2 evidence"
+            }
+          ],
+          "description": "RW08-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s21",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B2's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s22",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B2-evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW08-B2 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s23",
+          "action": "core/set",
+          "args": {
+            "variable": "endpoint",
+            "value": {
+              "expr": "regexExtract($standin$, '//([^:/]+)', 1)"
+            }
+          },
+          "description": "QA app endpoint host"
+        },
+        {
+          "id": "s24",
+          "action": "core/if",
+          "args": {
+            "condition": "not contains($allowed$, $endpoint$)"
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "core/throw",
+              "args": {
+                "code": "SCOPE.ENDPOINT",
+                "message": "${endpoint} is not an allow-listed QA endpoint"
+              },
+              "description": "Refuse"
+            }
+          ],
+          "description": "Endpoint not allow-listed?"
+        },
+        {
+          "id": "s26",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin}/qa-app/health",
+            "fail_on_error": false
+          },
+          "out": {
+            "json": "health"
+          },
+          "description": "The version running now"
+        },
+        {
+          "id": "s27",
+          "action": "core/set",
+          "args": {
+            "variable": "prev",
+            "value": "$health.version$"
+          },
+          "description": "Previous version (for rollback)"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s28",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s29",
+          "action": "core/comment",
+          "args": {
+            "text": "Per release: deploy the signed artifact, health and smoke, version, rollback on failure, service state, logs, change status, clean-up."
+          }
+        },
+        {
+          "id": "s30",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s31",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s32",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s33",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b2$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "version"
+                  },
+                  "out": {
+                    "value": "ver"
+                  },
+                  "description": "Version of the build"
+                },
+                {
+                  "id": "s34",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$b2$",
+                    "column": "key",
+                    "value": "$rec.key$",
+                    "return_column": "signature"
+                  },
+                  "out": {
+                    "value": "art"
+                  },
+                  "description": "Its signature file"
+                },
+                {
+                  "id": "s35",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ws",
+                    "value": "${out_dir}/workspace/${rec.key}"
+                  },
+                  "description": "Agent workspace for the deployment"
+                },
+                {
+                  "id": "s36",
+                  "action": "ooa.folder/create",
+                  "args": {
+                    "path": "$ws$"
+                  },
+                  "description": "Workspace"
+                },
+                {
+                  "id": "s37",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "method": "POST",
+                    "url": "${standin}/qa-app/deploy",
+                    "json": {
+                      "version": "$ver$",
+                      "signed": {
+                        "expr": "not isEmpty($art$)"
+                      },
+                      "change": "$rec.key$",
+                      "run": "$run_id$"
+                    }
+                  },
+                  "out": {
+                    "json": "res"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "1. Deploy the signed artifact to QA"
+                },
+                {
+                  "id": "s38",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "${standin}/qa-app/health",
+                    "fail_on_error": false
+                  },
+                  "out": {
+                    "json": "health"
+                  },
+                  "description": "2. Health check"
+                },
+                {
+                  "id": "s39",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "${standin}/qa-app/smoke"
+                  },
+                  "out": {
+                    "json": "smoke"
+                  },
+                  "description": "2. Smoke tests"
+                },
+                {
+                  "id": "s40",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ok",
+                    "value": {
+                      "expr": "$health.status$ == 'ok' and toNumber($smoke.failed$) == 0 and $health.version$ == $ver$"
+                    }
+                  },
+                  "description": "3. Healthy and the right version?"
+                },
+                {
+                  "id": "s41",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rolled",
+                    "value": false
+                  },
+                  "description": "No rollback yet"
+                },
+                {
+                  "id": "s42",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not $ok$"
+                  },
+                  "children": [
+                    {
+                      "id": "s43",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "method": "POST",
+                        "url": "${standin}/qa-app/deploy",
+                        "json": {
+                          "version": "$prev$",
+                          "signed": true,
+                          "change": "${rec.key} rollback",
+                          "run": "$run_id$"
+                        }
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "5. Restore the previous artifact"
+                    },
+                    {
+                      "id": "s44",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "url": "${standin}/qa-app/health",
+                        "fail_on_error": false
+                      },
+                      "out": {
+                        "json": "health"
+                      },
+                      "description": "Health after the rollback"
+                    },
+                    {
+                      "id": "s45",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "rolled",
+                        "value": true
+                      },
+                      "description": "Rolled back"
+                    }
+                  ],
+                  "description": "4. Failed: roll back"
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.services/get_status",
+                  "args": {
+                    "name": "W32Time"
+                  },
+                  "out": {
+                    "status": "svc"
+                  },
+                  "description": "6. Runner service state (read only)"
+                },
+                {
+                  "id": "s47",
+                  "action": "ooa.file/write_text",
+                  "args": {
+                    "path": "${ws}/deploy.log",
+                    "text": "release ${rec.key} version ${ver}\nhealth ${health.status} (${health.version})\nsmoke failed ${smoke.failed}\nrolled back ${rolled}\nW32Time ${svc}\n"
+                  },
+                  "description": "7. Deployment log"
+                },
+                {
+                  "id": "s48",
+                  "action": "ooa.file/copy",
+                  "args": {
+                    "source": "${ws}/deploy.log",
+                    "target": "${out_dir}/${rec.key}-deploy.log",
+                    "overwrite": true
+                  },
+                  "description": "Keep the log with the evidence"
+                },
+                {
+                  "id": "s49",
+                  "action": "ooa.servicenow/query",
+                  "args": {
+                    "table": "change_request",
+                    "query": "correlation_id=OOA-QA-RW08-${rec.key}",
+                    "max_records": 1,
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    }
+                  },
+                  "out": {
+                    "table": "chg"
+                  },
+                  "description": "The change record"
+                },
+                {
+                  "id": "s50",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$chg$",
+                    "row": 0,
+                    "column": "sys_id"
+                  },
+                  "out": {
+                    "value": "sysid"
+                  },
+                  "description": "Its sys_id"
+                },
+                {
+                  "id": "s51",
+                  "action": "ooa.servicenow/update_record",
+                  "args": {
+                    "table": "change_request",
+                    "sys_id": "$sysid$",
+                    "fields": {
+                      "work_notes": "OOA-QA ${run_id}: deployed ${ver}; ${if($rolled$, 'rolled back to ' + $prev$, 'healthy')}",
+                      "state": {
+                        "expr": "if($rolled$, '4', '0')"
+                      }
+                    },
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    }
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "8. Update the test change status"
+                },
+                {
+                  "id": "s52",
+                  "action": "ooa.folder/delete",
+                  "args": {
+                    "path": "$ws$",
+                    "recursive": true
+                  },
+                  "description": "10. Clean the agent workspace"
+                },
+                {
+                  "id": "s53",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "deployed": "$ver$",
+                      "health": "$health.status$",
+                      "smoke_failed": "$smoke.failed$",
+                      "rolled_back": "$rolled$",
+                      "version_now": "$health.version$",
+                      "service": "$svc$",
+                      "logs": "${out_dir}/${rec.key}-deploy.log"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Deployment row"
+                },
+                {
+                  "id": "s54",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$rolled$"
+                  },
+                  "children": [
+                    {
+                      "id": "s55",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "DEPLOY.ROLLED_BACK",
+                        "message": "${rec.key}: ${ver} failed its checks; rolled back to ${prev} (now ${health.status})"
+                      },
+                      "description": "Report the failed deployment"
+                    }
+                  ],
+                  "description": "Rolled back?"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "prev",
+                    "value": "$ver$"
+                  },
+                  "description": "This version is the one to return to next"
+                },
+                {
+                  "id": "s57",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "deployed ${ver}"
+                  },
+                  "description": "Note"
+                },
+                {
+                  "id": "s58",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s59",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s60",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s61",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW08-B5 - record ${rec.key}",
+                        "message": "RW08-B5: record ${$i + 1} of ${len($records$)}\n\n${rec.key}: ${ver} -> health ${health.status}\nRolled back ${rolled} (now ${health.version})",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s62",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s63",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s64",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s65",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s66",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s67",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW08-B5 - exception",
+                            "message": "RW08-B5: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s68",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s69",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 QA deployments (the approved releases)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s70",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s71",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s72",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s73",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s74",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s75",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s76",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s77",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW08-B5 QA deployment and rollback finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s78",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s79",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW08-B5 finished",
+                "message": "RW08-B5 QA deployment and rollback finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

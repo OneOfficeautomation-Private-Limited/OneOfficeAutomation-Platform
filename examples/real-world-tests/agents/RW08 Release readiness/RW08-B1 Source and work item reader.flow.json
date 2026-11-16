@@ -1,0 +1,969 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw08_b1",
+  "name": "RW08-B1 Source and work item reader",
+  "description": "RW08-B1 (RW08 real-world test). Reads the 10 release candidates' pull requests in the test organization (allow-listed only), collects the head SHA, author and linked work items, checks the target branch's protection and the commit signature, finds missing links in Azure DevOps, records the exact ref and checkpoints it. It never writes to the repositories.",
+  "tags": [
+    "real-world-test",
+    "RW08"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "orgs",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ok_org",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "pr",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "wi_id",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "wi",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "wi_state",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "prot",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "checks",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "commit",
+      "type": "Any",
+      "direction": "local"
+    },
+    {
+      "name": "verified",
+      "type": "Boolean",
+      "direction": "local",
+      "default": false
+    },
+    {
+      "name": "ref",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "owner",
+          "repo",
+          "pr",
+          "head",
+          "head_sha",
+          "author",
+          "work_item",
+          "work_item_state",
+          "required_checks",
+          "signed",
+          "ref"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Reads the 10 release candidates' pull requests in the test organization (allow-listed only), collects the head SHA, author and linked work items, checks the target branch's protection and the commit signature, finds missing links in Azure DevOps, records the exact ref and checkpoints it. It never writes to the repositories. It works through 10 release candidates and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW08-B1"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW08-B1 Source and work item reader started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW08-B1 starts",
+                "message": "RW08-B1 Source and work item reader\n\nReads the 10 release candidates' pull requests in the test organization (allow-listed only), collects the head SHA, author and linked work items, checks the target branch's protection and the commit signature, finds missing links in Azure DevOps, records the exact ref and checkpoints it. It never writes to the repositories.\n\nRecords: 10 release candidates\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "The organization allow-list."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW08/candidates.csv"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Read the test records (RW08/candidates.csv)"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "github",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s18",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW08/orgs.csv"
+          },
+          "out": {
+            "table": "orgs"
+          },
+          "description": "Allowed organizations"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s19",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s20",
+          "action": "core/comment",
+          "args": {
+            "text": "Per candidate: allow-list, pull request, linked work item, branch protection, commit signature, exact ref, checkpoint."
+          }
+        },
+        {
+          "id": "s21",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s22",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s23",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s24",
+                  "action": "ooa.datatable/lookup",
+                  "args": {
+                    "table": "$orgs$",
+                    "column": "org",
+                    "value": "$rec.owner$",
+                    "return_column": "org",
+                    "if_not_found": ""
+                  },
+                  "out": {
+                    "value": "ok_org"
+                  },
+                  "description": "2. Organization allow-listed?"
+                },
+                {
+                  "id": "s25",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "isEmpty($ok_org$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s26",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "SCOPE.REPO",
+                        "message": "${rec.owner}/${rec.repo} is not in the test organization allow-list"
+                      },
+                      "description": "Reject"
+                    }
+                  ],
+                  "description": "Not a test organization?"
+                },
+                {
+                  "id": "s27",
+                  "action": "ooa.github/get_pull_request",
+                  "args": {
+                    "owner": "$rec.owner$",
+                    "repo": "$rec.repo$",
+                    "number": "$rec.pr$",
+                    "token": {
+                      "$credential": "rw_qa_standins/github/token"
+                    },
+                    "base_url": "${standin}/github"
+                  },
+                  "out": {
+                    "pull_request": "pr"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "1. Read the pull request"
+                },
+                {
+                  "id": "s28",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "wi_id",
+                    "value": {
+                      "expr": "coalesce(regexExtract(coalesce($pr.body$, ''), 'AB#([0-9]+)', 1), '')"
+                    }
+                  },
+                  "description": "3. Linked work item id"
+                },
+                {
+                  "id": "s29",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "isEmpty($wi_id$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s30",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "LINK.MISSING",
+                        "message": "${rec.key}: pull request #${rec.pr} links no work item"
+                      },
+                      "description": "Missing link"
+                    }
+                  ],
+                  "description": "6. No linked work item?"
+                },
+                {
+                  "id": "s31",
+                  "action": "ooa.azure_devops/get_work_item",
+                  "args": {
+                    "organization_url": "${standin}/ado/ooa-qa",
+                    "personal_access_token": {
+                      "$credential": "rw_qa_standins/ado/token"
+                    },
+                    "id": {
+                      "expr": "toNumber($wi_id$)"
+                    }
+                  },
+                  "out": {
+                    "work_item": "wi",
+                    "state": "wi_state"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "3. The linked work item"
+                },
+                {
+                  "id": "s32",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "${standin}/github/repos/${rec.owner}/${rec.repo}/branches/${pr.base}/protection",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/github/token"
+                    }
+                  },
+                  "out": {
+                    "json": "prot"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "4. Branch protection of the target branch"
+                },
+                {
+                  "id": "s33",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "checks",
+                    "value": {
+                      "expr": "join(get(get($prot$, 'required_status_checks', ''), 'contexts', []), ',')"
+                    }
+                  },
+                  "description": "Required checks"
+                },
+                {
+                  "id": "s34",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "isEmpty($checks$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s35",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "POLICY.UNPROTECTED",
+                        "message": "${rec.key}: ${pr.base} has no required checks"
+                      },
+                      "description": "Reject"
+                    }
+                  ],
+                  "description": "Target branch not protected?"
+                },
+                {
+                  "id": "s36",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "${standin}/github/repos/${rec.owner}/${rec.repo}/commits/${pr.head_sha}",
+                    "bearer_token": {
+                      "$credential": "rw_qa_standins/github/token"
+                    }
+                  },
+                  "out": {
+                    "json": "commit"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "5. The head commit"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "verified",
+                    "value": {
+                      "expr": "toBoolean(get(get(get($commit$, 'commit'), 'verification'), 'verified', false))"
+                    }
+                  },
+                  "description": "5. Signature verified?"
+                },
+                {
+                  "id": "s38",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not $verified$"
+                  },
+                  "children": [
+                    {
+                      "id": "s39",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "SIGNATURE.COMMIT",
+                        "message": "${rec.key}: head commit ${substring($pr.head_sha$, 0, 8)} is not signed"
+                      },
+                      "description": "Reject"
+                    }
+                  ],
+                  "description": "Unsigned commit?"
+                },
+                {
+                  "id": "s40",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ref",
+                    "value": "${rec.owner}/${rec.repo}@${pr.head_sha}"
+                  },
+                  "description": "7. Exact ref"
+                },
+                {
+                  "id": "s41",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "owner": "$rec.owner$",
+                      "repo": "$rec.repo$",
+                      "pr": "$rec.pr$",
+                      "head": "$pr.head$",
+                      "head_sha": "$pr.head_sha$",
+                      "author": "$pr.author$",
+                      "work_item": "$wi_id$",
+                      "work_item_state": "$wi_state$",
+                      "required_checks": "$checks$",
+                      "signed": "$verified$",
+                      "ref": "$ref$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "9. Checkpoint the candidate"
+                },
+                {
+                  "id": "s42",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "$ref$"
+                  },
+                  "description": "Note"
+                },
+                {
+                  "id": "s43",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s44",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s45",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s46",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW08-B1 - record ${rec.key}",
+                        "message": "RW08-B1: record ${$i + 1} of ${len($records$)}\n\n${rec.key} ${rec.owner}/${rec.repo}#${rec.pr}\n${pr.head_sha} by ${pr.author}; AB#${wi_id} ${wi_state}\nSigned ${verified}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s47",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s48",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s49",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s50",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s51",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s52",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW08-B1 - exception",
+                            "message": "RW08-B1: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s53",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s54",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 release candidates"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s55",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s56",
+          "action": "core/comment",
+          "args": {
+            "text": "8. Only reads were made; save."
+          }
+        },
+        {
+          "id": "s57",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s58",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s59",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s60",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s61",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s62",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW08-B1 Source and work item reader finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s63",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s64",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW08-B1 finished",
+                "message": "RW08-B1 Source and work item reader finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

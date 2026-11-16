@@ -511,8 +511,21 @@ def graph(h: H, m, path, q):
     p = path[len("/graph/v1.0"):]
     if p.startswith("/teams/"):
         return teams(h, m, p, q)
+    if ("/drive/items/" in p or "/drive/root:" in p) and p.endswith("/permissions"):      # who can open a stored file (RW08): the QA group only
+        return h.send(200, {"value": [{"id": "perm-owner", "roles": ["owner"], "grantedToV2": {"group": {"displayName": "OOA-QA Release Board"}}},
+                                      {"id": "perm-read", "roles": ["read"], "grantedToV2": {"group": {"displayName": "OOA-QA Reviewers"}}}]})
     if "/drive/root:" in p:
         return drive(h, m, p, q)
+    mev = re.match(r"/users/([^/]+)/(?:calendar/)?events$", p)
+    if mev:      # calendar events (RW08-B4 deployment windows)
+        with LOCK:
+            evs = STATE.setdefault("events", {}).setdefault(mev.group(1).lower(), [])
+            if m == "POST":
+                b = h.body()
+                ev = {"id": "AAMkEV" + uuid.uuid4().hex[:10], "webLink": "https://outlook.office.com/calendar/qa", **b, "_created": True}
+                evs.append(ev)
+                return h.send(201, {k: v for k, v in ev.items() if not k.startswith("_")})
+            return h.send(200, {"value": [{k: v for k, v in e.items() if not k.startswith("_")} for e in evs]})
     if "/drive/items/" in p and p.endswith("/retentionLabel"):      # retention label on a stored file (RW06)
         with LOCK:
             STATE.setdefault("retention", {})[p.split("/drive/items/")[1].split("/")[0]] = h.body().get("name", "")
@@ -1004,6 +1017,109 @@ def ec2_metrics(h: H, m, path, q):
     raise KeyError(path)
 
 
+def github(h: H, m, path, q):
+    """GitHub REST (RW08): pull requests, branch protection, commits with signature verification, Actions runs and artifacts. Read only."""
+    g = STATE.setdefault("github", {"repos": {}})
+    p = path[len("/github"):]
+    mr = re.match(r"/repos/([^/]+)/([^/]+)(/.*)$", p)
+    if not mr:
+        raise KeyError(path)
+    repo = g["repos"].get("%s/%s" % (mr.group(1), mr.group(2)))
+    if repo is None:
+        return h.send(404, {"message": "Not Found"})
+    rest = mr.group(3)
+    if m != "GET":
+        return h.send(403, {"message": "QA stand-in: the real-world tests only read GitHub"})
+    mp = re.match(r"/pulls/(\d+)$", rest)
+    if mp:
+        pr = repo["pulls"].get(mp.group(1))
+        if pr is None:
+            return h.send(404, {"message": "Not Found"})
+        with LOCK:
+            pr["_reads"] = pr.get("_reads", 0) + 1
+            out = {k: v for k, v in pr.items() if not k.startswith("_")}
+            if pr.get("_move_to") and pr["_reads"] > 1:      # a push after the first read moved the head
+                out["head"] = dict(pr["head"], sha=pr["_move_to"])
+        return h.send(200, out)
+    mb = re.match(r"/branches/([^/]+)/protection$", rest)
+    if mb:
+        prot = repo.get("protection", {}).get(mb.group(1))
+        return h.send(200, prot) if prot else h.send(404, {"message": "Branch not protected"})
+    mc = re.match(r"/commits/([0-9a-f]+)$", rest)
+    if mc:
+        c = repo["commits"].get(mc.group(1))
+        return h.send(200, c) if c else h.send(404, {"message": "No commit found for SHA"})
+    if rest == "/actions/runs":
+        runs = [r for r in repo["runs"] if not q.get("branch") or r["head_branch"] == q.get("branch")]
+        return h.send(200, {"total_count": len(runs), "workflow_runs": runs})
+    mx = re.match(r"/actions/runs/(\d+)(/jobs|/artifacts)?$", rest)
+    if mx:
+        r = next((x for x in repo["runs"] if str(x["id"]) == mx.group(1)), None)
+        if r is None:
+            return h.send(404, {"message": "Not Found"})
+        if mx.group(2) == "/jobs":
+            return h.send(200, {"total_count": len(r["_jobs"]), "jobs": r["_jobs"]})
+        if mx.group(2) == "/artifacts":
+            return h.send(200, {"total_count": len(r["_artifacts"]), "artifacts": r["_artifacts"]})
+        return h.send(200, {k: v for k, v in r.items() if not k.startswith("_")})
+    raise KeyError(path)
+
+
+def ado(h: H, m, path, q):
+    """Azure DevOps work items (RW08), read only."""
+    items = STATE.setdefault("ado", {"workitems": {}})["workitems"]
+    mw = re.match(r"/ado/[^/]+(?:/[^/]+)?/_apis/wit/workitems/(\d+)$", path)
+    if mw and m == "GET":
+        w = items.get(mw.group(1))
+        return h.send(200, w) if w else h.send(404, {"message": "TF401232: Work item %s does not exist" % mw.group(1)})
+    raise KeyError(path)
+
+
+def envlock(h: H, m, path, q):
+    """QA environment lock (RW08-B4): one holder at a time; released by its holder."""
+    locks = STATE.setdefault("envlocks", {})
+    me = re.match(r"/envlock/([^/]+)$", path)
+    if not me:
+        raise KeyError(path)
+    env = me.group(1)
+    with LOCK:
+        cur = locks.get(env)
+        if m == "GET":
+            return h.send(200, cur or {"env": env, "locked": False})
+        if m == "POST":
+            b = h.body()
+            if cur and cur.get("locked") and cur.get("holder") != b.get("holder"):
+                return h.send(409, {"error": "QA environment %s is locked by %s" % (env, cur.get("holder"))})
+            locks[env] = {"env": env, "locked": True, "holder": b.get("holder"), "change": b.get("change"), "since": now_iso()}
+            return h.send(200, locks[env])
+        if m == "DELETE":
+            if cur and cur.get("holder") != q.get("holder"):
+                return h.send(409, {"error": "only the holder may release the lock"})
+            locks[env] = {"env": env, "locked": False}
+            return h.send(200, locks[env])
+    raise KeyError(path)
+
+
+def qa_app(h: H, m, path, q):
+    """The QA application endpoint (RW08-B5): deploy a version, health and smoke checks; versions marked bad fail their health check."""
+    app = STATE.setdefault("qa_app", {"version": "1.0.0", "history": [], "bad": []})
+    with LOCK:
+        if path == "/qa-app/deploy" and m == "POST":
+            b = h.body()
+            if not b.get("signed"):
+                return h.send(403, {"error": "QA app: only signed artifacts are deployed"})
+            app["history"].append({"from": app["version"], "to": b.get("version"), "at": now_iso(), "run": b.get("run", ""), "_created": True})
+            app["version"] = b.get("version")
+            return h.send(200, {"deployed": app["version"]})
+        if path == "/qa-app/health":
+            ok = app["version"] not in app["bad"]
+            return h.send(200 if ok else 503, {"status": "ok" if ok else "failing", "version": app["version"]})
+        if path == "/qa-app/smoke":
+            ok = app["version"] not in app["bad"]
+            return h.send(200, {"passed": 5 if ok else 2, "failed": 0 if ok else 3, "version": app["version"]})
+    raise KeyError(path)
+
+
 AI_LABELS = {"supplier": "Supplier", "invoice_number": "Invoice number", "invoice_date": "Invoice date", "po_number": "PO number",
              "currency": "Currency", "net": "Net", "tax": "Tax", "total": "Total"}
 
@@ -1082,12 +1198,12 @@ def soap(h: H, m, path, q):
     return h.send(status, env, ctype="text/xml")
 
 
-SERVICES = ["servicenow", "salesforce", "jira", "graph", "workday", "approvals", "sap", "ai", "soap", "shopify", "carrier", "kafka", "slack", "okta", "ec2"]
+SERVICES = ["servicenow", "salesforce", "jira", "graph", "workday", "approvals", "sap", "ai", "soap", "shopify", "carrier", "kafka", "slack", "okta", "ec2", "github", "ado", "envlock", "qa_app"]
 ROUTES = [
     ("/qa/", qa, None), ("/kb/", kb, None),
     ("/rest/api/2/user/groups", jira_groups, "jira"), ("/rest/api/2/user/search/qa", jira_groups, "jira"), ("/rest/api/2/group/user", jira_groups, "jira"),
     ("/api/now/", servicenow, "servicenow"), ("/services/", salesforce, "salesforce"), ("/rest/api/", jira, "jira"),
-    ("/graph/v1.0/", graph, "graph"), ("/ccx/", workday, "workday"), ("/approvals/", approvals, "approvals"), ("/sap/", sap, "sap"), ("/v1/", ai, "ai"), ("/soap/", soap, "soap"), ("/admin/api/", shopify, "shopify"), ("/carrier/", carrier, "carrier"), ("/kafka/", kafka, "kafka"), ("/slack/api/", slack, "slack"), ("/okta/", okta, "okta"), ("/ec2/", ec2, "ec2"), ("/ec2-qa/", ec2_metrics, "ec2"),
+    ("/graph/v1.0/", graph, "graph"), ("/ccx/", workday, "workday"), ("/approvals/", approvals, "approvals"), ("/sap/", sap, "sap"), ("/v1/", ai, "ai"), ("/soap/", soap, "soap"), ("/admin/api/", shopify, "shopify"), ("/carrier/", carrier, "carrier"), ("/kafka/", kafka, "kafka"), ("/slack/api/", slack, "slack"), ("/okta/", okta, "okta"), ("/ec2/", ec2, "ec2"), ("/ec2-qa/", ec2_metrics, "ec2"), ("/github/", github, "github"), ("/ado/", ado, "ado"), ("/envlock/", envlock, "envlock"), ("/qa-app/", qa_app, "qa_app"),
 ]
 
 

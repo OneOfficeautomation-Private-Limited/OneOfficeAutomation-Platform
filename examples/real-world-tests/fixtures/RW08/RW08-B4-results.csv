@@ -1,0 +1,4 @@
+key,status,note,time
+R01,done,approved APR-E63FE095,05:10:15
+R09,exception,"APPROVAL.HEAD_CHANGED: R09: approved cbfaf65c but the head is now d2468291; approval rejected, lock released",05:10:15
+R10,done,approved APR-E754EDC1,05:10:15

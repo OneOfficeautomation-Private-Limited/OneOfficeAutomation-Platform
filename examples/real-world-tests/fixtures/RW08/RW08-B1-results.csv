@@ -1,0 +1,11 @@
+key,status,note,time
+R01,done,ooa-qa/app-alpha@f5ef0831be252b59baaef51bb9f0dc98d9d92990,05:09:35
+R02,exception,SCOPE.REPO: other-org/app-beta is not in the test organization allow-list,05:09:35
+R03,exception,LINK.MISSING: R03: pull request #103 links no work item,05:09:35
+R04,exception,SIGNATURE.COMMIT: R04: head commit 1f959cff is not signed,05:09:35
+R05,done,ooa-qa/app-alpha@31e79b1cfbb9de52a3e3971b1420e178e5916b4f,05:09:35
+R06,done,ooa-qa/app-alpha@6959cbc20c8f136758d0f18539c5bccfec8fc2f6,05:09:35
+R07,done,ooa-qa/app-alpha@41c9dfc584b5f41c6485c169749c7c76508b2d83,05:09:35
+R08,done,ooa-qa/app-alpha@f7fdfd9e155b47f931d4ba1218b8fe3299177d87,05:09:35
+R09,done,ooa-qa/app-alpha@cbfaf65ceab60306ff56d200b4c92953d214bf01,05:09:35
+R10,done,ooa-qa/app-alpha@5f2d64e7ba65189ca0ba85359e955003ba097e3b,05:09:35

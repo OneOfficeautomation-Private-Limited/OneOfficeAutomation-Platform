@@ -1,0 +1,5 @@
+key,change,risk,decision,reasons,owner,window_start,dependency_changes
+R01,CHG8800100,low,go,,owner-r01@ooa-qa.test,2026-11-16 06:09:14,qa-http 1.4.2; qa-report 0.9.0
+R08,CHG8800107,high,no-go,OPEN_CRITICAL_VULN;NO_ROLLBACK_PLAN,owner-r08@ooa-qa.test,2026-11-16 06:09:14,qa-http 1.4.2; qa-report 0.9.0
+R09,CHG8800108,low,go,,owner-r09@ooa-qa.test,2026-11-16 06:09:14,qa-http 1.4.2; qa-report 0.9.0
+R10,CHG8800109,low,go,,owner-r10@ooa-qa.test,2026-11-16 06:09:14,qa-http 1.4.2; qa-report 0.9.0

@@ -1,0 +1,1247 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw08_b4",
+  "name": "RW08-B4 Approval and environment lock",
+  "description": "RW08-B4 (RW08 real-world test). For each go release: creates the QA change approval bound to the head SHA and artifact digest, makes sure the approver did not author it, locks the QA environment, rejects the approval when the head has moved since, books only the approved window in the QA calendar, releases the lock after a cancellation, keeps the audit and tells the test reviewers in Teams.",
+  "tags": [
+    "real-world-test",
+    "RW08"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "b1",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "b2",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "owner",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "author",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sha",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "digest",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "approver",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "binding",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "r1",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "ans",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "lock",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "pr",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "prn",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "repo",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ev",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "post",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "start",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "approval",
+          "binding",
+          "approver",
+          "lock",
+          "window_event",
+          "teams_post",
+          "status"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: For each go release: creates the QA change approval bound to the head SHA and artifact digest, makes sure the approver did not author it, locks the QA environment, rejects the approval when the head has moved since, books only the approved window in the QA calendar, releases the lock after a cancellation, keeps the audit and tells the test reviewers in Teams. It works through 10 approved release packages (the go releases) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW08-B4"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW08-B4 Approval and environment lock started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW08-B4 starts",
+                "message": "RW08-B4 Approval and environment lock\n\nFor each go release: creates the QA change approval bound to the head SHA and artifact digest, makes sure the approver did not author it, locks the QA environment, rejects the approval when the head has moved since, books only the approved window in the QA calendar, releases the lock after a cancellation, keeps the audit and tells the test reviewers in Teams.\n\nRecords: 10 approved release packages (the go releases)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Go releases, their sources and builds."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "approvals",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s17",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B3/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B3/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW08-B3 evidence"
+            }
+          ],
+          "description": "RW08-B3 ran in this run?",
+          "else": [
+            {
+              "id": "s19",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B3's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B3-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW08-B3 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.datatable/filter",
+          "args": {
+            "table": "$records$",
+            "column": "decision",
+            "operator": "eq",
+            "value": "go"
+          },
+          "out": {
+            "table": "records"
+          },
+          "description": "Go decisions only"
+        },
+        {
+          "id": "s22",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s23",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B1/evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW08-B1 evidence"
+            }
+          ],
+          "description": "RW08-B1 ran in this run?",
+          "else": [
+            {
+              "id": "s24",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B1's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s25",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B1-evidence.csv"
+              },
+              "out": {
+                "table": "b1"
+              },
+              "description": "Read RW08-B1 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s26",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s27",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B2/evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW08-B2 evidence"
+            }
+          ],
+          "description": "RW08-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s28",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B2's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s29",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B2-evidence.csv"
+              },
+              "out": {
+                "table": "b2"
+              },
+              "description": "Read RW08-B2 evidence (fixture)"
+            }
+          ]
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s30",
+      "action": "core/try",
+      "args": {},
+      "children": [
+        {
+          "id": "s31",
+          "action": "core/step",
+          "args": {
+            "title": "3. Work through the records"
+          },
+          "children": [
+            {
+              "id": "s32",
+              "action": "core/comment",
+              "args": {
+                "text": "Per release: approval bound to SHA and digest, independent approver, lock, head check, window, notice."
+              }
+            },
+            {
+              "id": "s33",
+              "action": "core/loop",
+              "args": {
+                "iterator": "table_rows",
+                "over": "$records$",
+                "as": "rec",
+                "index": "i"
+              },
+              "children": [
+                {
+                  "id": "s34",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": ""
+                  },
+                  "description": "Clear the note of the previous record"
+                },
+                {
+                  "id": "s35",
+                  "action": "core/try",
+                  "args": {},
+                  "children": [
+                    {
+                      "id": "s36",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b1$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "author"
+                      },
+                      "out": {
+                        "value": "author"
+                      },
+                      "description": "Author"
+                    },
+                    {
+                      "id": "s37",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b1$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "head_sha"
+                      },
+                      "out": {
+                        "value": "sha"
+                      },
+                      "description": "Head SHA"
+                    },
+                    {
+                      "id": "s38",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b1$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "repo"
+                      },
+                      "out": {
+                        "value": "repo"
+                      },
+                      "description": "Repository"
+                    },
+                    {
+                      "id": "s39",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b1$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "pr"
+                      },
+                      "out": {
+                        "value": "prn"
+                      },
+                      "description": "Pull request"
+                    },
+                    {
+                      "id": "s40",
+                      "action": "ooa.datatable/lookup",
+                      "args": {
+                        "table": "$b2$",
+                        "column": "key",
+                        "value": "$rec.key$",
+                        "return_column": "digest"
+                      },
+                      "out": {
+                        "value": "digest"
+                      },
+                      "description": "Artifact digest"
+                    },
+                    {
+                      "id": "s41",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "approver",
+                        "value": "release.manager@ooa-qa.test"
+                      },
+                      "description": "The QA release manager approves"
+                    },
+                    {
+                      "id": "s42",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "startsWith($approver$, $author$)"
+                      },
+                      "children": [
+                        {
+                          "id": "s43",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "approver",
+                            "value": "release.deputy@ooa-qa.test"
+                          },
+                          "description": "Independent approver"
+                        }
+                      ],
+                      "description": "2. Approver is the author?"
+                    },
+                    {
+                      "id": "s44",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "binding",
+                        "value": "${sha}|${digest}"
+                      },
+                      "description": "4. The approval binds SHA and digest"
+                    },
+                    {
+                      "id": "s45",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "method": "POST",
+                        "url": "${standin}/approvals/requests",
+                        "bearer_token": {
+                          "$credential": "rw_qa_standins/servicenow/token"
+                        },
+                        "json": {
+                          "subject": "${rec.key} release",
+                          "approver": "$approver$",
+                          "requester": "$author$",
+                          "binding": "$binding$",
+                          "run": "$run_id$"
+                        }
+                      },
+                      "out": {
+                        "json": "r1"
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "1. QA change approval"
+                    },
+                    {
+                      "id": "s46",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "url": "${standin}/approvals/requests/${r1.id}",
+                        "bearer_token": {
+                          "$credential": "rw_qa_standins/servicenow/token"
+                        }
+                      },
+                      "out": {
+                        "json": "ans"
+                      },
+                      "description": "Its answer"
+                    },
+                    {
+                      "id": "s47",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$ans.status$",
+                          "right": "approved"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s48",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "APPROVAL.NOT_GRANTED",
+                            "message": "${rec.key}: ${ans.status}"
+                          },
+                          "description": "Stop"
+                        }
+                      ],
+                      "description": "Not approved?"
+                    },
+                    {
+                      "id": "s49",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "method": "POST",
+                        "url": "${standin}/envlock/qa",
+                        "json": {
+                          "holder": "OOA-QA ${run_id} ${rec.key}",
+                          "change": "$rec.change$"
+                        }
+                      },
+                      "out": {
+                        "json": "lock"
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "3. Lock the QA environment"
+                    },
+                    {
+                      "id": "s50",
+                      "action": "ooa.github/get_pull_request",
+                      "args": {
+                        "owner": "ooa-qa",
+                        "repo": "$repo$",
+                        "number": {
+                          "expr": "toNumber($prn$)"
+                        },
+                        "token": {
+                          "$credential": "rw_qa_standins/github/token"
+                        },
+                        "base_url": "${standin}/github"
+                      },
+                      "out": {
+                        "pull_request": "pr"
+                      },
+                      "description": "5. Head now (has anyone pushed since?)"
+                    },
+                    {
+                      "id": "s51",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "op": "ne",
+                          "left": "$pr.head_sha$",
+                          "right": "$sha$"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s52",
+                          "action": "ooa.rest/request",
+                          "args": {
+                            "method": "DELETE",
+                            "url": "${standin}/envlock/qa",
+                            "query": {
+                              "holder": "OOA-QA ${run_id} ${rec.key}"
+                            }
+                          },
+                          "description": "7. Cancelled: release the lock"
+                        },
+                        {
+                          "id": "s53",
+                          "action": "core/throw",
+                          "args": {
+                            "code": "APPROVAL.HEAD_CHANGED",
+                            "message": "${rec.key}: approved ${substring($sha$, 0, 8)} but the head is now ${substring($pr.head_sha$, 0, 8)}; approval rejected, lock released"
+                          },
+                          "description": "Reject the approval"
+                        }
+                      ],
+                      "description": "5. Head moved since the approval?"
+                    },
+                    {
+                      "id": "s54",
+                      "action": "ooa.datetime/parse",
+                      "args": {
+                        "text": "$rec.window_start$",
+                        "pattern": "yyyy-MM-dd HH:mm:ss",
+                        "time_zone": "UTC"
+                      },
+                      "out": {
+                        "value": "start"
+                      },
+                      "description": "Approved window start"
+                    },
+                    {
+                      "id": "s55",
+                      "action": "ooa.microsoft365/create_event",
+                      "args": {
+                        "start": "$start$",
+                        "end": {
+                          "expr": "dateAdd($start$, 2, 'hours')"
+                        },
+                        "time_zone": "UTC",
+                        "subject": "OOA-QA ${run_id} deploy ${rec.key} (${rec.change})",
+                        "body": "Approved deployment window for ${rec.key}; approval ${r1.id}.",
+                        "show_as": "busy",
+                        "access_token": {
+                          "$credential": "rw_qa_standins/graph/token"
+                        },
+                        "base_url": "${standin}/graph/v1.0",
+                        "mailbox": "release-qa@ooa-qa.test"
+                      },
+                      "out": {
+                        "event_id": "ev"
+                      },
+                      "description": "6. Book only the approved window"
+                    },
+                    {
+                      "id": "s56",
+                      "action": "ooa.microsoft365/teams_message",
+                      "args": {
+                        "team_id": "t-release",
+                        "channel_id": "c-signoff",
+                        "message": "OOA-QA ${run_id}: ${rec.key} approved (${r1.id}); QA environment locked; window booked.",
+                        "access_token": {
+                          "$credential": "rw_qa_standins/graph/token"
+                        },
+                        "base_url": "${standin}/graph/v1.0"
+                      },
+                      "out": {
+                        "message_id": "post"
+                      },
+                      "retry": {
+                        "max": 3,
+                        "backoff": "exponential",
+                        "delayMs": 1000
+                      },
+                      "description": "9. Tell the test reviewers"
+                    },
+                    {
+                      "id": "s57",
+                      "action": "ooa.rest/request",
+                      "args": {
+                        "method": "DELETE",
+                        "url": "${standin}/envlock/qa",
+                        "query": {
+                          "holder": "OOA-QA ${run_id} ${rec.key}"
+                        }
+                      },
+                      "description": "Release the lock for the next package (the deployer locks again)"
+                    },
+                    {
+                      "id": "s58",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$evidence$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "approval": "$r1.id$",
+                          "binding": "$binding$",
+                          "approver": "$approver$",
+                          "lock": "OOA-QA ${run_id} ${rec.key}",
+                          "window_event": "$ev$",
+                          "teams_post": "$post$",
+                          "status": "approved"
+                        }
+                      },
+                      "out": {
+                        "table": "evidence"
+                      },
+                      "description": "8. Audit row"
+                    },
+                    {
+                      "id": "s59",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "rec_note",
+                        "value": "approved ${r1.id}"
+                      },
+                      "description": "Note"
+                    },
+                    {
+                      "id": "s60",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "done",
+                          "note": "$rec_note$",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the record's result to the results table"
+                    },
+                    {
+                      "id": "s61",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "processed",
+                        "value": {
+                          "expr": "$processed$ + 1"
+                        }
+                      },
+                      "description": "Count the record as handled"
+                    },
+                    {
+                      "id": "s62",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s63",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW08-B4 - record ${rec.key}",
+                            "message": "RW08-B4: record ${$i + 1} of ${len($records$)}\n\n${rec.key}: approval ${r1.id} by ${approver}\nBound to ${substring($binding$, 0, 20)}...\nLock ${lock.holder}",
+                            "timeout_seconds": 2,
+                            "icon": "information",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "description": "Handle one record; a failure is caught below and the next record goes on",
+                  "catch": [
+                    {
+                      "codes": [
+                        "*"
+                      ],
+                      "children": [
+                        {
+                          "id": "s64",
+                          "action": "core/comment",
+                          "args": {
+                            "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                          }
+                        },
+                        {
+                          "id": "s65",
+                          "action": "ooa.datatable/add_row",
+                          "args": {
+                            "table": "$results$",
+                            "values": {
+                              "key": "$rec.key$",
+                              "status": "exception",
+                              "note": "${err.code}: ${err_msg}",
+                              "time": "${formatDate(now(), '%H:%M:%S')}"
+                            }
+                          },
+                          "out": {
+                            "table": "results"
+                          },
+                          "description": "Add the failure to the results table"
+                        },
+                        {
+                          "id": "s66",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "exceptions",
+                            "value": {
+                              "expr": "$exceptions$ + 1"
+                            }
+                          },
+                          "description": "Count the exception"
+                        },
+                        {
+                          "id": "s67",
+                          "action": "ooa.log/write",
+                          "args": {
+                            "path": "$log_file$",
+                            "level": "WARN",
+                            "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                          },
+                          "description": "Log the exception"
+                        },
+                        {
+                          "id": "s68",
+                          "action": "core/if",
+                          "args": {
+                            "condition": "$watch$"
+                          },
+                          "children": [
+                            {
+                              "id": "s69",
+                              "action": "ooa.desktop/message_box",
+                              "args": {
+                                "title": "RW08-B4 - exception",
+                                "message": "RW08-B4: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                                "timeout_seconds": 3,
+                                "icon": "warning",
+                                "always_on_top": true
+                              },
+                              "description": "Message box that closes by itself"
+                            }
+                          ],
+                          "description": "Show what is happening (watch is on)"
+                        }
+                      ],
+                      "as": "err",
+                      "message_to": "err_msg"
+                    }
+                  ]
+                },
+                {
+                  "id": "s70",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s71",
+                      "action": "core/delay",
+                      "args": {
+                        "seconds": "$pause_seconds$"
+                      },
+                      "description": "Short pause"
+                    }
+                  ],
+                  "description": "Pause so the screen can be followed (watch is on)"
+                }
+              ],
+              "description": "Once for each of the 10 approved release packages (the go releases)"
+            }
+          ],
+          "description": "3. Work through the records"
+        }
+      ],
+      "description": "Release packages; a cancelled one has its lock released",
+      "finally": [
+        {
+          "id": "s72",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin}/envlock/qa"
+          },
+          "out": {
+            "json": "lock"
+          },
+          "continueOnError": true,
+          "description": "7. Never leave the QA environment locked"
+        }
+      ]
+    },
+    {
+      "id": "s73",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s74",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s75",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s76",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s77",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s78",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s79",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s80",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW08-B4 Approval and environment lock finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s81",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s82",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW08-B4 finished",
+                "message": "RW08-B4 Approval and environment lock finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

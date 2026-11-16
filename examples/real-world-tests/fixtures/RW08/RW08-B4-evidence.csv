@@ -1,0 +1,3 @@
+key,approval,binding,approver,lock,window_event,teams_post,status
+R01,APR-E63FE095,f5ef0831be252b59baaef51bb9f0dc98d9d92990|sha256:673b61964b0f9da4bce46cd659956e9b654af9a4d611722d5c626fdfd8000da1,release.manager@ooa-qa.test,OOA-QA RW08-LOCAL-2 R01,AAMkEVb4548b0817,1794805815683,approved
+R10,APR-E754EDC1,5f2d64e7ba65189ca0ba85359e955003ba097e3b|sha256:a355354fcf951f2eb869db7759c48ac580971bf3f2db91d7a9eea4a14daf9010,release.manager@ooa-qa.test,OOA-QA RW08-LOCAL-2 R10,AAMkEVeecc38df72,1794805815747,approved

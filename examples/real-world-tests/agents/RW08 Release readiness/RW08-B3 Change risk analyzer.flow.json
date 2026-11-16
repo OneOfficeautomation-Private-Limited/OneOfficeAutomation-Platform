@@ -1,0 +1,1111 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw08_b3",
+  "name": "RW08-B3 Change risk analyzer",
+  "description": "RW08-B3 (RW08 real-world test). Joins each verified build with its tests, vulnerabilities and ServiceNow change record, classifies the risk by fixed policy, checks for unresolved critical issues, the rollback plan, owner, window and environment lock, lists the dependency changes, finds missing approvals and returns go or no-go with its reasons.",
+  "tags": [
+    "real-world-test",
+    "RW08"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "vulns",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "crit",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "ncrit",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "chg",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "nchg",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "backout",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "owner",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "approval",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "wstart",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "lock",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "reasons",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "risk",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "go",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "deps",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "chg_no",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "change",
+          "risk",
+          "decision",
+          "reasons",
+          "owner",
+          "window_start",
+          "dependency_changes"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: Joins each verified build with its tests, vulnerabilities and ServiceNow change record, classifies the risk by fixed policy, checks for unresolved critical issues, the rollback plan, owner, window and environment lock, lists the dependency changes, finds missing approvals and returns go or no-go with its reasons. It works through 10 change dossiers (the verified builds) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW08-B3"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW08-B3 Change risk analyzer started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW08-B3 starts",
+                "message": "RW08-B3 Change risk analyzer\n\nJoins each verified build with its tests, vulnerabilities and ServiceNow change record, classifies the risk by fixed policy, checks for unresolved critical issues, the rollback plan, owner, window and environment lock, lists the dependency changes, finds missing approvals and returns go or no-go with its reasons.\n\nRecords: 10 change dossiers (the verified builds)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Verified builds and the vulnerability report."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B2/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW08-B2/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW08-B2 evidence"
+            }
+          ],
+          "description": "RW08-B2 ran in this run?",
+          "else": [
+            {
+              "id": "s17",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW08-B2's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW08/fixtures/RW08-B2-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW08-B2 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s19",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${base}/data/RW08/vulns.csv"
+          },
+          "out": {
+            "table": "vulns"
+          },
+          "description": "Vulnerability report"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s20",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s21",
+          "action": "core/comment",
+          "args": {
+            "text": "Per dossier: vulnerabilities, change record (approval, rollback, owner, window), environment lock, dependencies, risk, go/no-go."
+          }
+        },
+        {
+          "id": "s22",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s23",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s24",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "reasons",
+                    "value": []
+                  },
+                  "description": "No reasons yet"
+                },
+                {
+                  "id": "s26",
+                  "action": "ooa.datatable/filter",
+                  "args": {
+                    "table": "$vulns$",
+                    "column": "key",
+                    "operator": "eq",
+                    "value": "$rec.key$",
+                    "more_conditions": [
+                      {
+                        "column": "severity",
+                        "operator": "eq",
+                        "value": "critical"
+                      },
+                      {
+                        "column": "state",
+                        "operator": "eq",
+                        "value": "open"
+                      }
+                    ],
+                    "match": "all"
+                  },
+                  "out": {
+                    "table": "crit",
+                    "count": "ncrit"
+                  },
+                  "description": "3. Open critical vulnerabilities"
+                },
+                {
+                  "id": "s27",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$ncrit$ > 0"
+                  },
+                  "children": [
+                    {
+                      "id": "s28",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$reasons$",
+                        "item": "OPEN_CRITICAL_VULN"
+                      },
+                      "out": {
+                        "list": "reasons"
+                      },
+                      "description": "Reason"
+                    }
+                  ],
+                  "description": "Unresolved critical issue?"
+                },
+                {
+                  "id": "s29",
+                  "action": "ooa.servicenow/query",
+                  "args": {
+                    "table": "change_request",
+                    "query": "correlation_id=OOA-QA-RW08-${rec.key}",
+                    "max_records": 1,
+                    "instance_url": "$standin$",
+                    "access_token": {
+                      "$credential": "rw_qa_standins/servicenow/token"
+                    }
+                  },
+                  "out": {
+                    "table": "chg",
+                    "count": "nchg"
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "1. The change record"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$nchg$ == 0"
+                  },
+                  "children": [
+                    {
+                      "id": "s31",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "CHANGE.MISSING",
+                        "message": "${rec.key}: no change record"
+                      },
+                      "description": "No-go"
+                    }
+                  ],
+                  "description": "6. No change record?"
+                },
+                {
+                  "id": "s32",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$chg$",
+                    "row": 0,
+                    "column": "number"
+                  },
+                  "out": {
+                    "value": "chg_no"
+                  },
+                  "description": "Change number"
+                },
+                {
+                  "id": "s33",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$chg$",
+                    "row": 0,
+                    "column": "backout_plan"
+                  },
+                  "out": {
+                    "value": "backout"
+                  },
+                  "description": "Change backout_plan"
+                },
+                {
+                  "id": "s34",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$chg$",
+                    "row": 0,
+                    "column": "assigned_to"
+                  },
+                  "out": {
+                    "value": "owner"
+                  },
+                  "description": "Change assigned_to"
+                },
+                {
+                  "id": "s35",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$chg$",
+                    "row": 0,
+                    "column": "approval"
+                  },
+                  "out": {
+                    "value": "approval"
+                  },
+                  "description": "Change approval"
+                },
+                {
+                  "id": "s36",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$chg$",
+                    "row": 0,
+                    "column": "start_date"
+                  },
+                  "out": {
+                    "value": "wstart"
+                  },
+                  "description": "Change start_date"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "isEmpty($backout$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s38",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$reasons$",
+                        "item": "NO_ROLLBACK_PLAN"
+                      },
+                      "out": {
+                        "list": "reasons"
+                      },
+                      "description": "Reason"
+                    }
+                  ],
+                  "description": "4. No rollback plan?"
+                },
+                {
+                  "id": "s39",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "isEmpty($owner$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s40",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$reasons$",
+                        "item": "NO_OWNER"
+                      },
+                      "out": {
+                        "list": "reasons"
+                      },
+                      "description": "Reason"
+                    }
+                  ],
+                  "description": "4. No owner?"
+                },
+                {
+                  "id": "s41",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "ne",
+                      "left": "$approval$",
+                      "right": "approved"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s42",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$reasons$",
+                        "item": "CHANGE_NOT_APPROVED"
+                      },
+                      "out": {
+                        "list": "reasons"
+                      },
+                      "description": "Reason"
+                    }
+                  ],
+                  "description": "6. Change not approved?"
+                },
+                {
+                  "id": "s43",
+                  "action": "ooa.rest/request",
+                  "args": {
+                    "url": "${standin}/envlock/qa"
+                  },
+                  "out": {
+                    "json": "lock"
+                  },
+                  "description": "4. QA environment lock"
+                },
+                {
+                  "id": "s44",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "toBoolean(get($lock$, 'locked', false))"
+                  },
+                  "children": [
+                    {
+                      "id": "s45",
+                      "action": "ooa.list/add_item",
+                      "args": {
+                        "list": "$reasons$",
+                        "item": "ENV_LOCKED"
+                      },
+                      "out": {
+                        "list": "reasons"
+                      },
+                      "description": "Reason"
+                    }
+                  ],
+                  "description": "Environment locked by someone else?"
+                },
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "deps",
+                    "value": "qa-http 1.4.2; qa-report 0.9.0"
+                  },
+                  "description": "5. Dependency changes (from the SBOM)"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "risk",
+                    "value": {
+                      "expr": "if(contains($reasons$, 'OPEN_CRITICAL_VULN') or contains($reasons$, 'NO_ROLLBACK_PLAN'), 'high', if(len($reasons$) > 0, 'medium', 'low'))"
+                    }
+                  },
+                  "description": "2. Risk by policy"
+                },
+                {
+                  "id": "s48",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "go",
+                    "value": {
+                      "expr": "if($risk$ == 'high' or contains($reasons$, 'CHANGE_NOT_APPROVED'), 'no-go', 'go')"
+                    }
+                  },
+                  "description": "8. Go or no-go"
+                },
+                {
+                  "id": "s49",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "change": "$chg_no$",
+                      "risk": "$risk$",
+                      "decision": "$go$",
+                      "reasons": {
+                        "expr": "join($reasons$, ';')"
+                      },
+                      "owner": "$owner$",
+                      "window_start": "$wstart$",
+                      "dependency_changes": "$deps$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "7. Decision with reasons"
+                },
+                {
+                  "id": "s50",
+                  "action": "ooa.log/write",
+                  "args": {
+                    "path": "$log_file$",
+                    "message": "${rec.key}: ${chg_no} ${risk} ${go} (owner ${substring($owner$, 0, 6)}***)"
+                  },
+                  "description": "9. Masked audit event"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "eq",
+                      "left": "$go$",
+                      "right": "no-go"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s52",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "RISK.NO_GO",
+                        "message": "${rec.key}: no-go (${join($reasons$, ', ')})"
+                      },
+                      "description": "Stop this release"
+                    }
+                  ],
+                  "description": "No-go?"
+                },
+                {
+                  "id": "s53",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "go (risk ${risk})"
+                  },
+                  "description": "Note"
+                },
+                {
+                  "id": "s54",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s57",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW08-B3 - record ${rec.key}",
+                        "message": "RW08-B3: record ${$i + 1} of ${len($records$)}\n\n${rec.key}: ${chg_no} risk ${risk} -> ${go}\n${join($reasons$, ', ')}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s58",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s59",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s60",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s61",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s62",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s63",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW08-B3 - exception",
+                            "message": "RW08-B3: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s64",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s65",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 change dossiers (the verified builds)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s66",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s67",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s68",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s69",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s70",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s71",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s72",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s73",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW08-B3 Change risk analyzer finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s74",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s75",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW08-B3 finished",
+                "message": "RW08-B3 Change risk analyzer finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}
