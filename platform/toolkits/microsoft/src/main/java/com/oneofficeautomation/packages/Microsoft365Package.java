@@ -14,7 +14,7 @@ import java.util.*;
  * Authentication: an OAuth 2.0 access token (Entra ID app registration) kept in the vault.
  */
 @OoaPackage(id = "ooa.microsoft365", name = "Microsoft 365", version = "1.0.0",
-        description = "Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph.")
+        description = "Outlook mail, calendar, OneDrive and SharePoint files, Teams messages, and Entra ID users and groups, through Microsoft Graph.")
 public final class Microsoft365Package {
     static final String P = "M365";
     private static final String D_TOKEN = "Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token.";
