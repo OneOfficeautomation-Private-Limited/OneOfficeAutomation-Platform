@@ -869,7 +869,7 @@
                       "args": {
                         "text": "${rec.key}|${rec.invoice}|${rec.approver}|approved|${rec.approval_id}",
                         "key": {
-                          "$credential": "rw_qa_standins/sign_key/token"
+                          "$credential": "rw_qa_standins/sign_key/value"
                         }
                       },
                       "out": {

@@ -334,7 +334,7 @@ def b4_review():
             f.act("ooa.log/write", desc="9. Audit the transition", path="$log_file$", message="${rec.claim_id}: review ${status} by ${reviewer} (task ${task.number})")
             with f.if_({"op": "ne", "left": "$status$", "right": "approved"}, desc="Not approved?"):
                 f.act("core/throw", desc="7. No ERP draft", code="REVIEW.NOT_APPROVED", message="${rec.claim_id}: the reviewer answered ${status}")
-            f.act("ooa.crypto/hmac", desc="7. Sign the approval (the ERP adapter checks it)", text="${rec.claim_id}|${rec.approved_amount}|${req.id}", key=cred("sign_key"),
+            f.act("ooa.crypto/hmac", desc="7. Sign the approval (the ERP adapter checks it)", text="${rec.claim_id}|${rec.approved_amount}|${req.id}", key=cred("sign_key", "value"),
                   out={"signature": "token"})
             f.act("ooa.datatable/add_row", desc="Approved claim", table="$evidence$",
                   values={"key": "$rec.key$", "claim_id": "$rec.claim_id$", "task": "$task.number$", "reviewer": "$reviewer$", "status": "approved",
@@ -371,7 +371,7 @@ def b5_erp():
     with c.records("Per approved claim: signature, draft with the approved fields only, repeat safely, read back, compare, cancel or keep.",
                    summary="${rec.claim_id}: draft ${ref}\napproved ${rec.approved_amount}, stored ${stored}"):
         f.act("ooa.crypto/hmac", desc="7. Recompute the approval signature (claim, amount, approval)", text="${rec.claim_id}|${rec.approved_amount}|${rec.approval_id}",
-              key=cred("sign_key"), out={"signature": "tok"})
+              key=cred("sign_key", "value"), out={"signature": "tok"})
         with f.if_("$tok$ != $rec.token$ or $rec.status$ != 'approved'", desc="Not approved, or the amount changed since?"):
             f.act("core/throw", desc="7. Reject unapproved claims", code="ERP.NOT_APPROVED", message="${rec.claim_id} has no approval")
         f.set("ref", "DRAFT-${run_id}-${rec.claim_id}", desc="Draft reference")

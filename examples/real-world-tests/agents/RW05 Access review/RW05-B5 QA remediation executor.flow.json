@@ -584,7 +584,7 @@
                   "args": {
                     "text": "${rec.changeset_hash}|${rec.approval_1}|${rec.approval_2}",
                     "key": {
-                      "$credential": "rw_qa_standins/sign_key/token"
+                      "$credential": "rw_qa_standins/sign_key/value"
                     }
                   },
                   "out": {

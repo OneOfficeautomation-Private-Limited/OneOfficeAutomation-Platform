@@ -942,7 +942,7 @@
                   "args": {
                     "text": "${chash}|${r1.id}|${r2.id}",
                     "key": {
-                      "$credential": "rw_qa_standins/sign_key/token"
+                      "$credential": "rw_qa_standins/sign_key/value"
                     }
                   },
                   "out": {

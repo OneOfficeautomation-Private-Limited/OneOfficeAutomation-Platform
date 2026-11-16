@@ -518,10 +518,10 @@
             "region": "us-east-1",
             "endpoint": "${standin}/ec2",
             "access_key_id": {
-              "$credential": "rw_qa_standins/aws/access_key_id"
+              "$credential": "rw_qa_standins/aws/access_key"
             },
             "secret_access_key": {
-              "$credential": "rw_qa_standins/aws/secret_access_key"
+              "$credential": "rw_qa_standins/aws/secret_key"
             }
           },
           "retry": {

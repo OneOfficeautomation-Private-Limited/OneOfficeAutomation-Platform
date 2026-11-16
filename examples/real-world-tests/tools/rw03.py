@@ -410,7 +410,7 @@ def b4_approvals():
                 with f.if_({"op": "ne", "left": "$status2$", "right": "approved"}, desc="Second approver did not approve?"):
                     f.act("core/throw", desc="6. No SAP staging without both approvals", code="APPROVAL.SECOND_MISSING",
                           message="${rec.invoice}: second approval ${status2} (first approved by ${approver})")
-            f.act("ooa.crypto/hmac", desc="7. Sign the decision (approval hash)", text="${rec.key}|${rec.invoice}|${approver}|${status}|${req.id}", key=cred("sign_key"),
+            f.act("ooa.crypto/hmac", desc="7. Sign the decision (approval hash)", text="${rec.key}|${rec.invoice}|${approver}|${status}|${req.id}", key=cred("sign_key", "value"),
                   out={"signature": "sig"})
             with f.if_("not endsWith(lower($approver$), '@ooa-qa.test')", desc="9. Recipient outside the QA tenant?"):
                 f.act("core/throw", desc="Never notify outside QA", code="NOTIFY.EXTERNAL", message="${approver} is not a QA recipient")
@@ -472,7 +472,7 @@ def b5_sap_drafts():
         with c.records("Per invoice: signature check, vendor and PO, park the draft, read it back, compare totals, keep or cancel.",
                        summary="${rec.invoice}: vendor ${vendor}, PO ${po}\nParked ${docno}: SAP ${sap_total} vs invoice ${total}"):
             f.act("ooa.crypto/hmac", desc="Recompute the approval signature", text="${rec.key}|${rec.invoice}|${rec.approver}|approved|${rec.approval_id}",
-                  key=cred("sign_key"), out={"signature": "sig"})
+                  key=cred("sign_key", "value"), out={"signature": "sig"})
             with f.if_({"op": "ne", "left": "$sig$", "right": "$rec.signature$"}, desc="Signature does not match?"):
                 f.act("core/throw", desc="6. Never stage without a valid approval", code="APPROVAL.SIGNATURE", message="${rec.invoice}: the approval signature does not match")
             f.act("ooa.datatable/lookup", desc="Vendor (supplier id)", table="$b3$", column="key", value="$rec.key$", return_column="supplier_id", out={"value": "vendor"})

@@ -12,7 +12,7 @@ RETRY = {"max": 3, "backoff": "exponential", "delayMs": 1000}
 
 def ec2_connect(f, region="us-east-1"):
     f.act("ooa.aws_ec2/connect", desc="Connect to EC2 (" + region + ", QA account; stand-in address)", region=region, endpoint="${standin}/ec2",
-          access_key_id=cred("aws", "access_key_id"), secret_access_key=cred("aws", "secret_access_key"), retry=RETRY)
+          access_key_id=cred("aws", "access_key"), secret_access_key=cred("aws", "secret_key"), retry=RETRY)
 
 
 def run_file(code, name="evidence.csv"):

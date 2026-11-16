@@ -372,7 +372,7 @@ def b4_approvals():
             f.act("core/throw", desc="Expire it", code="APPROVAL.STALE", message="${rec.key}: approval is ${age} hours old; ask again")
         with f.if_("$s1$ != 'approved' or $s2$ != 'approved'", desc="6. Not approved by both?"):
             f.act("core/throw", desc="Block the change", code="APPROVAL.NOT_GRANTED", message="${rec.key}: reviewer ${s1}, second approver ${s2}: no change")
-        f.act("ooa.crypto/hmac", desc="10. Signed approval token", text="${chash}|${r1.id}|${r2.id}", key=cred("sign_key"), out={"signature": "token"})
+        f.act("ooa.crypto/hmac", desc="10. Signed approval token", text="${chash}|${r1.id}|${r2.id}", key=cred("sign_key", "value"), out={"signature": "token"})
         f.act("ooa.log/write", desc="9. Audit the decision", path="$log_file$", message="${rec.key}: approved by ${reviewer} and lead.security2; changeset ${substring($chash$, 0, 12)}")
         f.act("ooa.datatable/add_row", desc="Approved bundle", table="$evidence$",
               values={"key": "$rec.key$", "upn": "$rec.upn$", "actions": "$rec.actions$", "changeset_hash": "$chash$", "reviewer": "$reviewer$",
@@ -406,7 +406,7 @@ def b5_remediation():
         f.act("ooa.rest/request", desc="Entra groups", out={"json": "groups"}, **g_api("/groups"))
     with c.records("Per changeset: guards, then each change: apply, read back, compare, undo if unexpected.",
                    summary="${rec.upn}\nApplied: ${join($done$, '; ')}"):
-        f.act("ooa.crypto/hmac", desc="Recompute the approval token", text="${rec.changeset_hash}|${rec.approval_1}|${rec.approval_2}", key=cred("sign_key"), out={"signature": "tok"})
+        f.act("ooa.crypto/hmac", desc="Recompute the approval token", text="${rec.changeset_hash}|${rec.approval_1}|${rec.approval_2}", key=cred("sign_key", "value"), out={"signature": "tok"})
         with f.if_({"op": "ne", "left": "$tok$", "right": "$rec.token$"}, desc="Token does not match?"):
             f.act("core/throw", desc="No change without a valid approval", code="APPROVAL.TOKEN", message="${rec.key}: the approval token does not match")
         f.expr("acts", "split($rec.actions$, ';')", desc="The approved changes")

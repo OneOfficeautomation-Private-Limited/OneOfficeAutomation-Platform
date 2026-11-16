@@ -1162,7 +1162,7 @@
                       "args": {
                         "text": "${rec.key}|${rec.invoice}|${approver}|${status}|${req.id}",
                         "key": {
-                          "$credential": "rw_qa_standins/sign_key/token"
+                          "$credential": "rw_qa_standins/sign_key/value"
                         }
                       },
                       "out": {

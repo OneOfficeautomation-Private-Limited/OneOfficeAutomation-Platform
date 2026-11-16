@@ -516,7 +516,7 @@
                   "args": {
                     "text": "${rec.claim_id}|${rec.approved_amount}|${rec.approval_id}",
                     "key": {
-                      "$credential": "rw_qa_standins/sign_key/token"
+                      "$credential": "rw_qa_standins/sign_key/value"
                     }
                   },
                   "out": {
