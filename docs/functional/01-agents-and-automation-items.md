@@ -103,7 +103,8 @@ value and an optional description.
 ### Rules
 
 - Names must be unique within the agent. `sys` and `global` are reserved.
-- A Credential variable may not have a default value; a vault reference is supplied at run time.
+- A Credential variable's default can only be a vault reference `{"$credential": "folder/credential/attribute"}`,
+  never the secret: the secret is read from the vault when the agent starts without a value for it.
 - A variable is created with its default value, or empty. A step can only store an output in a declared variable,
   and a declared variable of a mismatched type refuses the value (`VAR.TYPE_MISMATCH`).
 - A string, number or boolean output can be marked **Business figure (KPI)**; each successful run then records its
@@ -234,7 +235,7 @@ each linked to a step id, with a suggested fix. The rules:
 | Rule | Problem reported |
 | --- | --- |
 | Structure | Unknown `kind`; missing `id` or `name`; missing `steps` (or `agent` section for kind Agent) |
-| Variables | Duplicate names; reserved names; unknown types; a Credential with a default |
+| Variables | Duplicate names; reserved names; unknown types; a Credential whose default is not a vault reference |
 | Steps | Duplicate step ids; an action address not in `toolkit/action` form; a toolkit or action that does not exist |
 | References | A `$name` that is not declared; an output stored in an undeclared or built-in variable; undeclared loop, catch or Assign variables |
 | Blocks | Children on a step that is not If, Loop, Try, Step or Parallel; Catch or Finally outside Try; Else outside If |

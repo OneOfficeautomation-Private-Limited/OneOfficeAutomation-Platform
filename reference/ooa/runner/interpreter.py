@@ -233,7 +233,15 @@ class _Run:
                     raise OoaError(f"Input '{name}' must be one of {v['enum']}", code="RUN.INPUT_INVALID")
                 self.scope.set(name, val)
             elif "default" in v:
-                self.scope.set(name, copy.deepcopy(v["default"]))
+                val = copy.deepcopy(v["default"])
+                # a Credential variable's default is a vault reference: fetched and masked as the run starts
+                if v.get("type") == "Credential" and isinstance(val, dict) and set(val) == {"$credential"}:
+                    vault = self.r.services.get("vault")
+                    if vault is None:
+                        raise OoaError("No vault configured for credential inputs", code="VAULT.UNAVAILABLE")
+                    val = vault.get_secret(val["$credential"], principal=self.r.principal)
+                    self.secrets.append(val.reveal())
+                self.scope.set(name, val)
             elif v.get("direction") == "input" and v.get("required"):
                 raise OoaError(f"Required input '{name}' is missing", code="RUN.INPUT_MISSING",
                                suggested_fix=v.get("description") or f"Provide a {v['type']} value for '{name}'.")
@@ -832,6 +840,10 @@ def _all_actions(steps):
 
 
 def _compare(op: str, left, right) -> bool:
+    # the snake_case spellings the data table filter uses ("not_empty", "starts_with") mean the same as the camelCase ones
+    if isinstance(op, str) and "_" in op:
+        head, *rest = op.strip().split("_")
+        op = head + "".join(p[:1].upper() + p[1:] for p in rest)
     sym = {"eq": "==", "ne": "!=", "lt": "<", "le": "<=", "gt": ">", "ge": ">="}
     if op in sym:
         return bool(binary(sym[op], left, right))
@@ -852,5 +864,7 @@ def _compare(op: str, left, right) -> bool:
         return left not in (None, "", [], {})
     if op == "in":
         return left in (right or [])
+    if op in ("notIn", "notStartsWith", "notEndsWith", "notMatches"):
+        return not _compare(op[3].lower() + op[4:], left, right)
     raise OoaError(f"Unknown condition operator '{op}'", code="FLOW.BAD_CONDITION",
                    suggested_fix="Use eq, ne, lt, le, gt, ge, contains, notContains, startsWith, endsWith, matches, empty, notEmpty or in.")

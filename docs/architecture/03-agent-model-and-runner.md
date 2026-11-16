@@ -129,7 +129,8 @@ Rules enforced by the engine (`Runner.Scope`):
   the same summary; use `toBase64()` for the bytes.
 - Supplying an input that is not declared as `input` or `in_out` fails with `RUN.INPUT_UNKNOWN`.
 - An input given as `{"$credential": "folder/credential/attribute"}` is resolved from the vault before the run starts
-  and becomes a `SecureString`.
+  and becomes a `SecureString`. A Credential variable's default may be one such reference (never the secret itself);
+  it is resolved the same way when no value is given.
 - `sys` and `global` are reserved names. `$sys.*` is computed at the moment of use (date, time, now, today, year …
   timestamp, os, os_version, machine, user, user_domain, home_folder, temp_folder, workspace, processors, CPU and RAM
   use, run_id, bot_id, bot_name, principal, newline, tab, empty). `$global.*` comes from the `global_values` service

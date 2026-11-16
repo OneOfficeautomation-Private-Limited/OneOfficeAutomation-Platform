@@ -14,7 +14,7 @@ import java.util.*;
  * Authentication: an OAuth 2.0 access token (Entra ID app registration) kept in the vault.
  */
 @OoaPackage(id = "ooa.microsoft365", name = "Microsoft 365", version = "1.0.0",
-        description = "Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph.")
+        description = "Outlook mail, calendar, OneDrive and SharePoint files, Teams messages, and Entra ID users and groups, through Microsoft Graph.")
 public final class Microsoft365Package {
     static final String P = "M365";
     private static final String D_TOKEN = "Microsoft Graph access token from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token.";
@@ -3546,5 +3546,274 @@ public final class Microsoft365Package {
                 if (attempt >= 1) throw new ActionException(P + ".CONFLICT", "The task kept changing while it was being updated", "Try again.", true, e.details());
             }
         }
+    }
+
+    // ---------------------------------------------------------------- Entra ID users and groups (real-world tests finding 3)
+
+    private static final String D_ENTRA_USER = "A user's object id or sign-in name (user principal name).";
+    private static final String D_ENTRA_GROUP = "A group's object id, or its display name (must match one group).";
+    private static final String USER_SELECT = "id,displayName,userPrincipalName,mail,department,jobTitle,accountEnabled,onPremisesDistinguishedName";
+    private static final List<String> USER_COLS = List.of("id", "name", "user_principal_name", "email", "department", "job_title", "enabled", "last_sign_in");
+
+    private static String graphRoot(String base) { return base.replaceAll("/+$", ""); }
+
+    private static String required(String v, String what) {
+        if (v == null || v.isBlank()) throw new ActionException(P + ".BAD_INPUT", what + " is required", "Fill in " + what + ".");
+        return v.strip();
+    }
+
+    private static List<Object> userRow(Map<String, Object> u) {
+        return new ArrayList<>(Arrays.asList(u.get("id"), u.get("displayName"), u.get("userPrincipalName"), u.get("mail"), u.get("department"), u.get("jobTitle"),
+                u.get("accountEnabled"), at(u, "signInActivity", "lastSignInDateTime")));
+    }
+
+    /** A user id: an object id as it is, a sign-in name looked up. */
+    private static String userId(ActionContext ctx, Object token, String base, String user) {
+        String u = required(user, "user");
+        if (GUID.matcher(u).matches()) return u;
+        return s(HttpJson.req(P, "GET", graphRoot(base) + "/users/" + HttpJson.enc(u) + "?$select=id").bearer(token).send(ctx).map().get("id"));
+    }
+
+    /** A group id: an object id as it is, a display name looked up (exactly one group must have it). */
+    private static String groupId(ActionContext ctx, Object token, String base, String group) {
+        String g = required(group, "group");
+        if (GUID.matcher(g).matches()) return g;
+        List<Map<String, Object>> found = pages(ctx, token, graphRoot(base) + "/groups?$filter=" + HttpJson.enc("displayName eq " + odataText(g)) + "&$select=id,displayName", 5, null);
+        if (found.isEmpty()) throw new ActionException(P + ".NOT_FOUND", "No group is named '" + g + "'", "Check the group's display name, or give its object id.");
+        if (found.size() > 1) throw new ActionException(P + ".AMBIGUOUS", found.size() + " groups are named '" + g + "'", "Give the group's object id instead.");
+        return s(found.get(0).get("id"));
+    }
+
+    @Action(id = "entra_find_users", name = "Find users (Entra ID)", category = "Users and groups", idempotent = true, capabilities = "network",
+            description = "List Entra ID users whose sign-in name or display name starts with a text, optionally in a department, enabled only, with their last sign-in.",
+            panel = "access_token, starts_with, department, enabled_only | include_sign_in, filter, max_results, base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, user_principal_name, email, department, job_title, enabled, last_sign_in.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many users were found.")
+    public Map<String, Object> entraFindUsers(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "starts_with", type = OoaType.STRING, required = false, example = "qa.", description = "Sign-in name or display name starts with this text; all users when empty.") String startsWith,
+            @Input(name = "department", type = OoaType.STRING, required = false, description = "Only users in this department.") String department,
+            @Input(name = "enabled_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out disabled accounts.") boolean enabledOnly,
+            @Input(name = "include_sign_in", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also read the last sign-in time (needs the AuditLog.Read.All permission).") boolean signIn,
+            @Input(name = "filter", type = OoaType.STRING, required = false, example = "jobTitle eq 'Analyst'", description = "An extra OData filter, joined with the others by 'and'.") String filter,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "Most users to return.") int max,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        List<String> f = new ArrayList<>();
+        if (startsWith != null && !startsWith.isBlank())
+            f.add("(startswith(userPrincipalName," + odataText(startsWith.strip()) + ") or startswith(displayName," + odataText(startsWith.strip()) + "))");
+        if (department != null && !department.isBlank()) f.add("department eq " + odataText(department.strip()));
+        if (enabledOnly) f.add("accountEnabled eq true");
+        if (filter != null && !filter.isBlank()) f.add("(" + filter.strip() + ")");
+        String url = graphRoot(base) + "/users?$select=" + USER_SELECT + (signIn ? ",signInActivity" : "") + "&$top=" + Math.min(Math.max(max, 1), 999)
+                + (f.isEmpty() ? "" : "&$filter=" + HttpJson.enc(String.join(" and ", f)));
+        List<Object> rows = new ArrayList<>();
+        for (Map<String, Object> u : pages(ctx, token, url, max, null)) rows.add(userRow(u));
+        return Out.of("table", Values.table(USER_COLS, rows), "count", num(rows.size()));
+    }
+
+    @Action(id = "entra_get_user", name = "Get user (Entra ID)", category = "Users and groups", idempotent = true, capabilities = "network",
+            description = "Read one Entra ID user: name, sign-in name, department, whether the account is enabled, the manager and (optionally) the last sign-in.",
+            panel = "access_token, user | include_sign_in, base_url")
+    @Output(name = "user", type = OoaType.DICTIONARY, description = "id, name, user_principal_name, email, department, job_title, enabled, last_sign_in, manager, on_premises_dn.")
+    @Output(name = "enabled", type = OoaType.BOOLEAN, description = "Whether the account can sign in.")
+    public Map<String, Object> entraGetUser(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "user", type = OoaType.STRING, description = D_ENTRA_USER) String user,
+            @Input(name = "include_sign_in", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also read the last sign-in time (needs the AuditLog.Read.All permission).") boolean signIn,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String path = graphRoot(base) + "/users/" + HttpJson.enc(required(user, "user"));
+        Map<String, Object> u = HttpJson.req(P, "GET", path + "?$select=" + USER_SELECT + (signIn ? ",signInActivity" : "")).bearer(token).send(ctx).map();
+        Object manager = null;
+        try { manager = HttpJson.req(P, "GET", path + "/manager?$select=userPrincipalName").bearer(token).send(ctx).map().get("userPrincipalName"); }
+        catch (ActionException e) { if (!(e.details() != null && e.details().get("status") instanceof Number n && n.intValue() == 404)) throw e; }
+        Map<String, Object> o = new LinkedHashMap<>();
+        List<Object> row = userRow(u);
+        for (int i = 0; i < USER_COLS.size(); i++) o.put(USER_COLS.get(i), row.get(i));
+        o.put("manager", manager);
+        o.put("on_premises_dn", u.get("onPremisesDistinguishedName"));
+        return Out.of("user", o, "enabled", Boolean.TRUE.equals(u.get("accountEnabled")));
+    }
+
+    @Action(id = "entra_create_user", name = "Create user (Entra ID)", category = "Users and groups", capabilities = "network",
+            description = "Create an Entra ID user with a first password from the vault; it is asked to change it at the first sign-in unless told otherwise.",
+            panel = "access_token, display_name, user_principal_name, password, account_enabled | mail_nickname, department, job_title, force_password_change, fields, base_url")
+    @Output(name = "user_id", type = OoaType.STRING, description = "The new user's object id.")
+    public Map<String, Object> entraCreateUser(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "display_name", type = OoaType.STRING, description = "Display name.") String name,
+            @Input(name = "user_principal_name", type = OoaType.STRING, example = "ann.lee@contoso.com", description = "Sign-in name in one of the tenant's domains.") String upn,
+            @Input(name = "password", type = OoaType.CREDENTIAL, description = "First password, from the vault.") Object password,
+            @Input(name = "account_enabled", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "The account can sign in straight away.") boolean enabled,
+            @Input(name = "mail_nickname", type = OoaType.STRING, required = false, description = "Mail alias; the part of the sign-in name before @ when empty.") String nickname,
+            @Input(name = "department", type = OoaType.STRING, required = false, description = "Department.") String department,
+            @Input(name = "job_title", type = OoaType.STRING, required = false, description = "Job title.") String jobTitle,
+            @Input(name = "force_password_change", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Ask for a new password at the first sign-in.") boolean force,
+            @Input(name = "fields", type = OoaType.DICTIONARY, required = false, example = "{\"usageLocation\": \"IN\"}", description = "More Graph user properties to set.") Map<String, Object> fields,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String u = required(upn, "user_principal_name");
+        if (!u.contains("@")) throw new ActionException(P + ".BAD_INPUT", "'" + u + "' is not a sign-in name", "Use name@domain, with one of the tenant's domains.");
+        if (!(password instanceof SecureString pw) || pw.reveal().isBlank()) throw new ActionException(P + ".BAD_INPUT", "A first password from the vault is required", "Map password to a vault credential.");
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (fields != null) body.putAll(fields);
+        body.put("accountEnabled", enabled);
+        body.put("displayName", required(name, "display_name"));
+        body.put("userPrincipalName", u);
+        body.put("mailNickname", nickname == null || nickname.isBlank() ? u.substring(0, u.indexOf('@')).replaceAll("[^A-Za-z0-9._-]", "") : nickname.strip());
+        if (department != null && !department.isBlank()) body.put("department", department.strip());
+        if (jobTitle != null && !jobTitle.isBlank()) body.put("jobTitle", jobTitle.strip());
+        body.put("passwordProfile", Map.of("forceChangePasswordNextSignIn", force, "password", pw.reveal()));
+        Map<String, Object> r = HttpJson.req(P, "POST", graphRoot(base) + "/users").bearer(token).json(body).send(ctx).map();
+        return Out.of("user_id", r.get("id"));
+    }
+
+    @Action(id = "entra_update_user", name = "Update user (Entra ID)", category = "Users and groups", capabilities = "network",
+            description = "Enable or disable an Entra ID account, or change its department, job title or other properties; empty fields stay as they are.",
+            panel = "access_token, user, account | department, job_title, fields, base_url")
+    public Map<String, Object> entraUpdateUser(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "user", type = OoaType.STRING, description = D_ENTRA_USER) String user,
+            @Input(name = "account", type = OoaType.STRING, required = false, defaultValue = "\"unchanged\"", enumValues = {"unchanged", "enable", "disable"}, description = "Enable or disable the account.") String account,
+            @Input(name = "department", type = OoaType.STRING, required = false, description = "New department.") String department,
+            @Input(name = "job_title", type = OoaType.STRING, required = false, description = "New job title.") String jobTitle,
+            @Input(name = "fields", type = OoaType.DICTIONARY, required = false, example = "{\"officeLocation\": \"Pune\"}", description = "More Graph user properties to change.") Map<String, Object> fields,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (fields != null) body.putAll(fields);
+        if ("enable".equals(account)) body.put("accountEnabled", true);
+        if ("disable".equals(account)) body.put("accountEnabled", false);
+        if (department != null && !department.isBlank()) body.put("department", department.strip());
+        if (jobTitle != null && !jobTitle.isBlank()) body.put("jobTitle", jobTitle.strip());
+        if (body.isEmpty()) throw new ActionException(P + ".BAD_INPUT", "Nothing to change", "Choose enable or disable, or fill in a property to change.");
+        HttpJson.req(P, "PATCH", graphRoot(base) + "/users/" + HttpJson.enc(required(user, "user"))).bearer(token).json(body).send(ctx);
+        return Map.of();
+    }
+
+    @Action(id = "entra_delete_user", name = "Delete user (Entra ID)", category = "Users and groups", capabilities = "network",
+            description = "Delete an Entra ID user; it stays restorable from Deleted users for 30 days.",
+            panel = "access_token, user | base_url")
+    public Map<String, Object> entraDeleteUser(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "user", type = OoaType.STRING, description = D_ENTRA_USER) String user,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        HttpJson.req(P, "DELETE", graphRoot(base) + "/users/" + HttpJson.enc(required(user, "user"))).bearer(token).send(ctx);
+        return Map.of();
+    }
+
+    @Action(id = "entra_user_groups", name = "Groups of a user (Entra ID)", category = "Users and groups", idempotent = true, capabilities = "network",
+            description = "List the groups a user belongs to: directly, or also through groups inside groups (nested).",
+            panel = "access_token, user, nested | base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, mail, security.")
+    @Output(name = "names", type = OoaType.LIST, description = "The groups' display names.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many groups.")
+    public Map<String, Object> entraUserGroups(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "user", type = OoaType.STRING, description = D_ENTRA_USER) String user,
+            @Input(name = "nested", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also the groups it belongs to through other groups.") boolean nested,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String url = graphRoot(base) + "/users/" + HttpJson.enc(required(user, "user")) + (nested ? "/transitiveMemberOf" : "/memberOf") + "?$select=id,displayName,mail,securityEnabled";
+        List<Object> rows = new ArrayList<>(), names = new ArrayList<>();
+        for (Map<String, Object> g : pages(ctx, token, url, 0, null)) {
+            if (!String.valueOf(g.getOrDefault("@odata.type", "#microsoft.graph.group")).endsWith("group")) continue;   // roles and units are not groups
+            rows.add(new ArrayList<>(Arrays.asList(g.get("id"), g.get("displayName"), g.get("mail"), g.get("securityEnabled"))));
+            names.add(g.get("displayName"));
+        }
+        return Out.of("table", Values.table(List.of("id", "name", "mail", "security"), rows), "names", names, "count", num(rows.size()));
+    }
+
+    @Action(id = "entra_group_members", name = "Members of a group (Entra ID)", category = "Users and groups", idempotent = true, capabilities = "network",
+            description = "List a group's members (users, groups, devices): directly, or also the members of groups inside it (nested).",
+            panel = "access_token, group, nested | base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, type, name, user_principal_name.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many members.")
+    public Map<String, Object> entraGroupMembers(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "group", type = OoaType.STRING, description = D_ENTRA_GROUP) String group,
+            @Input(name = "nested", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also the members of groups inside this group.") boolean nested,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String url = graphRoot(base) + "/groups/" + HttpJson.enc(groupId(ctx, token, base, group)) + (nested ? "/transitiveMembers" : "/members");
+        List<Object> rows = new ArrayList<>();
+        for (Map<String, Object> m : pages(ctx, token, url, 0, null)) {
+            String type = s(m.get("@odata.type")).replace("#microsoft.graph.", "");
+            rows.add(new ArrayList<>(Arrays.asList(m.get("id"), type.isEmpty() ? "user" : type, m.get("displayName"), m.get("userPrincipalName"))));
+        }
+        return Out.of("table", Values.table(List.of("id", "type", "name", "user_principal_name"), rows), "count", num(rows.size()));
+    }
+
+    @Action(id = "entra_add_group_member", name = "Add to group (Entra ID)", category = "Users and groups", capabilities = "network", idempotent = true,
+            description = "Make a user (or a group) a member of a group; nothing changes when it already is one.",
+            panel = "access_token, group, member | base_url")
+    @Output(name = "added", type = OoaType.BOOLEAN, description = "True when it was added; false when it was a member already.")
+    public Map<String, Object> entraAddGroupMember(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "group", type = OoaType.STRING, description = D_ENTRA_GROUP) String group,
+            @Input(name = "member", type = OoaType.STRING, description = "The user's object id or sign-in name, or another group's object id.") String member,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String gid = groupId(ctx, token, base, group), mid = userId(ctx, token, base, member);
+        try {
+            HttpJson.req(P, "POST", graphRoot(base) + "/groups/" + HttpJson.enc(gid) + "/members/$ref").bearer(token)
+                    .json(Map.of("@odata.id", graphRoot(base) + "/directoryObjects/" + mid)).send(ctx);
+            return Out.of("added", true);
+        } catch (ActionException e) {
+            if (status(e) == 400 && String.valueOf(e.getMessage()).toLowerCase(Locale.ROOT).contains("already exist")) return Out.of("added", false);
+            throw e;
+        }
+    }
+
+    @Action(id = "entra_remove_group_member", name = "Remove from group (Entra ID)", category = "Users and groups", capabilities = "network", idempotent = true,
+            description = "Take a user (or a group) out of a group; nothing changes when it is not a member.",
+            panel = "access_token, group, member | base_url")
+    @Output(name = "removed", type = OoaType.BOOLEAN, description = "True when it was removed; false when it was not a member.")
+    public Map<String, Object> entraRemoveGroupMember(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "group", type = OoaType.STRING, description = D_ENTRA_GROUP) String group,
+            @Input(name = "member", type = OoaType.STRING, description = "The user's object id or sign-in name, or another group's object id.") String member,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String gid = groupId(ctx, token, base, group), mid = userId(ctx, token, base, member);
+        try {
+            HttpJson.req(P, "DELETE", graphRoot(base) + "/groups/" + HttpJson.enc(gid) + "/members/" + HttpJson.enc(mid) + "/$ref").bearer(token).send(ctx);
+            return Out.of("removed", true);
+        } catch (ActionException e) {
+            if (status(e) == 404) return Out.of("removed", false);
+            throw e;
+        }
+    }
+
+    @Action(id = "entra_find_groups", name = "Find groups (Entra ID)", category = "Users and groups", idempotent = true, capabilities = "network",
+            description = "List Entra ID groups whose display name starts with a text, optionally security groups only.",
+            panel = "access_token, starts_with, security_only | filter, max_results, base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, mail, security, description.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many groups were found.")
+    public Map<String, Object> entraFindGroups(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "starts_with", type = OoaType.STRING, required = false, example = "GRP-QA-", description = "Display name starts with this text; all groups when empty.") String startsWith,
+            @Input(name = "security_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Security groups only.") boolean securityOnly,
+            @Input(name = "filter", type = OoaType.STRING, required = false, description = "An extra OData filter, joined with the others by 'and'.") String filter,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "Most groups to return.") int max,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        List<String> f = new ArrayList<>();
+        if (startsWith != null && !startsWith.isBlank()) f.add("startswith(displayName," + odataText(startsWith.strip()) + ")");
+        if (securityOnly) f.add("securityEnabled eq true");
+        if (filter != null && !filter.isBlank()) f.add("(" + filter.strip() + ")");
+        String url = graphRoot(base) + "/groups?$select=id,displayName,mail,securityEnabled,description&$top=" + Math.min(Math.max(max, 1), 999)
+                + (f.isEmpty() ? "" : "&$filter=" + HttpJson.enc(String.join(" and ", f)));
+        List<Object> rows = new ArrayList<>();
+        for (Map<String, Object> g : pages(ctx, token, url, max, null))
+            rows.add(new ArrayList<>(Arrays.asList(g.get("id"), g.get("displayName"), g.get("mail"), g.get("securityEnabled"), g.get("description"))));
+        return Out.of("table", Values.table(List.of("id", "name", "mail", "security", "description"), rows), "count", num(rows.size()));
+    }
+
+    @Action(id = "entra_sign_out_everywhere", name = "Sign user out everywhere (Entra ID)", category = "Users and groups", capabilities = "network", idempotent = true,
+            description = "End every sign-in session of a user (e.g. when access is removed); apps ask the user to sign in again.",
+            panel = "access_token, user | base_url")
+    public Map<String, Object> entraSignOutEverywhere(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "user", type = OoaType.STRING, description = D_ENTRA_USER) String user,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        HttpJson.req(P, "POST", graphRoot(base) + "/users/" + HttpJson.enc(required(user, "user")) + "/revokeSignInSessions").bearer(token).json(Map.of()).send(ctx);
+        return Map.of();
+    }
+
+    private static int status(ActionException e) {
+        return e.details() != null && e.details().get("status") instanceof Number n ? n.intValue() : 0;
     }
 }

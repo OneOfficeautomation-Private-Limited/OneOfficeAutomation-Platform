@@ -177,6 +177,53 @@ class UiaBridgeProtocolTest {
         assertFalse(((Map<?, ?>) ((List<?>) f.get("objects")).get(0)).containsKey("ref"), "helper references stay internal");
     }
 
+    /**
+     * A control found once is re-checked on the next step instead of searched again (real-world tests finding 6): one quick
+     * read of the remembered control, not one call per control in the window. Gone, or in a new window, means a new search.
+     */
+    @Test void aControlFoundOnceIsRecheckedNotSearchedAgain() throws Exception {
+        String[] title = {"Invoices - Billing"};
+        int[] handle = {100};
+        boolean[] stale = {false};
+        helper = new FakeHelper(req -> switch (String.valueOf(req.get("op"))) {
+            case "windows" -> ok(List.of(Map.of("handle", handle[0], "title", title[0], "class_name", "Main", "process", "billing", "pid", 7)));
+            case "find" -> ok(List.of(element(2, "Button", "Save", "btnSave")));
+            case "recheck" -> stale[0] ? Map.of("ok", false, "code", "STALE", "error", "The object is gone; find it again")
+                    : ok(Map.of("ProcessId", 7, "ControlType", "Button", "Name", "Save", "ref", req.get("ref")));
+            case "act" -> ok("text of " + req.get("ref"));
+            default -> Map.of("ok", false, "code", "BAD_REQUEST", "error", "unknown");
+        });
+        ActionContext c = ctx(helper);
+        DesktopUiPackage p = new DesktopUiPackage();
+        Runnable read = () -> assertEquals("text of 2",
+                p.objectAction(c, object("Save", "equals", 0), "get_text", "left", "auto", 0, 0, null, true, "auto", 0, null, null, null, 1, "error", false).get("result"));
+        java.util.function.Function<String, Long> count = op -> helper.ops().stream().filter(op::equals).count();
+
+        read.run();
+        assertEquals(1, count.apply("find"));
+        read.run();
+        assertEquals(1, count.apply("find"), "the second step does not search the window again");
+        assertEquals(1, count.apply("recheck"));
+        Map<String, Object> recheck = helper.requests.stream().filter(q -> "recheck".equals(q.get("op"))).findFirst().orElseThrow();
+        assertEquals(new BigDecimal(2), recheck.get("ref"));
+        assertEquals(List.of("ControlType", "Name"), recheck.get("props"), "only the properties the object is found by are read again");
+
+        stale[0] = true;
+        read.run();
+        assertEquals(2, count.apply("find"), "a control that is gone is searched for again");
+        stale[0] = false;
+
+        handle[0] = 300;
+        read.run();
+        assertEquals(3, count.apply("find"), "the application started again: its new window is searched");
+        assertEquals(2, count.apply("recheck"), "no re-check of a control in a window that is no longer there");
+
+        title[0] = "Closed - Other";
+        long rechecks = count.apply("recheck");
+        assertFalse(p.objectExists(c, object("Save", "equals", 0)), "a window that no longer matches its rule hides what it held");
+        assertEquals(rechecks, count.apply("recheck"));
+    }
+
     @Test void interruptRulesAreCheckedBeforeActions() throws Exception {
         helper = desktop(List.of(element(1, "Button", "Save", "btnSave")));
         ActionContext c = ctx(helper);

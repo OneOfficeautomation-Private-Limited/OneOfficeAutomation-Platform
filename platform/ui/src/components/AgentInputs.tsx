@@ -124,7 +124,8 @@ function InputField({ spec, value, refs, vault, browse, onChange }: { spec: Inpu
   const t = spec.type ?? "String";
   const plain = t === "String" || t === "Any";
   const [byRef, setByRef] = useState(!!refs && !plain && typeof value === "string" && value !== "" && !(t === "DateTime" || t === "Date" || t === "Time"));
-  const hint = [typeWord(t), spec.description, refs && (plain || byRef) ? "may use " + refs : ""].filter(Boolean).join(" · ");
+  const defRef = t === "Credential" ? credOf(spec.default) : null;
+  const hint = [typeWord(t), spec.description, defRef ? "empty uses " + defRef.replace(/\//g, " / ") : "", refs && (plain || byRef) ? "may use " + refs : ""].filter(Boolean).join(" · ");
   const lbl = spec.name + (spec.required ? " *" : "");
   const ph = spec.default !== undefined ? "Default: " + show(spec.default) : "";
   return <Field label={lbl} hint={hint}>{(id) => <div className="ui-inputs-field">

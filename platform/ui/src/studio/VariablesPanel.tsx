@@ -2,7 +2,7 @@ import { errorText } from "../api/client";
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { AgentSummary, Builtins, Flow, FlowVariable, PackageManifest, StudioApi } from "../api/client";
-import { Button, Dialog, Field, Icon, Menu, PathRow, Select, TextArea, TextInput } from "../components";
+import { Button, Dialog, Field, Icon, Menu, PathRow, Select, TextArea, TextInput, VaultPicker, type VaultRef } from "../components";
 import { PathBrowse } from "./FieldKinds";
 import { parseLoose, showValue } from "./flowEdit";
 import { plainValue } from "./toolkits";
@@ -154,10 +154,22 @@ function ValueEditor({ type, value, onChange, options }: { type: string; value: 
   if (type === "Table" || type === "Any") return <TextArea aria-label="Default value" rows={3} defaultValue={value === undefined ? "" : JSON.stringify(value, null, 2)}
     placeholder={type === "Table" ? '{"columns": ["Name"], "rows": [["Ada"]]}' : "Text, a number, true/false or JSON"} onChange={(e) => onChange(parseLoose(e.target.value))} />;
   if (type === "File") return <FileDefault value={value === undefined ? "" : showValue(value)} onChange={onChange} />;
-  if (type === "Credential") return <p className="st-muted">A credential never has a default: whoever runs the agent maps it to the vault.</p>;
+  if (type === "Credential") return <CredentialDefault value={value} onChange={onChange} />;
   return <TextInput aria-label="Default value" defaultValue={value === undefined ? "" : showValue(value)}
     placeholder={type === "File" ? "data/orders.csv or C:\\Folder\\file.xlsx" : type === "Window" ? "Window title, e.g. *Notepad" : ""}
     onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} />;
+}
+
+/**
+ * A Credential variable's default (real-world tests finding 7): one vault reference, read from the vault when the agent
+ * starts without a value for it. The secret itself is never kept in the agent.
+ */
+function CredentialDefault({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) {
+  const ctx = useVars();
+  const [list, setList] = useState<VaultRef[] | null | undefined>(ctx ? undefined : null);
+  useEffect(() => { if (ctx) ctx.api.crCredentials().then((r) => setList(r.connected ? r.credentials : null), () => setList(null)); }, [ctx]);
+  const ref = value && typeof value === "object" && typeof (value as { $credential?: unknown }).$credential === "string" ? (value as { $credential: string }).$credential : null;
+  return <VaultPicker value={ref} list={list} onChange={(r) => onChange(r ? { $credential: r } : undefined)} />;
 }
 
 /** A File variable's default (pickers, 14 Nov 2026): typed, or chosen with Browse… on this computer. */
@@ -261,7 +273,7 @@ export function VariableDialog({ flow, existing, preset, onSave, onClose }:
         <div className="ui-field ui-field-above">
           <span className="st-label">Default value</span>
           <ValueEditor key={v.type + defKey + options.join()} type={v.type} value={v.default} options={options} onChange={(d) => setV((cur) => ({ ...cur, default: d }))} />
-          <div className="ui-field-hint">{v.type === "Credential" ? "" : isInput(v) ? "Used when the caller gives no value." : "The value it starts with. Empty for none."}</div>
+          <div className="ui-field-hint">{v.type === "Credential" ? "Optional: a credential from the vault, read when the agent starts" + (isInput(v) ? " without a value for it" : "") + ". The secret is never kept in the agent." : isInput(v) ? "Used when the caller gives no value." : "The value it starts with. Empty for none."}</div>
         </div>
         <Field label="Description" hint="People running the agent and AI agents read this.">{(id) =>
           <TextArea id={id} rows={2} value={v.description ?? ""} onChange={(e) => put({ description: e.target.value })} />}</Field>
