@@ -506,6 +506,10 @@ def graph(h: H, m, path, q):
         return teams(h, m, p, q)
     if "/drive/root:" in p:
         return drive(h, m, p, q)
+    if "/drive/items/" in p and p.endswith("/retentionLabel"):      # retention label on a stored file (RW06)
+        with LOCK:
+            STATE.setdefault("retention", {})[p.split("/drive/items/")[1].split("/")[0]] = h.body().get("name", "")
+        return h.send(200, {"name": h.body().get("name", ""), "isRecordLocked": False, "labelAppliedBy": {"application": {"displayName": "OOA"}}})
     if p.startswith("/groups") or p == "/users" or (p.startswith("/users/") and "@" not in p.split("/")[2]):
         return directory(h, m, p, q)
     if re.fullmatch(r"/users/[^/]+", p):      # one user by id or sign-in name
@@ -914,6 +918,12 @@ AI_LABELS = {"supplier": "Supplier", "invoice_number": "Invoice number", "invoic
 def ai(h: H, m, path, q):
     """A scripted chat model (OpenAI-compatible) for the AI steps: answers Extract fields from labelled lines, so runs repeat exactly.
     Numbers written the German way (1.234,56) come back with low confidence, the way a real model hesitates over a locale."""
+    usage = STATE.setdefault("ai_usage", [])
+    if path == "/v1/models":
+        return h.send(200, {"object": "list", "data": [{"id": "qa-scripted", "object": "model", "owned_by": "ooa-qa", "api_version": "2026-11"}]})
+    if path == "/v1/usage":
+        return h.send(200, {"calls": len(usage), "prompt_tokens": sum(u["prompt_tokens"] for u in usage),
+                            "completion_tokens": sum(u["completion_tokens"] for u in usage), "by_model": {u["model"]: 0 for u in usage}})
     if path != "/v1/chat/completions" or m != "POST":
         raise KeyError(path)
     b = h.body()
@@ -932,8 +942,28 @@ def ai(h: H, m, path, q):
             conf[k] = 0.0 if v is None else (0.62 if re.search(r"\d\.\d{3},\d{2}$|^\d+,\d{2}$", v) else 0.96)
         answer = {"values": values, "confidence": conf} if "confidence" in system else values
         content = json.dumps(answer)
+    elif b.get("tools") and not any(x.get("role") == "tool" for x in msgs):
+        # an AI agent's first turn: call its first tool (an agent) with no arguments
+        name = b["tools"][0].get("function", {}).get("name", "tool")
+        msg = {"role": "assistant", "content": None, "tool_calls": [{"id": "call_qa_1", "type": "function", "function": {"name": name, "arguments": "{}"}}]}
+        usage.append({"model": b.get("model", "qa-scripted"), "prompt_tokens": len(system + user) // 4, "completion_tokens": 10})
+        return h.send(200, {"id": "chatcmpl-qa", "object": "chat.completion", "model": b.get("model", "qa-scripted"),
+                            "choices": [{"index": 0, "message": msg, "finish_reason": "tool_calls"}], "usage": {"prompt_tokens": 1, "completion_tokens": 10}})
+    elif any(x.get("role") == "tool" for x in msgs):
+        result = next(str(x.get("content", "")) for x in reversed(msgs) if x.get("role") == "tool")
+        content = "Tool answered: " + result[:200]
+    elif "CLAIM-SUGGEST" in user:
+        # a deliberately gullible model: an instruction inside the claim notes wins (the agent must not trust it)
+        amount = re.search(r"Claimed amount:\s*([\d,.]+)", user)
+        ded = re.search(r"Deductible:\s*([\d,.]+)", user)
+        inj = re.search(r"approve\D{0,20}(\d[\d,]*)", user, re.I)
+        a = float(amount.group(1).replace(",", "")) if amount else 0.0
+        d = float(ded.group(1).replace(",", "")) if ded else 0.0
+        sugg = float(inj.group(1).replace(",", "")) if inj else round(max(a - d, 0), 2)
+        content = json.dumps({"decision": "approve", "approved_amount": sugg, "reason": "scripted suggestion"})
     else:
         content = "OOA-QA scripted model: no scripted answer for this prompt."
+    usage.append({"model": b.get("model", "qa-scripted"), "prompt_tokens": len(system + user) // 4, "completion_tokens": len(content) // 4})
     return h.send(200, {"id": "chatcmpl-qa", "object": "chat.completion", "model": b.get("model", "qa-scripted"),
                         "choices": [{"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
                         "usage": {"prompt_tokens": len(system + user) // 4, "completion_tokens": len(content) // 4}})

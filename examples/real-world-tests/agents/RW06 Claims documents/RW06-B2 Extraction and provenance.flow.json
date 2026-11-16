@@ -1,0 +1,1641 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw06_b2",
+  "name": "RW06-B2 Extraction and provenance",
+  "description": "RW06-B2 (RW06 real-world test). For each claim: sends the documents to Document Automation when a DocFlow process is given (set aside here), otherwise reads them itself: typed fields with page and line citations, a confidence score with an OCR fallback, a schema check, the invoice total against its line sum, invalid dates flagged, the model API version checked and a hash of the result kept.",
+  "tags": [
+    "real-world-test",
+    "RW06"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "docflow_process",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "A Document Automation process to send the documents to; empty: set aside, read here."
+    },
+    {
+      "name": "api_version",
+      "type": "String",
+      "direction": "input",
+      "default": "2026-11",
+      "description": "Model API version the extraction was tested with."
+    },
+    {
+      "name": "models",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "docs",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "d",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "form",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "invoice",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "ftext",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "itext",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "lines",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "flds",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "conf",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "ocr",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "imgs",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "ln",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "sum",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "total",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "amount",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "date_ok",
+      "type": "Boolean",
+      "direction": "local",
+      "default": true
+    },
+    {
+      "name": "dv",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "cites",
+      "type": "List",
+      "direction": "local",
+      "default": []
+    },
+    {
+      "name": "idx",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "label",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "schema_ok",
+      "type": "Boolean",
+      "direction": "local",
+      "default": true
+    },
+    {
+      "name": "rhash",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "flines",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "df",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "schema",
+      "type": "Dictionary",
+      "direction": "local",
+      "default": {
+        "type": "object",
+        "required": [
+          "claim_id",
+          "policy",
+          "incident_date",
+          "amount"
+        ],
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "pattern": "^CLM-\\d{4}$"
+          },
+          "policy": {
+            "type": "string",
+            "pattern": "^POL-\\d{3}$"
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "claim_id",
+          "policy",
+          "claimant",
+          "phone",
+          "email",
+          "incident_date",
+          "claim_type",
+          "amount",
+          "invoice_total",
+          "line_sum",
+          "notes",
+          "confidence",
+          "citations",
+          "source",
+          "result_hash"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: For each claim: sends the documents to Document Automation when a DocFlow process is given (set aside here), otherwise reads them itself: typed fields with page and line citations, a confidence score with an OCR fallback, a schema check, the invoice total against its line sum, invalid dates flagged, the model API version checked and a hash of the result kept. It works through 10 documents (the split claims) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW06-B2"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW06-B2 Extraction and provenance started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW06-B2 starts",
+                "message": "RW06-B2 Extraction and provenance\n\nFor each claim: sends the documents to Document Automation when a DocFlow process is given (set aside here), otherwise reads them itself: typed fields with page and line citations, a confidence score with an OCR fallback, a schema check, the invoice total against its line sum, invalid dates flagged, the model API version checked and a hash of the result kept.\n\nRecords: 10 documents (the split claims)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "Read the split claims; 9. check the model API version."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$fault_profile$",
+              "right": "none"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "ooa.rest/request",
+              "args": {
+                "method": "POST",
+                "url": "${standin}/qa/faults",
+                "json": {
+                  "service": "ai",
+                  "profile": "$fault_profile$",
+                  "run_id": "$run_id$"
+                }
+              },
+              "description": "Arm the stand-in's injected faults for this service"
+            }
+          ],
+          "description": "Resilience run: arm the stand-in's faults"
+        },
+        {
+          "id": "s17",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW06-B1/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s18",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW06-B1/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW06-B1 evidence"
+            }
+          ],
+          "description": "RW06-B1 ran in this run?",
+          "else": [
+            {
+              "id": "s19",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW06-B1's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW06/fixtures/RW06-B1-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW06-B1 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.rest/request",
+          "args": {
+            "url": "${standin}/v1/models",
+            "bearer_token": {
+              "$credential": "rw_qa_standins/ai/token"
+            }
+          },
+          "out": {
+            "json": "models"
+          },
+          "retry": {
+            "max": 3,
+            "backoff": "exponential",
+            "delayMs": 1000
+          },
+          "description": "9. Model API version"
+        },
+        {
+          "id": "s22",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "${first($models.data$).api_version}",
+              "right": "$api_version$"
+            }
+          },
+          "children": [
+            {
+              "id": "s23",
+              "action": "core/throw",
+              "args": {
+                "code": "AI.API_VERSION",
+                "message": "Model API ${first($models.data$).api_version}; tested with ${api_version}"
+              },
+              "description": "Stop: untested version"
+            }
+          ],
+          "description": "Another API version than tested?"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s24",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s25",
+          "action": "core/comment",
+          "args": {
+            "text": "Per claim: DocFlow or local reading, fields with citations, confidence and OCR fallback, schema, totals, dates, hash."
+          }
+        },
+        {
+          "id": "s26",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s28",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s29",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "docs",
+                    "value": {
+                      "expr": "split($rec.documents$, ';')"
+                    }
+                  },
+                  "description": "The claim's documents"
+                },
+                {
+                  "id": "s30",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "form",
+                    "value": ""
+                  },
+                  "description": "No claim form yet"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "invoice",
+                    "value": ""
+                  },
+                  "description": "No invoice yet"
+                },
+                {
+                  "id": "s32",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$docs$",
+                    "as": "d"
+                  },
+                  "children": [
+                    {
+                      "id": "s33",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "startsWith($d$, 'claim_form:')"
+                      },
+                      "children": [
+                        {
+                          "id": "s34",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "form",
+                            "value": {
+                              "expr": "substring($d$, 11)"
+                            }
+                          },
+                          "description": "Its file"
+                        }
+                      ],
+                      "description": "Claim form?",
+                      "elseIf": [
+                        {
+                          "condition": "startsWith($d$, 'invoice:')",
+                          "children": [
+                            {
+                              "id": "s35",
+                              "action": "core/set",
+                              "args": {
+                                "variable": "invoice",
+                                "value": {
+                                  "expr": "substring($d$, 8)"
+                                }
+                              },
+                              "description": "Its file"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "description": "Find the claim form and the invoice"
+                },
+                {
+                  "id": "s36",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not isEmpty($docflow_process$)"
+                  },
+                  "children": [
+                    {
+                      "id": "s37",
+                      "action": "ooa.documents/send",
+                      "args": {
+                        "process": "$docflow_process$",
+                        "path": "$form$",
+                        "wait": true
+                      },
+                      "out": {
+                        "fields": "df"
+                      },
+                      "description": "1. Send the claim form to the DocFlow test process"
+                    }
+                  ],
+                  "description": "1. Document Automation given?",
+                  "else": [
+                    {
+                      "id": "s38",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "Document Automation is set aside for now: the agent reads the documents itself."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "s39",
+                  "action": "ooa.pdf/extract_text",
+                  "args": {
+                    "path": "$form$",
+                    "mode": "plain"
+                  },
+                  "out": {
+                    "text": "ftext"
+                  },
+                  "description": "Read the claim form"
+                },
+                {
+                  "id": "s40",
+                  "action": "ooa.pdf/extract_text",
+                  "args": {
+                    "path": "$invoice$",
+                    "mode": "plain"
+                  },
+                  "out": {
+                    "text": "itext"
+                  },
+                  "description": "Read the invoice"
+                },
+                {
+                  "id": "s41",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "flds",
+                    "value": {}
+                  },
+                  "description": "No fields yet"
+                },
+                {
+                  "id": "s42",
+                  "action": "ooa.dictionary/put",
+                  "args": {
+                    "dictionary": "$flds$",
+                    "key": "claim_id",
+                    "value": {
+                      "expr": "coalesce(regexExtract($ftext$, 'Claim id: *([^\\r\\n]+)', 1), '')"
+                    }
+                  },
+                  "out": {
+                    "dictionary": "flds"
+                  },
+                  "description": "2. Claim id"
+                },
+                {
+                  "id": "s43",
+                  "action": "ooa.dictionary/put",
+                  "args": {
+                    "dictionary": "$flds$",
+                    "key": "policy",
+                    "value": {
+                      "expr": "coalesce(regexExtract($ftext$, 'Policy number: *([^\\r\\n]+)', 1), '')"
+                    }
+                  },
+                  "out": {
+                    "dictionary": "flds"
+                  },
+                  "description": "2. Policy number"
+                },
+                {
+                  "id": "s44",
+                  "action": "ooa.dictionary/put",
+                  "args": {
+                    "dictionary": "$flds$",
+                    "key": "claimant",
+                    "value": {
+                      "expr": "coalesce(regexExtract($ftext$, 'Claimant: *([^\\r\\n]+)', 1), '')"
+                    }
+                  },
+                  "out": {
+                    "dictionary": "flds"
+                  },
+                  "description": "2. Claimant"
+                },
+                {
+                  "id": "s45",
+                  "action": "ooa.dictionary/put",
+                  "args": {
+                    "dictionary": "$flds$",
+                    "key": "phone",
+                    "value": {
+                      "expr": "coalesce(regexExtract($ftext$, 'Phone: *([^\\r\\n]+)', 1), '')"
+                    }
+                  },
+                  "out": {
+                    "dictionary": "flds"
+                  },
+                  "description": "2. Phone"
+                },
+                {
+                  "id": "s46",
+                  "action": "ooa.dictionary/put",
+                  "args": {
+                    "dictionary": "$flds$",
+                    "key": "email",
+                    "value": {
+                      "expr": "coalesce(regexExtract($ftext$, 'Email: *([^\\r\\n]+)', 1), '')"
+                    }
+                  },
+                  "out": {
+                    "dictionary": "flds"
+                  },
+                  "description": "2. Email"
+                },
+                {
+                  "id": "s47",
+                  "action": "ooa.dictionary/put",
+                  "args": {
+                    "dictionary": "$flds$",
+                    "key": "incident_date",
+                    "value": {
+                      "expr": "coalesce(regexExtract($ftext$, 'Incident date: *([^\\r\\n]+)', 1), '')"
+                    }
+                  },
+                  "out": {
+                    "dictionary": "flds"
+                  },
+                  "description": "2. Incident date"
+                },
+                {
+                  "id": "s48",
+                  "action": "ooa.dictionary/put",
+                  "args": {
+                    "dictionary": "$flds$",
+                    "key": "claim_type",
+                    "value": {
+                      "expr": "coalesce(regexExtract($ftext$, 'Claim type: *([^\\r\\n]+)', 1), '')"
+                    }
+                  },
+                  "out": {
+                    "dictionary": "flds"
+                  },
+                  "description": "2. Claim type"
+                },
+                {
+                  "id": "s49",
+                  "action": "ooa.dictionary/put",
+                  "args": {
+                    "dictionary": "$flds$",
+                    "key": "amount",
+                    "value": {
+                      "expr": "coalesce(regexExtract($ftext$, 'Claimed amount: *([^\\r\\n]+)', 1), '')"
+                    }
+                  },
+                  "out": {
+                    "dictionary": "flds"
+                  },
+                  "description": "2. Claimed amount"
+                },
+                {
+                  "id": "s50",
+                  "action": "ooa.dictionary/put",
+                  "args": {
+                    "dictionary": "$flds$",
+                    "key": "notes",
+                    "value": {
+                      "expr": "coalesce(regexExtract($ftext$, 'Notes: *([^\\r\\n]+)', 1), '')"
+                    }
+                  },
+                  "out": {
+                    "dictionary": "flds"
+                  },
+                  "description": "2. Notes"
+                },
+                {
+                  "id": "s51",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "found",
+                    "value": 0
+                  },
+                  "description": "Count the fields found"
+                },
+                {
+                  "id": "s52",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": {
+                      "expr": "values($flds$)"
+                    },
+                    "as": "ln"
+                  },
+                  "children": [
+                    {
+                      "id": "s53",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "not isEmpty($ln$)"
+                      },
+                      "children": [
+                        {
+                          "id": "s54",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "found",
+                            "value": {
+                              "expr": "$found$ + 1"
+                            }
+                          },
+                          "description": "Count it"
+                        }
+                      ],
+                      "description": "Found?"
+                    }
+                  ],
+                  "description": "Each field"
+                },
+                {
+                  "id": "s55",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "conf",
+                    "value": {
+                      "expr": "round($found$ / 9, 2)"
+                    }
+                  },
+                  "description": "4. Confidence (share of fields found)"
+                },
+                {
+                  "id": "s56",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$conf$ < 0.9"
+                  },
+                  "children": [
+                    {
+                      "id": "s57",
+                      "action": "ooa.pdf/to_images",
+                      "args": {
+                        "path": "$form$",
+                        "pages": "1",
+                        "target_folder": "${out_dir}/ocr",
+                        "file_prefix": "${rec.key}-",
+                        "dpi": 200,
+                        "color": "gray"
+                      },
+                      "out": {
+                        "files": "imgs"
+                      },
+                      "description": "Page picture"
+                    },
+                    {
+                      "id": "s58",
+                      "action": "ooa.ocr/read_image",
+                      "args": {
+                        "path": "${first($imgs$)}"
+                      },
+                      "out": {
+                        "text": "ocr"
+                      },
+                      "description": "OCR it"
+                    },
+                    {
+                      "id": "s59",
+                      "action": "ooa.dictionary/put",
+                      "args": {
+                        "dictionary": "$flds$",
+                        "key": "amount",
+                        "value": {
+                          "expr": "coalesce(regexExtract($ocr$, 'Claimed amount: *([0-9.,]+)', 1), '')"
+                        }
+                      },
+                      "out": {
+                        "dictionary": "flds"
+                      },
+                      "description": "Amount from OCR"
+                    }
+                  ],
+                  "description": "8. Low confidence: OCR fallback"
+                },
+                {
+                  "id": "s60",
+                  "action": "ooa.string/find",
+                  "args": {
+                    "text": "$ftext$",
+                    "find": "[^\\r\\n]+",
+                    "regex": true
+                  },
+                  "out": {
+                    "all_matches": "flines"
+                  },
+                  "description": "Lines of the claim form"
+                },
+                {
+                  "id": "s61",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "cites",
+                    "value": []
+                  },
+                  "description": "No citations yet"
+                },
+                {
+                  "id": "s62",
+                  "action": "ooa.list/index_of",
+                  "args": {
+                    "list": "$flines$",
+                    "value": "Policy number: ${flds.policy}"
+                  },
+                  "out": {
+                    "index": "idx"
+                  },
+                  "description": "3. Where 'Policy number' is"
+                },
+                {
+                  "id": "s63",
+                  "action": "ooa.list/add_item",
+                  "args": {
+                    "list": "$cites$",
+                    "item": "policy=claim_form p1 line ${$idx$ + 1}"
+                  },
+                  "out": {
+                    "list": "cites"
+                  },
+                  "description": "3. Its citation"
+                },
+                {
+                  "id": "s64",
+                  "action": "ooa.list/index_of",
+                  "args": {
+                    "list": "$flines$",
+                    "value": "Incident date: ${flds.incident_date}"
+                  },
+                  "out": {
+                    "index": "idx"
+                  },
+                  "description": "3. Where 'Incident date' is"
+                },
+                {
+                  "id": "s65",
+                  "action": "ooa.list/add_item",
+                  "args": {
+                    "list": "$cites$",
+                    "item": "incident_date=claim_form p1 line ${$idx$ + 1}"
+                  },
+                  "out": {
+                    "list": "cites"
+                  },
+                  "description": "3. Its citation"
+                },
+                {
+                  "id": "s66",
+                  "action": "ooa.list/index_of",
+                  "args": {
+                    "list": "$flines$",
+                    "value": "Claimed amount: ${flds.amount}"
+                  },
+                  "out": {
+                    "index": "idx"
+                  },
+                  "description": "3. Where 'Claimed amount' is"
+                },
+                {
+                  "id": "s67",
+                  "action": "ooa.list/add_item",
+                  "args": {
+                    "list": "$cites$",
+                    "item": "amount=claim_form p1 line ${$idx$ + 1}"
+                  },
+                  "out": {
+                    "list": "cites"
+                  },
+                  "description": "3. Its citation"
+                },
+                {
+                  "id": "s68",
+                  "action": "ooa.string/to_number",
+                  "args": {
+                    "text": "$flds.amount$",
+                    "locale": "en-US"
+                  },
+                  "out": {
+                    "result": "amount"
+                  },
+                  "description": "2. Claimed amount as a number"
+                },
+                {
+                  "id": "s69",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "date_ok",
+                    "value": true
+                  },
+                  "description": "Date valid so far"
+                },
+                {
+                  "id": "s70",
+                  "action": "core/try",
+                  "args": {},
+                  "children": [
+                    {
+                      "id": "s71",
+                      "action": "ooa.datetime/parse",
+                      "args": {
+                        "text": "$flds.incident_date$",
+                        "pattern": "uuuu-MM-dd"
+                      },
+                      "out": {
+                        "value": "dv"
+                      },
+                      "description": "Read the incident date"
+                    }
+                  ],
+                  "description": "7. A real calendar date?",
+                  "catch": [
+                    {
+                      "codes": [
+                        "*"
+                      ],
+                      "children": [
+                        {
+                          "id": "s72",
+                          "action": "core/set",
+                          "args": {
+                            "variable": "date_ok",
+                            "value": false
+                          },
+                          "description": "Invalid date"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "s73",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not $date_ok$"
+                  },
+                  "children": [
+                    {
+                      "id": "s74",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VALIDATION.DATE",
+                        "message": "${rec.claim_id}: incident date ${flds.incident_date} is not a real date"
+                      },
+                      "description": "Flag it"
+                    }
+                  ],
+                  "description": "Invalid date?"
+                },
+                {
+                  "id": "s75",
+                  "action": "ooa.string/find",
+                  "args": {
+                    "text": "$itext$",
+                    "find": "Line: [^\\r\\n]+",
+                    "regex": true
+                  },
+                  "out": {
+                    "all_matches": "lines"
+                  },
+                  "description": "Invoice lines"
+                },
+                {
+                  "id": "s76",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "sum",
+                    "value": 0
+                  },
+                  "description": "Start the line sum"
+                },
+                {
+                  "id": "s77",
+                  "action": "core/loop",
+                  "args": {
+                    "iterator": "list",
+                    "over": "$lines$",
+                    "as": "ln"
+                  },
+                  "children": [
+                    {
+                      "id": "s78",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "sum",
+                        "value": {
+                          "expr": "$sum$ + toNumber(replace(trim(last(split($ln$, '|'))), ',', ''))"
+                        }
+                      },
+                      "description": "Add the line amount"
+                    }
+                  ],
+                  "description": "Each invoice line"
+                },
+                {
+                  "id": "s79",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "total",
+                    "value": {
+                      "expr": "toNumber(replace(coalesce(regexExtract($itext$, 'Invoice total: *([0-9.,]+)', 1), '0'), ',', ''))"
+                    }
+                  },
+                  "description": "Stated invoice total"
+                },
+                {
+                  "id": "s80",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "abs($total$ - $sum$) > 0.01"
+                  },
+                  "children": [
+                    {
+                      "id": "s81",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VALIDATION.TOTAL",
+                        "message": "${rec.claim_id}: invoice total ${total}, lines add up to ${sum}"
+                      },
+                      "description": "Flag it"
+                    }
+                  ],
+                  "description": "6. Invoice total differs from its lines?"
+                },
+                {
+                  "id": "s82",
+                  "action": "ooa.json/validate",
+                  "args": {
+                    "json": {
+                      "claim_id": "$flds.claim_id$",
+                      "policy": "$flds.policy$",
+                      "incident_date": "$flds.incident_date$",
+                      "amount": "$amount$"
+                    },
+                    "schema": "$schema$"
+                  },
+                  "out": {
+                    "valid": "schema_ok"
+                  },
+                  "description": "5. Schema check of the typed fields"
+                },
+                {
+                  "id": "s83",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "not $schema_ok$"
+                  },
+                  "children": [
+                    {
+                      "id": "s84",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "VALIDATION.SCHEMA",
+                        "message": "${rec.claim_id}: extracted fields do not meet the schema"
+                      },
+                      "description": "Flag it"
+                    }
+                  ],
+                  "description": "Schema not met?"
+                },
+                {
+                  "id": "s85",
+                  "action": "ooa.crypto/hash_text",
+                  "args": {
+                    "text": "${rec.claim_id}|${flds.policy}|${amount}|${total}|${join($cites$, ';')}"
+                  },
+                  "out": {
+                    "hash": "rhash"
+                  },
+                  "description": "10. Hash of the result"
+                },
+                {
+                  "id": "s86",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "claim_id": "$flds.claim_id$",
+                      "policy": "$flds.policy$",
+                      "claimant": "$flds.claimant$",
+                      "phone": "$flds.phone$",
+                      "email": "$flds.email$",
+                      "incident_date": "$flds.incident_date$",
+                      "claim_type": "$flds.claim_type$",
+                      "amount": "$amount$",
+                      "invoice_total": "$total$",
+                      "line_sum": "$sum$",
+                      "notes": "$flds.notes$",
+                      "confidence": "$conf$",
+                      "citations": {
+                        "expr": "join($cites$, ';')"
+                      },
+                      "source": {
+                        "expr": "if(isEmpty($docflow_process$), 'local reading', 'DocFlow ' + $docflow_process$)"
+                      },
+                      "result_hash": "$rhash$"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "Typed fields with provenance"
+                },
+                {
+                  "id": "s87",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "${amount} (confidence ${conf})"
+                  },
+                  "description": "Note for the results"
+                },
+                {
+                  "id": "s88",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s89",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s90",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s91",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW06-B2 - record ${rec.key}",
+                        "message": "RW06-B2: record ${$i + 1} of ${len($records$)}\n\n${rec.claim_id}: ${flds.policy}, ${flds.amount}\nInvoice ${total} (lines ${sum})  confidence ${conf}\n${join($cites$, '; ')}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s92",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s93",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s94",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s95",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s96",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s97",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW06-B2 - exception",
+                            "message": "RW06-B2: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s98",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s99",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 documents (the split claims)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s100",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s101",
+          "action": "core/comment",
+          "args": {
+            "text": "Save the results, set the outputs and say how it went."
+          }
+        },
+        {
+          "id": "s102",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s103",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s104",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s105",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s106",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s107",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW06-B2 Extraction and provenance finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s108",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s109",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW06-B2 finished",
+                "message": "RW06-B2 Extraction and provenance finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}

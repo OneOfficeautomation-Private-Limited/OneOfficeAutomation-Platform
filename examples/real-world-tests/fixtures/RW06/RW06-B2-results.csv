@@ -1,0 +1,9 @@
+key,status,note,time
+C01,done,1200 (confidence 1),04:43:41
+C03,done,1201 (confidence 1),04:43:41
+C04,done,300 (confidence 1),04:43:41
+C05,exception,VALIDATION.DATE: CLM-1005: incident date 2026-02-30 is not a real date,04:43:42
+C06,exception,"VALIDATION.TOTAL: CLM-1006: invoice total 1500, lines add up to 1400",04:43:42
+C07,done,2000 (confidence 1),04:43:42
+C08,done,12000 (confidence 1),04:43:42
+C10,done,900.50 (confidence 1),04:43:42

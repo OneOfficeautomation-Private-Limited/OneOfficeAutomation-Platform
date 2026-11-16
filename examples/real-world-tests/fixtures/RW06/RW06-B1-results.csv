@@ -1,0 +1,11 @@
+key,status,note,time
+C01,done,3 documents,04:43:32
+C02,exception,ROUTE.DUPLICATE: CLM-1001: the same pack arrived before,04:43:32
+C03,done,3 documents,04:43:33
+C04,done,3 documents,04:43:33
+C05,done,2 documents,04:43:33
+C06,done,2 documents,04:43:33
+C07,done,2 documents,04:43:33
+C08,done,3 documents,04:43:33
+C09,exception,VALIDATION.MIME: CLM-1009: CLM-1009-pack.txt is not an accepted PDF pack,04:43:33
+C10,done,2 documents,04:43:33

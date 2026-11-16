@@ -1,0 +1,7 @@
+key,status,note,time
+C01,done,auto_approve 950,04:43:49
+C03,done,manual_review 951,04:43:49
+C04,exception,ROUTE.REJECT: CLM-1004: auto on 2026-09-15 is not covered by POL-503 (2025-07-01T00:00 to 2026-06-30T00:00),04:43:49
+C07,done,manual_review 1500,04:43:49
+C08,done,manual_review 11500,04:43:49
+C10,done,auto_approve 400.50,04:43:49

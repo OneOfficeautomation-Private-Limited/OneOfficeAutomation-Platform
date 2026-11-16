@@ -1,0 +1,5 @@
+key,status,note,time
+C01,done,DRAFT-RW06-LOCAL-2-CLM-1001,04:44:11
+C07,done,DRAFT-RW06-LOCAL-2-CLM-1007,04:44:12
+C08,done,DRAFT-RW06-LOCAL-2-CLM-1008,04:44:12
+C10,exception,"ERP.DISCREPANCY: CLM-1010: approved 400.50, the ERP stored 401; draft cancelled",04:44:12

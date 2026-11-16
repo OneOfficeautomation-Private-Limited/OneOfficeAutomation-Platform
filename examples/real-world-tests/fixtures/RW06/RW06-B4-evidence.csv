@@ -1,0 +1,5 @@
+key,claim_id,task,reviewer,status,approved_amount,approval_id,token
+C01,CLM-1001,TASK9000000,reviewer.claims@ooa-qa.test,approved,950,APR-2E9BFDAE,b7f1650762cdb605784ca4a0c08756979ebb0e2dd11358754ab5ac5a88fe5fb8
+C07,CLM-1007,TASK9000002,reviewer.claims@ooa-qa.test,approved,1500,APR-24CD08D8,d75a6a290f5b329be1d31e6903885b482efefb7f85ccbf8c37eaef43b1c8f65d
+C08,CLM-1008,TASK9000003,reviewer.senior@ooa-qa.test,approved,11500,APR-74C66984,0bd34d16eca43bc9b17510f9f00c7bafbed2da8ad5e8676abfc402416406e74f
+C10,CLM-1010,TASK9000004,reviewer.backup@ooa-qa.test,approved,400.50,APR-F55BC342,3f12630d3721bd9906eb5c1c8f076ae5dc0ae70f4f53e2e471cc6ad4dd8087c4

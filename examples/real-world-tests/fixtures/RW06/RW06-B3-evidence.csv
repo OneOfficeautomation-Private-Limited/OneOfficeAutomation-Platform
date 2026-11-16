@@ -1,0 +1,6 @@
+key,claim_id,policy,amount,deductible,approved_amount,model_amount,decision,reasons
+C01,CLM-1001,POL-501,1200,250,950,950,auto_approve,
+C03,CLM-1003,POL-501,1201,250,951,951,manual_review,NEAR_DUPLICATE
+C07,CLM-1007,POL-502,2000,500,1500,50000,manual_review,UNTRUSTED_INSTRUCTION;MODEL_CONFLICT
+C08,CLM-1008,POL-504,12000,500,11500,11500,manual_review,LARGE_CLAIM
+C10,CLM-1010,POL-502,900.50,500,400.50,400.5,auto_approve,

@@ -1,0 +1,6 @@
+key,status,note,time
+C01,done,approved by reviewer.claims@ooa-qa.test,04:43:58
+C03,exception,REVIEW.NOT_APPROVED: CLM-1003: the reviewer answered declined,04:43:59
+C07,done,approved by reviewer.claims@ooa-qa.test,04:44:00
+C08,done,approved by reviewer.senior@ooa-qa.test,04:44:01
+C10,done,approved by reviewer.backup@ooa-qa.test,04:44:04

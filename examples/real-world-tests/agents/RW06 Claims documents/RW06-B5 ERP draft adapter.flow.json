@@ -1,0 +1,991 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "rw06_b5",
+  "name": "RW06-B5 ERP draft adapter",
+  "description": "RW06-B5 (RW06 real-world test). For each approved claim: checks the ERP host is QA, checks the approval signature, creates a draft record in the QA ERP simulator with only the approved fields (safe to repeat), reads it back, cancels the draft when it differs, records the reference and proves nothing was posted or paid.",
+  "tags": [
+    "real-world-test",
+    "RW06"
+  ],
+  "variables": [
+    {
+      "name": "base",
+      "type": "String",
+      "direction": "input",
+      "default": "C:/Users/virup/OOA Real-world tests",
+      "description": "Folder of the real-world tests: data, output and the stand-in server."
+    },
+    {
+      "name": "run_id",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Run id shared by a main agent and its children; made here when empty."
+    },
+    {
+      "name": "standin",
+      "type": "String",
+      "direction": "input",
+      "default": "http://127.0.0.1:8791",
+      "description": "Address of the local QA stand-in server (127.0.0.1 only)."
+    },
+    {
+      "name": "watch",
+      "type": "Boolean",
+      "direction": "input",
+      "default": true,
+      "description": "Show message boxes and pause between records so a person can follow the run."
+    },
+    {
+      "name": "pause_seconds",
+      "type": "Number",
+      "direction": "input",
+      "default": 1,
+      "description": "Pause after each record when watch is on."
+    },
+    {
+      "name": "fault_profile",
+      "type": "String",
+      "direction": "input",
+      "default": "none",
+      "description": "none, or resilience: the stand-ins inject the five failures of runbook step 09."
+    },
+    {
+      "name": "info",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "out_dir",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "log_file",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "records",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "rec",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "err",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "err_msg",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_status",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "rec_note",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "started",
+      "type": "DateTime",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "status",
+          "note",
+          "time"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records handled without an error."
+    },
+    {
+      "name": "exceptions",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records routed to the exception list."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "not_run",
+      "description": "success when every record was handled (routed exceptions included)."
+    },
+    {
+      "name": "result_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "CSV file with one row per record."
+    },
+    {
+      "name": "host",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "tok",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "row",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "n",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "stored",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "ref",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "posted",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "np",
+      "type": "Number",
+      "direction": "local",
+      "default": 0
+    },
+    {
+      "name": "db",
+      "type": "String",
+      "direction": "local",
+      "default": ""
+    },
+    {
+      "name": "evidence",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "key",
+          "claim_id",
+          "draft",
+          "amount",
+          "stored",
+          "status"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "evidence_file",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Evidence rows of this agent (one per record)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "core/step",
+      "args": {
+        "title": "1. Start"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "core/comment",
+          "args": {
+            "text": "What this agent does: For each approved claim: checks the ERP host is QA, checks the approval signature, creates a draft record in the QA ERP simulator with only the approved fields (safe to repeat), reads it back, cancels the draft when it differs, records the reference and proves nothing was posted or paid. It works through 10 approved claims (the approved ones) and writes its results to the run's output folder."
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.run_context/get",
+          "args": {},
+          "out": {
+            "info": "info"
+          },
+          "description": "Read the run context (run id, runner, user)"
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "started",
+            "value": {
+              "expr": "now()"
+            }
+          },
+          "description": "Remember when the agent started"
+        },
+        {
+          "id": "s5",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$run_id$"
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "run_id",
+                "value": "SOLO-${formatDate(now(), '%Y%m%d-%H%M%S')}"
+              },
+              "description": "Run id for a run on its own"
+            }
+          ],
+          "description": "Running on its own: make a run id"
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "out_dir",
+            "value": "${base}/output/${run_id}/RW06-B5"
+          },
+          "description": "This agent's output folder for the run"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.folder/create",
+          "args": {
+            "path": "$out_dir$"
+          },
+          "description": "Create the output folder"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "log_file",
+            "value": "${out_dir}/log.txt"
+          },
+          "description": "Log file of this agent"
+        },
+        {
+          "id": "s10",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW06-B5 ERP draft adapter started; run ${run_id}; computer ${info.device}, user ${info.os_user}"
+          },
+          "description": "Log the start"
+        },
+        {
+          "id": "s11",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW06-B5 starts",
+                "message": "RW06-B5 ERP draft adapter\n\nFor each approved claim: checks the ERP host is QA, checks the approval signature, creates a draft record in the QA ERP simulator with only the approved fields (safe to repeat), reads it back, cancels the draft when it differs, records the reference and proves nothing was posted or paid.\n\nRecords: 10 approved claims (the approved ones)\nRun: ${run_id}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "1. Start"
+    },
+    {
+      "id": "s13",
+      "action": "core/step",
+      "args": {
+        "title": "2. Prepare"
+      },
+      "children": [
+        {
+          "id": "s14",
+          "action": "core/comment",
+          "args": {
+            "text": "1. Host allow-list; open the QA ERP simulator (a draft table; the SAP GUI path is RW03-B5's)."
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/set",
+          "args": {
+            "variable": "host",
+            "value": {
+              "expr": "regexExtract($standin$, '//([^:/]+)', 1)"
+            }
+          },
+          "description": "ERP host"
+        },
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "ne",
+              "left": "$host$",
+              "right": "127.0.0.1"
+            }
+          },
+          "children": [
+            {
+              "id": "s17",
+              "action": "core/throw",
+              "args": {
+                "code": "ERP.NOT_QA",
+                "message": "ERP host ${host} is not on the QA allow-list"
+              },
+              "description": "Stop"
+            }
+          ],
+          "description": "Not the QA host?"
+        },
+        {
+          "id": "s18",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "${base}/output/${run_id}/RW06-B4/evidence.csv"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s19",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/output/${run_id}/RW06-B4/evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW06-B4 evidence"
+            }
+          ],
+          "description": "RW06-B4 ran in this run?",
+          "else": [
+            {
+              "id": "s20",
+              "action": "core/comment",
+              "args": {
+                "text": "Running on its own: use the fixture, a saved copy of RW06-B4's evidence from a checked run."
+              }
+            },
+            {
+              "id": "s21",
+              "action": "ooa.csv/read",
+              "args": {
+                "path": "${base}/data/RW06/fixtures/RW06-B4-evidence.csv"
+              },
+              "out": {
+                "table": "records"
+              },
+              "description": "Read RW06-B4 evidence (fixture)"
+            }
+          ]
+        },
+        {
+          "id": "s22",
+          "action": "core/set",
+          "args": {
+            "variable": "db",
+            "value": "${base}/output/${run_id}/erp-sim"
+          },
+          "description": "The QA ERP simulator database (shared by the run)"
+        },
+        {
+          "id": "s23",
+          "action": "ooa.database/connect",
+          "args": {
+            "database_type": "h2",
+            "file": "$db$",
+            "session": "erp"
+          },
+          "description": "Open the QA ERP simulator (embedded H2)"
+        },
+        {
+          "id": "s24",
+          "action": "ooa.database/execute",
+          "args": {
+            "session": "erp",
+            "sql": "CREATE TABLE IF NOT EXISTS claim_draft(claim_id VARCHAR(10) PRIMARY KEY, amount DECIMAL(12,0), status VARCHAR(12), reference VARCHAR(40), run_id VARCHAR(40))"
+          },
+          "description": "Draft table (whole currency units, as the simulated ERP stores them)"
+        }
+      ],
+      "description": "2. Prepare"
+    },
+    {
+      "id": "s25",
+      "action": "core/step",
+      "args": {
+        "title": "3. Work through the records"
+      },
+      "children": [
+        {
+          "id": "s26",
+          "action": "core/comment",
+          "args": {
+            "text": "Per approved claim: signature, draft with the approved fields only, repeat safely, read back, compare, cancel or keep."
+          }
+        },
+        {
+          "id": "s27",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$records$",
+            "as": "rec",
+            "index": "i"
+          },
+          "children": [
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "rec_note",
+                "value": ""
+              },
+              "description": "Clear the note of the previous record"
+            },
+            {
+              "id": "s29",
+              "action": "core/try",
+              "args": {},
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "ooa.crypto/hmac",
+                  "args": {
+                    "text": "${rec.claim_id}|${rec.approved_amount}|${rec.approval_id}",
+                    "key": {
+                      "$credential": "rw_qa_standins/sign_key/token"
+                    }
+                  },
+                  "out": {
+                    "signature": "tok"
+                  },
+                  "description": "7. Recompute the approval signature (claim, amount, approval)"
+                },
+                {
+                  "id": "s31",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$tok$ != $rec.token$ or $rec.status$ != 'approved'"
+                  },
+                  "children": [
+                    {
+                      "id": "s32",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ERP.NOT_APPROVED",
+                        "message": "${rec.claim_id} has no approval"
+                      },
+                      "description": "7. Reject unapproved claims"
+                    }
+                  ],
+                  "description": "Not approved, or the amount changed since?"
+                },
+                {
+                  "id": "s33",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "ref",
+                    "value": "DRAFT-${run_id}-${rec.claim_id}"
+                  },
+                  "description": "Draft reference"
+                },
+                {
+                  "id": "s34",
+                  "action": "ooa.database/execute",
+                  "args": {
+                    "session": "erp",
+                    "sql": "MERGE INTO claim_draft (claim_id, amount, status, reference, run_id) KEY (claim_id) VALUES (?, ?, 'draft', ?, ?)",
+                    "parameters": [
+                      "$rec.claim_id$",
+                      "$rec.approved_amount$",
+                      "$ref$",
+                      "$run_id$"
+                    ]
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "2.-3. Create the draft, approved fields only (try 1: safe to repeat)"
+                },
+                {
+                  "id": "s35",
+                  "action": "ooa.database/execute",
+                  "args": {
+                    "session": "erp",
+                    "sql": "MERGE INTO claim_draft (claim_id, amount, status, reference, run_id) KEY (claim_id) VALUES (?, ?, 'draft', ?, ?)",
+                    "parameters": [
+                      "$rec.claim_id$",
+                      "$rec.approved_amount$",
+                      "$ref$",
+                      "$run_id$"
+                    ]
+                  },
+                  "retry": {
+                    "max": 3,
+                    "backoff": "exponential",
+                    "delayMs": 1000
+                  },
+                  "description": "2.-3. Create the draft, approved fields only (try 2: safe to repeat)"
+                },
+                {
+                  "id": "s36",
+                  "action": "ooa.database/query",
+                  "args": {
+                    "session": "erp",
+                    "parameters": [
+                      "$rec.claim_id$"
+                    ],
+                    "sql": "SELECT amount AS \"amount\", status AS \"status\" FROM claim_draft WHERE claim_id = ?"
+                  },
+                  "out": {
+                    "table": "row",
+                    "row_count": "n"
+                  },
+                  "description": "6. One draft only?"
+                },
+                {
+                  "id": "s37",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$n$ != 1"
+                  },
+                  "children": [
+                    {
+                      "id": "s38",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ERP.DUPLICATE",
+                        "message": "${rec.claim_id}: ${n} drafts"
+                      },
+                      "description": "Stop"
+                    }
+                  ],
+                  "description": "Duplicate drafts?"
+                },
+                {
+                  "id": "s39",
+                  "action": "ooa.datatable/get_value",
+                  "args": {
+                    "table": "$row$",
+                    "row": 0,
+                    "column": "amount"
+                  },
+                  "out": {
+                    "value": "stored"
+                  },
+                  "description": "4. Read back the amount"
+                },
+                {
+                  "id": "s40",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "abs($stored$ - toNumber($rec.approved_amount$)) > 0.001"
+                  },
+                  "children": [
+                    {
+                      "id": "s41",
+                      "action": "ooa.database/execute",
+                      "args": {
+                        "session": "erp",
+                        "sql": "UPDATE claim_draft SET status = 'cancelled' WHERE claim_id = ?",
+                        "parameters": [
+                          "$rec.claim_id$"
+                        ]
+                      },
+                      "description": "5. Cancel the draft"
+                    },
+                    {
+                      "id": "s42",
+                      "action": "core/throw",
+                      "args": {
+                        "code": "ERP.DISCREPANCY",
+                        "message": "${rec.claim_id}: approved ${rec.approved_amount}, the ERP stored ${stored}; draft cancelled"
+                      },
+                      "description": "Route the discrepancy"
+                    }
+                  ],
+                  "description": "4. Stored amount differs?"
+                },
+                {
+                  "id": "s43",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$evidence$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "claim_id": "$rec.claim_id$",
+                      "draft": "$ref$",
+                      "amount": "$rec.approved_amount$",
+                      "stored": "$stored$",
+                      "status": "draft"
+                    }
+                  },
+                  "out": {
+                    "table": "evidence"
+                  },
+                  "description": "8. Record the reference"
+                },
+                {
+                  "id": "s44",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "rec_note",
+                    "value": "$ref$"
+                  },
+                  "description": "Note"
+                },
+                {
+                  "id": "s45",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results$",
+                    "values": {
+                      "key": "$rec.key$",
+                      "status": "done",
+                      "note": "$rec_note$",
+                      "time": "${formatDate(now(), '%H:%M:%S')}"
+                    }
+                  },
+                  "out": {
+                    "table": "results"
+                  },
+                  "description": "Add the record's result to the results table"
+                },
+                {
+                  "id": "s46",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "processed",
+                    "value": {
+                      "expr": "$processed$ + 1"
+                    }
+                  },
+                  "description": "Count the record as handled"
+                },
+                {
+                  "id": "s47",
+                  "action": "core/if",
+                  "args": {
+                    "condition": "$watch$"
+                  },
+                  "children": [
+                    {
+                      "id": "s48",
+                      "action": "ooa.desktop/message_box",
+                      "args": {
+                        "title": "RW06-B5 - record ${rec.key}",
+                        "message": "RW06-B5: record ${$i + 1} of ${len($records$)}\n\n${rec.claim_id}: draft ${ref}\napproved ${rec.approved_amount}, stored ${stored}",
+                        "timeout_seconds": 2,
+                        "icon": "information",
+                        "always_on_top": true
+                      },
+                      "description": "Message box that closes by itself"
+                    }
+                  ],
+                  "description": "Show what is happening (watch is on)"
+                }
+              ],
+              "description": "Handle one record; a failure is caught below and the next record goes on",
+              "catch": [
+                {
+                  "codes": [
+                    "*"
+                  ],
+                  "children": [
+                    {
+                      "id": "s49",
+                      "action": "core/comment",
+                      "args": {
+                        "text": "The record failed: keep the reason, count it as an exception and go on with the next one."
+                      }
+                    },
+                    {
+                      "id": "s50",
+                      "action": "ooa.datatable/add_row",
+                      "args": {
+                        "table": "$results$",
+                        "values": {
+                          "key": "$rec.key$",
+                          "status": "exception",
+                          "note": "${err.code}: ${err_msg}",
+                          "time": "${formatDate(now(), '%H:%M:%S')}"
+                        }
+                      },
+                      "out": {
+                        "table": "results"
+                      },
+                      "description": "Add the failure to the results table"
+                    },
+                    {
+                      "id": "s51",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "exceptions",
+                        "value": {
+                          "expr": "$exceptions$ + 1"
+                        }
+                      },
+                      "description": "Count the exception"
+                    },
+                    {
+                      "id": "s52",
+                      "action": "ooa.log/write",
+                      "args": {
+                        "path": "$log_file$",
+                        "level": "WARN",
+                        "message": "Record ${rec.key}: ${err.code} ${err_msg}"
+                      },
+                      "description": "Log the exception"
+                    },
+                    {
+                      "id": "s53",
+                      "action": "core/if",
+                      "args": {
+                        "condition": "$watch$"
+                      },
+                      "children": [
+                        {
+                          "id": "s54",
+                          "action": "ooa.desktop/message_box",
+                          "args": {
+                            "title": "RW06-B5 - exception",
+                            "message": "RW06-B5: record ${rec.key} went to the exception list\n\n${err.code}: ${err_msg}",
+                            "timeout_seconds": 3,
+                            "icon": "warning",
+                            "always_on_top": true
+                          },
+                          "description": "Message box that closes by itself"
+                        }
+                      ],
+                      "description": "Show what is happening (watch is on)"
+                    }
+                  ],
+                  "as": "err",
+                  "message_to": "err_msg"
+                }
+              ]
+            },
+            {
+              "id": "s55",
+              "action": "core/if",
+              "args": {
+                "condition": "$watch$"
+              },
+              "children": [
+                {
+                  "id": "s56",
+                  "action": "core/delay",
+                  "args": {
+                    "seconds": "$pause_seconds$"
+                  },
+                  "description": "Short pause"
+                }
+              ],
+              "description": "Pause so the screen can be followed (watch is on)"
+            }
+          ],
+          "description": "Once for each of the 10 approved claims (the approved ones)"
+        }
+      ],
+      "description": "3. Work through the records"
+    },
+    {
+      "id": "s57",
+      "action": "core/step",
+      "args": {
+        "title": "4. Finish"
+      },
+      "children": [
+        {
+          "id": "s58",
+          "action": "core/comment",
+          "args": {
+            "text": "9. Nothing posted or paid; save."
+          }
+        },
+        {
+          "id": "s59",
+          "action": "ooa.database/query",
+          "args": {
+            "session": "erp",
+            "sql": "SELECT claim_id FROM claim_draft WHERE status IN ('posted', 'paid')"
+          },
+          "out": {
+            "table": "posted",
+            "row_count": "np"
+          },
+          "description": "Posted or paid drafts (must be none)"
+        },
+        {
+          "id": "s60",
+          "action": "core/if",
+          "args": {
+            "condition": "$np$ > 0"
+          },
+          "children": [
+            {
+              "id": "s61",
+              "action": "core/throw",
+              "args": {
+                "code": "ERP.POSTED",
+                "message": "${np} claim(s) were posted or paid"
+              },
+              "description": "Stop"
+            }
+          ],
+          "description": "Anything posted or paid?"
+        },
+        {
+          "id": "s62",
+          "action": "ooa.database/disconnect",
+          "args": {
+            "session": "erp"
+          },
+          "description": "Close the simulator"
+        },
+        {
+          "id": "s63",
+          "action": "core/set",
+          "args": {
+            "variable": "evidence_file",
+            "value": "${out_dir}/evidence.csv"
+          },
+          "description": "Name of the evidence file"
+        },
+        {
+          "id": "s64",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$evidence$",
+            "path": "$evidence_file$"
+          },
+          "description": "Save the evidence rows"
+        },
+        {
+          "id": "s65",
+          "action": "core/set",
+          "args": {
+            "variable": "result_file",
+            "value": "${out_dir}/results.csv"
+          },
+          "description": "Name of the results file"
+        },
+        {
+          "id": "s66",
+          "action": "ooa.datatable/write_to_file",
+          "args": {
+            "table": "$results$",
+            "path": "$result_file$"
+          },
+          "description": "Save one row per record"
+        },
+        {
+          "id": "s67",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": "success"
+          },
+          "description": "Every record was handled (exceptions are routed, not lost)"
+        },
+        {
+          "id": "s68",
+          "action": "ooa.log/write",
+          "args": {
+            "path": "$log_file$",
+            "message": "RW06-B5 ERP draft adapter finished: ${processed} handled, ${exceptions} exceptions"
+          },
+          "description": "Log the end"
+        },
+        {
+          "id": "s69",
+          "action": "core/if",
+          "args": {
+            "condition": "$watch$"
+          },
+          "children": [
+            {
+              "id": "s70",
+              "action": "ooa.desktop/message_box",
+              "args": {
+                "title": "RW06-B5 finished",
+                "message": "RW06-B5 ERP draft adapter finished\n\nHandled: ${processed}\nExceptions: ${exceptions}\nResults: ${result_file}",
+                "timeout_seconds": 4,
+                "icon": "information",
+                "always_on_top": true
+              },
+              "description": "Message box that closes by itself"
+            }
+          ],
+          "description": "Show what is happening (watch is on)"
+        }
+      ],
+      "description": "4. Finish"
+    }
+  ]
+}
