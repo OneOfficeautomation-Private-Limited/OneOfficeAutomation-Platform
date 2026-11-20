@@ -21,6 +21,10 @@ import static com.oneofficeautomation.controlroom.module.ModuleContext.*;
  * holds (in the module's table onechat_keys, encrypted with the vault key). The service reads the payload but cannot
  * make or change a token; One CommandCenter checks the signature, the time and the tenant on every callback, and then
  * the person's permissions as they are now.
+ *
+ * <p>The key needs nothing from a vault key rotation or a tenant move (so it is not in TenantMove.SECRETS): when the
+ * stored key can no longer be read, a new one is made and recorded in the Audit Trail, and only tokens of the last five
+ * minutes stop working. Each node reads the stored key again every minute, so a cluster agrees on it.
  */
 public final class PersonTokens {
     /** How long a token is good for. */
@@ -32,8 +36,14 @@ public final class PersonTokens {
     /** A checked token: who, for which area and chat, from where, when it was made, and its id. */
     public record Person(User user, String area, String session, String ip, long issued, String id) {}
 
+    /** How often a node reads the stored key again (another node may have replaced it). */
+    private static final long KEY_RECHECK_MS = 60_000;
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     private final ModuleContext ctx;
     private volatile byte[] key;
+    private volatile String keyCipher;
+    private volatile long keyReadAt;
 
     public PersonTokens(ModuleContext ctx) { this.ctx = ctx; }
 
@@ -69,7 +79,11 @@ public final class PersonTokens {
         String body = parts[0] + "." + parts[1];
         byte[] given;
         try { given = D64.decode(parts[2]); } catch (IllegalArgumentException e) { return null; }
-        if (!java.security.MessageDigest.isEqual(given, sign(body))) return null;
+        if (!java.security.MessageDigest.isEqual(given, sign(body))) {
+            // another node may have replaced the key since this one read it: read it again once
+            keyReadAt = 0;
+            if (!java.security.MessageDigest.isEqual(given, sign(body))) return null;
+        }
         Map<String, Object> p;
         try { p = (Map<String, Object>) JsonLite.parse(new String(D64.decode(parts[1]), StandardCharsets.UTF_8)); }
         catch (RuntimeException e) { return null; }
@@ -94,22 +108,40 @@ public final class PersonTokens {
         } catch (java.security.GeneralSecurityException e) { throw new IllegalStateException(e); }
     }
 
-    /** The signing key: read once, made on first use (32 random bytes), kept encrypted with the vault key. */
+    /**
+     * The signing key: made on first use (32 random bytes), kept encrypted with the vault key, read again every minute,
+     * and replaced when it can no longer be read (the vault key was rotated, or the data came from another region).
+     */
     private byte[] key() {
-        byte[] k = key;
-        if (k != null) return k;
+        if (key != null && System.currentTimeMillis() - keyReadAt < KEY_RECHECK_MS) return key;
         synchronized (this) {
-            if (key != null) return key;
-            Map<String, Object> r = ctx.db().one("SELECT secret FROM onechat_keys WHERE id = ?", KEY_ID);
-            if (r == null) {
+            long t = System.currentTimeMillis();
+            if (key != null && t - keyReadAt < KEY_RECHECK_MS) return key;
+            for (int attempt = 0; attempt < 2; attempt++) {
+                Map<String, Object> r = ctx.db().one("SELECT secret FROM onechat_keys WHERE id = ?", KEY_ID);
+                String cipher = r == null ? null : String.valueOf(r.get("secret"));
+                if (cipher != null && cipher.equals(keyCipher) && key != null) { keyReadAt = t; return key; }
+                if (cipher != null) {
+                    try {
+                        byte[] k = Base64.getDecoder().decode(ctx.vault().decrypt(cipher, BOUND));
+                        key = k;
+                        keyCipher = cipher;
+                        keyReadAt = t;
+                        return k;
+                    } catch (RuntimeException e) {
+                        if (attempt > 0) throw new IllegalStateException("The person-token key cannot be read", e);
+                    }
+                }
                 byte[] fresh = new byte[32];
-                new SecureRandom().nextBytes(fresh);
-                try { ctx.db().update("INSERT INTO onechat_keys (id, secret, created) VALUES (?,?,?)", KEY_ID, ctx.vault().encrypt(Base64.getEncoder().encodeToString(fresh), BOUND), now()); }
-                catch (RuntimeException e) { /* another node made it first: read theirs */ }
-                r = ctx.db().one("SELECT secret FROM onechat_keys WHERE id = ?", KEY_ID);
+                RANDOM.nextBytes(fresh);
+                String sealed = ctx.vault().encrypt(Base64.getEncoder().encodeToString(fresh), BOUND);
+                try {
+                    if (cipher == null) ctx.db().update("INSERT INTO onechat_keys (id, secret, created) VALUES (?,?,?)", KEY_ID, sealed, now());
+                    else if (ctx.db().update("UPDATE onechat_keys SET secret = ?, created = ? WHERE id = ? AND secret = ?", sealed, now(), KEY_ID, cipher) == 1)
+                        ctx.audit("system", "onechat.key_replaced", "setting", KEY_ID, Map.of("why", "the stored person-token key could not be read with the vault key"), "ok", null);
+                } catch (RuntimeException e) { /* another node made it first: read theirs */ }
             }
-            key = Base64.getDecoder().decode(ctx.vault().decrypt(String.valueOf(r.get("secret")), BOUND));
-            return key;
+            throw new IllegalStateException("The person-token key cannot be made");
         }
     }
 }

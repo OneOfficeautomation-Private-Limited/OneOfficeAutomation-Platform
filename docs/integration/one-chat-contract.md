@@ -160,6 +160,16 @@ person token; `POST /api/chat`, `GET /api/chat`, `GET /api/chat/{id}` and My acc
 `runs`, `runs/{id}`, `tasks`, `admin/tools`, `model` and `audit`. The module's own tables are schema step 4
 (`onechat_keys`, `onechat_confirmations`, `onechat_runs`, `onechat_events`).
 
+**Built in S5b (20 Nov 2026):** `POST runs` and `POST admin/actions` with One CommandCenter's own confirmation (a
+`confirm` answer first unless the request is R0 under Always; the yes is checked for the same person, chat, target and
+inputs, a later message's token, 10 minutes and one use; R3 becomes an Approve task for someone else, decided through
+the Task inbox and done as the person who asked); `POST notices` (at most 30 an hour per person); the events
+`run_ended` and `approval_decided`, kept in `onechat_events` and retried after 10 s, 30 s, 1, 2, 5, 10 and 15 minutes
+for up to an hour, each with a fresh person token; and the Studio area: with the service chosen, Studio's assistant
+goes to it (`context`: Studio's instructions, the open agent, the selected steps), with the callbacks `studio/commands`,
+`studio/check` and `studio/agents`. Still to come (S5c): the notifications stream to the pages (`GET /api/chat/stream`),
+`DELETE people/{username}` when a person is deleted, and the CI job against a released OneChat.
+
 ### OneChat calls One CommandCenter: `/api/onechat-callback/v1/`
 
 | Route | Area | What it does | Was in `ChatPlatform` |

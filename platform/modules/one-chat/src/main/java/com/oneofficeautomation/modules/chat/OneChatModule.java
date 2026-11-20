@@ -46,7 +46,7 @@ public final class OneChatModule implements CommandCenterModule {
                 java.util.List.of("CREATE TABLE onechat_keys (id VARCHAR(40) PRIMARY KEY, secret VARCHAR(400) NOT NULL, created TIMESTAMP NOT NULL)",
                         "CREATE TABLE onechat_confirmations (id VARCHAR(40) PRIMARY KEY, username VARCHAR(80) NOT NULL, session_id VARCHAR(80), kind VARCHAR(10) NOT NULL, "
                                 + "target VARCHAR(400) NOT NULL, name VARCHAR(200), input_hash VARCHAR(64) NOT NULL, risk VARCHAR(4), reason VARCHAR(300), undo VARCHAR(300), "
-                                + "issued_at BIGINT NOT NULL, expires TIMESTAMP NOT NULL, used BOOLEAN NOT NULL)",
+                                + "issued_at BIGINT NOT NULL, token_id VARCHAR(40) NOT NULL, expires TIMESTAMP NOT NULL, used BOOLEAN NOT NULL)",
                         "CREATE TABLE onechat_runs (run_id VARCHAR(40) PRIMARY KEY, username VARCHAR(80) NOT NULL, session_id VARCHAR(80), created TIMESTAMP NOT NULL)",
                         "CREATE TABLE onechat_events (id VARCHAR(40) PRIMARY KEY, username VARCHAR(80) NOT NULL, session_id VARCHAR(80), payload VARCHAR(100000) NOT NULL, "
                                 + "attempts INT NOT NULL, next_try TIMESTAMP NOT NULL, created TIMESTAMP NOT NULL)",
@@ -119,7 +119,7 @@ public final class OneChatModule implements CommandCenterModule {
 
         // the AI assistants' settings (S2): Settings > AI assistants, My account > AI assistants, Studio's assistant
         AssistantSettings.define(ctx);
-        StudioAssistant studio = new StudioAssistant(chat.settings(), models);
+        StudioAssistant studio = new StudioAssistant(chat.settings(), models, service);
         // GET me: the person's own choices and what is allowed; PUT me/{chat|studio}: save them; GET options: what an
         // administrator may choose from; POST studio/complete: Studio's assistant while Studio is signed in
         ctx.route("assistants", (ex, u, m, route, ip) -> {
@@ -137,14 +137,20 @@ public final class OneChatModule implements CommandCenterModule {
             else if (m.equals("GET") && route.equals("options")) {
                 ctx.require(u, "settings.manage", "see the AI assistants' choices");
                 ctx.sendJson(ex, 200, chat.settings().options());
-            } else if (m.equals("POST") && route.equals("studio/complete")) ctx.sendJson(ex, 200, studio.complete(ctx, u, ctx.jsonBody(ex)));
+            } else if (m.equals("POST") && route.equals("studio/complete")) ctx.sendJson(ex, 200, studio.complete(ctx, u, ctx.jsonBody(ex), ip));
             else throw ModuleContext.notFound("The route /api/assistants/" + route);
         });
         // people deleted since: their own choices go too
         ctx.every(Duration.ofMinutes(5), Duration.ofHours(1), chat.settings()::forgetDeletedPeople);
         // a run the chat started finished: tell the chat at once; the clock catches anything missed
-        ctx.onRunEnded((run, status, result) -> { if ("chat".equals(run.get("source"))) chat.deliverRunUpdates(); });
+        ctx.onRunEnded((run, status, result) -> {
+            if ("chat".equals(run.get("source"))) chat.deliverRunUpdates();
+            // S5: a run the OneChat service started: a run_ended event for it
+            if ("onechat".equals(run.get("source"))) callbacks.runEnded(String.valueOf(run.get("id")));
+        });
         ctx.every(Duration.ofSeconds(5), Duration.ofSeconds(15), chat::deliverRunUpdates);
+        // S5: run ends the listener missed, and the events due to the OneChat service (retried for up to an hour)
+        ctx.every(Duration.ofSeconds(7), Duration.ofSeconds(5), callbacks::tick);
         // R3 approvals in the Task inbox: never your own request, administrators included
         ctx.taskStage(Chat.APPROVAL_STAGE, new ModuleContext.TaskStage() {
             public void checkComplete(User u, Map<String, Object> task) {
@@ -152,6 +158,10 @@ public final class OneChatModule implements CommandCenterModule {
                     throw new OoaException("CR.FORBIDDEN", "You cannot approve your own request", "Someone else among the approvers decides it.");
             }
             public String decided(Map<String, Object> task, User u, String outcome, String comment, String ip) {
+                // S5: a request the OneChat service made is done here, and the service hears the decision as an event
+                Object data;
+                try { data = task.get("data") instanceof String d ? com.oneofficeautomation.sdk.JsonLite.parse(d) : null; } catch (RuntimeException e) { data = null; }
+                if (data instanceof Map<?, ?> dm && "onechat".equals(dm.get("source"))) return callbacks.decided(task, u, outcome, comment, ip);
                 return chat.decided(task, u, outcome, comment, ip);
             }
         });

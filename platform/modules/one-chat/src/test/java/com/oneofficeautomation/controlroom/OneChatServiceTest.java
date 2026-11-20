@@ -37,9 +37,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class OneChatServiceTest {
     static final HttpClient HTTP = HttpClient.newHttpClient();
     static final String SERVICE_TOKEN = "svc-token-for-tests-1";
-    Db db; ControlRoom cr; ControlRoomServer server; ControlRoom.User admin; ModuleContext ctx; PersonTokens tokens;
-    HttpServer model, standin; String base, adminToken, janeToken, valToken;
+    Db db; ControlRoom cr; ControlRoomServer server; ControlRoom.User admin, olga; ModuleContext ctx; PersonTokens tokens;
+    HttpServer model, standin; String base, adminToken, janeToken, valToken, bobToken, device;
     volatile String standinVersion = "1.0.0", standinContract = "v1";
+    volatile boolean eventsFail;
     final List<Map<String, Object>> received = new CopyOnWriteArrayList<>();
     java.util.function.Function<String, String> envBefore;
 
@@ -51,10 +52,15 @@ class OneChatServiceTest {
         adminToken = (String) cr.login("admin", "Admin-Passw0rd-2026", null).get("token");
         janeToken = tokenOf("jane", "bot_runner");
         valToken = tokenOf("val", "viewer");
-        tokenOf("bob", "bot_creator");
+        bobToken = tokenOf("bob", "bot_creator");
+        olga = cr.session(tokenOf("olga", "admin"));
         cr.checkin(admin, ChatTest.INVOICES, ChatTest.flow("process_invoices", "Process vendor invoices", "Posts a vendor's open invoices to SAP.",
                 "[{\"name\":\"vendor\",\"type\":\"String\",\"direction\":\"input\",\"required\":true,\"enum\":[\"Acme\",\"Globex\"]}]",
                 "{\"examples\":[\"post today's invoices for acme\"],\"risk\":\"R2\"}"), "v1", true, null);
+        cr.checkin(admin, ChatTest.AGING, ChatTest.flow("aging", "AP aging report", "Read-only payables aging.", "[]", "{\"examples\":[\"show payables aging\"],\"risk\":\"R0\"}"), "v1", true, null);
+        cr.checkin(admin, ChatTest.PAYMENT, ChatTest.flow("payment", "Vendor payment run", "Pays due invoices.", "[]", "{\"examples\":[\"run the payment run\"],\"risk\":\"R3\"}"), "v1", true, null);
+        device = (String) cr.registerDevice((String) cr.createRegistrationKey(admin, 1, null).get("key"), "PC-1", "pc-1", "Windows 11", "0.2.0", null).get("device_id");
+        cr.platform.updateSettings(admin, Map.of("chat_runner", device), null);
 
         // a stand-in OpenAI-compatible model
         model = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -95,7 +101,15 @@ class OneChatServiceTest {
             received.add(seen);
             if (!("Bearer " + SERVICE_TOKEN).equals(seen.get("Authorization"))) { send(ex, 401, Map.of("error", Map.of("code", "AUTH", "message", "wrong service token"))); return; }
             try {
-                if (m.equals("POST") && path.equals("messages")) {
+                if (m.equals("POST") && path.equals("messages") && "studio".equals(seen.get("X-OOA-Area"))) {
+                    // Studio's assistant: a proposal Studio checks before it shows it
+                    Map<?, ?> who = (Map<?, ?>) JsonLite.parse(callback("GET", "person", null, SERVICE_TOKEN, (String) seen.get("X-OOA-Tenant"), (String) seen.get("X-OOA-Person")).body());
+                    send(ex, 200, Map.of("session_id", "st1", "messages", List.of(Map.of("role", "assistant", "kind", "proposal", "text", "Here are the steps.",
+                            "proposal", Map.of("steps", List.of(), "notes", "for " + who.get("username"))))));
+                } else if (m.equals("POST") && path.equals("events")) {
+                    if (eventsFail) send(ex, 503, Map.of("error", Map.of("code", "BUSY", "message", "busy")));
+                    else send(ex, 200, Map.of("ok", true));
+                } else if (m.equals("POST") && path.equals("messages")) {
                     String person = (String) seen.get("X-OOA-Person"), tenant = (String) seen.get("X-OOA-Tenant");
                     Map<?, ?> who = (Map<?, ?>) JsonLite.parse(callback("GET", "person", null, SERVICE_TOKEN, tenant, person).body());
                     Map<?, ?> agents = (Map<?, ?>) JsonLite.parse(callback("GET", "agents", null, SERVICE_TOKEN, tenant, person).body());
@@ -122,7 +136,8 @@ class OneChatServiceTest {
 
     @AfterEach void reset() {
         cr.platform.updateSettings(admin, Map.of("chat_engine", "service", "chat_tool_agents", "always", "chat_tool_read", "always", "chat_tool_admin_read", "never",
-                "chat_skills", "", "chat_ktokens_per_person", 0, "onechat_url", ""), null);
+                "chat_tool_admin_change", "never", "chat_tool_admin_high", "never", "chat_skills", "", "chat_ktokens_per_person", 0, "onechat_url", ""), null);
+        eventsFail = false;
         standinVersion = "1.0.0";
         standinContract = "v1";
         fresh();
@@ -163,6 +178,28 @@ class OneChatServiceTest {
 
     HttpResponse<String> as(String person, String area, String method, String route, Object body) throws Exception {
         return callback(method, route, body == null ? null : JsonLite.write(body), SERVICE_TOKEN, "default", tokens.issue(ctx.activeUser(person), area, "s1", "10.0.0.7"));
+    }
+
+    /** A callback with a person token made at a given time (the message that asked, then the later message that says yes). */
+    HttpResponse<String> at(Instant when, String person, String method, String route, Object body) throws Exception {
+        return callback(method, route, JsonLite.write(body), SERVICE_TOKEN, "default", tokens.issue(ctx.activeUser(person), "chat", "s1", "10.0.0.7", when));
+    }
+
+    /** The events the stand-in received so far, of one type. */
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> events(String type) {
+        return received.stream().filter(r -> "events".equals(r.get("path")) && r.get("body") instanceof Map<?, ?> b && type.equals(b.get("type")))
+                .map(r -> (Map<String, Object>) r.get("body")).toList();
+    }
+
+    /** Waits (up to 30 s) for One CommandCenter's clock to deliver an event the test expects. */
+    Map<String, Object> awaitEvent(String type, java.util.function.Predicate<Map<String, Object>> which) throws InterruptedException {
+        for (int i = 0; i < 300; i++) {
+            Optional<Map<String, Object>> e = events(type).stream().filter(which).findFirst();
+            if (e.isPresent()) return e.get();
+            Thread.sleep(100);
+        }
+        throw new AssertionError("no " + type + " event arrived: " + received);
     }
 
     @SuppressWarnings("unchecked")
@@ -229,7 +266,7 @@ class OneChatServiceTest {
         Map<String, Object> r = json(res);
         assertEquals("s1", r.get("session_id"));
         assertEquals("answer", r.get("kind"));
-        assertEquals("Hello jane; you may run 1 agents.", r.get("reply"), "the service learnt who and what through the callbacks");
+        assertEquals("Hello jane; you may run 3 agents.", r.get("reply"), "the service learnt who and what through the callbacks");
 
         Map<String, Object> seen = received.get(before);
         assertEquals("messages", seen.get("path"));
@@ -336,9 +373,9 @@ class OneChatServiceTest {
         assertEquals(404, as("jane", "chat", "GET", "skills/secret_draft", null).statusCode(), "only the skills the area may use");
 
         List<Map<String, Object>> agents = (List<Map<String, Object>>) json(as("jane", "chat", "GET", "agents", null)).get("agents");
-        assertEquals(ChatTest.INVOICES, agents.get(0).get("path"));
-        assertEquals("R2", agents.get(0).get("risk"));
-        assertEquals(List.of("post today's invoices for acme"), ((Map<String, Object>) agents.get(0).get("chat")).get("examples"));
+        Map<String, Object> invoices = agents.stream().filter(a -> ChatTest.INVOICES.equals(a.get("path"))).findFirst().orElseThrow();
+        assertEquals("R2", invoices.get("risk"));
+        assertEquals(List.of("post today's invoices for acme"), ((Map<String, Object>) invoices.get("chat")).get("examples"));
         assertEquals(0, ((List<?>) json(as("val", "chat", "GET", "agents", null)).get("agents")).size(), "a viewer may not run agents");
         cr.platform.updateSettings(admin, Map.of("chat_tool_agents", "never"), null);
         assertEquals(403, as("jane", "chat", "GET", "agents", null).statusCode(), "Never is refused");
@@ -389,5 +426,187 @@ class OneChatServiceTest {
         assertEquals("10.0.0.7", a.get("ip"), "the address the person's request came from");
         assertEquals(400, as("jane", "chat", "POST", "audit", Map.of("action", "users.delete")).statusCode(), "only chat. actions in the chat area");
         assertEquals(400, as("bob", "studio", "POST", "audit", Map.of("action", "chat.answered")).statusCode(), "only studio. actions in the Studio area");
+    }
+
+    // ---- S5b: runs and administration with One CommandCenter's own confirmation; notices; events; Studio ----
+
+    @Test @SuppressWarnings("unchecked")
+    void runsWaitForAYesFromALaterMessage() throws Exception {
+        Instant asked = Instant.now().minusSeconds(20), later = Instant.now();
+        long before = ((Number) db.one("SELECT COUNT(*) AS n FROM runs").get("n")).longValue();
+        Map<String, Object> run = Map.of("agent", ChatTest.INVOICES, "inputs", Map.of("vendor", "Acme", "not_declared", "x"), "session_id", "s1");
+        String askToken = tokens.issue(ctx.activeUser("jane"), "chat", "s1", "10.0.0.7", asked);
+        Map<String, Object> confirm = (Map<String, Object>) json(callback("POST", "runs", JsonLite.write(run), SERVICE_TOKEN, "default", askToken)).get("confirm");
+        assertNotNull(confirm, "an R2 agent answers a confirmation first");
+        assertEquals("Run Process vendor invoices with vendor = Acme.", confirm.get("summary"), "undeclared inputs are dropped");
+        assertEquals("R2", confirm.get("risk"));
+        assertEquals(before, ((Number) db.one("SELECT COUNT(*) AS n FROM runs").get("n")).longValue(), "nothing runs before the yes");
+        String id = (String) confirm.get("confirmation_id");
+        Map<String, Object> yes = new LinkedHashMap<>(run);
+        yes.put("confirmation_id", id);
+
+        assertEquals(403, callback("POST", "runs", JsonLite.write(yes), SERVICE_TOKEN, "default", askToken).statusCode(), "the yes must come from a later message");
+        assertEquals(403, at(asked.minusSeconds(60), "jane", "POST", "runs", yes).statusCode(), "nor from an earlier one");
+        Map<String, Object> other = new LinkedHashMap<>(yes);
+        other.put("inputs", Map.of("vendor", "Globex"));
+        assertEquals(403, at(later, "jane", "POST", "runs", other).statusCode(), "other inputs than the summary");
+        Map<String, Object> otherChat = new LinkedHashMap<>(yes);
+        otherChat.put("session_id", "s2");
+        assertEquals(403, at(later, "jane", "POST", "runs", otherChat).statusCode(), "another chat");
+        assertEquals(403, at(later, "bob", "POST", "runs", yes).statusCode(), "another person");
+
+        HttpResponse<String> ok = at(later, "jane", "POST", "runs", yes);
+        assertEquals(200, ok.statusCode(), ok.body());
+        String runId = (String) json(ok).get("run_id");
+        Map<String, Object> row = db.one("SELECT requested_by, source FROM runs WHERE id = ?", runId);
+        assertEquals("jane", row.get("requested_by"));
+        assertEquals("onechat", row.get("source"));
+        assertEquals(409, at(later, "jane", "POST", "runs", yes).statusCode(), "each yes is used once");
+
+        Map<String, Object> again = (Map<String, Object>) json(at(asked, "jane", "POST", "runs", run)).get("confirm");
+        db.update("UPDATE onechat_confirmations SET expires = ? WHERE id = ?", Instant.now().minusSeconds(60), again.get("confirmation_id"));
+        Map<String, Object> late = new LinkedHashMap<>(run);
+        late.put("confirmation_id", again.get("confirmation_id"));
+        assertEquals(409, at(later, "jane", "POST", "runs", late).statusCode(), "after ten minutes the yes is too late");
+
+        assertEquals(400, at(asked, "jane", "POST", "runs", Map.of("agent", ChatTest.INVOICES, "inputs", Map.of(), "session_id", "s1")).statusCode(), "a required input is missing");
+        assertEquals(400, at(asked, "jane", "POST", "runs", Map.of("agent", ChatTest.INVOICES, "inputs", Map.of("vendor", "Nobody"), "session_id", "s1")).statusCode(), "not one of the allowed values");
+        assertEquals("refused", ((Map<String, Object>) json(at(asked, "val", "POST", "runs", run)).get("refused")).get("kind"), "a viewer may not run agents");
+
+        Map<String, Object> aging = Map.of("agent", ChatTest.AGING, "inputs", Map.of(), "session_id", "s1");
+        assertNotNull(json(at(asked, "jane", "POST", "runs", aging)).get("run_id"), "an R0 agent under Always starts at once");
+        cr.platform.updateSettings(admin, Map.of("chat_tool_agents", "ask"), null);
+        Map<String, Object> asksFirst = (Map<String, Object>) json(at(asked, "jane", "POST", "runs", aging)).get("confirm");
+        assertEquals("Your company asks first for this kind of request.", asksFirst.get("reason"), "Ask first makes even R0 wait");
+        cr.platform.updateSettings(admin, Map.of("chat_tool_agents", "never"), null);
+        assertEquals(403, at(asked, "jane", "POST", "runs", aging).statusCode(), "Never is refused");
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void runEndsAndDecisionsReachTheServiceAsEvents() throws Exception {
+        Instant asked = Instant.now().minusSeconds(20), later = Instant.now();
+        String runId = (String) json(at(asked, "jane", "POST", "runs", Map.of("agent", ChatTest.AGING, "inputs", Map.of(), "session_id", "s1"))).get("run_id");
+        db.update("UPDATE runs SET status = 'running', started = CURRENT_TIMESTAMP WHERE id = ?", runId);
+        cr.finish(db.one("SELECT * FROM devices WHERE id = ?", device), runId, Map.of("status", "success", "outputs", Map.of("note", "ok")));
+        Map<String, Object> ended = awaitEvent("run_ended", e -> runId.equals(e.get("run_id")));
+        assertEquals("success", ended.get("status"));
+        assertEquals("ok", ((Map<String, Object>) ended.get("results")).get("note"));
+        assertEquals("s1", ended.get("session_id"));
+        Map<String, Object> seen = received.stream().filter(r -> ended.equals(r.get("body"))).findFirst().orElseThrow();
+        String payload = new String(Base64.getUrlDecoder().decode(String.valueOf(seen.get("X-OOA-Person")).split("\\.")[1]), StandardCharsets.UTF_8);
+        assertTrue(payload.contains("\"sub\":\"jane\""), "a fresh person token for the person: " + payload);
+
+        // R3: an Approve task for someone else; the service hears the decision
+        Map<String, Object> pay = Map.of("agent", ChatTest.PAYMENT, "inputs", Map.of(), "session_id", "s1");
+        Map<String, Object> confirm = (Map<String, Object>) json(at(asked, "jane", "POST", "runs", pay)).get("confirm");
+        assertTrue(String.valueOf(confirm.get("summary")).contains("Someone else approves it"), String.valueOf(confirm));
+        Map<String, Object> yes = new LinkedHashMap<>(pay);
+        yes.put("confirmation_id", confirm.get("confirmation_id"));
+        String task = (String) ((Map<String, Object>) json(at(later, "jane", "POST", "runs", yes)).get("approval")).get("task_id");
+        eventsFail = true;
+        Map<String, Object> done = cr.tasks.complete(olga, task, "approved", Map.of(), "fine", null);
+        String paid = (String) done.get("run_id");
+        assertNotNull(paid, "approved: the run starts as jane");
+        assertEquals("jane", db.one("SELECT requested_by FROM runs WHERE id = ?", paid).get("requested_by"));
+        // the service is busy: the event waits and is tried again
+        for (int i = 0; i < 300 && db.one("SELECT id FROM onechat_events WHERE attempts > ?", 0) == null; i++) Thread.sleep(100);
+        assertNotNull(db.one("SELECT id FROM onechat_events WHERE attempts > ?", 0), "a failed delivery is kept for another try");
+        eventsFail = false;
+        db.update("UPDATE onechat_events SET next_try = ?", Instant.now().minusSeconds(1));
+        Map<String, Object> decided = awaitEvent("approval_decided", e -> task.equals(e.get("task_id")));
+        assertEquals("approved", decided.get("decision"));
+        assertEquals("olga", decided.get("approver"));
+        assertEquals(paid, decided.get("run_id"));
+        assertNotNull(db.one("SELECT id FROM human_tasks WHERE assignee = ? AND kind = ? AND title LIKE ?", "user:jane", "notification", "Approved:%"), "jane gets a notice");
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void administrationFollowsTheSameRules() throws Exception {
+        Instant asked = Instant.now().minusSeconds(20), later = Instant.now();
+        assertEquals(403, at(asked, "admin", "POST", "admin/actions", Map.of("tool", "people", "inputs", Map.of(), "session_id", "s1")).statusCode(), "administration is Never at first");
+        cr.platform.updateSettings(admin, Map.of("chat_tool_admin_read", "always", "chat_tool_admin_change", "always", "chat_tool_admin_high", "always"), null);
+        Map<String, Object> people = (Map<String, Object>) json(at(asked, "admin", "POST", "admin/actions", Map.of("tool", "people", "inputs", Map.of("which", "everyone"), "session_id", "s1"))).get("result");
+        assertNotNull(people, "a look-up answers at once");
+        assertEquals("refused", ((Map<String, Object>) json(at(asked, "jane", "POST", "admin/actions", Map.of("tool", "people", "inputs", Map.of(), "session_id", "s1"))).get("refused")).get("kind"),
+                "not without the console permission");
+
+        Map<String, Object> disable = Map.of("tool", "disable_person", "inputs", Map.of("person", "bob"), "session_id", "s1");
+        Map<String, Object> confirm = (Map<String, Object>) json(at(asked, "admin", "POST", "admin/actions", disable)).get("confirm");
+        assertTrue(String.valueOf(confirm.get("undo")).startsWith("Yes:"), "what undoing it takes: " + confirm);
+        Map<String, Object> yes = new LinkedHashMap<>(disable);
+        yes.put("confirmation_id", confirm.get("confirmation_id"));
+        assertNotNull(json(at(later, "admin", "POST", "admin/actions", yes)).get("result"));
+        assertEquals(false, db.one("SELECT enabled FROM users WHERE username = ?", "bob").get("enabled"));
+        db.update("UPDATE users SET enabled = ? WHERE username = ?", true, "bob");
+
+        cr.createUser(admin, "leaver", "leaver", "viewer", null);
+        Map<String, Object> delete = Map.of("tool", "delete_person", "inputs", Map.of("person", "leaver"), "session_id", "s1");
+        Map<String, Object> high = (Map<String, Object>) json(at(asked, "admin", "POST", "admin/actions", delete)).get("confirm");
+        Map<String, Object> yes3 = new LinkedHashMap<>(delete);
+        yes3.put("confirmation_id", high.get("confirmation_id"));
+        String task = (String) ((Map<String, Object>) json(at(later, "admin", "POST", "admin/actions", yes3)).get("approval")).get("task_id");
+        assertNotNull(db.one("SELECT username FROM users WHERE username = ?", "leaver"), "nothing happens before the approval");
+        assertEquals("CR.FORBIDDEN", assertThrows(OoaException.class, () -> cr.tasks.complete(admin, task, "approved", Map.of(), null, null)).code(), "never your own request");
+        cr.tasks.complete(olga, task, "approved", Map.of(), null, null);
+        assertNull(db.one("SELECT username FROM users WHERE username = ?", "leaver"), "done as the person who asked once someone else approved");
+        assertEquals("approved", awaitEvent("approval_decided", e -> task.equals(e.get("task_id"))).get("decision"));
+
+        cr.platform.updateSettings(admin, Map.of("chat_tool_admin_change", "never"), null);
+        assertEquals(403, at(asked, "admin", "POST", "admin/actions", disable).statusCode(), "Never is refused");
+    }
+
+    @Test void noticesGoOnlyToThePersonAndAreLimited() throws Exception {
+        HttpResponse<String> r = as("jane", "chat", "POST", "notices", Map.of("title", "Your report is ready", "message", "See the run's results."));
+        assertEquals(200, r.statusCode(), r.body());
+        Map<String, Object> t = db.one("SELECT assignee, kind FROM human_tasks WHERE id = ?", json(r).get("task_id"));
+        assertEquals("user:jane", t.get("assignee"));
+        assertEquals("notification", t.get("kind"));
+        assertEquals(400, as("jane", "chat", "POST", "notices", Map.of("title", "", "message", "x")).statusCode());
+        for (int i = 1; i < 30; i++) as("jane", "chat", "POST", "notices", Map.of("title", "n" + i, "message", "m"));
+        assertEquals(429, as("jane", "chat", "POST", "notices", Map.of("title", "one more", "message", "m")).statusCode(), "at most 30 an hour");
+        assertEquals(403, as("bob", "studio", "POST", "notices", Map.of("title", "x", "message", "y")).statusCode(), "not from the Studio area");
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void theStudioAreaHelpsWithDevelopmentOnly() throws Exception {
+        List<?> toolkits = (List<?>) json(as("bob", "studio", "GET", "studio/commands", null)).get("toolkits");
+        assertFalse(toolkits.isEmpty(), "the commands Studio offers");
+        Map<String, Object> good = json(as("bob", "studio", "POST", "studio/check", Map.of("variables", List.of(Map.of("name", "x", "type", "String", "direction", "local")),
+                "steps", List.of(Map.of("id", "1", "action", "core/set", "args", Map.of("variable", "x", "value", "1"))))));
+        assertEquals(true, good.get("ok"), String.valueOf(good));
+        Map<String, Object> bad = json(as("bob", "studio", "POST", "studio/check", Map.of("steps", List.of(Map.of("id", "1", "action", "nope/none")))));
+        assertEquals(false, bad.get("ok"), "an unknown command is a problem");
+        List<Map<String, Object>> agents = (List<Map<String, Object>>) json(as("bob", "studio", "GET", "studio/agents", null)).get("agents");
+        Map<String, Object> invoices = agents.stream().filter(a -> ChatTest.INVOICES.equals(a.get("path"))).findFirst().orElseThrow();
+        assertEquals(List.of("vendor"), ((List<Map<String, Object>>) invoices.get("inputs")).stream().map(v -> v.get("name")).toList());
+        assertEquals(List.of("note"), ((List<Map<String, Object>>) invoices.get("outputs")).stream().map(v -> v.get("name")).toList());
+        assertEquals(403, as("bob", "studio", "POST", "runs", Map.of("agent", ChatTest.AGING, "inputs", Map.of(), "session_id", "s1")).statusCode(), "never runs from Studio");
+
+        // Studio's assistant goes to the service, with Studio's instructions as context (bob signs in afresh: another test disables him for a moment)
+        String bobToken = (String) cr.login("bob", "Passw0rd-bob-2026", null).get("token");
+        int before = received.size();
+        HttpResponse<String> r = call("POST", "/api/assistants/studio/complete", JsonLite.write(Map.of("system", "Design steps for agents.", "prompt", "Read a file",
+                "agent", Map.of("name", "Draft"))), bobToken);
+        assertEquals(200, r.statusCode(), r.body());
+        assertEquals(Map.of("steps", List.of(), "notes", "for bob"), JsonLite.parse(String.valueOf(json(r).get("text"))), "the service's proposal, for Studio to check");
+        Map<String, Object> sent = received.get(before);
+        assertEquals("studio", sent.get("X-OOA-Area"));
+        Map<String, Object> context = (Map<String, Object>) ((Map<String, Object>) sent.get("body")).get("context");
+        assertEquals("Design steps for agents.", context.get("instructions"));
+        assertEquals(Map.of("name", "Draft"), context.get("agent"));
+        assertEquals(403, call("POST", "/api/assistants/studio/complete", JsonLite.write(Map.of("system", "s", "prompt", "p")), valToken).statusCode(), "builders only");
+    }
+
+    @Test void anUnreadableSigningKeyIsReplaced() {
+        tokens.issue(ctx.activeUser("jane"), "chat", "s1", null);   // the key exists
+        String before = (String) db.one("SELECT secret FROM onechat_keys WHERE id = ?", "person-token").get("secret");
+        try {
+            // what a vault key rotation or a move from another region leaves: a stored key this vault cannot read
+            db.update("UPDATE onechat_keys SET secret = ? WHERE id = ?", "not-readable-any-more", "person-token");
+            String t = new PersonTokens(ctx).issue(ctx.activeUser("jane"), "chat", "s1", null);
+            assertNotNull(new PersonTokens(ctx).check(t, "default"), "a new key, which every node then reads");
+            assertNotEquals("not-readable-any-more", db.one("SELECT secret FROM onechat_keys WHERE id = ?", "person-token").get("secret"));
+            assertNotNull(db.one("SELECT seq FROM audit WHERE action = ?", "onechat.key_replaced"), "recorded in the Audit Trail");
+        } finally { db.update("UPDATE onechat_keys SET secret = ? WHERE id = ?", before, "person-token"); }
     }
 }
