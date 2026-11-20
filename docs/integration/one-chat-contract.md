@@ -281,6 +281,14 @@ Each assistant is configurable like Claude. Administrators set the company rules
 choices within them. One CommandCenter keeps the settings and enforces them, for the built-in engine and for OneChat
 alike.
 
+**Built so far (S2, 20 Nov 2026), in the One Chat module 1.1.0:** Settings › AI assistants with its three tabs; the
+groups **Model and behaviour** and **Instructions and skills** for One Chat and Studio's assistant (settings
+`chat_*` and `studio_*`, defaults equal to the values used before); My account › AI assistants (model, language, own
+instructions; table `assistant_prefs`); `AssistantSettings.effective`, the one rule that combines them; One Chat's
+model calls and Studio's assistant (through `POST /api/assistants/studio/complete` while Studio is signed in) use it.
+Tools and permissions (S3) and memory, limits and privacy (S4) are next. The callback `GET settings` will return
+`AssistantSettings.effective` for the person and area.
+
 **Where:**
 
 - **Settings > AI assistants** (administrators), with three tabs: **Studio assistant**, **One Chat** and **Outside

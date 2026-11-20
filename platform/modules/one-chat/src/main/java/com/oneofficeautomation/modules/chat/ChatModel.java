@@ -37,6 +37,15 @@ public final class ChatModel {
      * (blank: the first one the person may use). Returns {text, tool_calls: [{id, name, args}], input_tokens, output_tokens}.
      */
     Map<String, Object> call(User u, String connection, List<Map<String, Object>> messages, List<Map<String, Object>> tools, String purpose) {
+        return call(u, connection, messages, tools, purpose, 0.2, 2048, true, 90, "One Chat");
+    }
+
+    /**
+     * As above, with the assistant's settings (AssistantSettings): creativity, the longest answer, whether personal data
+     * is masked, how long to wait, and the name the call is recorded under in AI governance ("One Chat", "Studio assistant").
+     */
+    Map<String, Object> call(User u, String connection, List<Map<String, Object>> messages, List<Map<String, Object>> tools, String purpose,
+                             double temperature, int maxTokens, boolean maskPii, int timeoutSeconds, String recordedAs) {
         Map<String, Object> connections = ctx.modelConnectionsFor(ctx.rolesOf(u.username(), u.role()));
         @SuppressWarnings("unchecked") List<Map<String, Object>> list = (List<Map<String, Object>>) connections.get("connections");
         if (list.isEmpty()) throw new OoaException("AI.NO_CONNECTION", "No One Model Connection is available to you", "An administrator adds one in One Model Connections, or allows your role on one.");
@@ -58,21 +67,21 @@ public final class ChatModel {
         services.put("vault", vault);
         ActionContext ctx = new ActionContext(null, "chat", null, work, new HashMap<>(), services, new AtomicBoolean(), List::of, null);
         try {
-            return AiBridge.call(ctx, new AiBridge.Settings(name, null, null, null, null, 0.2, 2048, true, null, null, 90), messages, tools, purpose);
+            return AiBridge.call(ctx, new AiBridge.Settings(name, null, null, null, null, temperature, maxTokens, maskPii, null, null, timeoutSeconds), messages, tools, purpose);
         } finally {
-            recordGovernance(u, work.resolve("ai-governance.jsonl"));
+            recordGovernance(u, work.resolve("ai-governance.jsonl"), recordedAs);
             try (var files = Files.walk(work)) { files.sorted(Comparator.reverseOrder()).forEach(p -> p.toFile().delete()); } catch (IOException ignored) { }
         }
     }
 
-    private void recordGovernance(User u, Path log) {
+    private void recordGovernance(User u, Path log, String recordedAs) {
         if (!Files.exists(log)) return;
         try {
             List<Object> calls = new ArrayList<>();
             for (String line : Files.readAllLines(log, StandardCharsets.UTF_8)) if (!line.isBlank()) calls.add(JsonLite.parse(line));
             Map<String, Object> run = new HashMap<>();
             run.put("id", null);
-            run.put("bot_path", "One Chat");
+            run.put("bot_path", recordedAs);
             run.put("requested_by", u.username());
             ctx.recordAiCalls(run, calls);
         } catch (IOException | RuntimeException ignored) { /* governance logging never breaks the chat */ }

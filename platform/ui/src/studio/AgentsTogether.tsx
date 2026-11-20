@@ -196,7 +196,8 @@ export function FlowDiagram({ flow, packages, selected, onSelect, onInsert, onMo
 
 /**
  * The agent assistant: Build from a description (a language model proposes steps, checked, to insert) or Explain this
- * agent in plain words. Building needs a Model Connection.
+ * agent in plain words. Building needs a Model Connection: while Studio is signed in to One CommandCenter, the company's
+ * (Settings > AI assistants > Studio assistant, S2 20 Nov 2026); on its own, one of Studio's.
  */
 export function AssistantDialog({ api, flow, packages, initial = "build", onInsert, onNewConnection, onClose }:
   { api: StudioApi; flow: Flow; packages: PackageManifest[]; initial?: "build" | "explain"; onInsert: (p: Proposal) => void; onNewConnection: () => void; onClose: () => void }) {
@@ -208,7 +209,10 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
-  useEffect(() => { api.modelConnections().then((c) => { setConns(c); setConnection(c.default || c.connections[0]?.name || ""); }, () => setConns({ default: "", connections: [] })); }, [api]);
+  // signed in to One CommandCenter: its Studio assistant settings answer, and no connection of Studio's is needed
+  const [viaCc, setViaCc] = useState(false);
+  useEffect(() => { api.modelConnections().then((c) => { setConns(c); setConnection(c.default || c.connections[0]?.name || ""); }, () => setConns({ default: "", connections: [] }));
+    Promise.resolve().then(() => api.crStatus()).then((s) => setViaCc(!!s?.connected), () => setViaCc(false)); }, [api]);
   const text = tab === "explain" ? explainAgent(flow, packages) : "";
   const generate = async () => {
     if (!prompt.trim()) { setError("Describe what the agent should do."); return; }
@@ -226,7 +230,7 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
         {tab === "explain" && <Button kind="secondary" onClick={() => saveDocx(flow, packages)}>Word (.docx)</Button>}
         {tab === "explain" && <Button kind="secondary" onClick={() => setPrinting(true)}>Print or PDF</Button>}
         {tab === "build" && proposal && <Button kind="primary" onClick={() => onInsert(proposal)}>Insert into the agent</Button>}
-        {tab === "build" && !proposal && !!conns?.connections.length && <Button kind="primary" icon="spark" onClick={generate} disabled={busy}>{busy ? "Thinking…" : "Generate steps"}</Button>}</>}>
+        {tab === "build" && !proposal && (viaCc || !!conns?.connections.length) && <Button kind="primary" icon="spark" onClick={generate} disabled={busy}>{busy ? "Thinking…" : "Generate steps"}</Button>}</>}>
       <div className="st-seg" role="tablist" aria-label="Assistant">
         {([["build", "Build from a description"], ["explain", "Explain this agent"]] as const).map(([k, l]) =>
           <button key={k} type="button" role="tab" aria-selected={tab === k} className="st-seg-btn" onClick={() => setTab(k)}>{l}</button>)}
@@ -234,7 +238,8 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
       {tab === "explain" ? <pre className="st-explain">{text}</pre> : <div className="st-form">
         <Field label="What should the agent do?">{(id) => <TextArea id={id} rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)}
           placeholder="Read invoices.csv, and for every row with an amount above 1000 send an email to approvals@company.com with the invoice number." />}</Field>
-        {conns === null ? <p className="st-muted">Reading the model connections…</p>
+        {viaCc ? <p className="st-muted" role="note">Uses One CommandCenter's settings for the Studio assistant: its model, instructions and limits.</p>
+          : conns === null ? <p className="st-muted">Reading the model connections…</p>
           : conns.connections.length ? <Field label="Model Connection">{(id) => <Select id={id} value={connection} onChange={(e) => setConnection(e.target.value)}
               options={conns.connections.map((c) => ({ value: c.name, label: c.name + " (" + c.provider + (c.model ? ", " + c.model : "") + ")" }))} />}</Field>
           : <div className="st-alert" role="note">The assistant needs a language model. <Button kind="secondary" onClick={onNewConnection}>Set up a Model Connection</Button> first.</div>}

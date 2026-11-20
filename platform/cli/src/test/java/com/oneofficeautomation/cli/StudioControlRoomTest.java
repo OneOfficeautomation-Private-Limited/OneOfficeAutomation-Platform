@@ -182,6 +182,60 @@ class StudioControlRoomTest {
         } finally { server.stop(); db.close(); }
     }
 
+    /**
+     * S2 (20 Nov 2026): while Studio is signed in, Build from a description is answered by One CommandCenter with the
+     * Studio assistant's settings (its model connection, not Studio's), recorded in AI governance as the person's call.
+     */
+    @SuppressWarnings("unchecked")
+    @Test void studiosAssistantUsesOneCommandCentersSettingsWhileSignedIn() throws Exception {
+        Path data = Files.createTempDirectory("ooa-cr-assist"), ws = Files.createTempDirectory("ooa-ws-assist");
+        Db db = Db.embedded(data);
+        ControlRoom cr = new ControlRoom(db, data, FirstPartyPackages.registry(), null);
+        String pw = cr.bootstrap();
+        com.sun.net.httpserver.HttpServer model = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        List<Map<String, Object>> asked = new java.util.concurrent.CopyOnWriteArrayList<>();
+        model.createContext("/v1/chat/completions", ex -> {
+            asked.add((Map<String, Object>) JsonLite.parse(new String(ex.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)));
+            byte[] out = JsonLite.write(Map.of("choices", List.of(Map.of("message", Map.of("role", "assistant", "content",
+                    "{\"steps\":[{\"id\":\"a1\",\"action\":\"core/log\",\"args\":{\"message\":\"hello\"}}],\"notes\":\"from the company model\"}"))),
+                    "usage", Map.of("prompt_tokens", 10, "completion_tokens", 5))).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            ex.getResponseHeaders().set("Content-Type", "application/json");
+            ex.sendResponseHeaders(200, out.length);
+            ex.getResponseBody().write(out);
+            ex.close();
+        });
+        model.start();
+        ControlRoomServer server = new ControlRoomServer(cr, "127.0.0.1", 0);
+        server.start();
+        String crUrl = "http://127.0.0.1:" + server.port();
+        int port = freePort();
+        new StudioServer(ws, port, Path.of("/nonexistent")).start();
+        String studio = "http://127.0.0.1:" + port;
+        try {
+            String t0 = (String) call(crUrl, "POST", "/api/auth/login", Map.of("username", "admin", "password", pw), null).get("token");
+            call(crUrl, "POST", "/api/auth/password", Map.of("current", pw, "new", "Admin-Passw0rd-2026"), t0);
+            String admin = (String) call(crUrl, "POST", "/api/auth/login", Map.of("username", "admin", "password", "Admin-Passw0rd-2026"), null).get("token");
+            ControlRoom.User adminUser = cr.session(admin);
+            cr.platform.saveModelConnection(adminUser, Map.of("name", "company", "provider", "openai_compatible", "model", "company-model",
+                    "base_url", "http://127.0.0.1:" + model.getAddress().getPort() + "/v1"), null);
+            cr.platform.updateSettings(adminUser, Map.of("studio_connection", "company", "studio_instructions", "Name agents as Verb Noun."), null);
+            String tmp = (String) call(crUrl, "POST", "/api/users", Map.of("username", "alice", "role", "bot_creator"), admin).get("temporary_password");
+            String t = (String) call(crUrl, "POST", "/api/auth/login", Map.of("username", "alice", "password", tmp), null).get("token");
+            call(crUrl, "POST", "/api/auth/password", Map.of("current", tmp, "new", "alice-Passw0rd-99"), t);
+            assertEquals(true, call(studio, "POST", "/api/cr/connect", Map.of("url", crUrl, "username", "alice", "password", "alice-Passw0rd-99"), null).get("connected"));
+
+            Map<String, Object> flow = Map.of("kind", "TaskBot", "id", "greet", "name", "Greet", "variables", List.of(), "steps", List.of());
+            Map<String, Object> built = call(studio, "POST", "/api/assistant/build", Map.of("prompt", "log hello", "connection", "studio-own", "flow", flow), null);
+            assertEquals(200, built.get("_status"), String.valueOf(built));
+            assertEquals("from the company model", built.get("notes"));
+            assertEquals("core/log", ((Map<String, Object>) ((List<Object>) built.get("steps")).get(0)).get("action"));
+            assertEquals("company-model", asked.get(0).get("model"), "the company's connection answered, not Studio's own");
+            String system = String.valueOf(((List<Map<String, Object>>) asked.get(0).get("messages")).get(0).get("content"));
+            assertTrue(system.contains("Use only actions from this catalog") && system.contains("Name agents as Verb Noun."), "Studio's step format plus the company's instructions");
+            assertEquals("Studio assistant", db.one("SELECT bot_path FROM ai_calls WHERE requested_by = ?", "alice").get("bot_path"));
+        } finally { server.stop(); model.stop(0); }
+    }
+
     @SuppressWarnings("unchecked")
     static String stateOf(String studio, String local) throws Exception {
         Map<String, Object> st = (Map<String, Object>) ((Map<String, Object>) call(studio, "GET", "/api/cr/states", null, null).get("states")).get(local);

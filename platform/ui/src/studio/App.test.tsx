@@ -1727,6 +1727,21 @@ describe("new Studio", () => {
     expect(saved.variables).toContainEqual({ name: "who", type: "String" });
   });
 
+  it("builds with One CommandCenter's Studio assistant settings while signed in, with no connection of Studio's own (S2)", async () => {
+    const { api, created } = fakeServer();
+    await act(async () => { await api.crConnect("http://cc.example:8720", "jo", "letmein", ""); });
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(within(steps).getByRole("button", { name: "Assistant" }));
+    const dialog = await screen.findByRole("dialog", { name: "Agent assistant" });
+    expect(await within(dialog).findByText(/Uses One CommandCenter's settings for the Studio assistant/)).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Set up a Model Connection" })).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("What should the agent do?"), { target: { value: "Greet someone" } });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Generate steps" })); });
+    expect(created).toContainEqual(expect.objectContaining({ assistant: "Greet someone" }));
+    expect(within(dialog).getByText("Logs a greeting.")).toBeTruthy();
+  });
+
   it("runs a script on its own and shows what it printed, and copies it as an agent step", async () => {
     render(<App api={fakeServer().api} />);
     fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "clean" } });

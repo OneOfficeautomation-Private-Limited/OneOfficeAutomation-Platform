@@ -9,8 +9,17 @@ export type ChatMessage = { role: "user" | "assistant"; text: string; kind?: str
 /** A knowledge base (G71): an index kept in One CommandCenter, filled by an indexing agent. */
 export type ChatReply = { session_id: string; reply: string; kind: string; run_id?: string };
 
+/** My account > AI assistants (S2): one assistant's choices for the person, and what the administrator allows. */
+export type AssistantArea = { mine: { model: string; language: string; instructions: string }; default_model: string; models: string[];
+  language_fixed: string; own_instructions: boolean; company_instructions: string };
+export type AssistantsMine = { assistants: { chat: AssistantArea; studio: AssistantArea }; languages: Record<string, string> };
+
 declare module "../../api/cr" {
   interface CrApi {
+    /** My account > AI assistants: the person's own choices per assistant and what is allowed. */
+    assistantsMine(): Promise<AssistantsMine>;
+    /** Saves the person's own choices for one assistant (chat or studio), within what is allowed. */
+    saveAssistantPrefs(area: "chat" | "studio", prefs: { model: string; language: string; instructions: string }): Promise<AssistantsMine>;
     /** One Chat: sends a message (a new chat when sessionId is null); the reply comes in the person's language. */
     chat(sessionId: string | null, message: string, lang: string): Promise<ChatReply>;
     /** One Chat: the messages of a chat, including what One CommandCenter added since (a run finished, an approval decided). */
@@ -24,3 +33,10 @@ CrApi.prototype.chat = function (sessionId: string | null, message: string, lang
 /** One Chat: the messages of a chat, including what One CommandCenter added since (a run finished, an approval decided). */
 
 CrApi.prototype.chatHistory = async function (sessionId: string) { return (await this.request<{ messages?: ChatMessage[] }>("GET", "chat/" + encodeURIComponent(sessionId))).messages ?? []; };
+
+/** My account > AI assistants: the person's own choices per assistant and what is allowed. */
+CrApi.prototype.assistantsMine = function () { return this.request<AssistantsMine>("GET", "assistants/me"); };
+/** Saves the person's own choices for one assistant (chat or studio), within what is allowed. */
+CrApi.prototype.saveAssistantPrefs = function (area: "chat" | "studio", prefs: { model: string; language: string; instructions: string }) {
+  return this.request<AssistantsMine>("PUT", "assistants/me/" + area, prefs);
+};

@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrApi, ScimToken } from "../api/cr";
-import { Button, HelpButton, Select, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
+import { Button, HelpButton, Select, TabPanel, Tabs, TextArea, TextInput, type HelpTopic, reportMinor, PageError } from "../components";
 import { SETTING_HELP } from "./settingsHelp";
 import { ROLE_NAMES } from "./roleNames";
 import { PageIntro } from "../shell/PageIntro";
@@ -21,10 +21,34 @@ const AllowedFolders = modulePart<{ onNotice: (t: string) => void; onError: (e: 
  * Review round 2 (1 Nov 2026): Remove old runs now asks first, with the saved numbers it uses (not the ones typed but
  * unsaved), and has nothing to do while both are 0 (always).
  */
-type Kind = "text" | "number" | "area" | "check" | "select" | "roles";
-type Setting = { key: string; label: string; hint?: string; unit?: string; kind: Kind; min?: number; max?: number; placeholder?: string; options?: [string, string][] };
+type Kind = "text" | "number" | "area" | "check" | "select" | "roles" | "pick" | "multi";
+/**
+ * One setting. pick is one choice and multi a comma-separated list, both from a list the server gives (source: the
+ * One Model Connections or the shared Prompt Skills); empty is what an empty pick means.
+ */
+type Setting = { key: string; label: string; hint?: string; unit?: string; kind: Kind; min?: number; max?: number; step?: number; placeholder?: string;
+  options?: [string, string][]; source?: "connections" | "skills"; empty?: string };
 type Group = { title: string; settings: Setting[] };
-type Section = { id: string; title: string; about: string; mark: string; colour: string; groups: Group[] };
+/** A tab of a section (AI assistants, S2 20 Nov 2026): its own groups and its own Save. It shows only when its settings exist on the server. */
+type Tab = { id: string; title: string; mark: string; colour: string; note?: string; groups: Group[] };
+type Section = { id: string; title: string; about: string; mark: string; colour: string; groups: Group[]; tabs?: Tab[] };
+type Choices = { connections: [string, string][]; skills: [string, string][] };
+
+const LANGUAGE_CHOICES: [string, string][] = [["", "The person's console language"], ["en", "English"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"], ["ja", "日本語"]];
+/** Model and behaviour, and instructions and skills, for one AI assistant (p: chat_ or studio_); One Chat's model is chat_connection. */
+const assistantGroups = (p: "chat_" | "studio_", modelKey: string, extra: Setting[]): Group[] => [
+  { title: "Model and behaviour", settings: [
+    ...extra,
+    { key: modelKey, label: "Model", hint: "The One Model Connection used by default.", kind: "pick", source: "connections", empty: "The person's first allowed connection" },
+    { key: p + "models", label: "Models people may choose", hint: "People pick one of these in My account. None ticked: only the default.", kind: "multi", source: "connections" },
+    { key: p + "temperature", label: "Creativity", hint: "0 = the same answer every time, 1 = more varied.", unit: "0 to 1", kind: "number", min: 0, max: 1, step: 0.1 },
+    { key: p + "max_tokens", label: "Longest answer", hint: "100 to 8000.", unit: "tokens", kind: "number", min: 100, max: 8000 },
+    { key: p + "language", label: "Answer language", hint: "Agent names, codes and values are never translated.", kind: "select", options: LANGUAGE_CHOICES }] },
+  { title: "Instructions and skills", settings: [
+    { key: p + "instructions", label: "Company instructions", hint: "Given to the model before every request. Up to 2,000 characters.", kind: "area" },
+    { key: p + "skills", label: "Prompt Skills it may use", hint: "Shared skills from AI › Prompt Skills.", kind: "multi", source: "skills" },
+    { key: p + "own_instructions", label: "People may add their own instructions", hint: "Added after the company's, never instead of them.", kind: "check" }] },
+];
 
 const VAULT_REF = "A vault reference: folder/credential/attribute. The value stays in the vault.";
 const SECTIONS: Section[] = [
@@ -141,15 +165,29 @@ const SECTIONS: Section[] = [
     { title: "Files", settings: [
       { key: "repo_files_folder", label: "Shared folder for repository files", hint: "For several nodes. Empty: the data folder.", kind: "text" }] },
   ] },
-  { id: "mcp", title: "AI assistants (MCP)", mark: "AI", colour: "#6d28d9", about: "Assistants connect to /api/mcp with a person's API key, or an OAuth token from your identity provider, and run the agents listed here as tools, and Document Automation's tools.", groups: [
-    { title: "Tools", settings: [
-      { key: "mcp_agents", label: "Agents offered as tools", hint: "Paths, separated by commas; * for all.", kind: "text", placeholder: "Finance/Invoice lookup.flow.json" },
-      { key: "mcp_runner", label: "Runner or runner pool id", hint: "Empty: any online runner.", kind: "text" },
-      { key: "mcp_timeout_seconds", label: "Wait for a result", hint: "10 to 3600.", unit: "seconds", kind: "number", min: 10, max: 3600 },
-      { key: "mcp_documents", label: "Document Automation tools", hint: "Send documents, read results, review: as the person, with their permissions.", kind: "check" }] },
-    { title: "OAuth", settings: [
-      { key: "mcp_oauth_audience", label: "Token audience", hint: "Empty: API keys only.", kind: "text", placeholder: "api://ooa-mcp" },
-      { key: "mcp_oauth_scope", label: "Scope the token must carry", hint: "Optional.", kind: "text", placeholder: "mcp.use" }] },
+  // S2 (20 Nov 2026), layout A from the design plan: one section, a tab per assistant, each with its own Save
+  { id: "mcp", title: "AI assistants", mark: "AI", colour: "#6d28d9", about: "Studio's assistant, One Chat and outside assistants (MCP). You set the company rules here; each person adjusts within them under My account › AI assistants.", groups: [], tabs: [
+    { id: "studio", title: "Studio assistant", mark: "S", colour: "#2f6fde", note: "Development only. Studio follows these settings while it is signed in to One CommandCenter; on its own it keeps its own Model Connections.",
+      groups: assistantGroups("studio_", "studio_connection", []) },
+    { id: "chat", title: "One Chat", mark: "C", colour: "#7c3aed", note: "Engine: built in. The OneChat service can be chosen here once it is installed.",
+      groups: [...assistantGroups("chat_", "chat_connection", [
+        { key: "chat_mode", label: "How chat understands requests", hint: "Rules need no model; the AI model is asked only when the rules are unsure.", kind: "select",
+          options: [["deterministic", "Rules only (no AI model)"], ["hybrid", "Rules first, the AI model when unsure"], ["llm", "AI model"]] },
+        { key: "chat_mode_by_role", label: "A different mode for some roles", hint: "One role=mode per line, such as admin=hybrid. A person's main role decides.", kind: "area", placeholder: "bot_runner=deterministic" }]),
+        { title: "Runs and approvals", settings: [
+          { key: "chat_runner", label: "Runner or runner pool id", hint: "Where chat runs go. Empty: any online runner.", kind: "text" },
+          { key: "chat_approvers", label: "Who approves high-impact (R3) requests", hint: "user:name and role:name, separated by commas. Never the person who asked.", kind: "text", placeholder: "role:admin" }] }] },
+    { id: "mcp", title: "Outside assistants (MCP)", mark: "M", colour: "#0e7490", note: "Copilot, Claude and other assistants connect to /api/mcp as the person, with their API key or a company sign-in token. Their model, instructions and memory are set in the assistant itself.",
+      groups: [
+        { title: "Connection", settings: [
+          { key: "mcp_oauth_audience", label: "Company sign-in token audience", hint: "Lets assistants sign in with your identity provider. Empty: API keys only.", kind: "text", placeholder: "api://ooa-mcp" },
+          { key: "mcp_oauth_scope", label: "Scope the token must carry", hint: "Optional.", kind: "text", placeholder: "mcp.use" }] },
+        { title: "Tools", settings: [
+          { key: "mcp_agents", label: "Agents offered as tools", hint: "Paths, separated by commas; * for all. People still see only the agents they may run.", kind: "text", placeholder: "Finance/Invoice lookup.flow.json" },
+          { key: "mcp_documents", label: "Document Automation tools", hint: "Send documents, read results, review: as the person, with their permissions.", kind: "check" }] },
+        { title: "Limits", settings: [
+          { key: "mcp_runner", label: "Runner or runner pool id", hint: "Empty: any online runner.", kind: "text" },
+          { key: "mcp_timeout_seconds", label: "Wait for a result", hint: "10 to 3600.", unit: "seconds", kind: "number", min: 10, max: 3600 }] }] },
   ] },
   { id: "documents", title: "Document Automation", mark: "DA", colour: "#0d9488", about: "AI > Document Automation reads documents with the DocFlow service. One CommandCenter forwards each request with the person's tenant and name; the browser never sees DocFlow's address or token.", groups: [
     { title: "DocFlow service", settings: [
@@ -207,7 +245,11 @@ const SECTIONS: Section[] = [
   { id: "about", title: "This One CommandCenter", mark: "i", colour: "#475569", about: "The database and the nodes serving this One CommandCenter (read-only here; the database is changed with the ooa db command).", groups: [] },
 ];
 const ROLES = Object.entries(ROLE_NAMES).filter(([r]) => r !== "admin");   // the administrator role cannot be switched off
-const settingsOf = (s: Section) => s.groups.flatMap((g) => g.settings);
+/** A section's groups, with its tabs' groups named after their tab. */
+const groupsOf = (s: Section): Group[] => [...s.groups, ...(s.tabs ?? []).flatMap((t) => t.groups.map((g) => ({ ...g, title: t.title + ": " + g.title })))];
+const settingsOf = (s: Section) => groupsOf(s).flatMap((g) => g.settings);
+/** A tab as a section of its own, for its Save bar: only its settings, under its name. */
+const tabSection = (s: Section, t: Tab): Section => ({ id: s.id + ":" + t.id, title: t.title, about: s.about, mark: t.mark, colour: t.colour, groups: t.groups });
 /** The Help panel's text for settings: how to use each one (settingsHelp.ts), or its hint. */
 const helpOf = (title: string, list: Setting[], about?: string): HelpTopic => ({ title, about, items: list.map((x) => ({ name: x.label, text: SETTING_HELP[x.key] ?? x.hint ?? "" })) });
 const PAGE_HELP: HelpTopic = { title: "Settings", about: "Settings for everyone, by section. Change a value, then save its section with the bar that appears; each section saves on its own and every change is recorded in the Audit Trail. Find a setting searches every section.",
@@ -233,21 +275,37 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
   // the section open (its own full-width page, in the address as #/settings?section=<id>), or null for the start page
   const sectionInAddress = () => { const id = new URLSearchParams(location.hash.split("?")[1] ?? "").get("section"); return SECTIONS.some((x) => x.id === id) ? id : null; };
   const [section, setSectionState] = useState<string | null>(sectionInAddress);
-  const setSection = (id: string | null) => { setSectionState(id); history.replaceState(null, "", "#/settings" + (id ? "?section=" + id : "")); };
-  useEffect(() => { const on = () => setSectionState(sectionInAddress()); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
+  // a tabbed section's tab (AI assistants), in the address as &tab=<id>
+  const tabInAddress = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("tab");
+  const [tabId, setTabState] = useState<string | null>(tabInAddress);
+  const setSection = (id: string | null, tab: string | null = null) => { setSectionState(id); setTabState(tab);
+    history.replaceState(null, "", "#/settings" + (id ? "?section=" + id + (tab ? "&tab=" + tab : "") : "")); };
+  useEffect(() => { const on = () => { setSectionState(sectionInAddress()); setTabState(tabInAddress()); }; addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [choices, setChoices] = useState<Choices>({ connections: [], skills: [] });
 
   const load = useCallback(async () => {
     try { const s = await api.settings(); const m = Object.fromEntries(Object.entries(s).map(([k, v]) => [k, str(v)])); setSaved(m); setForm(m); setError(null); }
     catch (e) { setError(message(e)); }
   }, [api]);
   useEffect(() => { load(); }, [load]);
+  // the AI assistants' lists to choose from (the One Chat module's; without it the tabs that need them are not there)
+  const assistants = !!saved && "chat_models" in saved;
+  useEffect(() => {
+    if (!assistants) return;
+    api.request<{ connections: { name: string; provider: string; model: string }[]; skills: { name: string; description: string }[] }>("GET", "assistants/options").then((o) => setChoices({
+      connections: o.connections.map((c) => [c.name, c.name + " (" + c.provider + (c.model ? ", " + c.model : "") + ")"]),
+      skills: o.skills.map((s) => [s.name, s.name + (s.description ? " · " + s.description : "")]) }), (e) => reportMinor("the AI assistants' choices", e));
+  }, [api, assistants]);
+  /** A setting the server has (a module's settings are there only with the module). */
+  const has = (x: Setting) => !saved || x.key in saved;
+  const tabsOf = (s: Section) => (s.tabs ?? []).filter((t) => t.groups.some((g) => g.settings.some(has)));
 
   const text = q.trim().toLowerCase();
-  const found = useMemo(() => text ? SECTIONS.map((s) => ({ s, groups: s.groups.map((g) => ({ ...g, settings: g.settings.filter((x) => (x.label + " " + (x.hint ?? "") + " " + x.key).toLowerCase().includes(text)) }))
-    .filter((g) => g.settings.length) })).filter((r) => r.groups.length) : [], [text]);
-  const changedIn = (s: Section) => saved ? settingsOf(s).filter((x) => form[x.key] !== saved[x.key]) : [];
+  const found = useMemo(() => text ? SECTIONS.map((s) => ({ s, groups: groupsOf(s).map((g) => ({ ...g, settings: g.settings.filter((x) => (!saved || x.key in saved) && (x.label + " " + (x.hint ?? "") + " " + x.key).toLowerCase().includes(text)) }))
+    .filter((g) => g.settings.length) })).filter((r) => r.groups.length) : [], [text, saved]);
+  const changedIn = (s: Section) => saved ? settingsOf(s).filter((x) => has(x) && form[x.key] !== saved[x.key]) : [];
   const save = async (s: Section) => {
     const changes: Record<string, string | number> = {};
     for (const x of changedIn(s)) changes[x.key] = x.kind === "number" || x.kind === "check" || (x.kind === "select" && x.key === "mfa_required") ? Number(form[x.key] || 0) : form[x.key].trim();
@@ -275,14 +333,26 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
       control = <TextArea id={id} aria-describedby={hintId} rows={x.key === "saml_idp_certificate" || x.key === "sso_group_roles" ? 4 : 2} value={v} placeholder={x.placeholder} onChange={(e) => set(e.target.value)} />;
     } else if (x.kind === "select") {
       control = <Select id={id} aria-describedby={hintId} value={v || x.options![0][0]} onChange={(e) => set(e.target.value)} options={x.options!.map(([value, label]) => ({ value, label }))} />;
+    } else if (x.kind === "pick") {
+      // one from the server's list; a value no longer on it stays shown, so it is not lost by accident
+      const list = choices[x.source!];
+      const opts: [string, string][] = [["", x.empty ?? "None"], ...list, ...(v && !list.some(([k]) => k === v) ? [[v, v + " (not found)"] as [string, string]] : [])];
+      control = <Select id={id} aria-describedby={hintId} value={v} onChange={(e) => set(e.target.value)} options={opts.map(([value, label]) => ({ value, label }))} />;
+    } else if (x.kind === "multi") {
+      const on = v.split(",").map((s) => s.trim()).filter(Boolean);
+      const list = choices[x.source!];
+      const all: [string, string][] = [...list, ...on.filter((n) => !list.some(([k]) => k === n)).map((n) => [n, n + " (not found)"] as [string, string])];
+      control = all.length ? <span className="cc-set-chips" role="group" aria-label={x.label}>{all.map(([k, l]) => <label key={k} className="cc-set-chip">
+          <input type="checkbox" checked={on.includes(k)} onChange={(e) => set((e.target.checked ? [...on, k] : on.filter((o) => o !== k)).join(","))} />{l}</label>)}</span>
+        : <span className="cc-set-hint">{x.source === "connections" ? "No One Model Connections yet: add them in AI › One Model Connections." : "No shared Prompt Skills yet: share them in AI › Prompt Skills."}</span>;
     } else {
       control = <TextInput id={id} aria-describedby={hintId} className={x.kind === "number" ? "cc-set-num" : undefined} type={x.kind === "number" ? "number" : "text"}
-        min={x.min} max={x.max} value={v} placeholder={x.placeholder} onChange={(e) => set(e.target.value)} />;
+        min={x.min} max={x.max} step={x.step} value={v} placeholder={x.placeholder} onChange={(e) => set(e.target.value)} />;
     }
     return (
       <div key={x.key} className={"cc-set-row" + (changed ? " is-changed" : "")}>
         <div className="cc-set-text">
-          {x.kind === "roles" ? <span className="cc-set-name">{marked(x.label, text)}</span> : <label htmlFor={id} className="cc-set-name">{marked(x.label, text)}</label>}
+          {x.kind === "roles" || x.kind === "multi" ? <span className="cc-set-name">{marked(x.label, text)}</span> : <label htmlFor={id} className="cc-set-name">{marked(x.label, text)}</label>}
           {x.hint && <div id={hintId} className="cc-set-hint">{x.hint}</div>}
         </div>
         <div className="cc-set-ctl">{control}{x.unit && <span className="cc-set-unit">{x.unit}</span>}{changed && <span className="cc-set-was">was {shown(x, saved![x.key] ?? "")}</span>}</div>
@@ -325,7 +395,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
           {found.length > 0 && <p className="cc-set-foot">Searches names, hints and setting keys (such as <code>password_min_length</code>).</p>}
         </div>
       </div> : !current ? <nav className="cc-set-start" aria-label="Settings sections">
-        {SECTIONS.map((s) => { const n = changedIn(s).length, count = settingsOf(s).length;
+        {SECTIONS.map((s) => { const n = changedIn(s).length, count = settingsOf(s).filter(has).length;
           return <button key={s.id} type="button" className="cc-set-card" aria-label={s.title} onClick={() => setSection(s.id)}>
             <span className="cc-set-card-head">{tile(s)}<span className="cc-set-card-title">{s.title}</span>
               {n > 0 && <span className="cc-set-badge" title="Changed, not saved yet">{n}</span>}</span>
@@ -348,8 +418,27 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
               <div className="cc-set-group">{g.title}<HelpButton topic={helpOf(current.title + ": " + g.title, g.settings)} /></div>
               {g.settings.map(row)}
             </Fragment>)}
+            {(() => {
+              // a tabbed section (AI assistants): a tab per assistant, each with its note, its groups and its own Save
+              const tabs = tabsOf(current);
+              if (!tabs.length) return null;
+              const tab = tabs.find((t) => t.id === tabId) ?? tabs[0];
+              return <Tabs label={current.title} value={tab.id} onChange={(v) => setSection(current.id, v)}
+                tabs={tabs.map((t) => { const n = changedIn(tabSection(current, t)).length;
+                  return { value: t.id, label: <span className="cc-set-tablabel"><span className="cc-set-tile" style={{ background: t.colour }} aria-hidden="true">{t.mark}</span>{t.title}
+                    {n > 0 && <span className="cc-set-badge" title="Changed, not saved yet">{n}</span>}</span> }; })}>
+                <TabPanel value={tab.id}>
+                  {tab.note && <p className="cc-set-note">{tab.note}</p>}
+                  {tab.groups.map((g) => { const list = g.settings.filter(has); return list.length > 0 && <Fragment key={g.title}>
+                    <div className="cc-set-group">{g.title}<HelpButton topic={helpOf(tab.title + ": " + g.title, list)} /></div>
+                    {list.map(row)}
+                  </Fragment>; })}
+                  {saveBar(tabSection(current, tab))}
+                </TabPanel>
+              </Tabs>;
+            })()}
             <div className="cc-set-extras"><Extras api={api} section={current.id} form={form} saved={saved ?? {}} onNotice={onNotice} onError={setError} /></div>
-            {saveBar(current)}
+            {!current.tabs && saveBar(current)}
         </div>
       </div>)}
     </section>

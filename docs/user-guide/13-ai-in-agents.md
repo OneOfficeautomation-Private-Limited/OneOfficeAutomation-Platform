@@ -319,6 +319,26 @@ The **Assistant** button in the top bar opens **Agent assistant** with two tabs:
 
 The assistant needs a model connection; without one it offers **Set up a Model Connection**.
 
+**While Studio is signed in to One CommandCenter**, the company's settings answer instead: the dialog says "Uses One
+CommandCenter's settings for the Studio assistant", and no connection of Studio's own is needed. An administrator sets
+them in **Settings › AI assistants › Studio assistant**:
+
+| Setting | What it does |
+| --- | --- |
+| **Model** | The One Model Connection used by default. Empty: the person's first allowed connection |
+| **Models people may choose** | Others a builder may pick in **My account › AI assistants** |
+| **Creativity** | 0 to 1. 0 (the default) gives the same steps for the same request |
+| **Longest answer** | 100 to 8,000 tokens; 4,000 by default |
+| **Answer language** | The language of step names and notes; command names, variables and values stay as they are |
+| **Company instructions** | Rules the model gets before every request, such as naming rules or preferred commands (up to 2,000 characters) |
+| **Prompt Skills it may use** | Shared Prompt Skills whose text the model also gets |
+| **People may add their own instructions** | Builders add theirs in My account; they come after the company's and never replace them |
+
+The company's Model Connection then applies its masking, budget and the record of each call (the call shows in AI
+governance as "Studio assistant"). Studio still checks every suggested step before it shows it, and the assistant
+only suggests: it never saves, checks in or runs anything. Studio on its own (not signed in) keeps using its own
+Model Connections, as before.
+
 ## 10. Good practice: masking, budgets, testing
 
 - **Mask personal data.** Keep **Hide personal data** on (it is on by default for AI agents and Prompt Skills): email
