@@ -286,8 +286,14 @@ groups **Model and behaviour** and **Instructions and skills** for One Chat and 
 `chat_*` and `studio_*`, defaults equal to the values used before); My account › AI assistants (model, language, own
 instructions; table `assistant_prefs`); `AssistantSettings.effective`, the one rule that combines them; One Chat's
 model calls and Studio's assistant (through `POST /api/assistants/studio/complete` while Studio is signed in) use it.
-Tools and permissions (S3) and memory, limits and privacy (S4) are next. The callback `GET settings` will return
-`AssistantSettings.effective` for the person and area.
+**Built in S3 (20 Nov 2026), One Chat module 1.2.0:** tools and permissions for One Chat (settings `chat_tool_read`,
+`chat_tool_agents`, `chat_tool_admin_read`, `chat_tool_admin_change`, `chat_tool_admin_high`; administration
+groups Never at first) and the person's "always ask me first" (schema step 2); the confirmation card; and the
+kernel's administration tools (`AdminTools`, reached by modules through `ModuleContext.adminTools` and
+`runAdminTool`): five look-ups, five changes and deleting a person, each done by the kernel's own method. The
+callbacks `GET admin/tools` and `POST admin/actions` will offer the same catalogue to OneChat. Memory, limits and
+privacy (S4) are next. The callback `GET settings` will return `AssistantSettings.effective` for the person and
+area.
 
 **Where:**
 

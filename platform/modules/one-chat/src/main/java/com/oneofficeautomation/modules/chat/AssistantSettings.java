@@ -63,6 +63,38 @@ public final class AssistantSettings {
                 if (!v.equals("0") && !v.equals("1")) throw new OoaException("CR.BAD_INPUT", "Setting '" + p + "own_instructions' must be 0 or 1");
             });
         }
+        // S3: One Chat's tools and permissions, one rule per tool group. Defaults keep what One Chat did before:
+        // reading runs and running agents allowed (with each agent's risk rules); administration tools off.
+        for (String group : TOOL_GROUPS)
+            ctx.defineSetting("chat_tool_" + group, defaultRule(group), (v, saas) -> {
+                if (!RULES.contains(v)) throw new OoaException("CR.BAD_INPUT", "A tool rule is always, ask or never");
+            });
+    }
+
+    /** One Chat's tool groups (the conversation library's ChatPlatform.GROUPS). */
+    public static final List<String> TOOL_GROUPS = List.of("read", "agents", "admin_read", "admin_change", "admin_high");
+    /** always: allowed with the tool's own risk rules; ask: always wait for the person's yes; never: not offered. */
+    static final List<String> RULES = List.of("always", "ask", "never");
+
+    static String defaultRule(String group) { return group.startsWith("admin_") ? "never" : "always"; }
+
+    /**
+     * The rule for a tool group and this person: never, ask (the company's Ask first), ask_person (the person asked to
+     * confirm first: before an agent runs or something changes) or always. The person's choice only makes it stricter.
+     */
+    public String policy(User u, String group) {
+        if (!TOOL_GROUPS.contains(group)) return "never";
+        String rule = setting("chat_tool_" + group);
+        if (!RULES.contains(rule)) rule = defaultRule(group);
+        if (rule.equals("always") && (group.equals("agents") || group.equals("admin_change") || group.equals("admin_high")) && askFirst(u.username()))
+            return "ask_person";
+        return rule;
+    }
+
+    /** Whether the person asked One Chat to confirm before an agent runs or something changes (My account > AI assistants). */
+    boolean askFirst(String username) {
+        Map<String, Object> r = ctx.db().one("SELECT ask_first FROM assistant_prefs WHERE username = ? AND assistant = ?", username, "chat");
+        return r != null && Boolean.TRUE.equals(r.get("ask_first"));
     }
 
     /** Creativity: a number from 0 to 1. */
@@ -117,6 +149,8 @@ public final class AssistantSettings {
     public Map<String, Object> savePrefs(User u, String area, Map<String, Object> body, String ip) {
         if (!AREAS.contains(area)) throw notFound("The assistant " + area);
         String model = text(body.get("model")), language = text(body.get("language")), instructions = text(body.get("instructions"));
+        // "always ask me first" (S3, One Chat): kept as it was when not sent
+        boolean askFirst = body.containsKey("ask_first") ? Boolean.TRUE.equals(body.get("ask_first")) : askFirst(u.username()) && area.equals("chat");
         if (!model.isEmpty() && !modelsFor(u, area).contains(model))
             throw new OoaException("CR.BAD_INPUT", "You may not choose the model " + model, "Choose one your administrator allows in Settings > AI assistants.");
         if (!language.isEmpty()) {
@@ -127,15 +161,16 @@ public final class AssistantSettings {
         if (!instructions.isEmpty() && !"1".equals(setting(area + "_own_instructions")))
             throw new OoaException("CR.BAD_INPUT", "Your administrator does not allow your own instructions here", "Leave them empty.");
         Map<String, String> before = prefs(u.username(), area);
-        if (ctx.db().update("UPDATE assistant_prefs SET model = ?, language = ?, instructions = ?, updated = ? WHERE username = ? AND assistant = ?",
-                model, language, instructions, now(), u.username(), area) == 0)
-            ctx.db().update("INSERT INTO assistant_prefs (username, assistant, model, language, instructions, updated) VALUES (?,?,?,?,?,?)",
-                    u.username(), area, model, language, instructions, now());
+        if (ctx.db().update("UPDATE assistant_prefs SET model = ?, language = ?, instructions = ?, ask_first = ?, updated = ? WHERE username = ? AND assistant = ?",
+                model, language, instructions, askFirst, now(), u.username(), area) == 0)
+            ctx.db().update("INSERT INTO assistant_prefs (username, assistant, model, language, instructions, ask_first, updated) VALUES (?,?,?,?,?,?,?)",
+                    u.username(), area, model, language, instructions, askFirst, now());
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("assistant", area);
         details.put("model", model);
         details.put("language", language);
         details.put("instructions_changed", !before.get("instructions").equals(instructions));
+        details.put("ask_first", askFirst);
         ctx.audit(u.username(), "assistant.prefs_changed", "user", u.username(), details, "ok", ip);
         return mine(u);
     }
@@ -155,7 +190,9 @@ public final class AssistantSettings {
         Map<String, Object> areas = new LinkedHashMap<>();
         for (String area : AREAS) {
             Map<String, Object> a = new LinkedHashMap<>();
-            a.put("mine", prefs(u.username(), area));
+            Map<String, Object> mine = new LinkedHashMap<>(prefs(u.username(), area));
+            mine.put("ask_first", area.equals("chat") && askFirst(u.username()));
+            a.put("mine", mine);
             a.put("default_model", setting(area.equals("chat") ? "chat_connection" : "studio_connection"));
             a.put("models", modelsFor(u, area));
             a.put("language_fixed", setting(area + "_language"));

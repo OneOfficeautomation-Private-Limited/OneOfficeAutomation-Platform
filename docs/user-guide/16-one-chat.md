@@ -66,6 +66,35 @@ Each agent has a risk class, set by its builder:
 
 Nobody can approve their own request, administrators included.
 
+**The question as a card.** A request that waits for your yes shows as a card: what will be done, whether it can be
+undone, when the question ends (10 minutes), and **Yes** / **No**. When the card asks only because of a setting, it
+says so, for example "Asked first: Run agents is set to Ask first". A request waiting for someone else's approval shows
+as a **Waiting for approval** card.
+
+### Administration from One Chat
+
+When an administrator switches them on (section 6), people can also look things up and make changes in plain words,
+as far as their own role allows in the console:
+
+| You say, for example | What it does | Risk | Needs |
+| --- | --- | --- | --- |
+| "who is disabled?", "list the admins" | **People**: role, enabled, last sign-in | R0 | Manage users |
+| "which runners are offline?" | **Runners**: online, offline or switched off, and what they run | R0 | View runners |
+| "what failed today?" | **Failed runs** in the last 24 hours, with the reason | R0 | View runs |
+| "which schedules are paused?" | **Schedules**: on or paused, next run | R0 | View schedules |
+| "how many items are waiting?" | **Work queues**: waiting, being worked on, failed | R0 | View work queues |
+| "disable jsmith", "enable jsmith" | **Disable** or **enable a person** | R2 | Manage users |
+| "pause Month end", "resume Month end" | **Pause** or **resume a schedule** | R2 | Manage schedules |
+| "stop run run_42" | **Stop a run** | R2 | Stop runs |
+| "switch off runner PC-8", "switch on runner PC-8" | **Switch a runner off** or **on** | R2 | Manage runners |
+| "delete jsmith" | **Delete a person** | R3 | Manage users |
+
+A look-up answers at once with a short sentence and a table (the first 20 rows) and **Open the page** for the rest. A
+change waits for your yes; deleting a person also needs someone else's approval. Each change is made by One
+CommandCenter itself, with the same checks and the same Audit Trail entry as the console page, plus a `chat.tool`
+entry. People, schedules, runners and runs are offered by name, so "disable jsmith" works even in rules-only mode.
+Nobody can disable or delete themselves from chat.
+
 ## 4. Languages
 
 One Chat answers in the language of your console (English, German, French, Spanish or Japanese; change it at the
@@ -128,6 +157,20 @@ Open **Settings › AI assistants**, tab **One Chat**. The tab has its own **Sav
 | **Prompt Skills it may use** | Shared Prompt Skills whose text the model also gets |
 | **People may add their own instructions** | On: people add theirs in My account; they come after the company's and never replace them |
 
+**Tools and permissions** (each **Always**, **Ask first** or **Never**)
+
+| Tool group | Default | What it covers |
+| --- | --- | --- |
+| **Read runs and tasks** | Always | "What are my runs?" |
+| **Run agents** | Always | Agents the person may run, with each agent's risk rules |
+| **Administration: look up** | Never | People, runners, failed runs, schedules, work queues |
+| **Administration: changes** | Never | Disable or enable a person, pause or resume a schedule, stop a run, switch a runner off or on |
+| **Administration: high impact** | Never | Delete a person |
+
+**Always** means allowed, with the tool's own rules (an R2 change still waits for a yes). **Ask first** makes even an R0
+tool wait for a yes. **Never** takes the group out of One Chat: it is not offered, and refused if asked for anyway.
+Settings only ever make a tool stricter.
+
 **Runs and approvals**
 
 | Setting | What it does |
@@ -145,7 +188,9 @@ Studio's assistant, within what the administrator allows:
 - **My model**: one of the **Models people may choose**, or the company's default;
 - **Answer language**: unless the administrator has set one;
 - **My own instructions**: shown under the company instructions, and added after them, while the administrator allows
-  them.
+  them;
+- **Always ask me before an agent runs or something changes** (One Chat): even agents that would start at once wait
+  for your yes. It only makes things stricter; a group set to **Never** stays off.
 
 Saving is recorded in the Audit Trail (that the instructions changed, not their text). When someone's account is
 deleted, their choices go too.

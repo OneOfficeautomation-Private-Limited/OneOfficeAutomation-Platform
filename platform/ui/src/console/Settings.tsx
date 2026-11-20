@@ -21,7 +21,7 @@ const AllowedFolders = modulePart<{ onNotice: (t: string) => void; onError: (e: 
  * Review round 2 (1 Nov 2026): Remove old runs now asks first, with the saved numbers it uses (not the ones typed but
  * unsaved), and has nothing to do while both are 0 (always).
  */
-type Kind = "text" | "number" | "area" | "check" | "select" | "roles" | "pick" | "multi";
+type Kind = "text" | "number" | "area" | "check" | "select" | "roles" | "pick" | "multi" | "seg";
 /**
  * One setting. pick is one choice and multi a comma-separated list, both from a list the server gives (source: the
  * One Model Connections or the shared Prompt Skills); empty is what an empty pick means.
@@ -34,6 +34,8 @@ type Tab = { id: string; title: string; mark: string; colour: string; note?: str
 type Section = { id: string; title: string; about: string; mark: string; colour: string; groups: Group[]; tabs?: Tab[] };
 type Choices = { connections: [string, string][]; skills: [string, string][] };
 
+/** One Chat's tool rules (S3): always (with each tool's own risk rules), ask first, never. */
+const TOOL_RULES: [string, string][] = [["always", "Always"], ["ask", "Ask first"], ["never", "Never"]];
 const LANGUAGE_CHOICES: [string, string][] = [["", "The person's console language"], ["en", "English"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"], ["ja", "日本語"]];
 /** Model and behaviour, and instructions and skills, for one AI assistant (p: chat_ or studio_); One Chat's model is chat_connection. */
 const assistantGroups = (p: "chat_" | "studio_", modelKey: string, extra: Setting[]): Group[] => [
@@ -174,6 +176,12 @@ const SECTIONS: Section[] = [
         { key: "chat_mode", label: "How chat understands requests", hint: "Rules need no model; the AI model is asked only when the rules are unsure.", kind: "select",
           options: [["deterministic", "Rules only (no AI model)"], ["hybrid", "Rules first, the AI model when unsure"], ["llm", "AI model"]] },
         { key: "chat_mode_by_role", label: "A different mode for some roles", hint: "One role=mode per line, such as admin=hybrid. A person's main role decides.", kind: "area", placeholder: "bot_runner=deterministic" }]),
+        { title: "Tools and permissions", settings: [
+          { key: "chat_tool_read", label: "Read runs and tasks", hint: "My runs and their status.", kind: "seg", options: TOOL_RULES },
+          { key: "chat_tool_agents", label: "Run agents", hint: "Agents the person may run; each agent's risk class still applies.", kind: "seg", options: TOOL_RULES },
+          { key: "chat_tool_admin_read", label: "Administration: look up", hint: "People, runners, failed runs, schedules and work queues, as the console shows them to the person.", kind: "seg", options: TOOL_RULES },
+          { key: "chat_tool_admin_change", label: "Administration: changes", hint: "Disable or enable a person, pause or resume a schedule, stop a run, switch a runner off or on. Always waits for a yes.", kind: "seg", options: TOOL_RULES },
+          { key: "chat_tool_admin_high", label: "Administration: high impact", hint: "Delete a person. Someone other than the person who asked approves it in the Task inbox.", kind: "seg", options: TOOL_RULES }] },
         { title: "Runs and approvals", settings: [
           { key: "chat_runner", label: "Runner or runner pool id", hint: "Where chat runs go. Empty: any online runner.", kind: "text" },
           { key: "chat_approvers", label: "Who approves high-impact (R3) requests", hint: "user:name and role:name, separated by commas. Never the person who asked.", kind: "text", placeholder: "role:admin" }] }] },
@@ -259,7 +267,7 @@ const str = (v: unknown) => v === null || v === undefined ? "" : String(v);
 /** A value as people read it: a choice's words, On / Off, the roles in use, or "empty". */
 function shown(x: Setting, v: string) {
   if (x.kind === "check") return v === "1" ? "On" : "Off";
-  if (x.kind === "select") return x.options!.find(([k]) => k === (v || x.options![0][0]))?.[1] ?? v;
+  if (x.kind === "select" || x.kind === "seg") return x.options!.find(([k]) => k === (v || x.options![0][0]))?.[1] ?? v;
   if (x.kind === "roles") { const off = v.split(",").filter(Boolean); return off.length ? off.map((r) => ROLES.find(([k]) => k === r)?.[1] ?? r).join(", ") + " off" : "all on"; }
   return v === "" ? "empty" : v.length > 28 ? v.slice(0, 26) + "…" : v;
 }
@@ -333,6 +341,11 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
       control = <TextArea id={id} aria-describedby={hintId} rows={x.key === "saml_idp_certificate" || x.key === "sso_group_roles" ? 4 : 2} value={v} placeholder={x.placeholder} onChange={(e) => set(e.target.value)} />;
     } else if (x.kind === "select") {
       control = <Select id={id} aria-describedby={hintId} value={v || x.options![0][0]} onChange={(e) => set(e.target.value)} options={x.options!.map(([value, label]) => ({ value, label }))} />;
+    } else if (x.kind === "seg") {
+      // a few choices side by side (S3's tool rules): radio buttons drawn as one segmented control
+      const on = v || x.options![0][0];
+      control = <span className="cc-set-seg" role="radiogroup" aria-label={x.label}>{x.options!.map(([k, l]) =>
+        <label key={k} className={"cc-set-seg-opt" + (on === k ? " is-on" : "")}><input type="radio" name={id} value={k} checked={on === k} onChange={() => set(k)} />{l}</label>)}</span>;
     } else if (x.kind === "pick") {
       // one from the server's list; a value no longer on it stays shown, so it is not lost by accident
       const list = choices[x.source!];
@@ -352,7 +365,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
     return (
       <div key={x.key} className={"cc-set-row" + (changed ? " is-changed" : "")}>
         <div className="cc-set-text">
-          {x.kind === "roles" || x.kind === "multi" ? <span className="cc-set-name">{marked(x.label, text)}</span> : <label htmlFor={id} className="cc-set-name">{marked(x.label, text)}</label>}
+          {x.kind === "roles" || x.kind === "multi" || x.kind === "seg" ? <span className="cc-set-name">{marked(x.label, text)}</span> : <label htmlFor={id} className="cc-set-name">{marked(x.label, text)}</label>}
           {x.hint && <div id={hintId} className="cc-set-hint">{x.hint}</div>}
         </div>
         <div className="cc-set-ctl">{control}{x.unit && <span className="cc-set-unit">{x.unit}</span>}{changed && <span className="cc-set-was">was {shown(x, saved![x.key] ?? "")}</span>}</div>

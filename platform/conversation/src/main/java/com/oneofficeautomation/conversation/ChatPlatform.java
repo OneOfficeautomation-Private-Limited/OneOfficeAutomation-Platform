@@ -39,6 +39,33 @@ public interface ChatPlatform {
     /** A host setting (chat_mode, chat_connection, ...); empty when unset. */
     String setting(String name);
 
+    // ---- tools and permissions (S3, 20 Nov 2026; Settings > AI assistants > One Chat > Tools and permissions) ----
+
+    /** The tool groups: reading runs and tasks, running agents, and administration look-ups, changes and high-impact changes. */
+    List<String> GROUPS = List.of("read", "agents", "admin_read", "admin_change", "admin_high");
+
+    /**
+     * What the settings allow for a tool group, for this person: "always" (allowed, with the tool's own risk rules),
+     * "ask" (the administrator set Ask first), "ask_person" (the person asked to confirm first) or "never" (not offered,
+     * and refused). Settings only ever make a tool stricter. Default: always.
+     */
+    default String policy(Person p, String group) { return "always"; }
+
+    /**
+     * An administration tool (S3): offered like an agent ({@link ChatBot}, its path starting "admin:"), in one of the
+     * admin_ groups, with what undoing it takes (null when nothing changes) and the console page that shows more.
+     */
+    record Tool(ChatBot bot, String group, String undo, String page) {}
+
+    /** The administration tools this person may use now (their permissions decide). Default: none. */
+    default List<Tool> adminTools(Person p) { return List.of(); }
+
+    /**
+     * Uses an administration tool as this person, with the console's own checks: {text, rows?, columns?, page?}. Throws
+     * {@link Refused} when the host will not.
+     */
+    default Map<String, Object> runTool(Person p, String path, Map<String, Object> inputs) { throw new Refused("refused", "This host has no administration tools."); }
+
     /** One model call through the host's AI gateway: {text, tool_calls: [{id, name, args}]}. */
     Map<String, Object> callModel(Person p, String connection, List<Map<String, Object>> messages, List<Map<String, Object>> tools, String purpose);
 

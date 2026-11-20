@@ -34,6 +34,33 @@ const type = (t: string) => {
 };
 
 describe("One Chat page", () => {
+  it("shows a confirmation as a card with what undoing it takes, and a tool's answer as a table with its page (S3)", async () => {
+    const card = { id: "cnf_1", expires: "2026-11-20T10:40:00Z", risk: "R2", name: "Disable a person", kind: "tool", undo: "Enable them again in Users." };
+    const s = server([
+      { body: { session_id: "s1", reply: "I'll do this: Disable a person (person = jsmith).\nShall I go ahead? (yes/no)", kind: "confirm", confirmation: card } },
+      { body: { session_id: "s1", reply: "jsmith is disabled.", kind: "done", page: "#/users" } },
+      { body: { session_id: "s1", reply: "2 people, 1 disabled.", kind: "answer", rows: [{ username: "jsmith", enabled: false }], page: "#/users" } },
+      { body: { session_id: "s1", reply: "I've asked for approval (task task_9).", kind: "awaiting_approval", task_id: "task_9" } }]);
+    show(s.api);
+    type("disable jsmith");
+    const c = await screen.findByRole("group", { name: "Disable a person" });
+    expect(c.textContent).toContain("Waiting for your yes");
+    expect(c.textContent).toContain("Can be undone");
+    expect(c.textContent).toContain("Enable them again in Users.");
+    expect(c.textContent).toContain("This question ends");
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Yes, do it" })); });
+    expect(s.calls.at(-1)?.body).toMatchObject({ session_id: "s1", message: "yes" });
+    expect(await screen.findByText("jsmith is disabled.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Yes, do it" })).toBeNull();
+    type("who is disabled");
+    const table = await screen.findByRole("table", { name: "Answer" });
+    expect(table.textContent).toContain("jsmith");
+    expect(table.textContent).toContain("No");
+    expect(screen.getAllByRole("link", { name: "Open the page" }).at(-1)?.getAttribute("href")).toBe("#/users");
+    type("delete jsmith");
+    expect((await screen.findByRole("group", { name: "Waiting for approval" })).textContent).toContain("task_9");
+  });
+
   it("is in the AI menu for people who may see runs", () => {
     const ai = MENU_SECTIONS.find((s) => s.id === "ai")!;
     expect(ai.pages.map((p) => p.label)[0]).toBe("One Chat");

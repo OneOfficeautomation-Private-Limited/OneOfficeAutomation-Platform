@@ -356,7 +356,8 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       mcp_agents: "", mcp_runner: "", mcp_timeout_seconds: 120, mcp_documents: 1, mcp_oauth_audience: "", mcp_oauth_scope: "",
       chat_mode: "deterministic", chat_mode_by_role: "", chat_connection: "", chat_runner: "", chat_approvers: "role:admin", chat_models: "", chat_temperature: "0.2",
       chat_max_tokens: 2048, chat_language: "", chat_instructions: "", chat_skills: "", chat_own_instructions: 1, studio_connection: "", studio_models: "",
-      studio_temperature: "0", studio_max_tokens: 4000, studio_language: "", studio_instructions: "", studio_skills: "", studio_own_instructions: 1 });
+      studio_temperature: "0", studio_max_tokens: 4000, studio_language: "", studio_instructions: "", studio_skills: "", studio_own_instructions: 1,
+      chat_tool_read: "always", chat_tool_agents: "always", chat_tool_admin_read: "never", chat_tool_admin_change: "never", chat_tool_admin_high: "never" });
     if (route === "assistants/options") return ok({ connections: [{ name: "company", provider: "anthropic", model: "claude" }, { name: "llama", provider: "openai_compatible", model: "llama3.1" }],
       skills: [{ name: "tone", description: "How to word answers" }], languages: { en: "English", de: "German" } });
     if (route.startsWith("assistants/me")) {
@@ -1890,6 +1891,12 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(sec).getByRole("button", { name: "Save One Chat" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings",
       body: { chat_mode: "hybrid", chat_models: "llama", chat_instructions: "Always name the run id.", chat_skills: "tone" } }));
+    // S3: the tool rules, Always / Ask first / Never side by side
+    const agents = within(sec).getByRole("radiogroup", { name: "Run agents" });
+    fireEvent.click(within(agents).getByRole("radio", { name: "Ask first" }));
+    fireEvent.click(within(within(sec).getByRole("radiogroup", { name: "Administration: look up" })).getByRole("radio", { name: "Always" }));
+    await act(async () => { fireEvent.click(within(sec).getByRole("button", { name: "Save One Chat" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings", body: { chat_tool_agents: "ask", chat_tool_admin_read: "always" } }));
     // Studio assistant: its own Save sends only its own changes
     fireEvent.mouseDown(within(tabs).getByRole("tab", { name: /Studio assistant/ }));
     expect(await within(sec).findByText(/Development only/)).toBeTruthy();
@@ -1907,8 +1914,9 @@ describe("rebuilt One CommandCenter console", () => {
     expect(await within(dlg).findByText("Always name the run id.")).toBeTruthy();
     fireEvent.change(within(dlg).getByLabelText("My model"), { target: { value: "llama" } });
     fireEvent.change(within(dlg).getByLabelText("My own instructions"), { target: { value: "Amounts in euros." } });
+    fireEvent.click(within(dlg).getByRole("switch", { name: "Always ask me before an agent runs or something changes" }));
     await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Save" })); });
-    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "assistants/me/chat", body: { model: "llama", language: "", instructions: "Amounts in euros." } }));
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "assistants/me/chat", body: { model: "llama", language: "", instructions: "Amounts in euros.", ask_first: true } }));
     expect(await within(dlg).findByText("Your choices for One Chat are saved.")).toBeTruthy();
   });
 

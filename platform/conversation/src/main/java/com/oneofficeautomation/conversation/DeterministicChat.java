@@ -117,13 +117,35 @@ final class DeterministicChat implements ChatEngine {
             if (score < ALIAS) {
                 List<String> phrases = new ArrayList<>(b.examples());
                 phrases.add(b.name());
-                for (String p : phrases) score = Math.max(score, similarity(tokens, tokens(p)));
+                for (String p : phrases) score = Math.max(score, similarity(tokens, tokens(fill(p, b, tokens))));
             }
             double negative = b.notFor().stream().mapToDouble(n -> similarity(tokens, tokens(n))).max().orElse(0);
             if (negative > 0 && (negative >= score || negative >= STRONG_NEGATIVE)) score *= PENALTY;
             if (score > 0) out.add(new Match(b, score));
         }
         out.sort(Comparator.comparingDouble(Match::score).reversed());
+        return out;
+    }
+
+    /**
+     * An example's {input} replaced by the choice of that input the text names (S3: administration tools' examples such
+     * as "disable {person}"), so "disable jsmith" matches it. Without such a choice in the text the input's name stays
+     * as a word to match, so "disable notifications" does not. Examples without braces are used as written.
+     */
+    static String fill(String phrase, ChatBot b, Set<String> text) {
+        if (phrase.indexOf('{') < 0) return phrase;
+        String out = phrase;
+        for (Map<String, Object> v : b.inputs()) {
+            String slot = "{" + v.get("name") + "}";
+            if (!out.contains(slot)) continue;
+            String named = String.valueOf(v.get("name"));
+            if (v.get("enum") instanceof List<?> choices)
+                for (Object c : choices) {
+                    Set<String> words = tokens(String.valueOf(c));
+                    if (!words.isEmpty() && text.containsAll(words)) { named = String.valueOf(c); break; }
+                }
+            out = out.replace(slot, named);
+        }
         return out;
     }
 

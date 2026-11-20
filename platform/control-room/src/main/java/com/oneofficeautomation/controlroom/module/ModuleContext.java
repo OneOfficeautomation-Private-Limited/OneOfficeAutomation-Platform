@@ -142,6 +142,16 @@ public interface ModuleContext {
     /** The model connections (AI gateway) a person's roles may use, as a run's job carries them. */
     Map<String, Object> modelConnectionsFor(List<String> roles);
 
+    /**
+     * Administration tools for AI assistants (S3, 20 Nov 2026): those this person's permissions allow, as plain maps
+     * {id, group (admin_read, admin_change, admin_high), risk, name, description, examples, inputs, undo?, page}, with
+     * each input's choices filled in for them.
+     */
+    List<Map<String, Object>> adminTools(User u);
+
+    /** Uses one administration tool as this person, with the console's own checks and audit: {text, rows?, columns?, page}. */
+    Map<String, Object> runAdminTool(User u, String id, Map<String, Object> inputs, String ip);
+
     /** Records the AI calls a run (or a chat turn) made, for AI governance. */
     void recordAiCalls(Map<String, Object> run, List<?> calls);
 
