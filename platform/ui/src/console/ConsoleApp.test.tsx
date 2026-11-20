@@ -357,13 +357,17 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       chat_mode: "deterministic", chat_mode_by_role: "", chat_connection: "", chat_runner: "", chat_approvers: "role:admin", chat_models: "", chat_temperature: "0.2",
       chat_max_tokens: 2048, chat_language: "", chat_instructions: "", chat_skills: "", chat_own_instructions: 1, studio_connection: "", studio_models: "",
       studio_temperature: "0", studio_max_tokens: 4000, studio_language: "", studio_instructions: "", studio_skills: "", studio_own_instructions: 1,
-      chat_tool_read: "always", chat_tool_agents: "always", chat_tool_admin_read: "never", chat_tool_admin_change: "never", chat_tool_admin_high: "never" });
+      chat_tool_read: "always", chat_tool_agents: "always", chat_tool_admin_read: "never", chat_tool_admin_change: "never", chat_tool_admin_high: "never",
+      chat_memory: "chat", chat_keep_hours: 8, chat_ktokens_per_person: 0, chat_timeout_seconds: 90, chat_mask_pii: 1, studio_ktokens_per_person: 0,
+      studio_timeout_seconds: 300, studio_mask_pii: 0, mcp_runs_per_hour: 0 });
     if (route === "assistants/options") return ok({ connections: [{ name: "company", provider: "anthropic", model: "claude" }, { name: "llama", provider: "openai_compatible", model: "llama3.1" }],
       skills: [{ name: "tone", description: "How to word answers" }], languages: { en: "English", de: "German" } });
     if (route.startsWith("assistants/me")) {
       const area = (m: string) => ({ mine: { model: m, language: "", instructions: init.method === "PUT" ? body.instructions : "" }, default_model: "company", models: ["llama"],
         language_fixed: "", own_instructions: true, company_instructions: "Always name the run id." });
-      return ok({ assistants: { chat: area(init.method === "PUT" ? body.model : ""), studio: area("") }, languages: { en: "English", de: "German" } });
+      const notes = route === "assistants/me/memory/mem_1" ? [] : [{ id: "mem_1", note: "my vendor is Acme", created: "2026-11-20T09:00:00Z" }];
+      return ok({ assistants: { chat: area(init.method === "PUT" ? body.model : ""), studio: area("") }, languages: { en: "English", de: "German" },
+        memory: { mode: "across", notes } });
     }
     if (route === "settings/mail-test") return ok({ to: body.to });
     if (route === "settings/scim-tokens" && init.method === "POST") return ok({ id: "scim2", name: body.name, token: "scim_secret123" });
@@ -1897,6 +1901,12 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.click(within(within(sec).getByRole("radiogroup", { name: "Administration: look up" })).getByRole("radio", { name: "Always" }));
     await act(async () => { fireEvent.click(within(sec).getByRole("button", { name: "Save One Chat" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings", body: { chat_tool_agents: "ask", chat_tool_admin_read: "always" } }));
+    // S4: memory, how long chats are kept, limits and privacy
+    fireEvent.change(within(sec).getByLabelText("Memory"), { target: { value: "across" } });
+    fireEvent.change(within(sec).getByLabelText("Keep chats for"), { target: { value: "720" } });
+    fireEvent.change(within(sec).getByLabelText("Tokens per person"), { target: { value: "500" } });
+    await act(async () => { fireEvent.click(within(sec).getByRole("button", { name: "Save One Chat" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings", body: { chat_memory: "across", chat_keep_hours: 720, chat_ktokens_per_person: 500 } }));
     // Studio assistant: its own Save sends only its own changes
     fireEvent.mouseDown(within(tabs).getByRole("tab", { name: /Studio assistant/ }));
     expect(await within(sec).findByText(/Development only/)).toBeTruthy();
@@ -1918,6 +1928,12 @@ describe("rebuilt One CommandCenter console", () => {
     await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Save" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "assistants/me/chat", body: { model: "llama", language: "", instructions: "Amounts in euros.", ask_first: true } }));
     expect(await within(dlg).findByText("Your choices for One Chat are saved.")).toBeTruthy();
+    // S4: the notes One Chat remembers, each with Forget
+    const notes = within(dlg).getByRole("list", { name: "Notes One Chat remembers" });
+    expect(notes.textContent).toContain("my vendor is Acme");
+    await act(async () => { fireEvent.click(within(notes).getAllByRole("button", { name: "Forget" })[0]); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "assistants/me/memory/mem_1" }));
+    expect(await within(dlg).findByText("No notes.")).toBeTruthy();
   });
 
   it("shows the Task inbox as AA's task list: one line per task with where it comes from and its state, take it from the row, overdue filter, approve with a comment, a form with a required field", async () => {

@@ -62,6 +62,19 @@ export function AssistantPrefs({ api, onNotice, onError }: { api: CrApi; onNotic
           <div className="cc-set-ctl"><label className="cc-switch"><input id="cc-ap-ask" type="checkbox" role="switch" aria-label="Always ask me before an agent runs or something changes" checked={!!form.ask_first}
             onChange={(e) => { const v = e.target.checked; setForm((f) => ({ ...f, ask_first: v })); }} /><span className="cc-switch-track" aria-hidden="true" />{form.ask_first ? "On" : "Off"}</label></div></div>
       </>}
+      {area === "chat" && data.memory && <>
+        <div className="cc-set-group">Memory</div>
+        <div className="cc-set-row"><div className="cc-set-text"><span className="cc-set-name">What One Chat remembers for you</span>
+          <div className="cc-set-hint">{data.memory.mode === "across" ? "Say \u201cremember that \u2026\u201d in One Chat to add a note. Only you see them."
+            : "Your administrator has set memory to " + (data.memory.mode === "off" ? "off" : "this chat only") + ", so new notes are not kept."}</div></div>
+          <div className="cc-set-ctl">{data.memory.notes.length ? <span className="cc-set-hint">{data.memory.notes.length} note{data.memory.notes.length === 1 ? "" : "s"}</span>
+            : <span className="cc-set-hint">No notes.</span>}</div></div>
+        {data.memory.notes.length > 0 && <ul className="cc-ap-notes" aria-label="Notes One Chat remembers">
+          {data.memory.notes.map((n) => <li key={n.id}><span>{n.note}</span>
+            <Button kind="plain" onClick={() => api.forgetNotes(n.id).then((d) => { setData(d); onNotice("Forgotten."); }, onError)}>Forget</Button></li>)}
+          <li className="cc-ap-forget-all"><Button kind="plain" onClick={() => api.forgetNotes().then((d) => { setData(d); onNotice("One Chat has forgotten every note."); }, onError)}>Forget everything</Button></li>
+        </ul>}
+      </>}
       {changed && <div className="cc-set-save" role="group" aria-label={"Changes for " + NAMES[area]}>
         <span><strong>Changed</strong> for {NAMES[area]}</span><span className="ov-fill" />
         <Button kind="plain" onClick={() => setForm({ ...a.mine })}>Undo changes</Button>

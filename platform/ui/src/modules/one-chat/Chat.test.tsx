@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { CrApi } from "../../api/cr";
 import { HelpProvider } from "../../components";
@@ -9,7 +9,7 @@ afterEach(() => { cleanup(); resetChat(); });
 
 type Reply = { status?: number; body: unknown };
 /** A stand-in One CommandCenter: POST /api/chat answers from the script in order; GET /api/chat/{id} gives history. */
-function server(replies: Reply[], history: unknown[] = []) {
+function server(replies: Reply[], history: unknown[] = [], chats: unknown[] = []) {
   const calls: { method: string; url: string; body?: Record<string, unknown> }[] = [];
   const f = (async (url: string, init: RequestInit = {}) => {
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
@@ -18,6 +18,7 @@ function server(replies: Reply[], history: unknown[] = []) {
       const r = replies.shift() ?? { body: { session_id: "s1", reply: "?", kind: "not_understood" } };
       return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
     }
+    if (url === "/api/chat") return new Response(JSON.stringify({ chats }), { status: 200 });
     if (url.startsWith("/api/chat/")) return new Response(JSON.stringify({ session_id: "s1", messages: history }), { status: 200 });
     return new Response(JSON.stringify({ error: { code: "CR.NOT_FOUND", message: "no" } }), { status: 404 });
   }) as typeof fetch;
@@ -34,6 +35,20 @@ const type = (t: string) => {
 };
 
 describe("One Chat page", () => {
+  it("lists the person's kept chats only when asked, and reopens one (S4)", async () => {
+    const s = server([], [{ role: "user", text: "show payables aging" }, { role: "assistant", text: "Here is the aging report.", kind: "answer" }],
+      [{ id: "chat_7", title: "show payables aging", last_used: "2026-11-20T09:00:00Z", messages: 2 }]);
+    show(s.api);
+    expect(s.calls.length).toBe(0);   // nothing is read until the person opens the list
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Your chats" })); });
+    const list = await screen.findByRole("navigation", { name: "Your chats" });
+    await act(async () => { fireEvent.click(within(list).getByRole("button", { name: "show payables aging" })); });
+    expect(await screen.findByText("Here is the aging report.")).toBeTruthy();
+    expect(s.calls.map((c) => c.method + " " + c.url)).toEqual(["GET /api/chat", "GET /api/chat/chat_7"]);
+    type("again please");
+    await waitFor(() => expect(s.calls.at(-1)?.body).toMatchObject({ session_id: "chat_7", message: "again please" }));
+  });
+
   it("shows a confirmation as a card with what undoing it takes, and a tool's answer as a table with its page (S3)", async () => {
     const card = { id: "cnf_1", expires: "2026-11-20T10:40:00Z", risk: "R2", name: "Disable a person", kind: "tool", undo: "Enable them again in Users." };
     const s = server([

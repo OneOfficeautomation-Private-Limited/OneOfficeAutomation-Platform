@@ -333,6 +333,9 @@ them in **Settings › AI assistants › Studio assistant**:
 | **Company instructions** | Rules the model gets before every request, such as naming rules or preferred commands (up to 2,000 characters) |
 | **Prompt Skills it may use** | Shared Prompt Skills whose text the model also gets |
 | **People may add their own instructions** | Builders add theirs in My account; they come after the company's and never replace them |
+| **Tokens per person** | The most tokens one builder may use with the assistant each month, in thousands; 0 (the default) leaves only the Model Connection's budget |
+| **Wait for an answer** | 30 to 600 seconds; 300 by default |
+| **Mask personal data before the model** | Off by default, as before; on hides personal data in the request from the model |
 
 The company's Model Connection then applies its masking, budget and the record of each call (the call shows in AI
 governance as "Studio assistant"). Studio still checks every suggested step before it shows it, and the assistant

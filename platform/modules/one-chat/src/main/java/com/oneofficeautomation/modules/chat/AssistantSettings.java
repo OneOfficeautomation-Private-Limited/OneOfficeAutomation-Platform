@@ -30,8 +30,15 @@ public final class AssistantSettings {
     static final int MAX_TEXT = 2000;
 
     /** What an assistant runs with for one person: the model connection (blank: their first allowed one), creativity,
-     *  the longest answer, the answer language (null: the person's console language) and the instructions to add. */
-    public record Effective(String connection, double temperature, int maxTokens, String language, String instructions) {}
+     *  the longest answer, the answer language (null: the person's console language), the instructions to add, and
+     *  (S4) how long to wait, whether personal data is masked, and the memory mode (off, chat, across). */
+    public record Effective(String connection, double temperature, int maxTokens, String language, String instructions,
+                            int timeoutSeconds, boolean maskPii, String memory) {}
+
+    /** One Chat's memory: off (only the current message), chat (this chat; the default, as before), across (also the notes the person asked it to remember). */
+    public static final List<String> MEMORY = List.of("chat", "off", "across");
+    /** The most notes a person keeps, and the longest note. */
+    static final int MAX_NOTES = 50, MAX_NOTE = 300;
 
     private final ModuleContext ctx;
 
@@ -63,6 +70,18 @@ public final class AssistantSettings {
                 if (!v.equals("0") && !v.equals("1")) throw new OoaException("CR.BAD_INPUT", "Setting '" + p + "own_instructions' must be 0 or 1");
             });
         }
+        // S4: memory, limits and privacy. Defaults keep what the assistants did before: One Chat remembers this chat,
+        // keeps a chat 8 hours unused, waits 90 seconds and masks personal data; Studio's waits 300 and does not mask
+        ctx.defineSetting("chat_memory", "chat", (v, saas) -> {
+            if (!MEMORY.contains(v)) throw new OoaException("CR.BAD_INPUT", "One Chat's memory is chat, off or across");
+        });
+        ctx.defineSetting("chat_keep_hours", 8, (v, saas) -> range(v, 1, 2160, "Keep chats for is from 1 to 2160 hours (90 days)"));
+        ctx.defineSetting("chat_timeout_seconds", 90, (v, saas) -> range(v, 10, 300, "One Chat waits from 10 to 300 seconds for an answer"));
+        ctx.defineSetting("studio_timeout_seconds", 300, (v, saas) -> range(v, 30, 600, "Studio's assistant waits from 30 to 600 seconds for an answer"));
+        ctx.defineSetting("chat_mask_pii", 1, (v, saas) -> range(v, 0, 1, "Setting 'chat_mask_pii' must be 0 or 1"));
+        ctx.defineSetting("studio_mask_pii", 0, (v, saas) -> range(v, 0, 1, "Setting 'studio_mask_pii' must be 0 or 1"));
+        // tokens per person a month, in thousands (0: only the Model Connection's own budget)
+        for (String area : AREAS) ctx.defineSetting(area + "_ktokens_per_person", 0, (v, saas) -> range(v, 0, 100000, "Tokens per person is from 0 to 100000 thousand"));
         // S3: One Chat's tools and permissions, one rule per tool group. Defaults keep what One Chat did before:
         // reading runs and running agents allowed (with each agent's risk rules); administration tools off.
         for (String group : TOOL_GROUPS)
@@ -95,6 +114,64 @@ public final class AssistantSettings {
     boolean askFirst(String username) {
         Map<String, Object> r = ctx.db().one("SELECT ask_first FROM assistant_prefs WHERE username = ? AND assistant = ?", username, "chat");
         return r != null && Boolean.TRUE.equals(r.get("ask_first"));
+    }
+
+    private static void range(String v, int min, int max, String message) {
+        int n;
+        try { n = Integer.parseInt(v.trim()); } catch (NumberFormatException e) { throw new OoaException("CR.BAD_INPUT", message); }
+        if (n < min || n > max) throw new OoaException("CR.BAD_INPUT", message);
+    }
+
+    // ---- S4: limits per person, and the notes a person asked One Chat to remember ----
+
+    /** How long One Chat keeps a chat that is not used (Settings: Keep chats for). */
+    public java.time.Duration keepChats() {
+        int h = ctx.intSetting("chat_keep_hours");
+        return java.time.Duration.ofHours(h < 1 ? 8 : h);
+    }
+
+    /**
+     * Refuses a model call once the person has used their tokens for this assistant this month (Settings: Tokens per
+     * person), counted from the AI call record (the name each call is recorded under: "One Chat", "Studio assistant").
+     */
+    public void checkAllowance(User u, String area) {
+        long limit = 1000L * ctx.intSetting(area + "_ktokens_per_person");
+        if (limit <= 0) return;
+        java.time.Instant month = java.time.LocalDate.now(java.time.ZoneOffset.UTC).withDayOfMonth(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        Map<String, Object> r = ctx.db().one("SELECT SUM(input_tokens) AS i, SUM(output_tokens) AS o FROM ai_calls WHERE requested_by = ? AND bot_path = ? AND ts >= ?",
+                u.username(), area.equals("chat") ? "One Chat" : "Studio assistant", month);
+        long used = (r != null && r.get("i") instanceof Number i ? i.longValue() : 0) + (r != null && r.get("o") instanceof Number o ? o.longValue() : 0);
+        if (used >= limit)
+            throw new OoaException("AI.PERSON_LIMIT", "You have used your AI allowance for " + (area.equals("chat") ? "One Chat" : "Studio's assistant") + " this month ("
+                    + used + " of " + limit + " tokens)", "Ask an administrator to raise Tokens per person in Settings > AI assistants.");
+    }
+
+    /** The notes the person asked One Chat to remember, oldest first: [{id, note, created}]. */
+    public List<Map<String, Object>> notes(String username) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : ctx.db().query("SELECT id, note, created FROM assistant_memory WHERE username = ? AND assistant = ? ORDER BY created", username, "chat"))
+            out.add(new LinkedHashMap<>(Map.of("id", r.get("id"), "note", r.get("note"), "created", String.valueOf(r.get("created")))));
+        return out;
+    }
+
+    /** Keeps a note for the person (at most MAX_NOTES, each MAX_NOTE characters). */
+    public void remember(User u, String note, String ip) {
+        String n = note == null ? "" : note.trim();
+        if (n.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Say what to remember");
+        if (n.length() > MAX_NOTE) n = n.substring(0, MAX_NOTE);
+        if (ctx.count("SELECT COUNT(*) AS n FROM assistant_memory WHERE username = ?", u.username()) >= MAX_NOTES)
+            throw new OoaException("AI.MEMORY_FULL", "One Chat already remembers " + MAX_NOTES + " notes for you", "Forget some in My account > AI assistants first.");
+        ctx.db().update("INSERT INTO assistant_memory (id, username, assistant, note, created) VALUES (?,?,?,?,?)", id("mem"), u.username(), "chat", n, now());
+        ctx.audit(u.username(), "assistant.remember", "user", u.username(), Map.of("characters", n.length()), "ok", ip);
+    }
+
+    /** Forgets one of the person's notes, or all of them (id null). */
+    public Map<String, Object> forget(User u, String noteId, String ip) {
+        int n = noteId == null ? ctx.db().update("DELETE FROM assistant_memory WHERE username = ?", u.username())
+                : ctx.db().update("DELETE FROM assistant_memory WHERE username = ? AND id = ?", u.username(), noteId);
+        if (noteId != null && n == 0) throw notFound("The note " + noteId);
+        ctx.audit(u.username(), "assistant.forget", "user", u.username(), Map.of("notes", n), "ok", ip);
+        return mine(u);
     }
 
     /** Creativity: a number from 0 to 1. */
@@ -200,7 +277,8 @@ public final class AssistantSettings {
             a.put("company_instructions", setting(area + "_instructions"));
             areas.put(area, a);
         }
-        return Map.of("assistants", areas, "languages", LANGUAGES);
+        String memory = setting("chat_memory");
+        return Map.of("assistants", areas, "languages", LANGUAGES, "memory", Map.of("mode", MEMORY.contains(memory) ? memory : "chat", "notes", notes(u.username())));
     }
 
     /** For Settings > AI assistants: every model connection and every shared Prompt Skill an administrator may choose. */
@@ -216,6 +294,7 @@ public final class AssistantSettings {
     /** Removes the choices of people who no longer have an account (on One CommandCenter's clock). */
     public void forgetDeletedPeople() {
         ctx.db().update("DELETE FROM assistant_prefs WHERE username NOT IN (SELECT username FROM users)");
+        ctx.db().update("DELETE FROM assistant_memory WHERE username NOT IN (SELECT username FROM users)");
     }
 
     // ---- the one rule ----
@@ -243,7 +322,11 @@ public final class AssistantSettings {
         try { temperature = temperature(setting(p + "temperature")); } catch (OoaException e) { temperature = area.equals("chat") ? 0.2 : 0; }
         int maxTokens = ctx.intSetting(p + "max_tokens");
         if (maxTokens < 100) maxTokens = area.equals("chat") ? 2048 : 4000;
-        return new Effective(model, temperature, maxTokens, language(u, area), instructions(area, mine.get("instructions")));
+        int timeout = ctx.intSetting(p + "timeout_seconds");
+        if (timeout < 10) timeout = area.equals("chat") ? 90 : 300;
+        String memory = area.equals("chat") ? setting("chat_memory") : "off";
+        return new Effective(model, temperature, maxTokens, language(u, area), instructions(area, mine.get("instructions")),
+                timeout, ctx.intSetting(p + "mask_pii") == 1, MEMORY.contains(memory) ? memory : "chat");
     }
 
     /** The text added to the model's instructions: company instructions, allowed skills, the person's own. */

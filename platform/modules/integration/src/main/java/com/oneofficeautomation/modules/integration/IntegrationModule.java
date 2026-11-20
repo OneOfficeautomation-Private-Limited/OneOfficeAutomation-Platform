@@ -24,6 +24,13 @@ public final class IntegrationModule implements CommandCenterModule {
         // its permissions (administrators have them all; the built-in roles named here too)
         ctx.permission("apitasks.manage", "bot_creator");
         ApiTasks apiTasks = new ApiTasks(ctx);
+        // S4 (20 Nov 2026), Settings > AI assistants > Outside assistants (MCP): the most runs a person may start from
+        // AI assistants in an hour; 0 (the default, as before) sets no limit
+        ctx.defineSetting("mcp_runs_per_hour", 0, (v, saas) -> {
+            int n;
+            try { n = Integer.parseInt(v.trim()); } catch (NumberFormatException e) { n = -1; }
+            if (n < 0 || n > 10000) throw new com.oneofficeautomation.sdk.OoaException("CR.BAD_INPUT", "Runs per person an hour is from 0 (no limit) to 10000");
+        });
         McpServer mcp = new McpServer(ctx);
         GitSync git = new GitSync(ctx, ctx.dataDir());
         ctx.provide(ApiTasks.class, apiTasks);

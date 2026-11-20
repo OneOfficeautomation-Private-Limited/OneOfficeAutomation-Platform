@@ -156,6 +156,34 @@ class ConversationTest {
         assertTrue(String.valueOf(r.get("reply")).contains("AI model"), String.valueOf(r));
     }
 
+    // ---- memory and how long chats are kept (S4, 20 Nov 2026) ----
+
+    @Test void withMemoryAcrossChatsRememberKeepsANoteInAnyConsoleLanguage() {
+        chat.message(ANNA, null, "remember that my vendor is Acme");
+        assertTrue(host.notes.isEmpty(), "without memory across chats it is not a note");
+        host.memory = "across";
+        Map<String, Object> r = chat.message(ANNA, null, "remember that my vendor is Acme");
+        assertEquals("I'll remember that: my vendor is Acme", r.get("reply"));
+        chat.message(ANNA, null, "merk dir, dass ich in Berlin arbeite", "de");
+        chat.message(ANNA, null, "recuerda que prefiero el resumen");
+        assertEquals(List.of("anna: my vendor is Acme", "anna: ich in Berlin arbeite", "anna: prefiero el resumen"), host.notes);
+        assertNull(Conversation.rememberNote("post today's invoices for acme"));
+        assertEquals("Acmeが取引先", Conversation.rememberNote("Acmeが取引先と覚えておいて"));
+    }
+
+    @Test void aChatIsKeptAsLongAsTheHostSaysAndListedForItsPerson() {
+        String sid = (String) chat.message(ANNA, null, "show payables aging").get("session_id");
+        List<Map<String, Object>> mine = chat.chats("anna");
+        assertEquals(1, mine.size());
+        assertEquals("show payables aging", mine.get(0).get("title"));
+        assertTrue(chat.chats("lead").isEmpty(), "someone else's chat is not listed");
+        Conversation later = new Conversation(host, Clock.fixed(Instant.parse("2026-11-03T15:30:00Z"), ZoneId.of("Asia/Kolkata")));
+        assertTrue(later.chats("anna").isEmpty(), "unused for 10 hours: gone with the default of 8");
+        host.keep = Duration.ofDays(2);
+        assertEquals(1, later.chats("anna").size(), "kept when the host keeps chats for 2 days");
+        assertEquals(sid, later.chats("anna").get(0).get("id"));
+    }
+
     // ---- tools and permissions, and administration tools (S3, 20 Nov 2026) ----
 
     @Test void aGroupSetToNeverIsNotOfferedAndCannotBeReached() {
@@ -243,6 +271,19 @@ class ConversationTest {
         final Map<String, String> settings = new HashMap<>();
         boolean runnerOnline = true;
         int ids;
+        /** S4: memory mode, notes kept, how long chats are kept. */
+        String memory = "chat";
+        final List<String> notes = new ArrayList<>();
+        Duration keep = Duration.ofHours(8);
+        @Override public String memoryMode(Person p) { return memory; }
+        @Override public void remember(Person p, String note) { notes.add(p.username() + ": " + note); }
+        @Override public Duration keepChats() { return keep; }
+        @Override @SuppressWarnings("unchecked")
+        public List<Map<String, Object>> storedChats(String username) {
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (String json : store.values()) { Map<String, Object> m = (Map<String, Object>) JsonLite.parse(json); if (username.equals(m.get("username"))) out.add(m); }
+            return out;
+        }
         /** Tool rules by group (S3); missing ones are always. */
         final Map<String, String> rules = new HashMap<>();
         final List<String> toolsUsed = new ArrayList<>();

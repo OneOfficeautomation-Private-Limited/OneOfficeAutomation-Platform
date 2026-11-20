@@ -170,7 +170,11 @@ const SECTIONS: Section[] = [
   // S2 (20 Nov 2026), layout A from the design plan: one section, a tab per assistant, each with its own Save
   { id: "mcp", title: "AI assistants", mark: "AI", colour: "#6d28d9", about: "Studio's assistant, One Chat and outside assistants (MCP). You set the company rules here; each person adjusts within them under My account › AI assistants.", groups: [], tabs: [
     { id: "studio", title: "Studio assistant", mark: "S", colour: "#2f6fde", note: "Development only. Studio follows these settings while it is signed in to One CommandCenter; on its own it keeps its own Model Connections.",
-      groups: assistantGroups("studio_", "studio_connection", []) },
+      groups: [...assistantGroups("studio_", "studio_connection", []),
+        { title: "Limits and privacy", settings: [
+          { key: "studio_ktokens_per_person", label: "Tokens per person", hint: "0 = only the Model Connection's own budget.", unit: "thousand a month", kind: "number", min: 0, max: 100000 },
+          { key: "studio_timeout_seconds", label: "Wait for an answer", hint: "30 to 600.", unit: "seconds", kind: "number", min: 30, max: 600 },
+          { key: "studio_mask_pii", label: "Mask personal data before the model", hint: "Names, e-mail addresses and numbers in the request are hidden from the model and put back in the answer.", kind: "check" }] }] },
     { id: "chat", title: "One Chat", mark: "C", colour: "#7c3aed", note: "Engine: built in. The OneChat service can be chosen here once it is installed.",
       groups: [...assistantGroups("chat_", "chat_connection", [
         { key: "chat_mode", label: "How chat understands requests", hint: "Rules need no model; the AI model is asked only when the rules are unsure.", kind: "select",
@@ -182,6 +186,13 @@ const SECTIONS: Section[] = [
           { key: "chat_tool_admin_read", label: "Administration: look up", hint: "People, runners, failed runs, schedules and work queues, as the console shows them to the person.", kind: "seg", options: TOOL_RULES },
           { key: "chat_tool_admin_change", label: "Administration: changes", hint: "Disable or enable a person, pause or resume a schedule, stop a run, switch a runner off or on. Always waits for a yes.", kind: "seg", options: TOOL_RULES },
           { key: "chat_tool_admin_high", label: "Administration: high impact", hint: "Delete a person. Someone other than the person who asked approves it in the Task inbox.", kind: "seg", options: TOOL_RULES }] },
+        { title: "Memory, limits and privacy", settings: [
+          { key: "chat_memory", label: "Memory", hint: "What the model is given besides the current message.", kind: "select",
+            options: [["chat", "This chat only"], ["off", "Off: only the current message"], ["across", "Across chats: also what people ask it to remember"]] },
+          { key: "chat_keep_hours", label: "Keep chats for", hint: "Unused chats are deleted after this. 1 to 2160 (90 days).", unit: "hours", kind: "number", min: 1, max: 2160 },
+          { key: "chat_ktokens_per_person", label: "Tokens per person", hint: "0 = only the Model Connection's own budget.", unit: "thousand a month", kind: "number", min: 0, max: 100000 },
+          { key: "chat_timeout_seconds", label: "Wait for an answer", hint: "10 to 300. The chat says so when the model takes longer.", unit: "seconds", kind: "number", min: 10, max: 300 },
+          { key: "chat_mask_pii", label: "Mask personal data before the model", hint: "Names, e-mail addresses and numbers are hidden from the model and put back in the answer.", kind: "check" }] },
         { title: "Runs and approvals", settings: [
           { key: "chat_runner", label: "Runner or runner pool id", hint: "Where chat runs go. Empty: any online runner.", kind: "text" },
           { key: "chat_approvers", label: "Who approves high-impact (R3) requests", hint: "user:name and role:name, separated by commas. Never the person who asked.", kind: "text", placeholder: "role:admin" }] }] },
@@ -195,7 +206,8 @@ const SECTIONS: Section[] = [
           { key: "mcp_documents", label: "Document Automation tools", hint: "Send documents, read results, review: as the person, with their permissions.", kind: "check" }] },
         { title: "Limits", settings: [
           { key: "mcp_runner", label: "Runner or runner pool id", hint: "Empty: any online runner.", kind: "text" },
-          { key: "mcp_timeout_seconds", label: "Wait for a result", hint: "10 to 3600.", unit: "seconds", kind: "number", min: 10, max: 3600 }] }] },
+          { key: "mcp_timeout_seconds", label: "Wait for a result", hint: "10 to 3600.", unit: "seconds", kind: "number", min: 10, max: 3600 },
+          { key: "mcp_runs_per_hour", label: "Runs per person", hint: "0 = no limit.", unit: "an hour", kind: "number", min: 0, max: 10000 }] }] },
   ] },
   { id: "documents", title: "Document Automation", mark: "DA", colour: "#0d9488", about: "AI > Document Automation reads documents with the DocFlow service. One CommandCenter forwards each request with the person's tenant and name; the browser never sees DocFlow's address or token.", groups: [
     { title: "DocFlow service", settings: [

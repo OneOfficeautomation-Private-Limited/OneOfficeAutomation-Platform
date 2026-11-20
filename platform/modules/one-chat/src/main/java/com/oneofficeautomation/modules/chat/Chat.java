@@ -55,6 +55,9 @@ public final class Chat implements ChatPlatform {
         return conversation.message(person(u, ip), sessionId, text, answerIn != null ? answerIn : lang);
     }
 
+    /** The person's chats still kept, newest first (S4: One Chat's Your chats). */
+    public List<Map<String, Object>> chats(User u) { return conversation.chats(u.username()); }
+
     /** The messages of one of the person's chats, oldest first. */
     public List<Map<String, Object>> history(User u, String sessionId) { return conversation.history(u.username(), sessionId); }
 
@@ -158,8 +161,51 @@ public final class Chat implements ChatPlatform {
     @Override
     public Map<String, Object> callModel(Person p, String connection, List<Map<String, Object>> messages, List<Map<String, Object>> tools, String purpose) {
         AssistantSettings.Effective e = settings.effective(user(p), "chat");
-        return model.call(user(p), e.connection().isBlank() ? connection : e.connection(), withInstructions(messages, e.instructions()), tools, purpose,
-                e.temperature(), e.maxTokens(), true, 90, "One Chat");
+        settings.checkAllowance(user(p), "chat");
+        List<Map<String, Object>> sent = remembering(p, e.memory(), messages);
+        return model.call(user(p), e.connection().isBlank() ? connection : e.connection(), withInstructions(sent, e.instructions()), tools, purpose,
+                e.temperature(), e.maxTokens(), e.maskPii(), e.timeoutSeconds(), "One Chat");
+    }
+
+    /**
+     * The messages as the memory setting allows (S4): off keeps only the instructions and the current message; chat
+     * (the default) keeps this chat; across also gives the model the notes the person asked it to remember.
+     */
+    List<Map<String, Object>> remembering(Person p, String memory, List<Map<String, Object>> messages) {
+        if (memory.equals("off") && messages.size() > 2) {
+            List<Map<String, Object>> out = new ArrayList<>();
+            if ("system".equals(messages.get(0).get("role"))) out.add(messages.get(0));
+            out.add(messages.get(messages.size() - 1));
+            return out;
+        }
+        if (memory.equals("across")) {
+            List<Map<String, Object>> notes = settings.notes(p.username());
+            if (!notes.isEmpty()) {
+                StringBuilder b = new StringBuilder("What the person asked you to remember (use it when it helps):");
+                for (Map<String, Object> n : notes) b.append("\n- ").append(n.get("note"));
+                return withInstructions(messages, b.toString());
+            }
+        }
+        return messages;
+    }
+
+    // ---- S4: memory, how long chats are kept, and the person's chats ----
+
+    @Override public String memoryMode(Person p) { return settings.effective(user(p), "chat").memory(); }
+
+    @Override public void remember(Person p, String note) {
+        try { settings.remember(user(p), note, p.ip()); }
+        catch (OoaException e) { throw new Refused("refused", e.getMessage() + (e.suggestedFix() == null ? "" : " " + e.suggestedFix())); }
+    }
+
+    @Override public java.time.Duration keepChats() { return settings.keepChats(); }
+
+    @Override @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> storedChats(String username) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : ctx.db().query("SELECT data FROM chat_sessions WHERE username = ? ORDER BY updated DESC LIMIT ?", username, 20))
+            try { out.add((Map<String, Object>) JsonLite.parse((String) r.get("data"))); } catch (RuntimeException ignored) { /* an unreadable chat: left out */ }
+        return out;
     }
 
     /** The messages with the instructions added to the first system message (or a system message put first). */

@@ -207,6 +207,56 @@ class AssistantSettingsTest {
         a.savePrefs(jane, "chat", Map.of("ask_first", false), null);
     }
 
+    @Test @SuppressWarnings("unchecked")
+    void memoryLimitsAndPrivacyAreSettingsWithTodaysDefaults() {
+        for (Map<String, Object> bad : List.of(Map.<String, Object>of("chat_memory", "forever"), Map.<String, Object>of("chat_keep_hours", 0),
+                Map.<String, Object>of("chat_timeout_seconds", 5), Map.<String, Object>of("studio_timeout_seconds", 900), Map.<String, Object>of("chat_ktokens_per_person", 200000)))
+            assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, bad, null), String.valueOf(bad));
+        AssistantSettings.Effective c = chat.settings().effective(jane, "chat"), s = chat.settings().effective(jane, "studio");
+        assertEquals("chat", c.memory());
+        assertEquals(90, c.timeoutSeconds());
+        assertTrue(c.maskPii());
+        assertEquals(300, s.timeoutSeconds());
+        assertFalse(s.maskPii());
+        assertEquals(java.time.Duration.ofHours(8), chat.settings().keepChats());
+
+        // memory off: the model gets only the instructions and the current message
+        int before = requests.size();
+        String sid = (String) chat.message(admin, null, "can you post some invoices", null).get("session_id");
+        cr.platform.updateSettings(admin, Map.of("chat_memory", "off"), null);
+        chat.message(admin, sid, "for acme please", null);
+        List<Map<String, Object>> sent = (List<Map<String, Object>>) requests.get(requests.size() - 1).get("messages");
+        assertEquals(2, sent.size(), "off: " + sent);
+        assertEquals("for acme please", sent.get(1).get("content"));
+        // across chats: the person's notes go with the instructions; they see and forget them
+        cr.platform.updateSettings(admin, Map.of("chat_memory", "across"), null);
+        assertEquals("answer", chat.message(admin, null, "remember that my vendor is Acme", null).get("kind"));
+        chat.message(admin, null, "can you post some invoices", null);
+        String system = String.valueOf(((List<Map<String, Object>>) requests.get(requests.size() - 1).get("messages")).get(0).get("content"));
+        assertTrue(system.contains("- my vendor is Acme"), system);
+        Map<String, Object> memory = (Map<String, Object>) chat.settings().mine(admin).get("memory");
+        assertEquals("across", memory.get("mode"));
+        List<Map<String, Object>> notes = (List<Map<String, Object>>) memory.get("notes");
+        assertEquals(1, notes.size());
+        chat.settings().forget(admin, String.valueOf(notes.get(0).get("id")), null);
+        assertTrue(chat.settings().notes("admin").isEmpty());
+        assertTrue(chat.chats(admin).size() >= 3, "the person's kept chats are listed");
+        cr.platform.updateSettings(admin, Map.of("chat_memory", "chat"), null);
+        assertTrue(requests.size() > before);
+    }
+
+    @Test void aPersonOverTheirMonthlyAllowanceIsToldSoInsteadOfCallingTheModel() {
+        db.update("INSERT INTO ai_calls (id, bot_path, requested_by, ts, purpose, provider, model, input_tokens, output_tokens) VALUES (?,?,?,?,?,?,?,?,?)",
+                "call_test_limit", "One Chat", "admin", Instant.now(), "chat", "openai_compatible", "company-model", 900, 300);
+        cr.platform.updateSettings(admin, Map.of("chat_ktokens_per_person", 1), null);
+        int before = requests.size();
+        Map<String, Object> r = chat.message(admin, null, "can you post some invoices", null);
+        assertTrue(String.valueOf(r.get("reply")).contains("AI allowance for One Chat this month"), String.valueOf(r));
+        assertEquals(before, requests.size(), "the model was not called");
+        cr.platform.updateSettings(admin, Map.of("chat_ktokens_per_person", 0), null);
+        db.update("DELETE FROM ai_calls WHERE id = ?", "call_test_limit");
+    }
+
     @Test void theChoicesOfPeopleWhoAreDeletedGo() {
         cr.platform.updateSettings(admin, Map.of("chat_models", "other"), null);
         ControlRoom.User sam = RepositoryLifecycleTest.person(cr, admin, "sam", "bot_runner");

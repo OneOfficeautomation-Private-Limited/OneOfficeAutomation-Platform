@@ -1,7 +1,7 @@
 import "./consoleApi";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CrApi } from "../../api/cr";
-import type { ChatMessage } from "./consoleApi";
+import type { ChatMessage, ChatSummary } from "./consoleApi";
 import { Button, HelpButton, TextInput, type HelpTopic } from "../../components";
 import { PageIntro } from "../../shell/PageIntro";
 
@@ -105,6 +105,16 @@ export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRu
     return () => clearInterval(id);
   }, [api, session, busy, messages, pollMs]);
 
+  // S4: the person's kept chats, to reopen one (kept as long as Settings > AI assistants > One Chat > Keep chats for
+  // says); read only when the person opens the list
+  const [past, setPast] = useState<ChatSummary[] | null>(null);
+  const togglePast = () => past ? setPast(null) : Promise.resolve().then(() => api.chats()).then(setPast, () => setPast([]));
+  const reopen = async (id: string) => {
+    if (busy) return;
+    setPast(null);
+    try { const all = await api.chatHistory(id); setSession(id); setMessages(all); }
+    catch (e) { setMessages((m) => [...m, { role: "assistant", text: message(e), kind: "error" }]); }
+  };
   const last = messages[messages.length - 1];
   const submit = (e: React.FormEvent) => { e.preventDefault(); const t = text; setText(""); send(t); };
   return (
@@ -113,8 +123,14 @@ export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRu
         <h1 id="cc-chat-title">One Chat</h1>
         <HelpButton topic={HELP} /><PageIntro k="page:chat" />
         <span className="ov-fill" />
+        <Button aria-expanded={!!past} onClick={togglePast} disabled={busy}>Your chats</Button>
         <Button onClick={() => { resetChat(); setSession(null); setMessages([]); setText(""); input.current?.focus(); }} disabled={busy}>New chat</Button>
       </header>
+      {past && <nav className="cc-chat-history" aria-label="Your chats">
+        {past.length === 0 ? <p className="st-muted">No kept chats. Chats are kept as long as your administrator set.</p>
+          : <ul>{past.map((c) => <li key={c.id}><button type="button" className="cc-link" onClick={() => reopen(c.id)} aria-current={c.id === session ? "true" : undefined}>
+              {c.title || "Chat"}</button><span className="st-muted">{" \u00b7 " + new Date(c.last_used).toLocaleString() + " \u00b7 " + c.messages + " messages"}</span></li>)}</ul>}
+      </nav>}
       <p className="cc-chat-intro">Run agents and check your runs in plain words. Runs start as you, with your permissions, and show in Agent Runs and the Audit Trail.</p>
       <div className="cc-chat" >
         <div className="cc-chat-log" role="log" aria-live="polite" aria-label="Conversation" ref={log}>
