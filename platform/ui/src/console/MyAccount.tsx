@@ -4,6 +4,7 @@ import { Button, Dialog, Field, Select, Tabs, TabPanel, TextInput } from "../com
 import { HelpLinks } from "../shell/HelpLinks";
 import { when } from "./ListParts";
 import { RunnerDownload } from "./Devices";
+import { modulePart } from "../modules/pages";
 
 /**
  * My account (13 Nov 2026 round 3, item 9, stage A), as AA's user menu: My profile (who you are here, your roles,
@@ -18,9 +19,12 @@ import { RunnerDownload } from "./Devices";
 const roleWords = (r: string) => r.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 const statusWords: Record<string, string> = { online: "Online", offline: "Offline", disabled: "Switched off", "out of service": "Out of service" };
 
+/** My account > AI assistants (S2, 20 Nov 2026): the One Chat module's part, there only with that module. */
+const AssistantPrefs = modulePart<{ api: CrApi; onNotice: (t: string) => void; onError: (e: unknown) => void }>("assistant-prefs");
+
 export function MyAccountDialog({ api, onClose, onApiKeys, onPassword, onTwoStep, onPhone, startTab = "profile" }:
-  { api: CrApi; onClose: () => void; onApiKeys: () => void; onPassword: () => void; onTwoStep: () => void; onPhone: () => void; startTab?: "profile" | "devices" }) {
-  const [tab, setTab] = useState(startTab);
+  { api: CrApi; onClose: () => void; onApiKeys: () => void; onPassword: () => void; onTwoStep: () => void; onPhone: () => void; startTab?: "profile" | "devices" | "assistants" }) {
+  const [tab, setTab] = useState<"profile" | "devices" | "assistants">(startTab);
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [sessions, setSessions] = useState<MySession[] | null>(null);
   const [devices, setDevices] = useState<MyDevices | null>(null);
@@ -54,8 +58,8 @@ export function MyAccountDialog({ api, onClose, onApiKeys, onPassword, onTwoStep
       footer={<Button kind="primary" onClick={onClose}>Close</Button>}>
       {error && <p className="st-alert" role="alert">{error}</p>}
       {notice && <p className="cc-ok" role="status">{notice}</p>}
-      <Tabs label="My account" value={tab} onChange={(v) => setTab(v as "profile" | "devices")}
-        tabs={[{ value: "profile", label: "My profile" }, { value: "devices", label: "My devices" }]}>
+      <Tabs label="My account" value={tab} onChange={(v) => setTab(v as "profile" | "devices" | "assistants")}
+        tabs={[{ value: "profile", label: "My profile" }, { value: "devices", label: "My devices" }, ...(AssistantPrefs ? [{ value: "assistants", label: "AI assistants" }] : [])]}>
         <TabPanel value="profile">
           {!profile ? <p className="st-muted" role="status">Loading…</p> : <>
             <dl className="cc-dl cc-my-dl">
@@ -143,6 +147,7 @@ export function MyAccountDialog({ api, onClose, onApiKeys, onPassword, onTwoStep
             </table>}
           </>}
         </TabPanel>
+        {AssistantPrefs && <TabPanel value="assistants"><AssistantPrefs api={api} onNotice={setNotice} onError={fail} /></TabPanel>}
       </Tabs>
     </Dialog>
   );

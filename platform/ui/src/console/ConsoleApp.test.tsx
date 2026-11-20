@@ -351,7 +351,19 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (/^tasks\/k\d\/(claim|release|complete)$/.test(route)) return ok({ ok: true });
     if (route === "settings" && init.method === "PUT") return ok({ ok: true });
     if (route === "settings") return ok({ ldap_urls: "ldaps://dc1.example.com:636", announcement: "", session_hours: 8, mfa_required: 0, runner_auto_update: 0, switched_off_roles: "", syslog_target: "", mail_smtp_port: 587, public_url: "",
-      run_retention_days: 90, run_log_retention_days: 30 });
+      run_retention_days: 90, run_log_retention_days: 30,
+      // AI assistants (S2): the MCP settings, and One Chat's module settings for One Chat and Studio's assistant
+      mcp_agents: "", mcp_runner: "", mcp_timeout_seconds: 120, mcp_documents: 1, mcp_oauth_audience: "", mcp_oauth_scope: "",
+      chat_mode: "deterministic", chat_mode_by_role: "", chat_connection: "", chat_runner: "", chat_approvers: "role:admin", chat_models: "", chat_temperature: "0.2",
+      chat_max_tokens: 2048, chat_language: "", chat_instructions: "", chat_skills: "", chat_own_instructions: 1, studio_connection: "", studio_models: "",
+      studio_temperature: "0", studio_max_tokens: 4000, studio_language: "", studio_instructions: "", studio_skills: "", studio_own_instructions: 1 });
+    if (route === "assistants/options") return ok({ connections: [{ name: "company", provider: "anthropic", model: "claude" }, { name: "llama", provider: "openai_compatible", model: "llama3.1" }],
+      skills: [{ name: "tone", description: "How to word answers" }], languages: { en: "English", de: "German" } });
+    if (route.startsWith("assistants/me")) {
+      const area = (m: string) => ({ mine: { model: m, language: "", instructions: init.method === "PUT" ? body.instructions : "" }, default_model: "company", models: ["llama"],
+        language_fixed: "", own_instructions: true, company_instructions: "Always name the run id." });
+      return ok({ assistants: { chat: area(init.method === "PUT" ? body.model : ""), studio: area("") }, languages: { en: "English", de: "German" } });
+    }
     if (route === "settings/mail-test") return ok({ to: body.to });
     if (route === "settings/scim-tokens" && init.method === "POST") return ok({ id: "scim2", name: body.name, token: "scim_secret123" });
     if (route === "settings/scim-tokens") return ok({ tokens: [{ id: "scim1", name: "Entra ID", created: "2026-10-30T08:00:00Z", created_by: "admin", last_used: null }] });
@@ -1857,6 +1869,47 @@ describe("rebuilt One CommandCenter console", () => {
     expect(calls.some((c) => c.route === "runs/purge")).toBe(false);
     await act(async () => { fireEvent.click(within(ask).getByRole("button", { name: "Remove" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "runs/purge", body: { run_days: 90, log_days: 30 } }));
+  });
+
+  it("shows AI assistants in Settings as three tabs with their own Save, and each person's choices in My account (S2, layout A)", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    await go("Settings");
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Settings sections" })).getByRole("button", { name: "AI assistants" }));
+    const sec = await screen.findByRole("region", { name: "AI assistants" });
+    const tabs = within(sec).getByRole("tablist", { name: "AI assistants" });
+    expect(within(tabs).getAllByRole("tab").map((t) => t.textContent)).toEqual(["SStudio assistant", "COne Chat", "MOutside assistants (MCP)"]);
+    // One Chat: its settings have a screen at last; the models and skills to tick come from the server
+    fireEvent.mouseDown(within(tabs).getByRole("tab", { name: /One Chat/ }));
+    fireEvent.change(await within(sec).findByLabelText("How chat understands requests"), { target: { value: "hybrid" } });
+    const models = await within(sec).findByRole("group", { name: "Models people may choose" });
+    fireEvent.click(within(models).getByRole("checkbox", { name: /llama/ }));
+    fireEvent.change(within(sec).getByLabelText("Company instructions"), { target: { value: "Always name the run id." } });
+    fireEvent.click(within(within(sec).getByRole("group", { name: "Prompt Skills it may use" })).getByRole("checkbox", { name: /tone/ }));
+    expect(within(tabs).getByRole("tab", { name: /One Chat/ }).textContent).toContain("4");   // changed, not saved yet
+    await act(async () => { fireEvent.click(within(sec).getByRole("button", { name: "Save One Chat" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings",
+      body: { chat_mode: "hybrid", chat_models: "llama", chat_instructions: "Always name the run id.", chat_skills: "tone" } }));
+    // Studio assistant: its own Save sends only its own changes
+    fireEvent.mouseDown(within(tabs).getByRole("tab", { name: /Studio assistant/ }));
+    expect(await within(sec).findByText(/Development only/)).toBeTruthy();
+    fireEvent.change(within(sec).getByLabelText("Creativity"), { target: { value: "0.3" } });
+    fireEvent.change(within(sec).getByLabelText("Model"), { target: { value: "company" } });
+    await act(async () => { fireEvent.click(within(sec).getByRole("button", { name: "Save Studio assistant" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings", body: { studio_connection: "company", studio_temperature: 0.3 } }));
+    fireEvent.mouseDown(within(tabs).getByRole("tab", { name: /Outside assistants/ }));
+    expect(await within(sec).findByLabelText("Agents offered as tools")).toBeTruthy();
+    // My account > AI assistants: the person's own model and instructions, under the company's
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Account: / }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^My account/ }));
+    const dlg = await screen.findByRole("dialog", { name: "My account" });
+    fireEvent.mouseDown(within(dlg).getByRole("tab", { name: "AI assistants" }));
+    expect(await within(dlg).findByText("Always name the run id.")).toBeTruthy();
+    fireEvent.change(within(dlg).getByLabelText("My model"), { target: { value: "llama" } });
+    fireEvent.change(within(dlg).getByLabelText("My own instructions"), { target: { value: "Amounts in euros." } });
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Save" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "assistants/me/chat", body: { model: "llama", language: "", instructions: "Amounts in euros." } }));
+    expect(await within(dlg).findByText("Your choices for One Chat are saved.")).toBeTruthy();
   });
 
   it("shows the Task inbox as AA's task list: one line per task with where it comes from and its state, take it from the row, overdue filter, approve with a comment, a form with a required field", async () => {

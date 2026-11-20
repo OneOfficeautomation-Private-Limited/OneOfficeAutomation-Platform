@@ -30,6 +30,7 @@ public final class Chat implements ChatPlatform {
     private final ModuleContext ctx;
     private final ChatModel model;
     private final Conversation conversation;
+    private final AssistantSettings settings;
 
     public Chat(ModuleContext ctx, Path dataDir) { this(ctx, dataDir, Clock.systemDefaultZone()); }
 
@@ -37,6 +38,7 @@ public final class Chat implements ChatPlatform {
         this.ctx = ctx;
         this.model = new ChatModel(ctx, dataDir);
         this.conversation = new Conversation(this, clock);
+        this.settings = new AssistantSettings(ctx);
     }
 
     // ---- what the API, the Task inbox and the console call ----
@@ -44,9 +46,13 @@ public final class Chat implements ChatPlatform {
     /** Handles one message from a signed-in person; see {@link Conversation#message}. */
     public Map<String, Object> message(User u, String sessionId, String text, String ip) { return message(u, sessionId, text, null, ip); }
 
-    /** As above, with the person's console language (en, de, fr, es, ja) for the replies; null keeps the chat's. */
+    /**
+     * As above, with the person's console language (en, de, fr, es, ja) for the replies; null keeps the chat's. The
+     * answer language set in Settings > AI assistants (or the person's own, when the company leaves it open) wins.
+     */
     public Map<String, Object> message(User u, String sessionId, String text, String lang, String ip) {
-        return conversation.message(person(u, ip), sessionId, text, lang);
+        String answerIn = settings.language(u, "chat");
+        return conversation.message(person(u, ip), sessionId, text, answerIn != null ? answerIn : lang);
     }
 
     /** The messages of one of the person's chats, oldest first. */
@@ -145,10 +151,31 @@ public final class Chat implements ChatPlatform {
 
     @Override public String setting(String name) { Object v = ctx.setting(name); return v == null ? "" : String.valueOf(v); }
 
+    /**
+     * A model call with the person's AI assistants settings for One Chat: their model (or the company's), creativity,
+     * the longest answer, and the company's, the skills' and their own instructions added to the system message.
+     */
     @Override
     public Map<String, Object> callModel(Person p, String connection, List<Map<String, Object>> messages, List<Map<String, Object>> tools, String purpose) {
-        return model.call(user(p), connection, messages, tools, purpose);
+        AssistantSettings.Effective e = settings.effective(user(p), "chat");
+        return model.call(user(p), e.connection().isBlank() ? connection : e.connection(), withInstructions(messages, e.instructions()), tools, purpose,
+                e.temperature(), e.maxTokens(), true, 90, "One Chat");
     }
+
+    /** The messages with the instructions added to the first system message (or a system message put first). */
+    static List<Map<String, Object>> withInstructions(List<Map<String, Object>> messages, String instructions) {
+        if (instructions == null || instructions.isBlank()) return messages;
+        List<Map<String, Object>> out = new ArrayList<>(messages);
+        if (!out.isEmpty() && "system".equals(out.get(0).get("role"))) {
+            Map<String, Object> first = new LinkedHashMap<>(out.get(0));
+            first.put("content", first.get("content") + "\n\n" + instructions);
+            out.set(0, first);
+        } else out.add(0, Map.of("role", "system", "content", instructions));
+        return out;
+    }
+
+    /** The AI assistants settings (Settings > AI assistants, My account > AI assistants). */
+    public AssistantSettings settings() { return settings; }
 
     @Override
     public void audit(Person p, String action, String objectType, String objectId, Map<String, Object> details) {

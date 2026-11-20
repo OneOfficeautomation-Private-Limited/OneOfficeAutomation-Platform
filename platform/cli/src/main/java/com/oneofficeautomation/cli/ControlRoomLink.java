@@ -49,9 +49,13 @@ final class ControlRoomLink {
     }
 
     @SuppressWarnings("unchecked")
-    Map<String, Object> call(String method, String path, Object body, boolean auth) {
+    Map<String, Object> call(String method, String path, Object body, boolean auth) { return call(method, path, body, auth, Duration.ofSeconds(60)); }
+
+    /** As above, waiting up to the given time (Studio's assistant waits for a model's answer). */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> call(String method, String path, Object body, boolean auth, Duration timeout) {
         if (auth && token == null) throw new OoaException("STUDIO.CR_NOT_CONNECTED", "Not connected to One CommandCenter", "Connect from the Explorer's One CommandCenter section.");
-        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url + "/api/" + path)).timeout(Duration.ofSeconds(60))
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url + "/api/" + path)).timeout(timeout)
                 .method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(JsonLite.write(body)))
                 .header("Content-Type", "application/json");
         if (auth) b.header("Authorization", "Bearer " + token);

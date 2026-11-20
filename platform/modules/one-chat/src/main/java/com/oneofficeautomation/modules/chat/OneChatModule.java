@@ -14,13 +14,24 @@ import java.util.Map;
  * run agents and check their runs in plain words; R3 agents wait for someone else's approval in the Task inbox (task
  * stage chat_approval). The chat engine is the conversation library. Its tables chat_sessions and chat_runs are in the
  * kernel's frozen baseline (version 45).
+ *
+ * <p>Since 1.1.0 (S2, 20 Nov 2026) it also keeps the AI assistants' settings (AssistantSettings) for One Chat and
+ * Studio's assistant, each person's own choices (/api/assistants/me), and answers Studio's assistant while Studio is
+ * signed in (/api/assistants/studio/complete).
  */
 public final class OneChatModule implements CommandCenterModule {
-    public static final String VERSION = "1.0.0";
+    public static final String VERSION = "1.1.0";
 
     public String id() { return "one-chat"; }
     public String name() { return "One Chat"; }
     public String version() { return VERSION; }
+
+    /** The module's own tables. Version 1 (S2, 20 Nov 2026): assistant_prefs, each person's own choices per assistant. */
+    public java.util.List<java.util.List<String>> schema() {
+        return java.util.List.of(java.util.List.of(
+                "CREATE TABLE assistant_prefs (username VARCHAR(80) NOT NULL, assistant VARCHAR(20) NOT NULL, model VARCHAR(60), language VARCHAR(10), "
+                        + "instructions VARCHAR(2000), updated TIMESTAMP NOT NULL, PRIMARY KEY (username, assistant))"));
+    }
 
     public void start(ModuleContext ctx) {
         ctx.defineSetting("chat_runner", "", null);
@@ -55,6 +66,23 @@ public final class OneChatModule implements CommandCenterModule {
                 ctx.sendJson(ex, 200, Map.of("session_id", route, "messages", chat.history(u, route)));
             } else throw ModuleContext.notFound("The route /api/chat/" + route);
         });
+
+        // the AI assistants' settings (S2): Settings > AI assistants, My account > AI assistants, Studio's assistant
+        AssistantSettings.define(ctx);
+        StudioAssistant studio = new StudioAssistant(chat.settings(), new ChatModel(ctx, ctx.dataDir()));
+        // GET me: the person's own choices and what is allowed; PUT me/{chat|studio}: save them; GET options: what an
+        // administrator may choose from; POST studio/complete: Studio's assistant while Studio is signed in
+        ctx.route("assistants", (ex, u, m, route, ip) -> {
+            if (m.equals("GET") && route.equals("me")) ctx.sendJson(ex, 200, chat.settings().mine(u));
+            else if (m.equals("PUT") && route.startsWith("me/")) ctx.sendJson(ex, 200, chat.settings().savePrefs(u, route.substring(3), ctx.jsonBody(ex), ip));
+            else if (m.equals("GET") && route.equals("options")) {
+                ctx.require(u, "settings.manage", "see the AI assistants' choices");
+                ctx.sendJson(ex, 200, chat.settings().options());
+            } else if (m.equals("POST") && route.equals("studio/complete")) ctx.sendJson(ex, 200, studio.complete(ctx, u, ctx.jsonBody(ex)));
+            else throw ModuleContext.notFound("The route /api/assistants/" + route);
+        });
+        // people deleted since: their own choices go too
+        ctx.every(Duration.ofMinutes(5), Duration.ofHours(1), chat.settings()::forgetDeletedPeople);
         // a run the chat started finished: tell the chat at once; the clock catches anything missed
         ctx.onRunEnded((run, status, result) -> { if ("chat".equals(run.get("source"))) chat.deliverRunUpdates(); });
         ctx.every(Duration.ofSeconds(5), Duration.ofSeconds(15), chat::deliverRunUpdates);

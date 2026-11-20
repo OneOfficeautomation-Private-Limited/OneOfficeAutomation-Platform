@@ -105,17 +105,50 @@ Good practice:
 
 ## 6. For administrators: set One Chat up
 
-Open **Settings**, section **One Chat**:
+Open **Settings › AI assistants**, tab **One Chat**. The tab has its own **Save One Chat**; the other tabs are
+**Studio assistant** (see [AI in agents](13-ai-in-agents.md#9-the-studio-assistant)) and **Outside assistants (MCP)**.
+
+**Model and behaviour**
 
 | Setting | What it does |
 | --- | --- |
 | **How chat understands requests** | **Rules only (no AI model)**, **Rules first, the AI model when unsure** or **AI model**. See [section 7](#7-how-chat-understands-requests-the-three-modes) |
-| **One Model Connection for chat** | The model connection the AI modes use. Empty = the person's first allowed connection. Its masking and budget apply |
+| **A different mode for some roles** | One `role=mode` per line, for example `bot_runner=deterministic` and `admin=hybrid`. A person's main role decides; anyone not listed gets the mode above. Unknown roles and modes are refused when you save |
+| **Model** | The One Model Connection the AI modes use. Empty = the person's first allowed connection. Its masking and budget apply |
+| **Models people may choose** | Other connections people may pick for themselves (below). None ticked: everyone uses the model above |
+| **Creativity** | 0 to 1; 0.2 by default. Low values suit business work |
+| **Longest answer** | 100 to 8,000 tokens; 2,048 by default |
+| **Answer language** | Empty: the person's console language (or the one they chose). A language here is used for everyone |
+
+**Instructions and skills**
+
+| Setting | What it does |
+| --- | --- |
+| **Company instructions** | Rules the model gets before every request in the AI modes, like a project's instructions (up to 2,000 characters) |
+| **Prompt Skills it may use** | Shared Prompt Skills whose text the model also gets |
+| **People may add their own instructions** | On: people add theirs in My account; they come after the company's and never replace them |
+
+**Runs and approvals**
+
+| Setting | What it does |
+| --- | --- |
 | **Runner or runner pool id** | Where chat runs go. Empty = any online runner |
 | **Who approves high-impact (R3) requests** | `user:name` and `role:name` entries. Default `role:admin`. Never the person who asked |
-| **A different mode for some roles** | One `role=mode` per line, for example `bot_runner=deterministic` and `admin=hybrid`. A person's main role decides; anyone not listed gets the mode above. Unknown roles and modes are refused when you save |
 
 People need permission to view runs to see **One Chat**, and permission to run an agent to start it from chat.
+
+### Each person's own choices
+
+In **My account › AI assistants** (the account icon, then **My account**), each person chooses, for One Chat and for
+Studio's assistant, within what the administrator allows:
+
+- **My model**: one of the **Models people may choose**, or the company's default;
+- **Answer language**: unless the administrator has set one;
+- **My own instructions**: shown under the company instructions, and added after them, while the administrator allows
+  them.
+
+Saving is recorded in the Audit Trail (that the instructions changed, not their text). When someone's account is
+deleted, their choices go too.
 
 ## 7. How chat understands requests: the three modes
 

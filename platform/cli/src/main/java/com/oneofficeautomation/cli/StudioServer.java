@@ -906,17 +906,8 @@ public final class StudioServer {
                 + "Dictionary, Table, Record, File, Credential, Any, Time, TimeSpan, Image, Binary. Secrets are Credential inputs. Use only actions from this catalog "
                 + "(* = required input):\n" + catalog;
         String user = "Existing variables: " + json.write(flow.getOrDefault("variables", List.of()), false) + "\nRequest: " + prompt;
-        Map<String, Object> run = new LinkedHashMap<>();
-        run.put("kind", "TaskBot"); run.put("id", "studio_assistant"); run.put("name", "OneAgentStudio assistant");
-        // The texts go in as inputs, so their $name and ${...} examples are never read as variable references.
-        run.put("variables", List.of(Map.of("name", "answer", "type", "String", "direction", "output"),
-                Map.of("name", "request", "type", "String", "direction", "input"), Map.of("name", "instructions", "type", "String", "direction", "input")));
-        run.put("steps", List.of(Map.of("id", "ask", "action", "ooa.genai/prompt", "out", Map.of("text", "answer"),
-                "args", Map.of("prompt", "$request", "system", "$instructions", "connection", connection, "temperature", java.math.BigDecimal.ZERO, "max_tokens", java.math.BigDecimal.valueOf(4000), "mask_pii", false))));
-        RunResult r = runner(new EventSink.ListSink()).run(run, Map.of("request", user, "instructions", system), new Runner.RunOptions().maxRunSeconds(300));
-        if (!r.ok()) throw new OoaException(String.valueOf(r.error().getOrDefault("code", "ASSISTANT.FAILED")), "The assistant could not answer: " + r.error().get("message"),
-                (String) r.error().get("suggestedFix"));
-        String text = String.valueOf(r.outputs().get("answer"));
+        String text = viaCommandCenter(system, user);
+        if (text == null) text = locally(system, user, connection);
         int a = text.indexOf('{'), b = text.lastIndexOf('}');
         if (a < 0 || b <= a) throw new OoaException("ASSISTANT.NOT_JSON", "The model did not answer with steps", "Rephrase the request and try again.");
         Map<String, Object> answer;
@@ -940,6 +931,37 @@ public final class StudioServer {
         out.put("notes", answer.getOrDefault("notes", ""));
         out.put("problems", validator().validate(check));
         return out;
+    }
+
+    /**
+     * While Studio is signed in to One CommandCenter (S2, 20 Nov 2026), the company's Studio assistant settings answer:
+     * its model, creativity, length, instructions and skills, with the person's own choices (Settings > AI assistants >
+     * Studio assistant). Null when Studio is on its own, or when that One CommandCenter has no such settings yet.
+     */
+    private String viaCommandCenter(String system, String user) {
+        if (cr == null || !cr.connected()) return null;
+        try {
+            return String.valueOf(cr.call("POST", "assistants/studio/complete", Map.of("system", system, "prompt", user), true, java.time.Duration.ofSeconds(330)).getOrDefault("text", ""));
+        } catch (OoaException e) {
+            // an older One CommandCenter, without the AI assistants settings: Studio's own connections answer, as before
+            if (e.code().endsWith("NOT_FOUND") || e.code().endsWith("HTTP_404")) return null;
+            throw e;
+        }
+    }
+
+    /** Studio on its own: one Prompt step on this computer with Studio's own Model Connection. */
+    private String locally(String system, String user, String connection) {
+        Map<String, Object> run = new LinkedHashMap<>();
+        run.put("kind", "TaskBot"); run.put("id", "studio_assistant"); run.put("name", "OneAgentStudio assistant");
+        // The texts go in as inputs, so their $name and ${...} examples are never read as variable references.
+        run.put("variables", List.of(Map.of("name", "answer", "type", "String", "direction", "output"),
+                Map.of("name", "request", "type", "String", "direction", "input"), Map.of("name", "instructions", "type", "String", "direction", "input")));
+        run.put("steps", List.of(Map.of("id", "ask", "action", "ooa.genai/prompt", "out", Map.of("text", "answer"),
+                "args", Map.of("prompt", "$request", "system", "$instructions", "connection", connection, "temperature", java.math.BigDecimal.ZERO, "max_tokens", java.math.BigDecimal.valueOf(4000), "mask_pii", false))));
+        RunResult r = runner(new EventSink.ListSink()).run(run, Map.of("request", user, "instructions", system), new Runner.RunOptions().maxRunSeconds(300));
+        if (!r.ok()) throw new OoaException(String.valueOf(r.error().getOrDefault("code", "ASSISTANT.FAILED")), "The assistant could not answer: " + r.error().get("message"),
+                (String) r.error().get("suggestedFix"));
+        return String.valueOf(r.outputs().get("answer"));
     }
 
     /** What a bot uses (child bots, agent tools, scripts, AI Skills, files) and which bots use it. */

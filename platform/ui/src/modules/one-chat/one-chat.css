@@ -17,3 +17,8 @@
 }
 .cc-chat-msg.is-error { border-left: 4px solid var(--ui-error-text); color: var(--ui-error-text); font-weight: 600; }
 .cc-chat-form .ui-input { flex: 1; }
+
+/* My account > AI assistants (S2, 20 Nov 2026) */
+.cc-ap { display: flex; flex-direction: column; gap: 10px; }
+.cc-ap .st-seg { align-self: flex-start; }
+.cc-ap-company { margin: 0; padding: 6px 10px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-bg); color: var(--ui-text); font-size: 12.5px; white-space: pre-wrap; width: 100%; }
