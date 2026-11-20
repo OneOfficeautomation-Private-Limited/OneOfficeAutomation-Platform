@@ -66,6 +66,20 @@ public interface ChatPlatform {
      */
     default Map<String, Object> runTool(Person p, String path, Map<String, Object> inputs) { throw new Refused("refused", "This host has no administration tools."); }
 
+    // ---- memory and how long chats are kept (S4, 20 Nov 2026) ----
+
+    /** One Chat's memory for this person: off, chat (this chat; the default) or across (also the notes they asked it to remember). */
+    default String memoryMode(Person p) { return "chat"; }
+
+    /** Keeps a note the person asked One Chat to remember; throws {@link Refused} when it cannot. */
+    default void remember(Person p, String note) { throw new Refused("refused", "This host keeps no notes."); }
+
+    /** How long a chat that is not used is kept. Default: 8 hours, as before. */
+    default java.time.Duration keepChats() { return java.time.Duration.ofHours(8); }
+
+    /** The person's stored chats, newest first, as {@link #saveSession} stored them (One Chat's Your chats). Default: none. */
+    default List<Map<String, Object>> storedChats(String username) { return List.of(); }
+
     /** One model call through the host's AI gateway: {text, tool_calls: [{id, name, args}]}. */
     Map<String, Object> callModel(Person p, String connection, List<Map<String, Object>> messages, List<Map<String, Object>> tools, String purpose);
 

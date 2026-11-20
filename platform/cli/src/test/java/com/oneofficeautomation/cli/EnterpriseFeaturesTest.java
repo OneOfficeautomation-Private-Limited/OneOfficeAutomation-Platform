@@ -160,6 +160,12 @@ class EnterpriseFeaturesTest {
             assertEquals(false, called.get("isError"), String.valueOf(called));
             assertTrue(String.valueOf(called.get("content")).contains("7"), String.valueOf(called));
             assertTrue(call(base, "GET", "/api/runs?filter=history&limit=50", null, admin).body().contains("\"source\":\"mcp\""), "MCP calls are normal runs with source mcp");
+            // S4: at most this many runs a person may start from AI assistants in an hour
+            call(base, "PUT", "/api/settings", Map.of("mcp_runs_per_hour", 1), admin);
+            String limited = call(base, "POST", "/api/mcp", Map.of("jsonrpc", "2.0", "id", 6, "method", "tools/call",
+                    "params", Map.of("name", "Finance_Echo_amount", "arguments", Map.of("amount", 8))), apiKey).body();
+            assertTrue(limited.contains("runs from AI assistants in the last hour"), limited);
+            call(base, "PUT", "/api/settings", Map.of("mcp_runs_per_hour", 0), admin);
             Map<String, Object> unknown = call(base, "POST", "/api/mcp", Map.of("jsonrpc", "2.0", "id", 5, "method", "no/such"), apiKey).json();
             assertEquals(-32601, ((Number) ((Map<String, Object>) unknown.get("error")).get("code")).intValue());
 

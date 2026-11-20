@@ -18,12 +18,20 @@ export type ChatReply = { session_id: string; reply: string; kind: string; run_i
 /** My account > AI assistants (S2): one assistant's choices for the person, and what the administrator allows. */
 export type AssistantArea = { mine: { model: string; language: string; instructions: string; ask_first?: boolean }; default_model: string; models: string[];
   language_fixed: string; own_instructions: boolean; company_instructions: string };
-export type AssistantsMine = { assistants: { chat: AssistantArea; studio: AssistantArea }; languages: Record<string, string> };
+export type AssistantsMine = { assistants: { chat: AssistantArea; studio: AssistantArea }; languages: Record<string, string>;
+  /** One Chat's memory (S4): the administrator's mode, and the notes this person asked it to remember. */
+  memory?: { mode: "chat" | "off" | "across"; notes: { id: string; note: string; created: string }[] } };
+/** One of the person's kept chats (S4, One Chat's Your chats). */
+export type ChatSummary = { id: string; title: string; last_used: string; messages: number };
 
 declare module "../../api/cr" {
   interface CrApi {
     /** My account > AI assistants: the person's own choices per assistant and what is allowed. */
     assistantsMine(): Promise<AssistantsMine>;
+    /** Forgets one of the notes One Chat keeps for the person, or all of them (no id). */
+    forgetNotes(id?: string): Promise<AssistantsMine>;
+    /** One Chat: the person's kept chats, newest first. */
+    chats(): Promise<ChatSummary[]>;
     /** Saves the person's own choices for one assistant (chat or studio), within what is allowed. */
     saveAssistantPrefs(area: "chat" | "studio", prefs: { model: string; language: string; instructions: string; ask_first?: boolean }): Promise<AssistantsMine>;
     /** One Chat: sends a message (a new chat when sessionId is null); the reply comes in the person's language. */
@@ -46,3 +54,8 @@ CrApi.prototype.assistantsMine = function () { return this.request<AssistantsMin
 CrApi.prototype.saveAssistantPrefs = function (area: "chat" | "studio", prefs: { model: string; language: string; instructions: string; ask_first?: boolean }) {
   return this.request<AssistantsMine>("PUT", "assistants/me/" + area, prefs);
 };
+
+/** Forgets one of the notes One Chat keeps for the person, or all of them (no id). */
+CrApi.prototype.forgetNotes = function (id?: string) { return this.request<AssistantsMine>("DELETE", "assistants/me/memory" + (id ? "/" + encodeURIComponent(id) : "")); };
+/** One Chat: the person's kept chats, newest first. */
+CrApi.prototype.chats = async function () { return (await this.request<{ chats?: ChatSummary[] }>("GET", "chat")).chats ?? []; };

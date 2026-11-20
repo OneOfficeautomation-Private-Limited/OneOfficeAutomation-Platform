@@ -51,8 +51,14 @@ groupings and words ("1,12,000", "5 lakh", "2 crore", "10k"). "cancel" (or "stop
 you are being asked for values. A yes counts once: answering yes again does not start a second run, and a summary that waits more than
 10 minutes expires.
 
-**New chat** starts a fresh conversation. Your chats are kept when the Command Center restarts, so you can come back
-to one later.
+**New chat** starts a fresh conversation. Your chats are kept when the Command Center restarts, for as long as your
+administrator set (8 hours unused, unless changed). **Your chats** lists the ones still kept, newest first; click one
+to carry on with it.
+
+**Remember.** When the administrator sets memory to **Across chats**, say "remember that my vendor is Acme" (or "merk
+dir, dass ...", "souviens-toi que ...", "recuerda que ...", "... を覚えて") and One Chat keeps the note for you; the
+AI modes then use it in every chat. You see and forget your notes in **My account › AI assistants**. Nobody else sees
+them, and they go when your account is deleted.
 
 ## 3. What waits for your yes, and what needs approval
 
@@ -171,6 +177,16 @@ Open **Settings › AI assistants**, tab **One Chat**. The tab has its own **Sav
 tool wait for a yes. **Never** takes the group out of One Chat: it is not offered, and refused if asked for anyway.
 Settings only ever make a tool stricter.
 
+**Memory, limits and privacy**
+
+| Setting | What it does |
+| --- | --- |
+| **Memory** | **This chat only** (the default): the AI model sees the current chat. **Off**: only the current message. **Across chats**: also the notes each person asked it to remember (up to 50 each) |
+| **Keep chats for** | How long an unused chat is kept, from 1 hour to 90 days; 8 hours by default |
+| **Tokens per person** | The most tokens one person may use in the AI modes each month, in thousands; 0 (the default) leaves only the Model Connection's own budget. Past it, the chat says so instead of calling the model |
+| **Wait for an answer** | 10 to 300 seconds; 90 by default |
+| **Mask personal data before the model** | On by default: names, e-mail addresses, phone and card numbers are hidden from the model and put back in the answer |
+
 **Runs and approvals**
 
 | Setting | What it does |
@@ -190,7 +206,8 @@ Studio's assistant, within what the administrator allows:
 - **My own instructions**: shown under the company instructions, and added after them, while the administrator allows
   them;
 - **Always ask me before an agent runs or something changes** (One Chat): even agents that would start at once wait
-  for your yes. It only makes things stricter; a group set to **Never** stays off.
+  for your yes. It only makes things stricter; a group set to **Never** stays off;
+- **Memory** (One Chat): the notes One Chat remembers for you, each with **Forget**, and **Forget everything**.
 
 Saving is recorded in the Audit Trail (that the instructions changed, not their text). When someone's account is
 deleted, their choices go too.

@@ -39,3 +39,13 @@
 .cc-chat-table th { text-align: left; font-weight: 600; color: var(--ui-text); background: var(--ui-tint); padding: 4px 10px; border-bottom: 1px solid var(--ui-border); white-space: nowrap; }
 .cc-chat-table td { padding: 4px 10px; color: var(--ui-text); border-bottom: 1px solid var(--ui-border); }
 .cc-chat-page-link { display: inline-block; margin-top: 4px; font-size: 12.5px; }
+
+/* My account > AI assistants > Memory (S4): the notes, each with Forget */
+.cc-ap-notes { list-style: none; margin: 0; padding: 0 16px 8px; display: flex; flex-direction: column; gap: 2px; }
+.cc-ap-notes li { display: flex; align-items: center; gap: 10px; min-height: 30px; border-bottom: 1px solid var(--ui-border); color: var(--ui-text); }
+.cc-ap-notes li span { flex: 1; min-width: 0; }
+.cc-ap-notes li.cc-ap-forget-all { border-bottom: 0; justify-content: flex-end; }
+/* One Chat's Your chats (S4) */
+.cc-chat-history { margin: 0 0 8px; padding: 8px 12px; background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 6px; max-width: 720px; }
+.cc-chat-history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.cc-chat-history .cc-link[aria-current="true"] { font-weight: 700; }

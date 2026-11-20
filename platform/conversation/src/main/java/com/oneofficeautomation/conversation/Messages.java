@@ -165,6 +165,7 @@ public final class Messages {
         put("group_agents", "Run agents", "Agenten ausführen", "Exécuter des agents", "Ejecutar agentes", "エージェントの実行");
         put("group_admin_read", "Administration: look up", "Verwaltung: nachschlagen", "Administration : consulter", "Administración: consultar", "管理: 参照");
         put("group_admin_change", "Administration: changes", "Verwaltung: Änderungen", "Administration : modifications", "Administración: cambios", "管理: 変更");
+        put("remembered", "I'll remember that: {}", "Ich merke mir: {}", "Je retiens : {}", "Lo recordaré: {}", "覚えました: {}");
         put("group_admin_high", "Administration: high impact", "Verwaltung: weitreichend", "Administration : fort impact", "Administración: alto impacto", "管理: 影響大");
     }
 }

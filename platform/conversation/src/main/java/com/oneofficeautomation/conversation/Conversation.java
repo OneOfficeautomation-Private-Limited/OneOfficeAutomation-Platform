@@ -33,7 +33,7 @@ public final class Conversation {
     /** The chat_mode setting: deterministic (no model, the default), llm, or hybrid (deterministic first, the model when unsure). */
     public static final List<String> MODES = List.of("deterministic", "llm", "hybrid");
 
-    private static final Duration CONFIRMATION_TTL = Duration.ofMinutes(10), IDLE = Duration.ofHours(8);
+    private static final Duration CONFIRMATION_TTL = Duration.ofMinutes(10);
     /** Yes and no in the console languages (and Hindi, which people often type in Latin letters). */
     static final Set<String> YES = Set.of("yes", "y", "yeah", "yep", "ok", "okay", "sure", "confirm", "go ahead", "do it", "proceed",
             "haan", "ha", "ji", "ja", "jawohl", "gerne", "oui", "d'accord", "si", "sí", "claro", "vale", "はい", "お願いします", "ええ");
@@ -126,15 +126,53 @@ public final class Conversation {
         Map<String, Object> stored = platform.loadSession(id);
         if (stored == null) return null;
         ChatSession s = ChatSession.fromMap(stored);
-        return s.lastUsed.isBefore(clock.instant().minus(IDLE)) ? null : s;
+        return s.lastUsed.isBefore(clock.instant().minus(platform.keepChats())) ? null : s;
     }
 
-    /** Drops chats idle for longer than a working day, at most every ten minutes. */
+    /**
+     * The person's chats still kept, newest first (S4: One Chat's Your chats): id, a title from the first message,
+     * when it was last used, and how many messages it has.
+     */
+    public List<Map<String, Object>> chats(String username) {
+        Instant cutoff = clock.instant().minus(platform.keepChats());
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> stored : platform.storedChats(username)) {
+            ChatSession s;
+            try { s = ChatSession.fromMap(stored); } catch (RuntimeException e) { continue; }
+            if (!s.username.equals(username) || s.lastUsed.isBefore(cutoff)) continue;
+            String title = s.history.stream().filter(h -> "user".equals(h.get("role"))).map(h -> String.valueOf(h.get("text"))).findFirst().orElse("");
+            out.add(Map.of("id", s.id, "title", title.length() > 60 ? title.substring(0, 60) + "..." : title, "last_used", s.lastUsed.toString(),
+                    "messages", s.history.size()));
+        }
+        return out;
+    }
+
+    /** "Remember that ..." in the console's languages: the note, or null when the message asks for something else. */
+    static String rememberNote(String text) {
+        for (java.util.regex.Pattern p : REMEMBER) {
+            java.util.regex.Matcher m = p.matcher(text.trim());
+            if (m.matches()) {
+                String note = m.group(1).trim();
+                return note.isEmpty() ? null : note;
+            }
+        }
+        return null;
+    }
+
+    private static final int RX = java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE | java.util.regex.Pattern.DOTALL;
+    private static final List<java.util.regex.Pattern> REMEMBER = List.of(
+            java.util.regex.Pattern.compile("^(?:please\\s+)?remember(?:\\s+that)?[\\s:,]+(.+)$", RX),
+            java.util.regex.Pattern.compile("^(?:bitte\\s+)?merke?\\s+dir[\\s:,]*(?:dass\\s+)?(.+)$", RX),
+            java.util.regex.Pattern.compile("^(?:s'il (?:te|vous) pla[iî]t,?\\s+)?(?:souviens-toi|souvenez-vous|retiens|retenez)(?:\\s+que|\\s+qu')?[\\s:,]*(.+)$", RX),
+            java.util.regex.Pattern.compile("^(?:por favor,?\\s+)?recuerd[ae](?:\\s+que)?[\\s:,]+(.+)$", RX),
+            java.util.regex.Pattern.compile("^(.+?)(?:を|と)?覚えて(?:おいて)?(?:ください)?[。.!！]*$", RX));
+
+    /** Drops chats unused for longer than the host keeps them (8 hours unless set), at most every ten minutes. */
     private void purgeIdle() {
         Instant now = clock.instant();
         if (now.isBefore(lastPurge.plus(Duration.ofMinutes(10)))) return;
         lastPurge = now;
-        platform.deleteSessionsIdleSince(now.minus(IDLE));
+        platform.deleteSessionsIdleSince(now.minus(platform.keepChats()));
     }
 
     /** A yes or no answer, whatever the language: lower case, letters and apostrophes only. */
@@ -154,6 +192,12 @@ public final class Conversation {
                 return reply("cancelled", Messages.t(lang, "declined", pending.bot().name()));
             }
             // anything else is a new request; the confirmation lapses
+        }
+        // S4: with memory across chats, "remember that ..." keeps a note for the person instead of going to an engine
+        String note = rememberNote(text);
+        if (note != null && "across".equals(platform.memoryMode(p))) {
+            try { platform.remember(p, note); return reply("answer", Messages.t(lang, "remembered", note)); }
+            catch (ChatPlatform.Refused e) { return reply("refused", e.getMessage()); }
         }
         Catalog catalog = catalog(p);
         List<ChatBot> bots = catalog.bots();

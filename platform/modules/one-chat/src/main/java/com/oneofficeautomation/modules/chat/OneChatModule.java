@@ -20,7 +20,7 @@ import java.util.Map;
  * signed in (/api/assistants/studio/complete).
  */
 public final class OneChatModule implements CommandCenterModule {
-    public static final String VERSION = "1.2.0";
+    public static final String VERSION = "1.3.0";
 
     public String id() { return "one-chat"; }
     public String name() { return "One Chat"; }
@@ -32,7 +32,11 @@ public final class OneChatModule implements CommandCenterModule {
                 "CREATE TABLE assistant_prefs (username VARCHAR(80) NOT NULL, assistant VARCHAR(20) NOT NULL, model VARCHAR(60), language VARCHAR(10), "
                         + "instructions VARCHAR(2000), updated TIMESTAMP NOT NULL, PRIMARY KEY (username, assistant))"),
                 // version 2 (S3): the person's "always ask me first" for One Chat
-                java.util.List.of("ALTER TABLE assistant_prefs ADD COLUMN ask_first BOOLEAN"));
+                java.util.List.of("ALTER TABLE assistant_prefs ADD COLUMN ask_first BOOLEAN"),
+                // version 3 (S4): the notes a person asked One Chat to remember
+                java.util.List.of("CREATE TABLE assistant_memory (id VARCHAR(40) PRIMARY KEY, username VARCHAR(80) NOT NULL, assistant VARCHAR(20) NOT NULL, "
+                        + "note VARCHAR(300) NOT NULL, created TIMESTAMP NOT NULL)",
+                        "CREATE INDEX assistant_memory_user ON assistant_memory (username, assistant)"));
     }
 
     public void start(ModuleContext ctx) {
@@ -64,6 +68,9 @@ public final class OneChatModule implements CommandCenterModule {
             if (m.equals("POST") && route.isEmpty()) {
                 Map<String, Object> b = ctx.jsonBody(ex);
                 ctx.sendJson(ex, 200, chat.message(u, (String) b.get("session_id"), (String) b.get("message"), (String) b.get("lang"), ip));
+            } else if (m.equals("GET") && route.isEmpty()) {
+                // S4: the person's chats, newest first, for One Chat's Your chats
+                ctx.sendJson(ex, 200, Map.of("chats", chat.chats(u)));
             } else if (m.equals("GET") && !route.isEmpty() && !route.contains("/")) {
                 ctx.sendJson(ex, 200, Map.of("session_id", route, "messages", chat.history(u, route)));
             } else throw ModuleContext.notFound("The route /api/chat/" + route);
@@ -77,6 +84,8 @@ public final class OneChatModule implements CommandCenterModule {
         ctx.route("assistants", (ex, u, m, route, ip) -> {
             if (m.equals("GET") && route.equals("me")) ctx.sendJson(ex, 200, chat.settings().mine(u));
             else if (m.equals("PUT") && route.startsWith("me/")) ctx.sendJson(ex, 200, chat.settings().savePrefs(u, route.substring(3), ctx.jsonBody(ex), ip));
+            else if (m.equals("DELETE") && route.equals("me/memory")) ctx.sendJson(ex, 200, chat.settings().forget(u, null, ip));
+            else if (m.equals("DELETE") && route.startsWith("me/memory/")) ctx.sendJson(ex, 200, chat.settings().forget(u, route.substring("me/memory/".length()), ip));
             else if (m.equals("GET") && route.equals("options")) {
                 ctx.require(u, "settings.manage", "see the AI assistants' choices");
                 ctx.sendJson(ex, 200, chat.settings().options());

@@ -291,8 +291,14 @@ model calls and Studio's assistant (through `POST /api/assistants/studio/complet
 groups Never at first) and the person's "always ask me first" (schema step 2); the confirmation card; and the
 kernel's administration tools (`AdminTools`, reached by modules through `ModuleContext.adminTools` and
 `runAdminTool`): five look-ups, five changes and deleting a person, each done by the kernel's own method. The
-callbacks `GET admin/tools` and `POST admin/actions` will offer the same catalogue to OneChat. Memory, limits and
-privacy (S4) are next. The callback `GET settings` will return `AssistantSettings.effective` for the person and
+callbacks `GET admin/tools` and `POST admin/actions` will offer the same catalogue to OneChat.
+
+**Built in S4 (20 Nov 2026), One Chat module 1.3.0:** memory (`chat_memory`: chat, off or across; the notes people ask
+it to remember in `assistant_memory`, schema step 3, seen and forgotten in My account), how long chats are kept
+(`chat_keep_hours`) and the person's chats list (`GET /api/chat`), tokens per person a month (`chat_ktokens_per_person`,
+`studio_ktokens_per_person`, counted from the AI call record), wait times (`chat_timeout_seconds`,
+`studio_timeout_seconds`), masking (`chat_mask_pii`, `studio_mask_pii`) and MCP's runs per person an hour
+(`mcp_runs_per_hour`, the Integration module). Every default keeps what the assistants did before. The callback `GET settings` will return `AssistantSettings.effective` for the person and
 area.
 
 **Where:**

@@ -118,6 +118,11 @@ public final class McpServer {
         else if (!target.isEmpty()) device = target;
         else device = ctx.onlineRunner();
         if (device == null && pool == null) throw new OoaException("MCP.NO_RUNNER", "No runner is online to run " + name, "Start a runner (Manage > Runners), then try again.");
+        int perHour = ctx.intSetting("mcp_runs_per_hour");
+        if (perHour > 0 && ctx.count("SELECT COUNT(*) AS n FROM runs WHERE source = ? AND requested_by = ? AND created > ?", "mcp", u.username(),
+                ModuleContext.now().minus(java.time.Duration.ofHours(1))) >= perHour)
+            throw new OoaException("MCP.RUN_LIMIT", "You have started " + perHour + " runs from AI assistants in the last hour, the most allowed",
+                    "Wait a while, or ask an administrator to raise Runs per person in Settings > AI assistants.");
         Map<String, Object> run = ctx.startRun(u.username(), u.role(), path, device, pool, args, "mcp", ip, 5, null, null, null);
         String runId = (String) run.get("run_id");
         long deadline = System.currentTimeMillis() + 1000L * Math.max(10, ctx.intSetting("mcp_timeout_seconds"));

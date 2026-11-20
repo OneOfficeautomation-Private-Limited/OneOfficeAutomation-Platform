@@ -32,12 +32,13 @@ final class StudioAssistant {
         if (system.length() > MAX_SYSTEM || prompt.length() > MAX_PROMPT)
             throw new OoaException("ASSISTANT.TOO_LONG", "The request to the assistant is too long", "Describe a smaller part of the agent at a time.");
         AssistantSettings.Effective e = settings.effective(u, "studio");
+        settings.checkAllowance(u, "studio");
         StringBuilder sys = new StringBuilder(system);
         if (!e.instructions().isEmpty()) sys.append("\n\n").append(e.instructions());
         if (e.language() != null) sys.append("\n\nWrite step names and notes in ").append(AssistantSettings.LANGUAGES.get(e.language()))
                 .append("; keep command names, variable names and values as they are.");
         List<Map<String, Object>> messages = List.of(Map.of("role", "system", "content", sys.toString()), Map.of("role", "user", "content", prompt));
-        Map<String, Object> r = model.call(u, e.connection(), messages, List.of(), "studio_assistant", e.temperature(), e.maxTokens(), false, 300, "Studio assistant");
+        Map<String, Object> r = model.call(u, e.connection(), messages, List.of(), "studio_assistant", e.temperature(), e.maxTokens(), e.maskPii(), e.timeoutSeconds(), "Studio assistant");
         return Map.of("text", r.get("text") == null ? "" : String.valueOf(r.get("text")));
     }
 }
