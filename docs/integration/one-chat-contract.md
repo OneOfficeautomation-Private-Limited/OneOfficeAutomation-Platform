@@ -151,6 +151,15 @@ agents (`repo.checkin`). An administrator using Studio gets the same development
 
 ## 4. Routes
 
+The routes both ways, with every field, are in [onechat-api.yaml](onechat-api.yaml) (OpenAPI 3.1).
+
+**Built in S5a (20 Nov 2026), One Chat module 1.4.0,** against a stand-in OneChat in the tests: Settings `chat_engine`,
+`onechat_url` and `onechat_token_ref` with a status line; the version check with `onechat-compat.properties`; the
+person token; `POST /api/chat`, `GET /api/chat`, `GET /api/chat/{id}` and My account's notes passed to the service;
+`GET /api/onechat/version`; and the callbacks `version`, `health`, `person`, `settings`, `skills/{name}`, `agents`,
+`runs`, `runs/{id}`, `tasks`, `admin/tools`, `model` and `audit`. The module's own tables are schema step 4
+(`onechat_keys`, `onechat_confirmations`, `onechat_runs`, `onechat_events`).
+
 ### OneChat calls One CommandCenter: `/api/onechat-callback/v1/`
 
 | Route | Area | What it does | Was in `ChatPlatform` |
@@ -367,3 +376,27 @@ start it.
 5. Studio: whether **Explain this agent** (it needs no model and works offline) stays as it is.
 6. The default for how long chats are kept, and for memory (off, this chat only, or across chats).
 7. Port 8086.
+
+## 14. First steps for OneChat's developer
+
+1. **Read [onechat-api.yaml](onechat-api.yaml).** The routes tagged `onechat` are yours to build; those tagged
+   `callbacks` are One CommandCenter's, for you to call.
+2. **Start One CommandCenter** on your machine (`ooa server`), sign in as an administrator, and open **Settings › AI
+   assistants › One Chat**. Under **Engine**, choose **OneChat service**, set **OneChat address** (empty means
+   `http://127.0.0.1:8086`) and put the service token in the vault (**Service token** is its vault reference), or set
+   `OOA_ONECHAT_URL` and `OOA_ONECHAT_TOKEN` before starting it. Give OneChat the same token in `ONECHAT_API_TOKEN` and
+   One CommandCenter's address in `ONECHAT_PLATFORM_URL`.
+3. **Build `GET /api/chat/v1/version` first.** The status line in Settings then says whether your version works with
+   this release (`contract` must be `v1`; the version must be at least `minimum` in `onechat-compat.properties`).
+4. **Build `POST /api/chat/v1/messages`.** Read the person token from `X-OOA-Person` and pass it back unchanged on
+   every callback, with the service token and `X-OOA-Tenant`. Ask `GET settings` for each new message, and use
+   `GET person`, `GET agents`, `GET runs` and `GET tasks` for what the person may see. Call models only through
+   `POST model`.
+5. **Act only through the callbacks.** For runs and administration, One CommandCenter decides from the risk class and
+   the settings: show the summary of a `confirm` answer, and call again with its `confirmation_id` and the token of
+   the message where the person said yes.
+6. **Keep your own data per tenant and person:** chats, messages, and notes only when `settings.memory` is `across`.
+   Build `GET`/`DELETE people/{username}/memory` so people can see and clear them in My account.
+7. **Test against the platform's stand-in:**
+   `platform/modules/one-chat/src/test/java/com/oneofficeautomation/controlroom/OneChatServiceTest.java` shows each
+   request One CommandCenter sends and each answer it expects.

@@ -152,6 +152,12 @@ public interface ModuleContext {
     /** Uses one administration tool as this person, with the console's own checks and audit: {text, rows?, columns?, page}. */
     Map<String, Object> runAdminTool(User u, String id, Map<String, Object> inputs, String ip);
 
+    /** The toolkits' manifests, what Studio shows for each command (S5: the Studio area of AI assistants). */
+    List<Map<String, Object>> toolkitManifests();
+
+    /** Checks an agent as check-in does: the problems found, empty when none (S5: the Studio area of AI assistants). */
+    List<Map<String, Object>> checkAgent(Map<String, Object> flow);
+
     /** Records the AI calls a run (or a chat turn) made, for AI governance. */
     void recordAiCalls(Map<String, Object> run, List<?> calls);
 

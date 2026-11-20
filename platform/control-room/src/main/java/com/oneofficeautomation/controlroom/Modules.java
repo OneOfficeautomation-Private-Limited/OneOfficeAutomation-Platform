@@ -216,6 +216,8 @@ public final class Modules {
         public Map<String, Object> modelConnectionsFor(List<String> roles) { return cr.platform.connectionsForJob(roles); }
         public List<Map<String, Object>> adminTools(User u) { return new AdminTools(cr).tools(u); }
         public Map<String, Object> runAdminTool(User u, String id, Map<String, Object> inputs, String ip) { return new AdminTools(cr).run(u, id, inputs, ip); }
+        public List<Map<String, Object>> toolkitManifests() { return cr.toolkitManifests(); }
+        public List<Map<String, Object>> checkAgent(Map<String, Object> flow) { return cr.problemsOf("check.flow.json", flow); }
         public void recordAiCalls(Map<String, Object> run, List<?> calls) { cr.platform.recordAiCalls(run, calls); }
         public List<String> principalsOf(String username, String role) { return cr.teams.principalsOf(username, role); }
         public String defaultTimeZone() { return cr.defaultTimeZone(); }

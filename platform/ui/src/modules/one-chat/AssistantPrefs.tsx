@@ -66,7 +66,9 @@ export function AssistantPrefs({ api, onNotice, onError }: { api: CrApi; onNotic
         <div className="cc-set-group">Memory</div>
         <div className="cc-set-row"><div className="cc-set-text"><span className="cc-set-name">What One Chat remembers for you</span>
           <div className="cc-set-hint">{data.memory.mode === "across" ? "Say \u201cremember that \u2026\u201d in One Chat to add a note. Only you see them."
-            : "Your administrator has set memory to " + (data.memory.mode === "off" ? "off" : "this chat only") + ", so new notes are not kept."}</div></div>
+            : "Your administrator has set memory to " + (data.memory.mode === "off" ? "off" : "this chat only") + ", so new notes are not kept."}
+            {data.memory.kept_by === "service" && " The OneChat service keeps them."}
+            {data.memory.notes_error && <span className="cc-ap-error" role="alert">{" The notes could not be read: " + data.memory.notes_error}</span>}</div></div>
           <div className="cc-set-ctl">{data.memory.notes.length ? <span className="cc-set-hint">{data.memory.notes.length} note{data.memory.notes.length === 1 ? "" : "s"}</span>
             : <span className="cc-set-hint">No notes.</span>}</div></div>
         {data.memory.notes.length > 0 && <ul className="cc-ap-notes" aria-label="Notes One Chat remembers">

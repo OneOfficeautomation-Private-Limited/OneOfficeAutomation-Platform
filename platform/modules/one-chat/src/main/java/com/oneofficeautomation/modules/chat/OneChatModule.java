@@ -18,9 +18,14 @@ import java.util.Map;
  * <p>Since 1.1.0 (S2, 20 Nov 2026) it also keeps the AI assistants' settings (AssistantSettings) for One Chat and
  * Studio's assistant, each person's own choices (/api/assistants/me), and answers Studio's assistant while Studio is
  * signed in (/api/assistants/studio/complete).
+ *
+ * <p>Since 1.4.0 (S5, 20 Nov 2026) One Chat can use the OneChat service instead of its built-in engine (Settings > AI
+ * assistants > One Chat > Engine; docs/integration/one-chat-contract.md): messages, chats and notes go to the service
+ * with a person token (PersonTokens, OneChatService), and the service calls back on /api/onechat-callback/v1/
+ * (OneChatCallbacks). The built-in engine stays the default.
  */
 public final class OneChatModule implements CommandCenterModule {
-    public static final String VERSION = "1.3.0";
+    public static final String VERSION = "1.4.0";
 
     public String id() { return "one-chat"; }
     public String name() { return "One Chat"; }
@@ -36,7 +41,16 @@ public final class OneChatModule implements CommandCenterModule {
                 // version 3 (S4): the notes a person asked One Chat to remember
                 java.util.List.of("CREATE TABLE assistant_memory (id VARCHAR(40) PRIMARY KEY, username VARCHAR(80) NOT NULL, assistant VARCHAR(20) NOT NULL, "
                         + "note VARCHAR(300) NOT NULL, created TIMESTAMP NOT NULL)",
-                        "CREATE INDEX assistant_memory_user ON assistant_memory (username, assistant)"));
+                        "CREATE INDEX assistant_memory_user ON assistant_memory (username, assistant)"),
+                // version 4 (S5): the OneChat service: the person-token key, confirmations, the runs it started, events to send
+                java.util.List.of("CREATE TABLE onechat_keys (id VARCHAR(40) PRIMARY KEY, secret VARCHAR(400) NOT NULL, created TIMESTAMP NOT NULL)",
+                        "CREATE TABLE onechat_confirmations (id VARCHAR(40) PRIMARY KEY, username VARCHAR(80) NOT NULL, session_id VARCHAR(80), kind VARCHAR(10) NOT NULL, "
+                                + "target VARCHAR(400) NOT NULL, name VARCHAR(200), input_hash VARCHAR(64) NOT NULL, risk VARCHAR(4), reason VARCHAR(300), undo VARCHAR(300), "
+                                + "issued_at BIGINT NOT NULL, expires TIMESTAMP NOT NULL, used BOOLEAN NOT NULL)",
+                        "CREATE TABLE onechat_runs (run_id VARCHAR(40) PRIMARY KEY, username VARCHAR(80) NOT NULL, session_id VARCHAR(80), created TIMESTAMP NOT NULL)",
+                        "CREATE TABLE onechat_events (id VARCHAR(40) PRIMARY KEY, username VARCHAR(80) NOT NULL, session_id VARCHAR(80), payload VARCHAR(100000) NOT NULL, "
+                                + "attempts INT NOT NULL, next_try TIMESTAMP NOT NULL, created TIMESTAMP NOT NULL)",
+                        "CREATE INDEX onechat_events_due ON onechat_events (next_try)"));
     }
 
     public void start(ModuleContext ctx) {
@@ -63,27 +77,61 @@ public final class OneChatModule implements CommandCenterModule {
 
         Chat chat = new Chat(ctx, ctx.dataDir());
         ctx.provide(Chat.class, chat);
-        // POST /api/chat {session_id?, message, lang} sends a message; GET /api/chat/{session} reads that chat's messages
+        // S5: the OneChat service, when Settings > AI assistants > One Chat > Engine chooses it
+        OneChatService.define(ctx);
+        PersonTokens tokens = new PersonTokens(ctx);
+        OneChatService service = new OneChatService(ctx, tokens);
+        ChatModel models = new ChatModel(ctx, ctx.dataDir());
+        OneChatCallbacks callbacks = new OneChatCallbacks(ctx, chat, models, service, tokens);
+        ctx.publicRoute("onechat-callback", callbacks::handle);
+        // POST /api/chat {session_id?, message, lang} sends a message; GET /api/chat/{session} reads that chat's messages;
+        // both go to the engine chosen in Settings (the built-in one, or the OneChat service)
         ctx.route("chat", (ex, u, m, route, ip) -> {
+            boolean viaService = service.chosen();
             if (m.equals("POST") && route.isEmpty()) {
                 Map<String, Object> b = ctx.jsonBody(ex);
-                ctx.sendJson(ex, 200, chat.message(u, (String) b.get("session_id"), (String) b.get("message"), (String) b.get("lang"), ip));
+                if (!viaService) {
+                    ctx.sendJson(ex, 200, chat.message(u, (String) b.get("session_id"), (String) b.get("message"), (String) b.get("lang"), ip));
+                    return;
+                }
+                String text = b.get("message") == null ? "" : String.valueOf(b.get("message")).trim();
+                if (text.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Type a message", "Type what you want in a sentence.");
+                if (text.length() > 4000) throw new OoaException("CR.BAD_INPUT", "The message is too long (at most 4,000 characters)", "Shorten the message.");
+                String answerIn = chat.settings().language(u, "chat");
+                ctx.sendJson(ex, 200, service.message(u, (String) b.get("session_id"), text, answerIn != null ? answerIn : (String) b.get("lang"), ip));
             } else if (m.equals("GET") && route.isEmpty()) {
                 // S4: the person's chats, newest first, for One Chat's Your chats
-                ctx.sendJson(ex, 200, Map.of("chats", chat.chats(u)));
+                ctx.sendJson(ex, 200, Map.of("chats", viaService ? service.chats(u) : chat.chats(u)));
             } else if (m.equals("GET") && !route.isEmpty() && !route.contains("/")) {
-                ctx.sendJson(ex, 200, Map.of("session_id", route, "messages", chat.history(u, route)));
+                ctx.sendJson(ex, 200, Map.of("session_id", route, "messages", viaService ? service.history(u, route) : chat.history(u, route)));
             } else throw ModuleContext.notFound("The route /api/chat/" + route);
+        });
+        // GET /api/onechat/version: the OneChat service's version and whether it works with this release (Settings)
+        ctx.route("onechat", (ex, u, m, route, ip) -> {
+            if (!(m.equals("GET") && route.equals("version"))) throw ModuleContext.notFound("The route /api/onechat/" + route);
+            ctx.require(u, "settings.manage", "see the OneChat service's version");
+            if ("1".equals(ctx.query(ex).get("fresh"))) service.recheck();
+            Map<String, Object> v = new java.util.LinkedHashMap<>(service.version());
+            v.put("engine", service.chosen() ? "service" : "builtin");
+            v.put("url", service.baseUrl());
+            ctx.sendJson(ex, 200, v);
         });
 
         // the AI assistants' settings (S2): Settings > AI assistants, My account > AI assistants, Studio's assistant
         AssistantSettings.define(ctx);
-        StudioAssistant studio = new StudioAssistant(chat.settings(), new ChatModel(ctx, ctx.dataDir()));
+        StudioAssistant studio = new StudioAssistant(chat.settings(), models);
         // GET me: the person's own choices and what is allowed; PUT me/{chat|studio}: save them; GET options: what an
         // administrator may choose from; POST studio/complete: Studio's assistant while Studio is signed in
         ctx.route("assistants", (ex, u, m, route, ip) -> {
-            if (m.equals("GET") && route.equals("me")) ctx.sendJson(ex, 200, chat.settings().mine(u));
+            if (m.equals("GET") && route.equals("me")) ctx.sendJson(ex, 200, service.chosen() ? withServiceNotes(chat.settings().mine(u), service, u) : chat.settings().mine(u));
             else if (m.equals("PUT") && route.startsWith("me/")) ctx.sendJson(ex, 200, chat.settings().savePrefs(u, route.substring(3), ctx.jsonBody(ex), ip));
+            else if (m.equals("DELETE") && (route.equals("me/memory") || route.startsWith("me/memory/")) && service.chosen()) {
+                // S5: with the OneChat service, it keeps the notes; forgetting them goes to it
+                String id = route.equals("me/memory") ? null : route.substring("me/memory/".length());
+                service.forget(u, id);
+                ctx.audit(u.username(), id == null ? "assistant.memory_cleared" : "assistant.memory_forgot", "user", u.username(), Map.of("engine", "service"), "ok", ip);
+                ctx.sendJson(ex, 200, withServiceNotes(chat.settings().mine(u), service, u));
+            }
             else if (m.equals("DELETE") && route.equals("me/memory")) ctx.sendJson(ex, 200, chat.settings().forget(u, null, ip));
             else if (m.equals("DELETE") && route.startsWith("me/memory/")) ctx.sendJson(ex, 200, chat.settings().forget(u, route.substring("me/memory/".length()), ip));
             else if (m.equals("GET") && route.equals("options")) {
@@ -107,5 +155,17 @@ public final class OneChatModule implements CommandCenterModule {
                 return chat.decided(task, u, outcome, comment, ip);
             }
         });
+    }
+
+    /** My account's notes when the OneChat service keeps them: the service's list (or none, with why, when it does not answer). */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> withServiceNotes(Map<String, Object> mine, OneChatService service, User u) {
+        Map<String, Object> out = new java.util.LinkedHashMap<>(mine);
+        Map<String, Object> memory = new java.util.LinkedHashMap<>((Map<String, Object>) mine.get("memory"));
+        try { memory.put("notes", service.notes(u)); }
+        catch (OoaException e) { memory.put("notes", java.util.List.of()); memory.put("notes_error", e.getMessage()); }
+        memory.put("kept_by", "service");
+        out.put("memory", memory);
+        return out;
     }
 }
