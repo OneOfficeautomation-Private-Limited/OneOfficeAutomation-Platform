@@ -193,7 +193,7 @@ From One CommandCenter (details in the [Operators guide](05-operators-guide.md))
 - **Agent Activity** (**In progress** and **Completed**): follow and inspect every run, with the step timeline, the
   log, the variables and the error with its suggested fix.
 
-People can also start agents from the assistant in the notification area (see [Business users](14-business-users.md)).
+People can also start agents in their own words from [One Chat](16-one-chat.md).
 
 ## 11. Templates
 

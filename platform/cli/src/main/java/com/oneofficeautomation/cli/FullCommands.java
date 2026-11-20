@@ -3,8 +3,8 @@ package com.oneofficeautomation.cli;
 import java.nio.file.Path;
 
 /**
- * The commands of the full install (bin\ooa.bat): the servers, runners, database, HTTPS, backups, services, toolkits
- * and the desktop assistant. The vendor build adds making licenses and signing releases.
+ * The commands of the full install (bin\ooa.bat): the servers, runners, database, HTTPS, backups, services and
+ * toolkits. The vendor build adds making licenses and signing releases.
  */
 final class FullCommands {
     private FullCommands() { }
@@ -212,9 +212,6 @@ final class FullCommands {
             .required("--key", "FILE", "The publisher's private key.").opt("--out", "FILE", "The signed jar (default: the same file).");
         c.command("toolkit inspect", "Show a toolkit jar's id, publisher, actions and whether its signature matches.", a -> ToolkitCommand.run("inspect", a.o()))
             .required("--jar", "FILE", "The toolkit jar.");
-
-        c.command("assistant", "Start the desktop assistant in the notification area, to run your automations.", a -> Assistant.run(a.o()))
-            .opt("--url", "URL", "One CommandCenter (asked the first time).").flag("--sign-out", "Forget the saved sign-in.");
 
         c.group("service", "Run One CommandCenter or a runner as a Windows service.");
         service(c, "install", "Install the service (an administrator prompt appears).")

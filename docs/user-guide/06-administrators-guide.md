@@ -100,8 +100,7 @@ password, Disabled), **Default runner** (a drop-down), **Last sign-in**.
 
 - **Edit**: first name, last name, display name, description and **Further roles** (tick extra roles; the person has
   every permission of each role; Administrator is only ever a main role).
-- **Default runner**: choose the runner their runs go to when they are a run-as user, or that the notification-area
-  assistant uses. See [07 Runner guide](07-runner-guide.md#default-users-and-the-default-runner-of-a-person).
+- **Default runner**: choose the runner their runs go to when they are a run-as user. See [07 Runner guide](07-runner-guide.md#default-users-and-the-default-runner-of-a-person).
 - **Disable**/**Enable**: a disabled person cannot sign in, and schedules they own stop running.
 - **Reset password**: makes a new temporary password (shown once); the account is also unlocked.
 - **Reset two-step**: for a lost phone. Their sign-ins end and they set two-step sign-in up again.

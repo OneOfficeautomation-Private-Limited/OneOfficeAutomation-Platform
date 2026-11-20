@@ -1,8 +1,7 @@
 # Runner guide
 
 **Audience:** runner owners (the people who look after the computers that run agents) and administrators who roll
-runners out. Business users with an attended runner on their own PC will find the sections on attended work and the
-assistant useful.
+runners out. Business users with an attended runner on their own PC will find the sections on attended work useful.
 
 **You need:** on the runner computer, rights to install programs (administrator rights for a Windows service or an
 all-users install). In One CommandCenter, `devices.manage` to register, change and remove runners (administrators),
@@ -22,11 +21,10 @@ and `pools.manage` for runner pools.
 10. [Temporary runners](#10-temporary-runners)
 11. [Updates, toolkits and secrets](#11-updates-toolkits-and-secrets)
 - [Environment locks: one run at a time on a shared system](#environment-locks-one-run-at-a-time-on-a-shared-system)
-12. [The assistant in the notification area](#12-the-assistant-in-the-notification-area)
-13. [Diagnosing problems: ooa agent diagnose](#13-diagnosing-problems-ooa-agent-diagnose)
-14. [Moving a runner to a new One CommandCenter address](#14-moving-a-runner-to-a-new-command-center-address)
-15. [Removing a runner](#15-removing-a-runner)
-16. [Related guides](#related-guides)
+12. [Diagnosing problems: ooa agent diagnose](#12-diagnosing-problems-ooa-agent-diagnose)
+13. [Moving a runner to a new One CommandCenter address](#13-moving-a-runner-to-a-new-one-commandcenter-address)
+14. [Removing a runner](#14-removing-a-runner)
+15. [Related guides](#related-guides)
 
 ## 1. What a runner is
 
@@ -261,7 +259,6 @@ It is used when:
 
 - someone runs an agent for **Run-as users**: each person's run goes to their default runner, as them;
 - a schedule or trigger runs as a person with **Use the run-as user's default runner**;
-- the person starts an agent from the notification-area assistant;
 - an Attended Runner seat holder runs agents by hand.
 
 The **Default users** column on the Runners page shows whose default runner each runner is. Set a personal PC to
@@ -355,24 +352,7 @@ example when a run is stuck; the run is not stopped, and the release is written 
 **Without One CommandCenter.** In OneAgentStudio on its own, locks work on this computer only: they are kept in
 memory and shared by the runs in that program, with the same rules. Separate `ooa run` commands do not share them.
 
-## 12. The assistant in the notification area
-
-For people who work beside their agents, `ooa assistant` (Windows, from `bin`) puts ONEOFFICEAUTOMATION in the
-notification area. It runs as the signed-in person.
-
-1. In One CommandCenter, make an API key under your name > **API keys**.
-2. Run `bin\ooa.bat assistant`. The first start asks for One CommandCenter address and the API key. They are stored
-   in `%APPDATA%\ONEOFFICEAUTOMATION\assistant.json`, protected for your Windows user with DPAPI.
-3. Right-click the icon. The menu has **Signed in as ...**, **Run an agent** (the agents with a live version you may
-   see; it asks for each input and starts the agent on your default runner, as you), **Task inbox** (with a count of
-   open workflow tasks), **My runs**, **Open One CommandCenter**, **Refresh**, **Sign out** and **Exit**.
-4. A notice appears when a new task arrives and when one of your runs finishes, fails or is stopped; click it to open
-   the page.
-
-To start it at sign-in, put a shortcut to `bin\ooa.bat assistant` in your Startup folder. Revoking the API key stops
-the assistant; **Sign out** (or `ooa assistant --sign-out`) forgets the address and key.
-
-## 13. Diagnosing problems: ooa agent diagnose
+## 12. Diagnosing problems: ooa agent diagnose
 
 When a runner will not connect or will not take work, run on it:
 
@@ -409,7 +389,7 @@ For One CommandCenter computer itself use `bin\ooa.bat check`.
 | The runner stops when you sign out | Expected for a signed-in runner; use a service runner for screenless work |
 | Need more detail | Set **Log level** to debug (**Update runners**) and read the runner's log in its workspace `logs` folder |
 
-## 14. Moving a runner to a new One CommandCenter address
+## 13. Moving a runner to a new One CommandCenter address
 
 When One CommandCenter moves to a new server or a new address with its data, keep each runner's registration:
 
@@ -420,7 +400,7 @@ ooa agent move --url https://new-address:8720 [--ca new.cer]
 Then restart the runner. Runners that reach One CommandCenter through a DNS name you repoint need nothing. See
 [Installation on Linux and in containers](../infrastructure/03-installation-linux-and-containers.md).
 
-## 15. Removing a runner
+## 14. Removing a runner
 
 In the runner's details press **Remove**. It is allowed when nothing is queued or running on it and no schedule or
 trigger uses it. The runner is taken off pools and default runners and its seat is freed; register it again to use it.

@@ -280,8 +280,8 @@ Runs already queued on an offline runner wait for it. A running run whose runner
 
 ## 13. Default runners, single-user and multi-user runners
 
-- Each user can have one **default runner** (Users > Default runner, `users.manage`). Runs as that user, schedules with a
-  run-as user and no runner, and the notification-area assistant use it.
+- Each user can have one **default runner** (Users > Default runner, `users.manage`). Runs as that user and schedules with a
+  run-as user and no runner use it.
 - A runner is **single-user** (the default runner of at most one person) or **multi-user** (of several; the default for
   runners nobody set). Making a runner single-user while several people use it as default is refused, and so is giving
   a single-user runner to a second person (`CR.CONFLICT`).

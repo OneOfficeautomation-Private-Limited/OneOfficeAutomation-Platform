@@ -180,9 +180,6 @@ and asks the chosen model connection for one JSON object `{variables, steps, not
 validated like any agent before it is shown, and the person decides what to keep. Because the catalogue comes from the
 manifests, new toolkits are known to the assistant without code changes.
 
-The **desktop assistant** (`ooa assistant`) is not a language model feature: it is the notification-area app that
-starts agents for the signed-in person (with their API key, kept with Windows DPAPI) and shows task and run notices.
-
 ## 11. MCP server
 
 `McpServer` implements the Model Context Protocol (protocol version `2025-06-18`) over HTTP: JSON-RPC 2.0 on

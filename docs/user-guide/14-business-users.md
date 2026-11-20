@@ -1,7 +1,7 @@
 # For business users: tasks, starting agents and notifications
 
 **Audience:** people who work alongside agents but do not build them: approvers, clerks who fill in forms, and team
-members who start agents themselves from their desktop.
+members who start agents themselves from One Chat.
 
 ## Contents
 
@@ -11,12 +11,9 @@ members who start agents themselves from their desktop.
 4. [Approve or reject](#4-approve-or-reject)
 5. [Take a task, or give it back](#5-take-a-task-or-give-it-back)
 6. [Notices](#6-notices)
-7. [The assistant in the notification area](#7-the-assistant-in-the-notification-area)
-8. [Start an agent from the assistant](#8-start-an-agent-from-the-assistant)
-9. [Notifications on your desktop](#9-notifications-on-your-desktop)
-9a. [Suggest a process to automate](#9a-suggest-a-process-to-automate)
-9b. [Use an app](#9b-use-an-app)
-9c. [One CommandCenter on your phone](#9c-one-commandcenter-on-your-phone)
+7. [Suggest a process to automate](#7-suggest-a-process-to-automate)
+8. [Use an app](#8-use-an-app)
+9. [One CommandCenter on your phone](#9-one-commandcenter-on-your-phone)
 10. [If it goes wrong](#10-if-it-goes-wrong)
 11. [Related guides](#related-guides)
 
@@ -29,10 +26,13 @@ members who start agents themselves from their desktop.
 | A workflow needs information from you | A **Fill in** task in your **Task inbox** |
 | A workflow needs your decision | An **Approve** task in your Task inbox |
 | A workflow tells you something | A **Notice** in your Task inbox (and, for email addresses, an email) |
-| You want to start an agent yourself | **Run an agent** in the ONEOFFICEAUTOMATION assistant |
-| An agent you started finishes or fails | A notification on your desktop from the assistant |
+| You want to start an agent yourself | **One Chat** (under **AI**): ask for it in your own words. See [One Chat](16-one-chat.md) |
+| An agent you started from One Chat finishes or fails | One Chat tells you in the conversation |
 
 You need an account in One CommandCenter (ask your administrator). You see only what your role allows.
+
+Your administrator can also have One CommandCenter e-mail you when a run you started fails (with the agent, the
+reason and a link to the run).
 
 ## 2. The Task inbox
 
@@ -118,61 +118,7 @@ A **Notice** tells you that something happened, for example "Order PO-1001 appro
 When a workflow sends a notice to an email address instead of a user or role, it arrives as an ordinary email (once
 email is set up in One CommandCenter).
 
-## 7. The assistant in the notification area
-
-The **ONEOFFICEAUTOMATION assistant** is a small Windows app that sits in the notification area (next to the clock).
-It runs as you, so it can only do what you may do in One CommandCenter.
-
-**Set it up once:**
-
-1. In One CommandCenter, open the user menu (your name) > **API keys** and create a key. Copy it; it is shown once.
-2. Start the assistant: your IT department may have put it in your Startup folder; otherwise run `ooa assistant` from
-   the installation's `bin` folder (or ask IT for a shortcut).
-3. In **Sign in to ONEOFFICEAUTOMATION**, enter the **One CommandCenter address** and **Your API key**, and press OK.
-4. The ONEOFFICEAUTOMATION icon appears in the notification area. The key is kept protected for your Windows user only.
-
-**Right-click the icon** for the menu:
-
-| Entry | What it does |
-| --- | --- |
-| **Signed in as …** | Shows who you are |
-| **Run an agent** | The agents you may run (those with a live production version) |
-| **Task inbox** / **Task inbox (n)** | Opens the Task inbox; n is the number of open tasks for you |
-| **My runs** | Opens your runs in One CommandCenter |
-| **Open One CommandCenter** | Opens the console |
-| **Refresh** | Reloads the agent list and tasks now |
-| **Sign out** | Forgets the address and key |
-
-Hover the icon to see how many tasks are waiting ("2 task(s) waiting").
-
-## 8. Start an agent from the assistant
-
-1. Right-click the icon > **Run an agent** and choose the agent.
-2. The assistant asks for each input in turn. The question shows the input's name and description, and its default if
-   it has one.
-   - For a password or other secret, the question says "A vault reference: folder/credential/attribute". Type the
-     reference your team gave you (for example `finance/sap/password`), never the secret itself.
-   - Leave an answer empty to use the default. **Cancel** stops without starting anything.
-3. The agent starts on your default runner, as you, in attended mode (it may show you forms or questions). A
-   notification says **Agent started** with the run id.
-4. When it ends you get **Agent finished**, **Agent failed** or **Agent stopped**.
-
-> **Tip:** Stay away from mouse and keyboard while an agent works in desktop applications on your computer, unless the
-> agent asks you for something.
-
-## 9. Notifications on your desktop
-
-The assistant checks every 30 seconds and shows a Windows notification when:
-
-- **New task**: a task arrives in your inbox (with its title);
-- **Agent finished**, **Agent failed** or **Agent stopped**: one of your runs ends.
-
-Click the notification (or the icon) to open the matching page in One CommandCenter: the Task inbox, or the runs.
-
-Your administrator can also have One CommandCenter e-mail you when a run you started fails (with the agent, the
-reason and a link to the run).
-
-## 9a. Suggest a process to automate
+## 7. Suggest a process to automate
 
 If part of your work is repetitive, suggest it: in One CommandCenter open **Build > Agents ideas** and choose
 **Suggest an idea**. Say what should be automated, how it is done today, your department, roughly how many cases a
@@ -186,7 +132,7 @@ Once it is live, the list shows the hours the agent actually saved over the last
 
 You can change or delete your own idea while it is still **Submitted**.
 
-## 9b. Use an app
+## 8. Use an app
 
 Your automation team may give you **apps**: simple pages with fields and buttons, in **Build > Apps**. Open one, fill
 in the fields and press its button. A button may start an agent (the app waits and shows what the agent gave back),
@@ -195,7 +141,7 @@ save a record or add a work item for an agent to pick up. A button stays grey un
 You do not need the right to start agents yourself: the app does what it was built to do on behalf of the person who
 published it, and the audit trail records that you pressed the button.
 
-## 9c. One CommandCenter on your phone
+## 9. One CommandCenter on your phone
 
 One CommandCenter works as an app on phones and tablets. Open its address in the phone's browser (Chrome or Edge on
 Android, Safari on iPhone and iPad), sign in, then:
@@ -209,8 +155,9 @@ and Apps directly. On a phone the menu folds away once you pick a page.
 
 The app needs One CommandCenter to be reachable over **https://** from the phone (on the company network, a VPN, or a
 public address your administrator sets up). Nothing from One CommandCenter is kept on the phone; without a connection
-the app says so. For notices on the phone when a task arrives, see [Notifications on your desktop](#9-notifications-on-your-desktop)
-and ask your administrator about push notices and approval links.
+the app says so. For notices on the phone when a task arrives, turn on **Phone notifications** (see
+[Approve from e-mail, Teams or your phone](#approve-from-e-mail-teams-or-your-phone)) and ask your administrator
+about approval links.
 
 ## 10. If it goes wrong
 
@@ -219,15 +166,12 @@ and ask your administrator about push notices and approval links.
 | The Task inbox is empty but you expected a task | Check **Done**, or ask whether the task was assigned to your user, role or team. Someone else may have taken it. |
 | The form will not submit | A required field is empty or a value is not allowed (a number out of range, a bad date or email address). The message says which. |
 | **Take it** fails | Someone else took the task a moment before you. Refresh the inbox. |
-| "Not started: <input> is required" | Run the agent again and give that input. |
-| "Not started" with another reason | You may not run that agent, or you have no default runner. Ask your administrator. |
-| **Run an agent** shows "(no agents you may run)" | No agent with a live production version is shared with you. Ask the agent's owner. |
-| "The assistant needs a desktop with a notification area (Windows)." | The assistant runs only on Windows desktops; use One CommandCenter in the browser. |
-| The assistant stops working after a while | Your API key may have expired or been revoked (your administrator may limit how long keys last). **Sign out**, create a new key, and sign in again. |
+| One Chat doesn't offer an agent you expected | It offers only agents with a live production version that you may run. Ask the agent's owner, or see [One Chat](16-one-chat.md#8-if-it-goes-wrong). |
 
 ## Related guides
 
 - [User guide overview](00-README.md)
+- [One Chat](16-one-chat.md) (starting agents in your own words)
 - [Publishing to One CommandCenter](15-publishing-to-command-center.md)
 - [AI in agents](13-ai-in-agents.md) (validating extracted values)
 - [Getting started](01-getting-started.md)
