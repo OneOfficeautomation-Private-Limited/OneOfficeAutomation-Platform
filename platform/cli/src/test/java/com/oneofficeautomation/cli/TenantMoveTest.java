@@ -244,7 +244,9 @@ class TenantMoveTest {
             // install values that stay with the install (settings evaluation_started, install_id; audit chain key in ControlRoom)
             "Licensing.java",
             // the region's catalog and configuration files: not tenant data
-            "Tenants.java", "DbConfig.java", "TlsConfig.java", "docauto/DocFlowConfig.java");
+            "Tenants.java", "DbConfig.java", "TlsConfig.java", "docauto/DocFlowConfig.java",
+            // One Chat's person-token signing key: made again when it cannot be read, so it needs no move or rotation
+            "chat/PersonTokens.java");
         List<String> unknown = new ArrayList<>();
         for (String dir : List.of("control-room/src/main/java", "modules")) {
             try (var w = Files.walk(root.resolve(dir))) {

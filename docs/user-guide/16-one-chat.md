@@ -156,6 +156,11 @@ same contract**, **Too old**, **Other contract**, **Not answering** or **Not set
 service at once. When the service is chosen but not working, One Chat says so and runs nothing; it never switches to
 the built-in engine on its own.
 
+Whichever engine answers, One CommandCenter decides what waits for a yes or an approval (section 3), checks each yes
+itself (the same person and chat, the same inputs, within 10 minutes, once), and records every run and change in the
+Audit Trail. The service hears when a run it started ends and when an approval is decided. It may put notices in a
+person's own Task inbox, at most 30 an hour.
+
 **Model and behaviour**
 
 | Setting | What it does |

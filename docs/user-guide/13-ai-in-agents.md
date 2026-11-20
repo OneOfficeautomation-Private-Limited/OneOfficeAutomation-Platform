@@ -342,6 +342,11 @@ governance as "Studio assistant"). Studio still checks every suggested step befo
 only suggests: it never saves, checks in or runs anything. Studio on its own (not signed in) keeps using its own
 Model Connections, as before.
 
+When an administrator has chosen the **OneChat service** as One Chat's engine (Settings › AI assistants › One Chat ›
+Engine), the service answers Studio's assistant too, with the agent open in Studio as context. It works for
+development only: it may read Studio's commands, check steps and see the agents you may call, and it calls models with
+the settings above. Studio still checks what it suggests.
+
 ## 10. Good practice: masking, budgets, testing
 
 - **Mask personal data.** Keep **Hide personal data** on (it is on by default for AI agents and Prompt Skills): email

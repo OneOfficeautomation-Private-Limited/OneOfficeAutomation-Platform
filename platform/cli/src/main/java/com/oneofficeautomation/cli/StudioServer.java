@@ -906,7 +906,7 @@ public final class StudioServer {
                 + "Dictionary, Table, Record, File, Credential, Any, Time, TimeSpan, Image, Binary. Secrets are Credential inputs. Use only actions from this catalog "
                 + "(* = required input):\n" + catalog;
         String user = "Existing variables: " + json.write(flow.getOrDefault("variables", List.of()), false) + "\nRequest: " + prompt;
-        String text = viaCommandCenter(system, user);
+        String text = viaCommandCenter(system, user, flow);
         if (text == null) text = locally(system, user, connection);
         int a = text.indexOf('{'), b = text.lastIndexOf('}');
         if (a < 0 || b <= a) throw new OoaException("ASSISTANT.NOT_JSON", "The model did not answer with steps", "Rephrase the request and try again.");
@@ -938,10 +938,11 @@ public final class StudioServer {
      * its model, creativity, length, instructions and skills, with the person's own choices (Settings > AI assistants >
      * Studio assistant). Null when Studio is on its own, or when that One CommandCenter has no such settings yet.
      */
-    private String viaCommandCenter(String system, String user) {
+    private String viaCommandCenter(String system, String user, Map<String, Object> flow) {
         if (cr == null || !cr.connected()) return null;
         try {
-            return String.valueOf(cr.call("POST", "assistants/studio/complete", Map.of("system", system, "prompt", user), true, java.time.Duration.ofSeconds(330)).getOrDefault("text", ""));
+            // the open agent goes too: the OneChat service (when One CommandCenter uses it) gets it as context (S5)
+            return String.valueOf(cr.call("POST", "assistants/studio/complete", Map.of("system", system, "prompt", user, "agent", flow), true, java.time.Duration.ofSeconds(330)).getOrDefault("text", ""));
         } catch (OoaException e) {
             // an older One CommandCenter, without the AI assistants settings: Studio's own connections answer, as before
             if (e.code().endsWith("NOT_FOUND") || e.code().endsWith("HTTP_404")) return null;

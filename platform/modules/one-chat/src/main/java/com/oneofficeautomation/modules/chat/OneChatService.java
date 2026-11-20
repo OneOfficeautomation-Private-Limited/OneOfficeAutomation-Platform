@@ -160,6 +160,12 @@ public final class OneChatService {
         return 0;
     }
 
+    /** A time as the database layer gives it (ISO text), or the default when it is missing or unreadable. */
+    static Instant instant(Object v, Instant dflt) {
+        if (v instanceof Instant i) return i;
+        try { return v == null ? dflt : Instant.parse(String.valueOf(v)); } catch (java.time.format.DateTimeParseException e) { return dflt; }
+    }
+
     private static int num(String s) { try { return Integer.parseInt(s.replaceAll("\\D", "")); } catch (NumberFormatException e) { return 0; } }
 
     // ---- passing requests on ----
@@ -241,7 +247,7 @@ public final class OneChatService {
         if (c == null) return null;
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", c.get("id"));
-        m.put("expires", c.get("expires") instanceof java.sql.Timestamp ts ? ts.toInstant().toString() : String.valueOf(c.get("expires")));
+        m.put("expires", String.valueOf(c.get("expires")));
         m.put("risk", c.get("risk"));
         m.put("name", c.get("name"));
         m.put("kind", "tool".equals(c.get("kind")) ? "tool" : "agent");
@@ -297,8 +303,9 @@ public final class OneChatService {
      * answer is the proposal the service suggests (as JSON text, which Studio checks as before) or its text.
      */
     @SuppressWarnings("unchecked")
-    String studio(User u, String system, String prompt, String ip) {
-        Map<String, Object> r = call("POST", "messages", Map.of("message", prompt, "context", Map.of("instructions", system)), u, "studio", null, null, ip,
+    String studio(User u, Map<String, Object> context, String prompt, String ip) {
+        String lang = Objects.requireNonNullElse(new AssistantSettings(ctx).language(u, "studio"), "en");
+        Map<String, Object> r = call("POST", "messages", Map.of("message", prompt, "context", context), u, "studio", null, lang, ip,
                 ctx.intSetting("studio_timeout_seconds") + 30);
         String text = "";
         if (r.get("messages") instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> mm && !"user".equals(mm.get("role"))) {
@@ -323,11 +330,15 @@ public final class OneChatService {
     /** Sends the events that are due (on One CommandCenter's clock, on the cluster's leader); retries, then drops after an hour. */
     @SuppressWarnings("unchecked")
     void deliverEvents() {
-        if (!chosen()) return;
         Instant now = now();
+        if (!chosen()) {
+            // the built-in engine is chosen again: events nobody will collect go after an hour
+            ctx.db().update("DELETE FROM onechat_events WHERE created < ?", now.minus(Duration.ofHours(1)));
+            return;
+        }
         for (Map<String, Object> e : ctx.db().query("SELECT id, username, session_id, payload, attempts, created FROM onechat_events WHERE next_try <= ? ORDER BY created LIMIT ?", now, 50)) {
             String id = String.valueOf(e.get("id"));
-            Instant created = e.get("created") instanceof java.sql.Timestamp ts ? ts.toInstant() : now;
+            Instant created = instant(e.get("created"), now);
             User u = ctx.activeUser(String.valueOf(e.get("username")));
             boolean sent = false;
             if (u != null) {

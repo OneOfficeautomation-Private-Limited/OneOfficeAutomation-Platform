@@ -99,7 +99,10 @@ public final class Chat implements ChatPlatform {
     @Override public boolean canViewRuns(Person p) { return ctx.can(user(p), "runs.view"); }
 
     @Override
-    public String startRun(Person p, String path, Map<String, Object> inputs) {
+    public String startRun(Person p, String path, Map<String, Object> inputs) { return startRun(p, path, inputs, "chat"); }
+
+    /** Starts a run as the person on the chat runner or pool; source chat (the built-in engine) or onechat (the OneChat service). */
+    public String startRun(Person p, String path, Map<String, Object> inputs, String source) {
         String target = setting("chat_runner").trim();
         String device = null, pool = null;
         if (!target.isEmpty() && (target.startsWith("pool_") || ctx.db().one("SELECT id FROM device_pools WHERE id = ?", target) != null)) pool = target;
@@ -107,7 +110,7 @@ public final class Chat implements ChatPlatform {
         else device = ctx.onlineRunner();
         if (device == null && pool == null) throw new Refused("no_runner", "no runner online");
         try {
-            return (String) ctx.startRun(p.username(), p.role(), path, device, pool, inputs, "chat", p.ip(), 5, null, null, null).get("run_id");
+            return (String) ctx.startRun(p.username(), p.role(), path, device, pool, inputs, source, p.ip(), 5, null, null, null).get("run_id");
         } catch (OoaException e) {
             // the reason as the platform gives it; the conversation module words the sentence around it in the person's language
             throw new Refused("refused", e.getMessage() + (e.suggestedFix() == null ? "" : " " + e.suggestedFix()));
@@ -122,10 +125,13 @@ public final class Chat implements ChatPlatform {
 
     /** An approval task in the Task inbox for the chat_approvers (default role:admin); never decided by the person who asked. */
     @Override
-    public String requestApproval(Person p, ApprovalRequest r) {
+    public String requestApproval(Person p, ApprovalRequest r) { return requestApproval(p, r, "chat"); }
+
+    /** As above, for the engine that asked: chat (built in) or onechat (the OneChat service, which hears the decision as an event). */
+    public String requestApproval(Person p, ApprovalRequest r, String source) {
         String taskId = id("task");
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("source", "chat");
+        data.put("source", source);
         data.put("agent", r.agent());
         data.put("inputs", r.inputs());
         data.put("requested_by", p.username());
