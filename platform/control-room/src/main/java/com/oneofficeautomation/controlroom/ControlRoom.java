@@ -1009,6 +1009,9 @@ public final class ControlRoom {
         return storeVersion(by, path, flow, comment, makeProduction, true, ip);
     }
 
+    /** The toolkits' manifests, what Studio shows for each command (S5: the Studio area of AI assistants). */
+    public List<Map<String, Object>> toolkitManifests() { return registry.allManifests(); }
+
     /** Validates a flow for the path as check-in does (toolkits, schema, workflow or form rules); returns the problems. */
     public List<Map<String, Object>> problemsOf(String path, Map<String, Object> flow) {
         if (!FlowFiles.isDefinition(path)) { platform.checkToolkits(flow); return validator.validate(flow); }

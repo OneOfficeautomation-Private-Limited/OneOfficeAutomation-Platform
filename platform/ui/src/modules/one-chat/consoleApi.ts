@@ -20,7 +20,12 @@ export type AssistantArea = { mine: { model: string; language: string; instructi
   language_fixed: string; own_instructions: boolean; company_instructions: string };
 export type AssistantsMine = { assistants: { chat: AssistantArea; studio: AssistantArea }; languages: Record<string, string>;
   /** One Chat's memory (S4): the administrator's mode, and the notes this person asked it to remember. */
-  memory?: { mode: "chat" | "off" | "across"; notes: { id: string; note: string; created: string }[] } };
+  memory?: { mode: "chat" | "off" | "across"; notes: { id: string; note: string; created: string }[];
+    /** S5: "service" when the OneChat service keeps the notes; notes_error when it did not answer. */
+    kept_by?: "service"; notes_error?: string } };
+/** The OneChat service's version and whether this release works with it (S5, Settings > AI assistants > One Chat). */
+export type OneChatVersion = { contract: string; tested: string; minimum: string; version: string | null;
+  status: "compatible" | "newer" | "older" | "wrong_contract" | "unreachable" | "not_set_up"; compatible: boolean; message: string; engine: "builtin" | "service"; url: string };
 /** One of the person's kept chats (S4, One Chat's Your chats). */
 export type ChatSummary = { id: string; title: string; last_used: string; messages: number };
 
@@ -32,6 +37,8 @@ declare module "../../api/cr" {
     forgetNotes(id?: string): Promise<AssistantsMine>;
     /** One Chat: the person's kept chats, newest first. */
     chats(): Promise<ChatSummary[]>;
+    /** The OneChat service's version and whether it works with this release; fresh asks it again at once. */
+    onechatVersion(fresh?: boolean): Promise<OneChatVersion>;
     /** Saves the person's own choices for one assistant (chat or studio), within what is allowed. */
     saveAssistantPrefs(area: "chat" | "studio", prefs: { model: string; language: string; instructions: string; ask_first?: boolean }): Promise<AssistantsMine>;
     /** One Chat: sends a message (a new chat when sessionId is null); the reply comes in the person's language. */
@@ -59,3 +66,5 @@ CrApi.prototype.saveAssistantPrefs = function (area: "chat" | "studio", prefs: {
 CrApi.prototype.forgetNotes = function (id?: string) { return this.request<AssistantsMine>("DELETE", "assistants/me/memory" + (id ? "/" + encodeURIComponent(id) : "")); };
 /** One Chat: the person's kept chats, newest first. */
 CrApi.prototype.chats = async function () { return (await this.request<{ chats?: ChatSummary[] }>("GET", "chat")).chats ?? []; };
+/** The OneChat service's version and whether it works with this release; fresh asks it again at once. */
+CrApi.prototype.onechatVersion = function (fresh?: boolean) { return this.request<OneChatVersion>("GET", "onechat/version" + (fresh ? "?fresh=1" : "")); };

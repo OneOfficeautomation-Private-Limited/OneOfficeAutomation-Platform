@@ -359,7 +359,11 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       studio_temperature: "0", studio_max_tokens: 4000, studio_language: "", studio_instructions: "", studio_skills: "", studio_own_instructions: 1,
       chat_tool_read: "always", chat_tool_agents: "always", chat_tool_admin_read: "never", chat_tool_admin_change: "never", chat_tool_admin_high: "never",
       chat_memory: "chat", chat_keep_hours: 8, chat_ktokens_per_person: 0, chat_timeout_seconds: 90, chat_mask_pii: 1, studio_ktokens_per_person: 0,
-      studio_timeout_seconds: 300, studio_mask_pii: 0, mcp_runs_per_hour: 0 });
+      studio_timeout_seconds: 300, studio_mask_pii: 0, mcp_runs_per_hour: 0,
+      // S5: One Chat's engine
+      chat_engine: "builtin", onechat_url: "", onechat_token_ref: "" });
+    if (route.startsWith("onechat/version")) return ok({ contract: "v1", tested: "1.0.0", minimum: "1.0.0", version: null, status: "not_set_up", compatible: false,
+      message: "The OneChat service has no token yet: set Service token (a vault reference), or OOA_ONECHAT_TOKEN.", engine: "builtin", url: "http://127.0.0.1:8086" });
     if (route === "assistants/options") return ok({ connections: [{ name: "company", provider: "anthropic", model: "claude" }, { name: "llama", provider: "openai_compatible", model: "llama3.1" }],
       skills: [{ name: "tone", description: "How to word answers" }], languages: { en: "English", de: "German" } });
     if (route.startsWith("assistants/me")) {
@@ -1907,6 +1911,17 @@ describe("rebuilt One CommandCenter console", () => {
     fireEvent.change(within(sec).getByLabelText("Tokens per person"), { target: { value: "500" } });
     await act(async () => { fireEvent.click(within(sec).getByRole("button", { name: "Save One Chat" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings", body: { chat_memory: "across", chat_keep_hours: 720, chat_ktokens_per_person: 500 } }));
+    // S5: the engine, and the OneChat service's state under the tab's note
+    const status = await within(sec).findByRole("status", { name: "OneChat service" });
+    expect(status.textContent).toContain("Engine: Built in");
+    expect(await within(status).findByText("Not set up")).toBeTruthy();
+    expect(calls).toContainEqual(expect.objectContaining({ method: "GET", route: "onechat/version", url: "/api/onechat/version?fresh=1" }));
+    fireEvent.click(within(within(sec).getByRole("radiogroup", { name: "Chat engine" })).getByRole("radio", { name: "OneChat service" }));
+    fireEvent.change(within(sec).getByLabelText("OneChat address"), { target: { value: "http://onechat.example:8086" } });
+    fireEvent.change(within(sec).getByLabelText("Service token"), { target: { value: "onechat/service/token" } });
+    await act(async () => { fireEvent.click(within(sec).getByRole("button", { name: "Save One Chat" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings",
+      body: { chat_engine: "service", onechat_url: "http://onechat.example:8086", onechat_token_ref: "onechat/service/token" } }));
     // Studio assistant: its own Save sends only its own changes
     fireEvent.mouseDown(within(tabs).getByRole("tab", { name: /Studio assistant/ }));
     expect(await within(sec).findByText(/Development only/)).toBeTruthy();

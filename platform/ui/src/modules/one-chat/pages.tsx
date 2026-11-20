@@ -2,6 +2,7 @@ import type { UiModulePages } from "../pages";
 import "./one-chat.css";
 import { Chat } from "./Chat";
 import { AssistantPrefs } from "./AssistantPrefs";
+import { OneChatStatus } from "./OneChatStatus";
 
 /** one-chat's console pages (by menu page id) and the parts other pages show when it is installed (modules/pages.tsx finds this file). */
 export const ui: UiModulePages = {
@@ -11,5 +12,7 @@ export const ui: UiModulePages = {
   parts: {
     // My account > AI assistants (S2): the person's own model, language and instructions per assistant
     "assistant-prefs": AssistantPrefs,
+    // Settings > AI assistants > One Chat (S5): the OneChat service's version and whether it works with this release
+    "onechat-status": OneChatStatus,
   },
 };

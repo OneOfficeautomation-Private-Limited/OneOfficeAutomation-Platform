@@ -49,3 +49,10 @@
 .cc-chat-history { margin: 0 0 8px; padding: 8px 12px; background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 6px; max-width: 720px; }
 .cc-chat-history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cc-chat-history .cc-link[aria-current="true"] { font-weight: 700; }
+
+/* Settings > AI assistants > One Chat (S5): the engine and the OneChat service's state, one line under the tab's note */
+.cc-oc-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 16px; padding: 6px 10px; border: 1px solid var(--ui-border);
+  border-radius: 6px; background: var(--ui-bg); color: var(--ui-text); font-size: 13px; }
+.cc-oc-sep { color: var(--ui-text-2); }
+.cc-oc-msg { flex: 1 1 260px; min-width: 0; color: var(--ui-text); }
+.cc-ap-error { color: var(--ui-error-text); }

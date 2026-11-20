@@ -143,6 +143,19 @@ Good practice:
 Open **Settings › AI assistants**, tab **One Chat**. The tab has its own **Save One Chat**; the other tabs are
 **Studio assistant** (see [AI in agents](13-ai-in-agents.md#9-the-studio-assistant)) and **Outside assistants (MCP)**.
 
+**Engine**
+
+| Setting | What it does |
+| --- | --- |
+| **Chat engine** | **Built in** (the default) or **OneChat service**, a separate service installed beside One CommandCenter. With the service, messages, chats and remembered notes go to it, and it acts only through One CommandCenter, as the person, under every setting on this tab |
+| **OneChat address** | Empty: `OOA_ONECHAT_URL`, then `http://127.0.0.1:8086` |
+| **Service token** | A vault reference to the token OneChat and One CommandCenter share. Empty: `OOA_ONECHAT_TOKEN` |
+
+The line under the tab's note shows the engine in use and the service's state: **Works with this release**, **Newer,
+same contract**, **Too old**, **Other contract**, **Not answering** or **Not set up**. **Check again** asks the
+service at once. When the service is chosen but not working, One Chat says so and runs nothing; it never switches to
+the built-in engine on its own.
+
 **Model and behaviour**
 
 | Setting | What it does |
@@ -233,6 +246,8 @@ inputs the agent does not declare are dropped.
 | "I couldn't get an answer from the AI model …" | The model connection failed or is not set | An administrator checks the connection, or sets the role to rules mode |
 | "That confirmation expired …" | The yes came more than 10 minutes after the summary | Ask again |
 | An R3 request never starts | Nobody has approved it yet | Ask an approver to look at their **Task inbox** |
+| "The OneChat service at … is not answering" | The OneChat service is chosen but stopped or unreachable | An operator starts OneChat or checks **OneChat address**; an administrator can choose **Built in** meanwhile |
+| "OneChat … is older than …" | The OneChat installed is older than this release needs | Upgrade OneChat first, then the platform |
 
 ## Related guides
 

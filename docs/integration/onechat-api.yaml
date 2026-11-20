@@ -1,0 +1,712 @@
+openapi: 3.1.0
+info:
+  title: OneChat contract v1
+  version: "1.0.0"
+  description: |
+    The routes between One CommandCenter and the OneChat service, both ways (docs/integration/one-chat-contract.md).
+
+    - **One CommandCenter calls OneChat** under `/api/chat/v1/` (tag `onechat`): OneChat builds these.
+    - **OneChat calls One CommandCenter back** under `/api/onechat-callback/v1/` (tag `callbacks`): One CommandCenter
+      answers these; OneChat calls them while it answers a message.
+
+    Every request both ways carries the service token (`Authorization: Bearer`, the same value as `ONECHAT_API_TOKEN`).
+    Requests that act for a person also carry `X-OOA-Tenant` and `X-OOA-Person`, the person token One CommandCenter
+    made for the message being answered. OneChat passes that token back unchanged on its callbacks and never stores
+    it; it is good for five minutes. Errors use `{"error": {"code", "message", "hint"}}`.
+
+    Contract v1 only grows: new routes and new fields may appear, so ignore fields you don't know.
+servers:
+  - url: http://127.0.0.1:8086
+    description: OneChat (routes tagged onechat)
+  - url: http://127.0.0.1:8720
+    description: One CommandCenter (routes tagged callbacks)
+security:
+  - serviceToken: []
+tags:
+  - name: onechat
+    description: Built by OneChat; One CommandCenter calls them.
+  - name: callbacks
+    description: Built by One CommandCenter; OneChat calls them.
+
+paths:
+  # ---------------------------------------------------------------- OneChat
+  /api/chat/v1/version:
+    get:
+      tags: [onechat]
+      summary: OneChat's version and contract
+      description: One CommandCenter asks at most once a minute and shows the answer in Settings > AI assistants > One Chat.
+      responses:
+        "200":
+          description: The version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServiceVersion" }
+  /api/chat/v1/health:
+    get:
+      tags: [onechat]
+      summary: 200 when ready
+      responses:
+        "200": { description: Ready }
+  /api/chat/v1/messages:
+    post:
+      tags: [onechat]
+      summary: A message from the One Chat page (area chat) or Studio's assistant (area studio)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" }, { $ref: "#/components/parameters/Area" }, { $ref: "#/components/parameters/Lang" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MessageRequest" }
+      responses:
+        "200":
+          description: The chat and what the assistant said
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "4XX": { $ref: "#/components/responses/Error" }
+  /api/chat/v1/sessions:
+    get:
+      tags: [onechat]
+      summary: The person's chats, newest first
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" }, { $ref: "#/components/parameters/Area" } ]
+      responses:
+        "200":
+          description: The chats
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessions]
+                properties:
+                  sessions: { type: array, items: { $ref: "#/components/schemas/SessionSummary" } }
+  /api/chat/v1/sessions/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      tags: [onechat]
+      summary: One of the person's chats, oldest message first
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" }, { $ref: "#/components/parameters/Area" } ]
+      responses:
+        "200":
+          description: The chat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [session_id, messages]
+                properties:
+                  session_id: { type: string }
+                  messages: { type: array, items: { $ref: "#/components/schemas/Message" } }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [onechat]
+      summary: Deletes one of the person's chats
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200": { description: Deleted }
+  /api/chat/v1/people/{username}/memory:
+    parameters: [ { name: username, in: path, required: true, schema: { type: string } } ]
+    get:
+      tags: [onechat]
+      summary: What OneChat remembers for the person (My account > AI assistants)
+      description: Only for the person in the token; refuse any other user name.
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200":
+          description: The notes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [notes]
+                properties:
+                  notes: { type: array, items: { $ref: "#/components/schemas/Note" } }
+    delete:
+      tags: [onechat]
+      summary: Forgets everything OneChat remembers for the person
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200": { description: Forgotten }
+  /api/chat/v1/people/{username}/memory/{noteId}:
+    parameters:
+      - { name: username, in: path, required: true, schema: { type: string } }
+      - { name: noteId, in: path, required: true, schema: { type: string } }
+    delete:
+      tags: [onechat]
+      summary: Forgets one note
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200": { description: Forgotten }
+  /api/chat/v1/people/{username}:
+    parameters: [ { name: username, in: path, required: true, schema: { type: string } } ]
+    delete:
+      tags: [onechat]
+      summary: A person was deleted in One CommandCenter; remove their chats and notes
+      parameters: [ { $ref: "#/components/parameters/Tenant" } ]
+      responses:
+        "200": { description: Removed }
+  /api/chat/v1/events:
+    post:
+      tags: [onechat]
+      summary: Something happened after the answer (section 6)
+      description: |
+        Sent with a fresh person token. Each event has an id: ignore an id you have seen (One CommandCenter retries,
+        waiting longer each time, for up to an hour, until it gets a 2xx).
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" }, { $ref: "#/components/parameters/Area" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Event" }
+      responses:
+        "200": { description: Received }
+  /api/chat/v1/tenants/{id}/export:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      tags: [onechat]
+      summary: SaaS. A customer's data, before it is removed
+      responses:
+        "200": { description: The tenant's chats and notes as JSON }
+  /api/chat/v1/tenants/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    delete:
+      tags: [onechat]
+      summary: SaaS. Removes a customer's data
+      responses:
+        "200": { description: Removed }
+
+  # ---------------------------------------------------------------- callbacks
+  /api/onechat-callback/v1/version:
+    get:
+      tags: [callbacks]
+      summary: One CommandCenter's side of the contract (service token only)
+      responses:
+        "200":
+          description: The contract
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service: { const: one-commandcenter }
+                  contract: { type: string, examples: [v1] }
+                  module: { type: string, description: The One Chat module's version }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/onechat-callback/v1/health:
+    get:
+      tags: [callbacks]
+      summary: 200 when One CommandCenter is ready (service token only)
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { const: ok }
+                  engine: { enum: [builtin, service] }
+  /api/onechat-callback/v1/person:
+    get:
+      tags: [callbacks]
+      summary: The person speaking (areas chat and studio)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200":
+          description: The person
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PersonInfo" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/onechat-callback/v1/settings:
+    get:
+      tags: [callbacks]
+      summary: The person's settings for the area, company and person merged (section 10)
+      description: Ask again with each new message, so a change applies at once. Never holds a secret.
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200":
+          description: The settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssistantSettings" }
+  /api/onechat-callback/v1/skills/{name}:
+    parameters: [ { name: name, in: path, required: true, schema: { type: string } } ]
+    get:
+      tags: [callbacks]
+      summary: The text of a Prompt Skill the area may use (404 for any other)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200":
+          description: The skill
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  description: { type: string }
+                  system: { type: string }
+                  prompt: { type: string }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/onechat-callback/v1/agents:
+    get:
+      tags: [callbacks]
+      summary: The agents the person may run now (area chat)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200":
+          description: The agents
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [agents]
+                properties:
+                  agents: { type: array, items: { $ref: "#/components/schemas/Agent" } }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/onechat-callback/v1/runs:
+    get:
+      tags: [callbacks]
+      summary: The person's latest runs, newest first (area chat)
+      parameters:
+        - { $ref: "#/components/parameters/Tenant" }
+        - { $ref: "#/components/parameters/Person" }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+      responses:
+        "200":
+          description: The runs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runs]
+                properties:
+                  runs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        run_id: { type: string }
+                        agent: { type: string }
+                        status: { type: string }
+    post:
+      tags: [callbacks]
+      summary: Starts an agent as the person (area chat)
+      description: |
+        The risk class decides, never OneChat: R0 starts at once; R1 and R2 answer `confirm` first, and run when you
+        call again with `confirmation_id` and the person token of the later message where they said yes; R3 answers
+        `approval` (someone else approves in the Task inbox; you hear the decision as an `approval_decided` event).
+        The assistant's settings can make a call stricter (Ask first), never looser.
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent, inputs, session_id]
+              properties:
+                agent: { type: string, description: The agent's path from GET agents }
+                inputs: { type: object, additionalProperties: true }
+                session_id: { type: string }
+                confirmation_id: { type: string }
+      responses:
+        "200":
+          description: Started, a confirmation to ask for, an approval waiting, or refused
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionAnswer" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/onechat-callback/v1/runs/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      tags: [callbacks]
+      summary: One of the person's own runs, with its status and results (area chat)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200":
+          description: The run
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  run_id: { type: string }
+                  agent: { type: string }
+                  status: { type: string }
+                  created: { type: [string, "null"], format: date-time }
+                  started: { type: [string, "null"], format: date-time }
+                  finished: { type: [string, "null"], format: date-time }
+                  results: { type: object, additionalProperties: true }
+                  error: { type: [object, "null"] }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/onechat-callback/v1/tasks:
+    get:
+      tags: [callbacks]
+      summary: The person's open Task inbox items (area chat)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200":
+          description: The tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        task_id: { type: string }
+                        kind: { type: string }
+                        title: { type: string }
+                        status: { enum: [open, claimed] }
+                        created: { type: string, format: date-time }
+                        due: { type: [string, "null"], format: date-time }
+  /api/onechat-callback/v1/admin/tools:
+    get:
+      tags: [callbacks]
+      summary: The administration tools the person may use now (area chat)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200":
+          description: The tools, with the rule the settings give each
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tools: { type: array, items: { $ref: "#/components/schemas/AdminTool" } }
+  /api/onechat-callback/v1/admin/actions:
+    post:
+      tags: [callbacks]
+      summary: Uses an administration tool as the person (area chat); answers like POST runs
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tool, inputs, session_id]
+              properties:
+                tool: { type: string, description: The tool's id from GET admin/tools }
+                inputs: { type: object, additionalProperties: true }
+                session_id: { type: string }
+                confirmation_id: { type: string }
+      responses:
+        "200":
+          description: A result, a confirmation to ask for, an approval waiting, or refused
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionAnswer" }
+  /api/onechat-callback/v1/notices:
+    post:
+      tags: [callbacks]
+      summary: A notice in the person's own Task inbox (area chat; only to the person in the token)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, message]
+              properties:
+                title: { type: string, maxLength: 200 }
+                message: { type: string, maxLength: 2000 }
+      responses:
+        "200":
+          description: The notice
+          content:
+            application/json:
+              schema: { type: object, properties: { task_id: { type: string } } }
+  /api/onechat-callback/v1/model:
+    post:
+      tags: [callbacks]
+      summary: One model call through One Model Connections (areas chat and studio)
+      description: |
+        Masking, the budget, the person's limit (429 past it), the wait time and the record of the call apply. The
+        connection must be one the person may use; leave it out for the area's model.
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messages]
+              properties:
+                connection: { type: string }
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role: { enum: [system, user, assistant, tool] }
+                      content: { type: string }
+                tools: { type: array, items: { type: object } }
+                purpose: { type: string, maxLength: 60 }
+      responses:
+        "200":
+          description: The model's answer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text: { type: string }
+                  tool_calls:
+                    type: array
+                    items: { type: object, properties: { id: { type: string }, name: { type: string }, args: { type: object } } }
+                  input_tokens: { type: integer }
+                  output_tokens: { type: integer }
+        "403": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/onechat-callback/v1/audit:
+    post:
+      tags: [callbacks]
+      summary: An Audit Trail entry as the person; the action starts with chat. or studio. (the token's area)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, pattern: "^(chat|studio)\\.[a-z0-9_.]{1,60}$" }
+                object_type: { type: string, maxLength: 40 }
+                object_id: { type: string }
+                details: { type: object, description: At most 4,000 characters as JSON }
+      responses:
+        "200": { description: Recorded }
+  /api/onechat-callback/v1/studio/commands:
+    get:
+      tags: [callbacks]
+      summary: The commands Studio offers, with their fields (area studio)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200": { description: "{toolkits: [...]}: each toolkit's manifest with its actions and their fields" }
+  /api/onechat-callback/v1/studio/check:
+    post:
+      tags: [callbacks]
+      summary: Checks steps or a whole agent the way Studio and ooa validate do (area studio)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                flow: { type: object, description: A whole agent }
+                steps: { type: array, items: { type: object }, description: Steps only; checked inside an empty agent }
+      responses:
+        "200":
+          description: The problems found (none means it passes)
+          content:
+            application/json:
+              schema: { type: object, properties: { problems: { type: array, items: { type: object } }, ok: { type: boolean } } }
+  /api/onechat-callback/v1/studio/agents:
+    get:
+      tags: [callbacks]
+      summary: The agents the person may call from theirs, read-only (area studio)
+      parameters: [ { $ref: "#/components/parameters/Tenant" }, { $ref: "#/components/parameters/Person" } ]
+      responses:
+        "200": { description: "{agents: [{path, name, inputs, outputs}]}" }
+
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: The shared service token (ONECHAT_API_TOKEN in OneChat; a vault reference or OOA_ONECHAT_TOKEN in One CommandCenter).
+  parameters:
+    Tenant:
+      { name: X-OOA-Tenant, in: header, required: true, schema: { type: string }, description: "default on premises; the tenant's id in SaaS" }
+    Person:
+      name: X-OOA-Person
+      in: header
+      required: true
+      description: |
+        The person token, v1.<payload>.<signature>. The payload is base64url JSON {sub, role, tenant, area, session,
+        ip, iat, exp, jti}; read it, never change or store it, and pass it back unchanged on callbacks.
+      schema: { type: string, pattern: "^v1\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$" }
+    Area:
+      { name: X-OOA-Area, in: header, required: true, schema: { enum: [chat, studio] } }
+    Lang:
+      { name: X-OOA-Lang, in: header, required: true, schema: { enum: [en, de, fr, es, ja] } }
+  responses:
+    Error:
+      description: "401 a bad or expired token; 403 not allowed in this area, by the settings or by the person's permissions; 409 a used or expired confirmation; 429 over a limit"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            hint: { type: string }
+            suggestedFix: { type: string, description: One CommandCenter's name for hint }
+    ServiceVersion:
+      type: object
+      required: [service, version, contract]
+      properties:
+        service: { const: onechat }
+        version: { type: string, examples: ["1.0.0"] }
+        contract: { type: string, examples: [v1] }
+    MessageRequest:
+      type: object
+      required: [message]
+      properties:
+        session_id: { type: string, description: Empty for a new chat }
+        message: { type: string, maxLength: 4000 }
+        context:
+          type: object
+          description: "Studio area: {instructions, agent, selected_steps}"
+          additionalProperties: true
+    MessageResponse:
+      type: object
+      required: [session_id, messages]
+      properties:
+        session_id: { type: string }
+        messages:
+          type: array
+          description: This turn's messages; One CommandCenter shows those that are not the user's
+          items: { $ref: "#/components/schemas/Message" }
+    Message:
+      type: object
+      required: [role, text]
+      properties:
+        role: { enum: [user, assistant] }
+        text: { type: string }
+        kind: { enum: [answer, question, confirm, started, proposal, error, done, awaiting_approval, refused, not_understood, cancelled] }
+        choices: { type: array, items: { type: string } }
+        confirmation_id: { type: string, description: "From a confirm answer of POST runs or admin/actions; One CommandCenter shows its card" }
+        run_id: { type: string }
+        task_id: { type: string }
+        proposal: { type: object, description: "Studio area: the steps suggested; Studio checks them before it shows them" }
+    SessionSummary:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        last_used: { type: string, format: date-time }
+        messages: { type: integer }
+    Note:
+      type: object
+      properties:
+        id: { type: string }
+        note: { type: string, maxLength: 300 }
+        created: { type: string, format: date-time }
+    Event:
+      type: object
+      required: [id, type]
+      properties:
+        id: { type: string }
+        type: { enum: [run_ended, approval_decided] }
+        session_id: { type: string }
+        run_id: { type: string }
+        status: { type: string, description: "run_ended: success, failed or stopped" }
+        results: { type: object }
+        task_id: { type: string }
+        decision: { enum: [approved, rejected] }
+        comment: { type: string }
+        approver: { type: string }
+    PersonInfo:
+      type: object
+      properties:
+        username: { type: string }
+        display_name: { type: string }
+        role: { type: string }
+        tenant: { type: string }
+        area: { enum: [chat, studio] }
+        language: { type: [string, "null"], description: "The answer language set for them; null: their console language (X-OOA-Lang)" }
+        may:
+          type: object
+          properties:
+            view_runs: { type: boolean }
+            start_runs: { type: boolean }
+            build_agents: { type: boolean }
+    AssistantSettings:
+      type: object
+      properties:
+        area: { enum: [chat, studio] }
+        model: { type: string, description: "The connection's name; empty: the person's first allowed one" }
+        models: { type: array, items: { type: string } }
+        temperature: { type: number }
+        max_tokens: { type: integer }
+        language: { type: [string, "null"] }
+        instructions: { type: string, description: "Company, then skills, then the person's own; already merged" }
+        skills: { type: array, items: { type: string } }
+        timeout_seconds: { type: integer }
+        mask_pii: { type: boolean }
+        ktokens_per_person: { type: integer, description: "0: no limit of its own" }
+        tools:
+          type: object
+          description: "Chat area: each group's rule (always, ask, ask_person, never)"
+          additionalProperties: { enum: [always, ask, ask_person, never] }
+        memory: { enum: [chat, off, across] }
+        keep_hours: { type: integer }
+        mode: { enum: [deterministic, hybrid, llm] }
+        runner: { type: string }
+    Agent:
+      type: object
+      properties:
+        path: { type: string }
+        name: { type: string }
+        description: { type: string }
+        risk: { enum: [R0, R1, R2, R3] }
+        inputs: { type: array, items: { type: object } }
+        chat:
+          type: object
+          properties:
+            examples: { type: array, items: { type: string } }
+            aliases: { type: array, items: { type: string } }
+            not_for: { type: array, items: { type: string } }
+            prompts: { type: object, additionalProperties: { type: string } }
+    AdminTool:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        group: { enum: [admin_read, admin_change, admin_high] }
+        risk: { enum: [R0, R1, R2, R3] }
+        inputs: { type: array, items: { type: object } }
+        examples: { type: array, items: { type: string } }
+        rule: { enum: [always, ask, ask_person] }
+    ActionAnswer:
+      type: object
+      description: Exactly one of the properties
+      properties:
+        run_id: { type: string }
+        result: { type: object, description: "admin/actions: {rows, columns, page} or a message" }
+        confirm:
+          type: object
+          properties:
+            confirmation_id: { type: string }
+            summary: { type: string }
+            expires: { type: string, format: date-time }
+            risk: { type: string }
+            reason: { type: string }
+            undo: { type: string }
+        approval: { type: object, properties: { task_id: { type: string } } }
+        refused:
+          type: object
+          properties:
+            kind: { enum: [no_runner, refused] }
+            message: { type: string }

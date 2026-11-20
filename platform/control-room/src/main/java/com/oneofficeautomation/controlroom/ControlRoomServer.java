@@ -207,8 +207,8 @@ public final class ControlRoomServer {
                 case "CR.NOT_FOUND", "VAULT.NOT_FOUND" -> 404;
                 case "CR.LOCKED", "CR.CONFLICT", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID", "CR.IN_USE", "CR.DELETED", "CR.LICENSE_LIMIT", "LICENSE.TOO_FEW_SEATS" -> 409;
                 case "CR.POLICY_VIOLATION" -> 422;
-                case "CR.LOCKED_OUT", "CR.RATE_LIMITED" -> 429;
-                case "DOCS.UNAVAILABLE", "DOCS.TOKEN" -> 502;
+                case "CR.LOCKED_OUT", "CR.RATE_LIMITED", "AI.PERSON_LIMIT" -> 429;
+                case "DOCS.UNAVAILABLE", "DOCS.TOKEN", "ONECHAT.UNREACHABLE", "ONECHAT.NOT_AVAILABLE", "ONECHAT.ERROR" -> 502;
                 default -> 400;
             };
             if (status == 401 && ex.getRequestURI().getPath().equals("/api/mcp")) {
