@@ -230,7 +230,6 @@ Permissions `lifecycle.export` and `lifecycle.import` are administrator-only unl
 | `ooa tls ...`, `ooa service ...`, `ooa backup ...`, `ooa check` | Operations |
 | `ooa toolkit keygen`, `sign`, `inspect` | Custom toolkits |
 | `ooa region ...`, `ooa directory start` | SaaS operators |
-| `ooa assistant` | Desktop assistant |
 | `ooa browser-connector install`, `status`, `uninstall`; `ooa native-host` | Browser connector |
 
 The GraalVM native executable (`gradlew :cli:nativeExecutable`) contains `validate`, `run`, `manifest`, `conformance`,

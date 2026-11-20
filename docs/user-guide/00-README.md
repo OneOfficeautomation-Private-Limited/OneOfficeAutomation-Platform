@@ -44,14 +44,14 @@ recorded in the **Audit Trail**.
 | 04 | [Running and debugging in Studio](04-studio-running-and-debugging.md) | Builders | Run, Debug, breakpoints, the run console, problems |
 | 05 | [Operator's guide](05-operators-guide.md) | Operators | Agent Activity, running and deploying agents, schedules, triggers, work queues, workflows, Operational Insights (Overview, Alerts, Operations, Business: agents' dashboards, value, dashboards e-mailed on a schedule), handling failures |
 | 06 | [Administrator's guide](06-administrators-guide.md) | Administrators | Users, roles, teams, sign-in and security (password rules, lockout, Active Directory or LDAP, SCIM), API keys, the vault, shared values and connections, toolkits, policies (code analysis, AI guardrails), templates, settings, licences, audit, AI governance |
-| 07 | [Runner guide](07-runner-guide.md) | Runner owners, administrators | Installing and registering runners, attended and unattended work, screens, pools, updates, the notification-area assistant, diagnosing problems |
+| 07 | [Runner guide](07-runner-guide.md) | Runner owners, administrators | Installing and registering runners, attended and unattended work, screens, pools, updates, diagnosing problems |
 | 08 | [Browser connector guide](08-browser-connector-guide.md) | Builders, runner owners | Installing the connector for Edge, Chrome and Firefox, checking it, what works where, troubleshooting |
 | 09 | [Child agents](09-child-agents.md) | Builders | Agents that call other agents, passing values, reuse |
 | 10 | [Web and desktop automation](10-web-and-desktop-automation.md) | Builders | Browsers, windows, capture, recording, older Windows and Java applications |
 | 11 | [Office files, e-mail and documents](11-working-with-office-files-email-and-documents.md) | Builders | Excel, Word, PowerPoint, PDF, e-mail, document intelligence |
 | 12 | [Cloud and business apps](12-cloud-and-business-apps.md) | Builders | REST, Microsoft 365, Google, Salesforce, ServiceNow and the other connectors |
 | 13 | [AI in agents](13-ai-in-agents.md) | Builders | Prompt Skills, AI agents, model connections, Knowledge Q&A |
-| 14 | [Business users](14-business-users.md) | Business users | The Task inbox, starting workflows, running agents you are allowed to run, the notification-area assistant |
+| 14 | [Business users](14-business-users.md) | Business users | The Task inbox, starting workflows, running agents you are allowed to run from One Chat |
 | 15 | [Publishing to One CommandCenter](15-publishing-to-command-center.md) | Builders | Check-in and check-out, versions, labels, approvals, folders |
 | 16 | [One Chat](16-one-chat.md) | Business users, builders, administrators | Running agents in plain words, the yes and the R3 approval, languages, the agent's `chat` block, chat settings and modes |
 
@@ -71,7 +71,7 @@ recorded in the **Audit Trail**.
 ### Business user (you use agents and workflows in your daily work)
 
 1. [01 Getting started](01-getting-started.md), sections "Signing in for the first time" and "Finding your way".
-2. [14 Business users](14-business-users.md): your Task inbox, starting a workflow, the assistant in the notification area.
+2. [14 Business users](14-business-users.md): your Task inbox, starting a workflow, starting agents from One Chat.
    [16 One Chat](16-one-chat.md) to start agents in plain words.
 3. If you have your own runner on your PC, the parts of [07 Runner guide](07-runner-guide.md) about attended runners.
 

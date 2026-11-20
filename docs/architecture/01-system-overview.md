@@ -39,8 +39,8 @@ database, in containers, or as a multi-tenant service in several regions.
 | Role | What they do | Main part they use |
 | --- | --- | --- |
 | Agent builder (developer, citizen developer) | Designs, tests and debugs agents, forms, workflows and Prompt Skills; checks them in | OneAgentStudio |
-| Agent operator | Starts agents, watches runs, works on work-queue items | One CommandCenter console, desktop assistant |
-| Business user | Completes human tasks and approvals in workflows; starts agents they are allowed to run | Task inbox, desktop assistant |
+| Agent operator | Starts agents, watches runs, works on work-queue items | One CommandCenter console, One Chat |
+| Business user | Completes human tasks and approvals in workflows; starts agents they are allowed to run | Task inbox, One Chat |
 | Administrator | Manages people, roles, runners, vault, settings, licences, toolkits, model connections | One CommandCenter console, `ooa` command line |
 | Auditor / security officer | Reads the audit trail, checks its integrity, reviews AI usage | One CommandCenter console, syslog/SIEM |
 | SaaS operator | Creates and manages tenants and shared templates in a region | `ooa region` commands, operator API |
@@ -68,12 +68,10 @@ database, in containers, or as a multi-tenant service in several regions.
 flowchart LR
     builder([Agent builder]) --> studio[OneAgentStudio]
     operator([Operator / business user]) --> console[One CommandCenter console]
-    operator --> tray[Desktop assistant]
     admin([Administrator]) --> console
     admin --> cli[ooa command line]
     studio -- check-in / check-out --> cc[(One CommandCenter)]
     console --> cc
-    tray --> cc
     extclient([REST / MCP clients]) --> cc
     idp[Identity provider] <--> cc
     cc --> db[(SQL Server / PostgreSQL / H2)]
@@ -96,7 +94,7 @@ flowchart LR
 | **Runner engine** | `runner` (`Runner`) | The interpreter for an agent definition. Used by Studio, by every run worker and, for serverless Agent APIs, inside One CommandCenter. |
 | **Toolkits** | `packages` and the optional `packages-*` modules | 79 toolkits with 1,057 actions, 47 conditions and 12 loop types, the AWS EC2 toolkit (`ooa.aws_ec2`) included. The [toolkit reference](../reference/toolkits/README.md) lists them all. |
 | **Browser connector** | `browser-extension`, `NativeHost`, `ExtensionBridge` | Lets agents and Studio work in the person's own Edge, Chrome or Firefox tabs instead of a browser started by Playwright. |
-| **Assistants** | Studio AI assistant (`assistant/build`), desktop assistant (`ooa assistant`) | The Studio assistant drafts agents from a description using the toolkit manifests. The desktop assistant sits in the Windows notification area, starts agents for the signed-in person and tells them about tasks and finished runs. |
+| **Assistants** | Studio assistant (`assistant/build`), One Chat (`modules/one-chat`, `conversation`), MCP server (`/api/mcp`) | Three, and only three. The Studio assistant helps with development only: it drafts agents from a description using the toolkit manifests, and explains them. One Chat covers everything else in plain words: running agents, runs and tasks, and administration within the person's permissions. Outside AI assistants connect over MCP. The OneChat service will power the first two ([contract](../integration/one-chat-contract.md)). |
 | **Command line** | `cli` (`OoaCli`, `CoreCommands`, `FullCommands`) | `ooa` starts servers and runners and manages the database, HTTPS, services, backups, toolkits, regions and licences. A GraalVM native executable carries the commands that need no server. |
 | **Vendor tools** | `vendor-tools` | License Studio and licence issuing. In the vendor build only; the customer build leaves this jar out. |
 | **Python reference runner** | `reference/` | The earlier reference implementation of the runner, SDK and agent runtime. It is a design source and is not shipped; it passes the same conformance cases as the Java runner. |

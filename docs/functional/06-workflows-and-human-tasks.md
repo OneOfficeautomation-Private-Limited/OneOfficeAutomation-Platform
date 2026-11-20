@@ -138,7 +138,6 @@ Rules:
   completed again (`CR.CONFLICT`).
 - Open tasks are listed by due time, then age (up to 500); completed ones newest first.
 - The top bar shows the count of open tasks for the person (claimed ones count only for the person who took them).
-- The notification-area assistant also counts open tasks and shows a notice for new ones.
 
 ## 9. Forms and their checks
 
