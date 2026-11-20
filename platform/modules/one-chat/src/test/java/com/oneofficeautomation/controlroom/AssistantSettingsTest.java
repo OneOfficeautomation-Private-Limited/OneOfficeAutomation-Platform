@@ -186,6 +186,27 @@ class AssistantSettingsTest {
         assertTrue(mine.body().contains("\"studio\""), mine.body());
     }
 
+    @Test void theToolRulesAreCheckedAndOnlyEverMadeStricterByAPerson() {
+        AssistantSettings a = chat.settings();
+        assertEquals("always", a.policy(jane, "agents"), "running agents stays as before");
+        assertEquals("never", a.policy(jane, "admin_read"), "administration tools start switched off");
+        assertThrows(OoaException.class, () -> cr.platform.updateSettings(admin, Map.of("chat_tool_agents", "maybe"), null));
+        cr.platform.updateSettings(admin, Map.of("chat_tool_admin_read", "always", "chat_tool_admin_change", "ask"), null);
+        assertEquals("always", a.policy(jane, "admin_read"));
+        assertEquals("ask", a.policy(jane, "admin_change"));
+        a.savePrefs(jane, "chat", Map.of("ask_first", true), null);
+        assertEquals("ask_person", a.policy(jane, "agents"), "the person asked to confirm first");
+        assertEquals("always", a.policy(jane, "admin_read"), "a look-up changes nothing, so it is not asked about");
+        assertEquals("ask", a.policy(jane, "admin_change"), "the company's Ask first stays the reason");
+        assertEquals(true, ((Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) a.mine(jane).get("assistants")).get("chat")).get("mine")).get("ask_first"));
+        a.savePrefs(jane, "chat", Map.of("model", ""), null);
+        assertEquals("ask_person", a.policy(jane, "agents"), "kept when not sent");
+        cr.platform.updateSettings(admin, Map.of("chat_tool_agents", "never", "chat_tool_admin_read", "never", "chat_tool_admin_change", "never"), null);
+        assertEquals("never", a.policy(jane, "agents"), "never wins over the person's own choice");
+        cr.platform.updateSettings(admin, Map.of("chat_tool_agents", "always"), null);
+        a.savePrefs(jane, "chat", Map.of("ask_first", false), null);
+    }
+
     @Test void theChoicesOfPeopleWhoAreDeletedGo() {
         cr.platform.updateSettings(admin, Map.of("chat_models", "other"), null);
         ControlRoom.User sam = RepositoryLifecycleTest.person(cr, admin, "sam", "bot_runner");

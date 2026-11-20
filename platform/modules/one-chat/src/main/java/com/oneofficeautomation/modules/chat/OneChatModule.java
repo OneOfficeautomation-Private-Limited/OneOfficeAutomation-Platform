@@ -20,17 +20,19 @@ import java.util.Map;
  * signed in (/api/assistants/studio/complete).
  */
 public final class OneChatModule implements CommandCenterModule {
-    public static final String VERSION = "1.1.0";
+    public static final String VERSION = "1.2.0";
 
     public String id() { return "one-chat"; }
     public String name() { return "One Chat"; }
     public String version() { return VERSION; }
 
-    /** The module's own tables. Version 1 (S2, 20 Nov 2026): assistant_prefs, each person's own choices per assistant. */
+    /** The module's own tables. Version 1 (S2, 20 Nov 2026): assistant_prefs, each person's own choices per assistant; version 2 (S3): its ask_first. */
     public java.util.List<java.util.List<String>> schema() {
         return java.util.List.of(java.util.List.of(
                 "CREATE TABLE assistant_prefs (username VARCHAR(80) NOT NULL, assistant VARCHAR(20) NOT NULL, model VARCHAR(60), language VARCHAR(10), "
-                        + "instructions VARCHAR(2000), updated TIMESTAMP NOT NULL, PRIMARY KEY (username, assistant))"));
+                        + "instructions VARCHAR(2000), updated TIMESTAMP NOT NULL, PRIMARY KEY (username, assistant))"),
+                // version 2 (S3): the person's "always ask me first" for One Chat
+                java.util.List.of("ALTER TABLE assistant_prefs ADD COLUMN ask_first BOOLEAN"));
     }
 
     public void start(ModuleContext ctx) {

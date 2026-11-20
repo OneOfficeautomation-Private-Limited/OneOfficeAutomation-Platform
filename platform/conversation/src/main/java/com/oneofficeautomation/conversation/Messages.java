@@ -142,5 +142,29 @@ public final class Messages {
                 "Lo siento, no he podido leer eso. {}", "すみません、読み取れませんでした。{}");
         put("what_for", "What should I use for {}?", "Was soll ich für {} verwenden?", "Que dois-je utiliser pour {} ?", "¿Qué debo usar para {}?",
                 "{} には何を使いますか？");
+
+        // tools and permissions, and administration tools (S3, 20 Nov 2026)
+        put("summary_tool", "I'll do this: {}.", "Ich mache Folgendes: {}.", "Je vais faire ceci : {}.", "Voy a hacer esto: {}.", "次を実行します: {}。");
+        put("summary_tool_with", "I'll do this: {} ({}).", "Ich mache Folgendes: {} ({}).", "Je vais faire ceci : {} ({}).", "Voy a hacer esto: {} ({}).",
+                "次を実行します: {}（{}）。");
+        put("asked_policy", "Asked first: {} is set to Ask first.", "Rückfrage, weil {} auf „Erst fragen“ eingestellt ist.",
+                "Je demande d'abord : {} est réglé sur « Demander d'abord ».", "Pregunto primero: {} está configurado como «Preguntar primero».",
+                "確認します: {} は「先に確認」に設定されています。");
+        put("asked_person", "Asked first: you asked me to confirm before anything runs or changes.",
+                "Rückfrage, weil Sie vor jeder Ausführung oder Änderung gefragt werden möchten.",
+                "Je demande d'abord : vous avez demandé une confirmation avant toute exécution ou modification.",
+                "Pregunto primero: pidió confirmar antes de ejecutar o cambiar algo.", "確認します: 実行や変更の前に確認するよう設定されています。");
+        put("confirm_r3_change", "This is a high-impact (R3) change: after your yes, someone other than you must approve it in the Task inbox before it happens.\nShall I ask for approval? (yes/no)",
+                "Dies ist eine Änderung mit hoher Tragweite (R3): Nach Ihrem Ja muss eine andere Person sie im Aufgabeneingang freigeben, bevor sie ausgeführt wird.\nSoll ich die Freigabe anfordern? (ja/nein)",
+                "Cette modification a un fort impact (R3) : après votre oui, une autre personne doit l'approuver dans la boîte de tâches avant qu'elle ait lieu.\nJe demande l'approbation ? (oui/non)",
+                "Este cambio es de alto impacto (R3): tras su sí, otra persona debe aprobarlo en la bandeja de tareas antes de que se haga.\n¿Solicito la aprobación? (sí/no)",
+                "これは影響の大きい (R3) 変更です。あなたの承認の後、実行前に別の人がタスク受信箱で承認する必要があります。\n承認を依頼しますか？ (はい/いいえ)");
+        put("tool_refused", "I couldn't do {}: {}", "{} war nicht möglich: {}", "Je n'ai pas pu faire {} : {}", "No pude hacer {}: {}", "{} を実行できませんでした: {}");
+        put("approved_done", "{} approved {}: {}", "{} hat {} genehmigt: {}", "{} a approuvé {} : {}", "{} aprobó {}: {}", "{} が {} を承認しました: {}");
+        put("group_read", "Read runs and tasks", "Läufe und Aufgaben lesen", "Lire les exécutions et les tâches", "Leer ejecuciones y tareas", "実行とタスクの参照");
+        put("group_agents", "Run agents", "Agenten ausführen", "Exécuter des agents", "Ejecutar agentes", "エージェントの実行");
+        put("group_admin_read", "Administration: look up", "Verwaltung: nachschlagen", "Administration : consulter", "Administración: consultar", "管理: 参照");
+        put("group_admin_change", "Administration: changes", "Verwaltung: Änderungen", "Administration : modifications", "Administración: cambios", "管理: 変更");
+        put("group_admin_high", "Administration: high impact", "Verwaltung: weitreichend", "Administration : fort impact", "Administración: alto impacto", "管理: 影響大");
     }
 }

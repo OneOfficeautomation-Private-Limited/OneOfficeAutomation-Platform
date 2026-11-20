@@ -156,7 +156,79 @@ class ConversationTest {
         assertTrue(String.valueOf(r.get("reply")).contains("AI model"), String.valueOf(r));
     }
 
-    /** An in-memory host with three agents: R2 invoices, R0 aging report, R3 payment run. */
+    // ---- tools and permissions, and administration tools (S3, 20 Nov 2026) ----
+
+    @Test void aGroupSetToNeverIsNotOfferedAndCannotBeReached() {
+        host.rules.put("agents", "never");
+        assertEquals("not_understood", chat.message(ANNA, null, "post today's invoices for acme").get("kind"));
+        host.rules.put("read", "never");
+        assertNotEquals("answer", chat.message(ANNA, null, "what are my runs").get("kind"), "my runs is hidden too");
+        assertTrue(host.runs.isEmpty());
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void askFirstMakesEvenAnR0AgentWaitForYesAndSaysWhy() {
+        host.rules.put("agents", "ask");
+        Map<String, Object> c = chat.message(ANNA, null, "show payables aging");
+        assertEquals("confirm", c.get("kind"), String.valueOf(c));
+        assertTrue(String.valueOf(c.get("reply")).contains("Asked first: Run agents is set to Ask first."), String.valueOf(c));
+        Map<String, Object> card = (Map<String, Object>) c.get("confirmation");
+        assertEquals("agent", card.get("kind"));
+        assertEquals("R0", card.get("risk"));
+        assertTrue(host.runs.isEmpty());
+        assertEquals("started", chat.message(ANNA, (String) c.get("session_id"), "yes").get("kind"));
+        host.rules.put("agents", "ask_person");
+        assertTrue(String.valueOf(chat.message(ANNA, null, "show payables aging").get("reply")).contains("you asked me to confirm"));
+    }
+
+    @Test void anAdministrationLookUpAnswersAtOnceWithItsTable() {
+        Map<String, Object> r = chat.message(ANNA, null, "who is disabled");
+        assertEquals("answer", r.get("kind"), String.valueOf(r));
+        assertEquals("2 people, 1 disabled.", r.get("reply"));
+        assertEquals(List.of(Map.of("username", "jsmith", "enabled", false)), r.get("rows"));
+        assertEquals("#/users", r.get("page"));
+        assertEquals(List.of("admin:people as anna"), host.toolsUsed);
+        host.rules.put("admin_read", "never");
+        assertEquals("not_understood", chat.message(ANNA, null, "who is disabled").get("kind"));
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void anAdministrationChangeWaitsForYesAndHappensOnce() {
+        Map<String, Object> c = chat.message(ANNA, null, "disable jsmith");
+        assertEquals("confirm", c.get("kind"), String.valueOf(c));
+        assertTrue(String.valueOf(c.get("reply")).startsWith("I'll do this: Disable a person (person = jsmith)."), String.valueOf(c));
+        assertEquals("Enable them again in Users.", ((Map<String, Object>) c.get("confirmation")).get("undo"));
+        assertTrue(host.toolsUsed.isEmpty(), "nothing changes before the yes");
+        String sid = (String) c.get("session_id");
+        Map<String, Object> done = chat.message(ANNA, sid, "yes");
+        assertEquals("done", done.get("kind"), String.valueOf(done));
+        assertEquals("jsmith is disabled.", done.get("reply"));
+        assertNotEquals("done", chat.message(ANNA, sid, "yes").get("kind"));
+        assertEquals(List.of("admin:disable_person as anna"), host.toolsUsed);
+        assertTrue(host.audit.contains("chat.tool"), String.valueOf(host.audit));
+    }
+
+    @Test void aHighImpactChangeHappensOnlyAfterSomeoneElseApproves() {
+        Map<String, Object> c = chat.message(ANNA, null, "delete jsmith");
+        assertEquals("confirm", c.get("kind"), String.valueOf(c));
+        assertTrue(String.valueOf(c.get("reply")).contains("high-impact (R3) change"), String.valueOf(c));
+        Map<String, Object> w = chat.message(ANNA, (String) c.get("session_id"), "yes");
+        assertEquals("awaiting_approval", w.get("kind"), String.valueOf(w));
+        assertTrue(host.toolsUsed.isEmpty(), "nothing is deleted before the approval");
+        String task = (String) w.get("task_id");
+        chat.decided(task, host.approvals.get(task), LEAD, true, null);
+        assertEquals(List.of("admin:delete_person as anna"), host.toolsUsed, "done as the person who asked, after someone else approved");
+        assertTrue(host.notices.get(host.notices.size() - 1).startsWith("anna:"));
+    }
+
+    @Test void aRefusedToolSaysWhy() {
+        host.refuse = true;
+        Map<String, Object> r = chat.message(ANNA, null, "who is disabled");
+        assertEquals("refused", r.get("kind"));
+        assertEquals("I couldn't do People: You may not manage users.", r.get("reply"));
+    }
+
+    /** An in-memory host with three agents: R2 invoices, R0 aging report, R3 payment run; and three administration tools. */
     static final class FakeHost implements ChatPlatform {
         final List<ChatBot> agents = List.of(
                 bot("Finance/Process invoices.flow.json", "Process vendor invoices", "R2",
@@ -171,6 +243,30 @@ class ConversationTest {
         final Map<String, String> settings = new HashMap<>();
         boolean runnerOnline = true;
         int ids;
+        /** Tool rules by group (S3); missing ones are always. */
+        final Map<String, String> rules = new HashMap<>();
+        final List<String> toolsUsed = new ArrayList<>();
+        boolean refuse;
+        final List<Tool> tools = List.of(
+                new Tool(bot("admin:people", "People", "R0", "[{\"name\":\"which\",\"type\":\"String\",\"direction\":\"input\",\"enum\":[\"everyone\",\"disabled\"],\"default\":\"everyone\"}]",
+                        "[\"who is disabled\",\"list the people\"]"), "admin_read", null, "#/users"),
+                new Tool(bot("admin:disable_person", "Disable a person", "R2", "[{\"name\":\"person\",\"type\":\"String\",\"direction\":\"input\",\"required\":true,\"enum\":[\"jsmith\"]}]",
+                        "[\"disable {person}\",\"disable a person\"]"), "admin_change", "Enable them again in Users.", "#/users"),
+                new Tool(bot("admin:delete_person", "Delete a person", "R3", "[{\"name\":\"person\",\"type\":\"String\",\"direction\":\"input\",\"required\":true,\"enum\":[\"jsmith\"]}]",
+                        "[\"delete {person}\",\"delete a person\"]"), "admin_high", "It cannot be undone.", "#/users"));
+
+        @Override public String policy(Person p, String group) { return rules.getOrDefault(group, "always"); }
+        @Override public List<Tool> adminTools(Person p) { return tools; }
+
+        @Override public Map<String, Object> runTool(Person p, String path, Map<String, Object> inputs) {
+            if (refuse) throw new Refused("refused", "You may not manage users.");
+            toolsUsed.add(path + " as " + p.username());
+            return switch (path) {
+                case "admin:people" -> Map.of("text", "2 people, 1 disabled.", "rows", List.of(Map.of("username", "jsmith", "enabled", false)));
+                case "admin:disable_person" -> Map.of("text", inputs.get("person") + " is disabled.");
+                default -> Map.of("text", inputs.get("person") + " is deleted.");
+            };
+        }
 
         @SuppressWarnings("unchecked")
         static ChatBot bot(String path, String name, String risk, String variables, String examples) {

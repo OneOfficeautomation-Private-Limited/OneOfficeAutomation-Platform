@@ -174,6 +174,31 @@ public final class Chat implements ChatPlatform {
         return out;
     }
 
+    /** The tool rules for this person (Settings > AI assistants > One Chat > Tools and permissions, and their own "ask me first"). */
+    @Override public String policy(Person p, String group) { return settings.policy(user(p), group); }
+
+    /** The administration tools this person's permissions allow (the kernel's AdminTools), as One Chat tools (S3). */
+    @Override @SuppressWarnings("unchecked")
+    public List<Tool> adminTools(Person p) {
+        List<Tool> out = new ArrayList<>();
+        for (Map<String, Object> t : ctx.adminTools(user(p))) {
+            List<String> examples = t.get("examples") instanceof List<?> l ? l.stream().map(String::valueOf).toList() : List.of();
+            List<Map<String, Object>> inputs = t.get("inputs") instanceof List<?> l ? (List<Map<String, Object>>) l : List.of();
+            ChatBot bot = new ChatBot(Conversation.TOOL_PREFIX + t.get("id"), String.valueOf(t.get("name")), String.valueOf(t.get("description")),
+                    String.valueOf(t.get("risk")), examples, List.of(), List.of(), inputs, Map.of());
+            out.add(new Tool(bot, String.valueOf(t.get("group")), (String) t.get("undo"), (String) t.get("page")));
+        }
+        return out;
+    }
+
+    /** Uses an administration tool as the person, through the kernel, which checks the console permission and audits it. */
+    @Override
+    public Map<String, Object> runTool(Person p, String path, Map<String, Object> inputs) {
+        if (!path.startsWith(Conversation.TOOL_PREFIX)) throw new Refused("refused", "Not an administration tool.");
+        try { return ctx.runAdminTool(user(p), path.substring(Conversation.TOOL_PREFIX.length()), inputs, p.ip()); }
+        catch (OoaException e) { throw new Refused("refused", e.getMessage() + (e.suggestedFix() == null ? "" : " " + e.suggestedFix())); }
+    }
+
     /** The AI assistants settings (Settings > AI assistants, My account > AI assistants). */
     public AssistantSettings settings() { return settings; }
 

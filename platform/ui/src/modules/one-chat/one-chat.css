@@ -22,3 +22,20 @@
 .cc-ap { display: flex; flex-direction: column; gap: 10px; }
 .cc-ap .st-seg { align-self: flex-start; }
 .cc-ap-company { margin: 0; padding: 6px 10px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-bg); color: var(--ui-text); font-size: 12.5px; white-space: pre-wrap; width: 100%; }
+
+/* One Chat's cards (S3, design AIS-Ask-A): a confirmation with Yes / No, a request waiting for approval, a tool's table */
+.cc-chat-card { border: 1px solid var(--ui-field); border-radius: 8px; background: var(--ui-bg); overflow: hidden; max-width: 640px; }
+.cc-chat-card-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-border); color: var(--ui-text); }
+.cc-chat-card-body { padding: 10px 12px; }
+.cc-chat-card .cc-chat-actions { padding: 8px 12px; border-top: 1px solid var(--ui-border); margin: 0; }
+.cc-chat-card.is-approval { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-color: #e3c48a; background: #fdf3e1; color: #14233d; }
+.cc-chat-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 600; align-self: flex-start; }
+.cc-chat-pill.is-wait { background: #fdf3e1; color: #7a4a00; }
+.cc-chat-card.is-approval .cc-chat-pill.is-wait { background: #ffffff; }
+.cc-chat-kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 8px 0 0; font-size: 12.5px; }
+.cc-chat-kv dt { color: var(--ui-text-2); }
+.cc-chat-kv dd { margin: 0; color: var(--ui-text); }
+.cc-chat-table { margin-top: 6px; max-width: 640px; border-collapse: collapse; font-size: 12.5px; background: var(--ui-bg); border: 1px solid var(--ui-border); }
+.cc-chat-table th { text-align: left; font-weight: 600; color: var(--ui-text); background: var(--ui-tint); padding: 4px 10px; border-bottom: 1px solid var(--ui-border); white-space: nowrap; }
+.cc-chat-table td { padding: 4px 10px; color: var(--ui-text); border-bottom: 1px solid var(--ui-border); }
+.cc-chat-page-link { display: inline-block; margin-top: 4px; font-size: 12.5px; }

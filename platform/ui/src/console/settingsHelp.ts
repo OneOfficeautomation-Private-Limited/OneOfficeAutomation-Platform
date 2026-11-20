@@ -134,6 +134,11 @@ export const SETTING_HELP: Record<string, string> = {
   chat_mode_by_role: "A different mode for some roles, one role=mode per line, such as admin=hybrid. A person's main role decides; everyone else uses the mode above.",
   chat_runner: "The runner or runner pool that runs agents started from One Chat. Empty: any online runner.",
   chat_approvers: "Who approves high-impact (R3) requests from One Chat: user:name and role:name, separated by commas. Never the person who asked.",
+  chat_tool_read: "Always: people may ask for their runs. Ask first: the chat asks before showing them. Never: One Chat does not offer it.",
+  chat_tool_agents: "Always: agents run with their own risk rules (R0 at once, R1 and R2 after a yes, R3 after someone else approves). Ask first: every agent waits for a yes, R0 too. Never: no agents from One Chat.",
+  chat_tool_admin_read: "Look-ups people may ask One Chat for: people, runners, failed runs, schedules and work queues. Each person sees only what their role may see in the console. Never (the default): not offered.",
+  chat_tool_admin_change: "Changes people may ask One Chat for: disable or enable a person, pause or resume a schedule, stop a run, switch a runner off or on. A change always waits for the person's yes and needs the same permission as in the console. Never (the default): not offered.",
+  chat_tool_admin_high: "High-impact changes: deleting a person. After the person's yes, someone other than them must approve it in the Task inbox (Who approves high-impact requests). Never (the default): not offered.",
   // E-mail, proxy and SIEM
   mail_smtp_host: "The mail server One CommandCenter sends its own e-mails through (alerts, password resets, licence reminders), for example smtp.office365.com.",
   mail_smtp_port: "The mail server's port: usually 587 with STARTTLS or 465 with SSL/TLS.",

@@ -35,6 +35,37 @@ function waiting(messages: ChatMessage[]) {
       && !messages.some((x) => x.run_id === m.run_id && String(x.kind ?? "").startsWith("run_"))));
 }
 
+/**
+ * A confirmation as a card (S3, the design plan's AIS-Ask-A): what it is about and its text (with why it asked), what
+ * undoing it takes, when the question ends, and Yes / No while it is the last message.
+ */
+function ConfirmCard({ m, open, onAnswer }: { m: ChatMessage; open: boolean; onAnswer: (t: string) => void }) {
+  const c = m.confirmation!;
+  const yes = c.risk === "R3" ? "Yes, ask for approval" : c.kind === "tool" ? "Yes, do it" : c.kind === "read" ? "Yes, show it" : "Yes, run it";
+  const ends = new Date(c.expires);
+  return <div className="cc-chat-card" role="group" aria-label={c.name}>
+    <div className="cc-chat-card-head"><strong>{c.name}</strong><span className="cc-chat-pill is-wait">{open ? "Waiting for your yes" : "Asked"}</span></div>
+    <div className="cc-chat-card-body"><span className="cc-chat-text" data-no-i18n="">{m.text}</span>
+      <dl className="cc-chat-kv">
+        {c.undo && <><dt>Can be undone</dt><dd>{c.undo}</dd></>}
+        {!isNaN(ends.getTime()) && <><dt>This question ends</dt><dd>{ends.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</dd></>}
+      </dl>
+    </div>
+    {open && <div className="cc-chat-actions"><Button kind="primary" onClick={() => onAnswer("yes")}>{yes}</Button><Button onClick={() => onAnswer("no")}>No</Button></div>}
+  </div>;
+}
+
+/** A tool's answer as a small table (at most 20 rows; the page link shows the rest). */
+function ToolTable({ rows, columns }: { rows: Record<string, unknown>[]; columns?: string[] }) {
+  const cols = columns?.length ? columns : Object.keys(rows[0] ?? {});
+  const cell = (v: unknown) => v === null || v === undefined ? "" : typeof v === "boolean" ? (v ? "Yes" : "No") : String(v);
+  // its own plain style: a chat answer gets no column filters or drag handles (TableTools adds those to list tables)
+  return <table className="cc-chat-table" aria-label="Answer">
+    <thead><tr>{cols.map((c) => <th key={c} scope="col">{c.replace(/_/g, " ")}</th>)}</tr></thead>
+    <tbody>{rows.slice(0, 20).map((r, i) => <tr key={i}>{cols.map((c) => <td key={c}>{cell(r[c])}</td>)}</tr>)}</tbody>
+  </table>;
+}
+
 export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRuns: () => void; pollMs?: number }) {
   const [session, setSession] = useState<string | null>(kept.session);
   const [messages, setMessages] = useState<ChatMessage[]>(kept.messages);
@@ -54,7 +85,8 @@ export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRu
     try {
       const r = await api.chat(session, t, lang());
       setSession(r.session_id);
-      setMessages((m) => [...m, { role: "assistant", text: r.reply, kind: r.kind, run_id: r.run_id }]);
+      setMessages((m) => [...m, { role: "assistant", text: r.reply, kind: r.kind, run_id: r.run_id, task_id: r.task_id, confirmation: r.confirmation,
+        rows: r.rows, columns: r.columns, page: r.page }]);
     } catch (e) {
       if (code(e) === "CR.NOT_FOUND") setSession(null);   // the chat expired on the server: the next message starts a new one
       setMessages((m) => [...m, { role: "assistant", text: message(e), kind: "error" }]);
@@ -90,12 +122,17 @@ export function Chat({ api, onOpenRuns, pollMs = 10000 }: { api: CrApi; onOpenRu
           {messages.map((m, i) => (
             <div key={i} className={`cc-chat-msg is-${m.role}${m.kind === "error" ? " is-error" : ""}`}>
               {/* replies come already in the person's language, and what people type stays as typed */}
-              <span className="cc-chat-text" data-no-i18n="">{m.text}</span>
-              {m === last && m.kind === "confirm" && !busy && (
+              {m.kind === "confirm" && m.confirmation ? <ConfirmCard m={m} open={m === last && !busy} onAnswer={send} />
+                : m.kind === "awaiting_approval" ? <div className="cc-chat-card is-approval" role="group" aria-label="Waiting for approval">
+                    <span className="cc-chat-text" data-no-i18n="">{m.text}</span><span className="cc-chat-pill is-wait">Waiting for approval</span></div>
+                : <span className="cc-chat-text" data-no-i18n="">{m.text}</span>}
+              {m === last && m.kind === "confirm" && !m.confirmation && !busy && (
                 <div className="cc-chat-actions">
                   <Button kind="primary" onClick={() => send("yes")}>Yes, run it</Button>
                   <Button onClick={() => send("no")}>No</Button>
                 </div>)}
+              {!!m.rows?.length && <ToolTable rows={m.rows} columns={m.columns} />}
+              {m.page && m.role === "assistant" && m.kind !== "confirm" && <a className="cc-link cc-chat-page-link" href={m.page}>Open the page</a>}
               {m.run_id && (m.kind === "started" || String(m.kind ?? "").startsWith("run_")) && (
                 <div className="cc-chat-actions"><Button onClick={onOpenRuns}>Open Agent Runs</Button></div>)}
             </div>))}

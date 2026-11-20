@@ -1016,3 +1016,11 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
 .cc-app .st-menu-entry:hover { color: #ffffff; }
 .cc-app .st-menu-entry.is-current { color: #ffffff; font-weight: 700; }
 
+
+/* One Chat's tool rules (S3): Always / Ask first / Never as one segmented control; the chosen side quiet blue */
+.cc-set-seg { display: inline-flex; border: 1px solid var(--ui-field); border-radius: 6px; overflow: hidden; min-height: 28px; }
+.cc-set-seg-opt { position: relative; display: inline-flex; align-items: center; padding: 0 11px; font-size: 12.5px; color: var(--ui-text); background: var(--ui-bg); border-left: 1px solid var(--ui-border); cursor: pointer; }
+.cc-set-seg-opt:first-child { border-left: 0; }
+.cc-set-seg-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.cc-set-seg-opt.is-on { background: #e3edfb; color: #174ba6; font-weight: 700; }
+.cc-set-seg-opt:has(input:focus-visible) { outline: 2px solid var(--ui-accent); outline-offset: -2px; }

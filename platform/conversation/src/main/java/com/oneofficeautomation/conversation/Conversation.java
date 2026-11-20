@@ -3,6 +3,7 @@ package com.oneofficeautomation.conversation;
 import com.oneofficeautomation.conversation.ChatEngine.*;
 import com.oneofficeautomation.conversation.ChatPlatform.ApprovalRequest;
 import com.oneofficeautomation.conversation.ChatPlatform.Person;
+import com.oneofficeautomation.conversation.ChatPlatform.Tool;
 import com.oneofficeautomation.conversation.ChatSession.Pending;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
@@ -27,6 +28,8 @@ import java.util.stream.Collectors;
 public final class Conversation {
     /** The built-in "my runs" action, offered like an agent. */
     public static final String MY_RUNS = "chat:my_runs";
+    /** Administration tools' paths start with this (S3). */
+    public static final String TOOL_PREFIX = "admin:";
     /** The chat_mode setting: deterministic (no model, the default), llm, or hybrid (deterministic first, the model when unsure). */
     public static final List<String> MODES = List.of("deterministic", "llm", "hybrid");
 
@@ -98,6 +101,9 @@ public final class Conversation {
             Map<String, Object> said = new LinkedHashMap<>(Map.of("role", "assistant", "text", out.get("reply"), "kind", out.get("kind"), "at", clock.instant().toString()));
             if (out.get("run_id") != null) said.put("run_id", out.get("run_id"));
             if (out.get("task_id") != null) said.put("task_id", out.get("task_id"));
+            // the card's details (S3): what a confirmation is about, and a tool's small table, so a reloaded chat shows them too
+            for (String k : List.of("confirmation", "columns", "page")) if (out.get(k) != null) said.put(k, out.get(k));
+            if (out.get("rows") instanceof List<?> rows) said.put("rows", new ArrayList<>(rows.subList(0, Math.min(20, rows.size()))));
             s.history.add(said);
             platform.saveSession(s.id, s.username, s.toMap());
             return out;
@@ -149,7 +155,8 @@ public final class Conversation {
             }
             // anything else is a new request; the confirmation lapses
         }
-        List<ChatBot> bots = catalog(p);
+        Catalog catalog = catalog(p);
+        List<ChatBot> bots = catalog.bots();
         Result r = engine(p).decide(s, bots, text);
         if (r == null) r = new Handoff("no engine answered", false);
         return switch (r) {
@@ -162,41 +169,107 @@ public final class Conversation {
             case Handoff h when h.reason().startsWith("the model") -> reply("not_understood", Messages.t(lang, "model_failed", h.reason().substring(10)));
             case Handoff h -> reply("not_understood", bots.stream().filter(b -> !b.path().equals(MY_RUNS)).findFirst()
                     .map(b -> Messages.t(lang, "not_understood_example", b.name())).orElse(Messages.t(lang, "not_understood")));
-            case Proposal pr -> propose(p, s, bots, pr);
+            case Proposal pr -> propose(p, s, catalog, pr);
         };
     }
 
-    /** The agents this person may run, plus "my runs" when they may see runs. */
-    private List<ChatBot> catalog(Person p) {
-        List<ChatBot> out = new ArrayList<>(platform.agents(p));
-        if (platform.canViewRuns(p)) out.add(MY_RUNS_BOT);
-        return out;
+    /** What this person may reach in chat now, and the administration tools among it by path. */
+    private record Catalog(List<ChatBot> bots, Map<String, Tool> tools) {}
+
+    /**
+     * The agents this person may run, the administration tools they may use and "my runs" when they may see runs, less
+     * every tool group the settings set to Never (Settings > AI assistants > One Chat > Tools and permissions).
+     */
+    private Catalog catalog(Person p) {
+        List<ChatBot> out = new ArrayList<>();
+        Map<String, Tool> tools = new LinkedHashMap<>();
+        if (!"never".equals(platform.policy(p, "agents"))) out.addAll(platform.agents(p));
+        if (ADMIN_GROUPS.stream().anyMatch(g -> !"never".equals(platform.policy(p, g))))
+            for (Tool tool : platform.adminTools(p))
+                if (ADMIN_GROUPS.contains(tool.group()) && !"never".equals(platform.policy(p, tool.group()))) { out.add(tool.bot()); tools.put(tool.bot().path(), tool); }
+        if (platform.canViewRuns(p) && !"never".equals(platform.policy(p, "read"))) out.add(MY_RUNS_BOT);
+        return new Catalog(out, tools);
     }
 
-    private Map<String, Object> propose(Person p, ChatSession s, List<ChatBot> bots, Proposal pr) {
+    static final List<String> ADMIN_GROUPS = List.of("admin_read", "admin_change", "admin_high");
+
+    /** The tool group a catalogue entry belongs to. */
+    private static String groupOf(ChatBot bot, Catalog c) {
+        if (bot.path().equals(MY_RUNS)) return "read";
+        Tool tool = c.tools().get(bot.path());
+        return tool != null ? tool.group() : "agents";
+    }
+
+    private Map<String, Object> propose(Person p, ChatSession s, Catalog catalog, Proposal pr) {
         String lang = s.lang;
-        ChatBot bot = bots.stream().filter(b -> b.path().equals(pr.path())).findFirst().orElse(null);
+        ChatBot bot = catalog.bots().stream().filter(b -> b.path().equals(pr.path())).findFirst().orElse(null);
         if (bot == null) return reply("refused", Messages.t(lang, "not_available"));
-        if (bot.path().equals(MY_RUNS)) return myRuns(p, lang);
-        if (!bot.needsConfirmation()) return start(p, s.id, lang, bot, pr.inputs(), null);
+        String group = groupOf(bot, catalog), rule = platform.policy(p, group);
+        if ("never".equals(rule)) return reply("refused", Messages.t(lang, "not_available"));
+        Tool tool = catalog.tools().get(bot.path());
+        // settings only make it stricter: Ask first waits for a yes even where the tool's risk would not
+        boolean ask = bot.needsConfirmation() || rule.startsWith("ask");
+        if (!ask) {
+            if (bot.path().equals(MY_RUNS)) return myRuns(p, lang);
+            if (tool != null) return useTool(p, lang, tool, pr.inputs(), null);
+            return start(p, s.id, lang, bot, pr.inputs(), null);
+        }
 
         Pending pending = new Pending(platform.newId("cnf"), bot, pr.inputs(), hash(pr.inputs()), clock.instant().plus(CONFIRMATION_TTL), pr.engine());
         s.pending = pending;
-        platform.audit(p, "chat.propose", "bot", bot.path(),
+        platform.audit(p, "chat.propose", tool != null ? "tool" : "bot", bot.path(),
                 Map.of("confirmation", pending.id(), "engine", pr.engine(), "inputs", new ArrayList<>(pr.inputs().keySet()), "input_hash", pending.inputHash()));
-        Map<String, Object> m = reply("confirm", summary(lang, bot, pr.inputs()) + "\n" + Messages.t(lang, bot.needsApproval() ? "confirm_r3" : "confirm"));
+        String why = bot.needsConfirmation() ? null
+                : rule.equals("ask_person") ? Messages.t(lang, "asked_person") : Messages.t(lang, "asked_policy", Messages.t(lang, "group_" + group));
+        String question = Messages.t(lang, bot.needsApproval() ? (tool != null ? "confirm_r3_change" : "confirm_r3") : "confirm");
+        Map<String, Object> m = reply("confirm", summary(lang, bot, pr.inputs()) + (why == null ? "" : "\n" + why) + "\n" + question);
         m.put("agent", bot.path());
         m.put("inputs", pr.inputs());
-        m.put("confirmation", Map.of("id", pending.id(), "expires", pending.expires().toString(), "risk", bot.risk()));
+        Map<String, Object> card = new LinkedHashMap<>();
+        card.put("id", pending.id());
+        card.put("expires", pending.expires().toString());
+        card.put("risk", bot.risk());
+        card.put("name", bot.name());
+        card.put("kind", tool != null ? "tool" : bot.path().equals(MY_RUNS) ? "read" : "agent");
+        if (why != null) card.put("reason", why);
+        if (tool != null && tool.undo() != null) card.put("undo", tool.undo());
+        m.put("confirmation", card);
         return m;
     }
 
     private Map<String, Object> confirm(Person p, ChatSession s, Pending pending) {
         if (clock.instant().isAfter(pending.expires())) return reply("cancelled", Messages.t(s.lang, "expired"));
-        boolean stillAllowed = platform.agents(p).stream().anyMatch(b -> b.path().equals(pending.bot().path()));
+        // still allowed, by permissions and by the settings, at the moment of the yes
+        Catalog c = catalog(p);
+        boolean stillAllowed = c.bots().stream().anyMatch(b -> b.path().equals(pending.bot().path()));
         if (!stillAllowed) return reply("refused", Messages.t(s.lang, "no_longer", pending.bot().name()));
         if (pending.bot().needsApproval()) return requestApproval(p, s, pending);
+        if (pending.bot().path().equals(MY_RUNS)) return myRuns(p, s.lang);
+        Tool tool = c.tools().get(pending.bot().path());
+        if (tool != null) return useTool(p, s.lang, tool, pending.inputs(), pending);
         return start(p, s.id, s.lang, pending.bot(), pending.inputs(), pending);
+    }
+
+    /**
+     * Uses an administration tool as the person; the host does it with the console's own checks and records the change
+     * in the Audit Trail. A look-up answers with its text and a small table; a change says what was done.
+     */
+    private Map<String, Object> useTool(Person p, String lang, Tool tool, Map<String, Object> inputs, Pending pending) {
+        try {
+            Map<String, Object> r = platform.runTool(p, tool.bot().path(), inputs);
+            platform.audit(p, "chat.tool", "tool", tool.bot().path(), pending == null ? Map.of("inputs", new ArrayList<>(inputs.keySet()))
+                    : Map.of("confirmation", pending.id(), "input_hash", pending.inputHash()));
+            Map<String, Object> m = reply(tool.group().equals("admin_read") ? "answer" : "done", String.valueOf(r.getOrDefault("text", "")));
+            m.put("agent", tool.bot().path());
+            for (String k : List.of("rows", "columns")) if (r.get(k) != null) m.put(k, r.get(k));
+            String page = r.get("page") instanceof String pg ? pg : tool.page();
+            if (page != null) m.put("page", page);
+            return m;
+        } catch (ChatPlatform.Refused e) {
+            return reply("refused", Messages.t(lang, "tool_refused", tool.bot().name(), e.getMessage()));
+        } catch (OoaException e) {
+            return reply("refused", Messages.t(lang, "tool_refused", tool.bot().name(), e.getMessage() + (e.suggestedFix() == null ? "" : " " + e.suggestedFix())));
+        }
     }
 
     private Map<String, Object> requestApproval(Person p, ChatSession s, Pending pending) {
@@ -231,6 +304,18 @@ public final class Conversation {
             Person asker = platform.person(requester);
             if (asker == null) {
                 message = Messages.t(lang, "approved_no_account", approver.username(), name, requester);
+            } else if (path.startsWith(TOOL_PREFIX)) {
+                // a high-impact administration change: done now, as the person who asked, if they still may
+                Person as = new Person(asker.username(), asker.role(), approver.ip());
+                Tool tool = "never".equals(platform.policy(as, "admin_high")) ? null
+                        : platform.adminTools(as).stream().filter(x -> x.bot().path().equals(path)).findFirst().orElse(null);
+                if (tool == null) message = Messages.t(lang, "requester_cannot", requester, name);
+                else {
+                    name = tool.bot().name();
+                    Map<String, Object> done = useTool(as, lang, tool, inputs, null);
+                    message = "refused".equals(done.get("kind")) ? Messages.t(lang, "approved_not_started", approver.username(), name, done.get("reply"))
+                            : Messages.t(lang, "approved_done", approver.username(), name, done.get("reply"));
+                }
             } else {
                 ChatBot bot = platform.agents(asker).stream().filter(b -> b.path().equals(path)).findFirst().orElse(null);
                 if (bot != null) name = bot.name();
@@ -320,8 +405,9 @@ public final class Conversation {
 
     /** The component's own words for what will run, so the person confirms what actually runs. */
     static String summary(String lang, ChatBot bot, Map<String, Object> inputs) {
-        if (inputs.isEmpty()) return Messages.t(lang, "summary", bot.name());
-        return Messages.t(lang, "summary_with", bot.name(), inputs.entrySet().stream()
+        boolean tool = bot.path().startsWith(TOOL_PREFIX);
+        if (inputs.isEmpty()) return Messages.t(lang, tool ? "summary_tool" : "summary", bot.name());
+        return Messages.t(lang, tool ? "summary_tool_with" : "summary_with", bot.name(), inputs.entrySet().stream()
                 .map(e -> e.getKey() + " = " + e.getValue()).collect(Collectors.joining(", ")));
     }
 
