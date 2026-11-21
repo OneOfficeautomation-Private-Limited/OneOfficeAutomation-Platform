@@ -10,15 +10,41 @@ import java.util.stream.Stream;
 @OoaPackage(id = "ooa.folder", name = "Folder", version = "1.0.0", description = "Create, list, copy and delete folders.")
 public final class FolderPackage {
 
-    @Action(id = "create", name = "Create folder", category = "Folders", idempotent = true, capabilities = "filesystem", description = "Create a folder and any missing parents.",
-            panel = "path, fail_if_exists")
+    @Action(id = "create", name = "Create folder", category = "Folders", idempotent = true, capabilities = "filesystem",
+            description = "Create a folder and any missing parents, choosing what happens when it is already there.",
+            panel = "path, if_exists, fail_if_exists")
+    @Output(name = "path", type = OoaType.FILE, description = "Full path of the folder (the numbered name with numbered).")
+    @Output(name = "created", type = OoaType.BOOLEAN, description = "True when a folder was made; false when the existing one is used.")
     public Map<String, Object> create(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "Folder path.") String path,
-            @Input(name = "fail_if_exists", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Stop when the folder already exists instead of continuing.") boolean failIfExists) {
+            @Input(name = "fail_if_exists", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "if_exists=",
+                    description = "Stop when the folder already exists instead of continuing (used when no choice is made for an existing folder).") boolean failIfExists,
+            @Input(name = "if_exists", type = OoaType.STRING, required = false, newStepDefault = "\"use\"", enumValues = {"use", "replace", "numbered", "fail"},
+                    description = "When the folder is already there: use it, replace it with an empty one (deleting what is in it), make a numbered one such as Reports (2), or stop with FOLDER.EXISTS.") String ifExists) {
         Path p = ctx.resolvePath(path);
-        if (failIfExists && Files.exists(p)) throw new ActionException("FOLDER.EXISTS", "Folder already exists: " + p, "Choose another name or turn off fail_if_exists.");
+        String mode = ifExists == null || ifExists.isBlank() ? (failIfExists ? "fail" : "use") : ifExists.strip();
+        if (!List.of("use", "replace", "numbered", "fail").contains(mode))
+            throw new ActionException("FOLDER.BAD_OPTION", "Unknown if_exists '" + ifExists + "'", "Use use, replace, numbered or fail.");
+        boolean created = true;
+        if (Files.exists(p)) switch (mode) {
+            case "fail" -> throw new ActionException("FOLDER.EXISTS", "Folder already exists: " + p, "Choose another name, or choose to use the existing folder.");
+            case "numbered" -> p = FilePackage.freeName(p);
+            case "replace" -> {
+                Path abs = p.toAbsolutePath().normalize();
+                if (!Files.isDirectory(abs)) throw new ActionException("FOLDER.EXISTS", "A file, not a folder, is at " + abs, "Choose another name.");
+                if (abs.getParent() == null || abs.equals(ctx.workDir().toAbsolutePath().normalize()))
+                    throw new ActionException("FOLDER.PROTECTED", "Refusing to replace " + abs, "Point to a specific sub-folder.");
+                try (Stream<Path> w = Files.walk(abs)) { for (Path x : w.sorted(Comparator.reverseOrder()).toList()) if (!x.equals(abs)) Files.delete(x); }
+                catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot empty " + abs + ": " + e.getMessage(), "Close any program using files in the folder and try again.", true); }
+                created = true;
+            }
+            default -> created = false;
+        }
         try { Files.createDirectories(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot create " + p + ": " + e.getMessage(), "Check that the parent folder exists and that the runner's account may create folders there."); }
-        return Map.of();
+        return Map.of("path", p.toString(), "created", created);
     }
+
+    /** Create folder with the signature before if_exists was added. */
+    public Map<String, Object> create(ActionContext ctx, String path, boolean failIfExists) { return create(ctx, path, failIfExists, null); }
 
     private static final String D_LARGER = "Only when the folder holds more than this many KB in all its files, at any depth (1 KB = 1024 bytes).";
     private static final String D_SMALLER = "Only when the folder holds less than this many KB in all its files, at any depth.";
@@ -114,20 +140,21 @@ public final class FolderPackage {
             panel = "source, target, overwrite, [Filter by size: larger_than_kb, smaller_than_kb], [Filter by date: modified_after, modified_before] | pattern, only_newer")
     @Output(name = "copied", type = OoaType.NUMBER, description = "Number of files copied.")
     public Map<String, Object> copy(ActionContext ctx,
-            @Input(name = "source", type = OoaType.FILE, description = "Source folder.") String source,
+            @Input(name = "source", type = OoaType.FILE, description = "Source folder, or name rules choosing the files to copy (with the folders below the one they share).") String source,
             @Input(name = "target", type = OoaType.FILE, description = "Target folder.") String target,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace files that already exist in the target; when false they are kept.") boolean overwrite,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace files that already exist in the target; when false they are kept.") boolean overwrite,
             @Input(name = "pattern", type = OoaType.STRING, required = false, example = "*.pdf", description = "Only copy files whose names match this glob pattern; all files when empty.") String pattern,
             @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "overwrite=true", description = "Copy a file only when it is newer than the one already in the target.") boolean onlyNewer,
             @Input(name = "larger_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = "Only copy files larger than this many KB (1 KB = 1024 bytes).") java.math.BigDecimal largerKb,
             @Input(name = "smaller_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = "Only copy files smaller than this many KB.") java.math.BigDecimal smallerKb,
             @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "Only copy files last changed after this date and time (UTC, like every DateTime; Text to date converts local times).") java.time.LocalDateTime after,
             @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "Only copy files last changed before this date and time (UTC, like every DateTime; Text to date converts local times).") java.time.LocalDateTime before) {
-        Path s = ctx.resolvePath(source), t = ctx.resolvePath(target);
+        List<Path> chosen = ctx.selectedFiles("source");
+        Path s = chosen != null ? FilePackage.commonFolder(chosen) : ctx.resolvePath(source), t = ctx.resolvePath(target);
         if (!Files.isDirectory(s)) throw new ActionException("FILE.NOT_FOUND", "Folder not found: " + s, "Check the source path.");
         PathMatcher m = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern));
         int n = 0;
-        try (Stream<Path> w = Files.walk(s)) {
+        try (Stream<Path> w = chosen != null ? chosen.stream().map(x -> x.toAbsolutePath().normalize()).sorted() : Files.walk(s)) {
             for (Path x : w.toList()) {
                 Path dst = t.resolve(s.relativize(x).toString());
                 if (Files.isDirectory(x)) { Files.createDirectories(dst); continue; }
@@ -140,6 +167,7 @@ public final class FolderPackage {
                     if (!overwrite) continue;
                     if (onlyNewer && Files.getLastModifiedTime(x).compareTo(Files.getLastModifiedTime(dst)) <= 0) continue;
                 }
+                if (dst.getParent() != null) Files.createDirectories(dst.getParent());
                 if (onlyNewer) Files.copy(x, dst, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);  // keep times so later runs compare correctly
                 else Files.copy(x, dst, StandardCopyOption.REPLACE_EXISTING);
                 n++;
