@@ -141,6 +141,15 @@ public final class ActionContext {
     /** The service key under which the runner offers the current loop item. */
     public static final String LOOP_ITEM_SERVICE = "loop.item";
 
+    /** The service key under which the runner offers the running agent's name. */
+    public static final String AGENT_NAME_SERVICE = "agent.name";
+
+    /** The running agent's name, or empty outside a run (dialogs use it as their window title). */
+    public String agentName() {
+        Object s = services == null ? null : services.get(AGENT_NAME_SERVICE);
+        return s == null || "null".equals(s) ? "" : String.valueOf(s).strip();
+    }
+
     public void checkCancelled() {
         if (cancelled.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter", "The run was stopped before this step finished. Run the agent again when it should go on.");
     }

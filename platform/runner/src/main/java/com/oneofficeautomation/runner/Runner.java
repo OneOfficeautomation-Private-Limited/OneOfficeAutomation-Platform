@@ -1629,6 +1629,8 @@ public final class Runner {
                 m.putIfAbsent("action_invoker", (java.util.function.Function<Map<String, Object>, Object>) this::invokeForCode);
                 // the item of the innermost loop around the step: "the current email" for steps that leave their id empty
                 m.putIfAbsent(ActionContext.LOOP_ITEM_SERVICE, (java.util.function.Supplier<Object>) () -> { Object o = loopItems.peek(); return o == NO_ITEM ? null : o; });
+                // the agent's name: dialogs use it as their window title when the step gives none
+                m.putIfAbsent(ActionContext.AGENT_NAME_SERVICE, String.valueOf(flow.getOrDefault("name", "")));
                 stepServices = java.util.Collections.unmodifiableMap(m);
             }
             return stepServices;
