@@ -634,7 +634,7 @@ public final class DesktopPackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Close automatically after this many seconds; 0 waits for OK.") int timeout,
             @Input(name = "buttons", type = OoaType.STRING, required = false, defaultValue = "\"ok\"", enumValues = {"ok", "ok_cancel", "yes_no", "yes_no_cancel"}, description = "Buttons to show.") String buttons,
             @Input(name = "icon", type = OoaType.STRING, required = false, defaultValue = "\"information\"", enumValues = {"information", "warning", "error", "question", "none"}, description = "Icon next to the message.") String icon,
-            @Input(name = "scroll_after_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Show the message in a scrolling box when it has more lines than this; 0 never scrolls.") int scrollAfter,
+            @Input(name = "scroll_after_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", newStepDefault = "30", min = 0, description = "Show the message in a scrolling box when it has more lines than this; 0 never scrolls.") int scrollAfter,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         String btn = choice("buttons", buttons, "ok", "ok", "ok_cancel", "yes_no", "yes_no_cancel");
         String ic = choice("icon", icon, "information", "information", "warning", "error", "question", "none");
@@ -887,7 +887,7 @@ public final class DesktopPackage {
             @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"Choose a file\"", description = "Dialog title.") String title,
             @Input(name = "start_folder", type = OoaType.FILE, required = false, description = "Folder to start in.") String start,
             @Input(name = "file_types", type = OoaType.STRING, required = false, example = "pdf, xlsx", description = "Only show files with these extensions; all files when empty.") String fileTypes,
-            @Input(name = "multiple", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Let the user choose several files.") boolean multiple,
+            @Input(name = "multiple", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true", description = "Let the user choose several files.") boolean multiple,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up after this many seconds; 0 waits.") int timeout,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop,
             @Input(name = "message", type = OoaType.STRING, required = false, example = "Pick this month's bank statement.", description = D_PICK_MESSAGE) String message) {

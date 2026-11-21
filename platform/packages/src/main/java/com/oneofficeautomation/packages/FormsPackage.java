@@ -279,27 +279,45 @@ public final class FormsPackage {
     }
 
     @Action(id = "set", name = "Set field value", category = "Interactive forms", capabilities = "desktop", description = "Change a field's value on the open form.",
-            panel = "name, element, value")
+            panel = "name, element, (Set it to: A value = value / A credential = credential) | how")
     public Map<String, Object> set(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
             @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element,
-            @Input(name = "value", type = OoaType.ANY, description = "New value (text, number, true/false for a checkbox, an option for a drop-down).") Object value) {
+            @Input(name = "value", type = OoaType.ANY, required = false, description = "New value (text, number, true/false for a checkbox, an option for a drop-down).") Object value,
+            @Input(name = "how", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", enumValues = {"replace", "append"},
+                    description = "G1 (AA parity): replace the field's value, or add the text after what it holds.") String how,
+            @Input(name = "credential", type = OoaType.CREDENTIAL, required = false,
+                    description = "G1 (AA parity): a credential from the vault for a password field, instead of a value; it never reaches the log.") Object credential) {
+        if (credential != null) value = credential;
         FormWindow.Session s = session(ctx, name);
         if (!isInput(element(s, element))) throw new ActionException("FORMS.NOT_A_FIELD", "'" + element + "' is not a field with a value", "Choose an input field, not a button, heading or area.");
-        synchronized (s) { s.values.put(element.strip(), value == null ? "" : value); s.errors.remove(element.strip()); s.changed(); }
+        String h = how == null || how.isBlank() ? "replace" : how.strip();
+        if (!Set.of("replace", "append").contains(h)) throw new ActionException("FORMS.BAD_MODE", "Unknown way to set '" + how + "'", "Use replace or append.");
+        Object v = value instanceof SecureString sec ? sec.reveal() : value;   // a credential goes into the (masked) field, never into the log
+        synchronized (s) {
+            String id = element.strip();
+            Object put = v == null ? "" : v;
+            if (h.equals("append")) { Object was = s.values.get(id); put = (was == null ? "" : String.valueOf(was)) + (v == null ? "" : String.valueOf(v)); }
+            s.values.put(id, put); s.errors.remove(id); s.changed();
+        }
         return Map.of();
     }
+
+    public Map<String, Object> set(ActionContext ctx, String name, String element, Object value) { return set(ctx, name, element, value, "replace", null); }
+    public Map<String, Object> set(ActionContext ctx, String name, String element, Object value, String how) { return set(ctx, name, element, value, how, null); }
 
     @Action(id = "assign", name = "Assign options", category = "Interactive forms", capabilities = "desktop",
             description = "Fill a drop-down or choice list with options, e.g. from a list or a data table column.",
             panel = "name, element, options, select | mode")
     public Map<String, Object> assign(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
             @Input(name = "element", type = OoaType.STRING, description = "Id of a drop-down or choice field.") String element,
-            @Input(name = "options", type = OoaType.LIST, description = "The options to offer, in order.") List<Object> options,
+            @Input(name = "options", type = OoaType.ANY, description = "The options to offer, in order: a list, or text with the options separated by commas (G1).") Object optionsIn,
             @Input(name = "select", type = OoaType.STRING, required = false, description = "Option to select; the current choice is kept when it is still offered.") String select,
             @Input(name = "mode", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", enumValues = {"replace", "append"},
                     description = "replace: offer only these options. append: add them after the options already offered, skipping ones already there.") String mode) {
         String m = mode == null || mode.isBlank() ? "replace" : mode.strip();
         if (!Set.of("replace", "append").contains(m)) throw new ActionException("FORMS.BAD_MODE", "Unknown mode '" + mode + "'", "Use replace or append.");
+        List<Object> options = optionsIn == null ? List.of() : optionsIn instanceof List<?> l ? new ArrayList<>(l)
+                : Arrays.stream(String.valueOf(optionsIn).split(",")).map(String::strip).filter(x -> !x.isEmpty()).map(x -> (Object) x).toList();
         FormWindow.Session s = session(ctx, name);
         Map<String, Object> f = element(s, element);
         if (!Set.of("dropdown", "radio").contains(String.valueOf(f.get("type")))) throw new ActionException("FORMS.NOT_A_LIST", "'" + element + "' is not a drop-down or choice field", "Choose a drop-down or choice field of the form.");
@@ -462,12 +480,20 @@ public final class FormsPackage {
 
     @Action(id = "dynamic_area", name = "Set dynamic area", category = "Interactive forms", capabilities = "desktop",
             description = "Replace what a dynamic area on the form shows with new fields, e.g. one line per invoice found. Their answers are read like any other field.",
-            panel = "name, element, fields")
+            panel = "name, element, how, fields | height")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of fields now in the area.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> dynamicArea(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
             @Input(name = "element", type = OoaType.STRING, description = "Id of a dynamic area on the form.") String element,
-            @Input(name = "fields", type = OoaType.LIST, description = "Fields as Dictionaries with id, type (text, number, checkbox, dropdown, paragraph, button ...), label and optionally options, default, required.") List<Object> list) {
+            @Input(name = "fields", type = OoaType.LIST, required = false, visibleWhen = "how!=clear",
+                    description = "Fields as Dictionaries with id, type (text, number, checkbox, dropdown, paragraph, button ...), label and optionally options, default, required, read_only, tooltip.") List<Object> list,
+            @Input(name = "how", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", enumValues = {"replace", "append", "clear"},
+                    description = "G1 (AA parity): replace the area's fields, add these after them, or empty the area.") String how,
+            @Input(name = "height", type = OoaType.NUMBER, required = false, min = 40,
+                    description = "G1 (AA parity): the area's height in pixels; more fields then scroll inside it. As tall as its fields when empty.") Integer height) {
+        String h = how == null || how.isBlank() ? "replace" : how.strip();
+        if (!Set.of("replace", "append", "clear").contains(h)) throw new ActionException("FORMS.BAD_MODE", "Unknown way '" + how + "'", "Use replace, append or clear.");
+        if (h.equals("clear")) list = List.of();
         FormWindow.Session s = session(ctx, name);
         Map<String, Object> area = element(s, element);
         if (!"area".equals(area.get("type"))) throw new ActionException("FORMS.NOT_AN_AREA", "'" + element + "' is not a dynamic area", "Add a Dynamic area in the form designer.");
@@ -484,16 +510,25 @@ public final class FormsPackage {
         }
         synchronized (s) {
             List<Map<String, Object>> before = fields(area.get("fields"));
+            boolean append = h.equals("append");
             for (Map<String, Object> f : fs) {
                 Map<String, Object> clash = find(s.form, String.valueOf(f.get("id")));
-                if (clash != null && before.stream().noneMatch(x -> x == clash))
+                if (clash != null && (append || before.stream().noneMatch(x -> x == clash)))
                     throw new ActionException("FORMS.BAD_FIELD", "The form already has a field '" + f.get("id") + "'", "Use ids that are not used elsewhere on the form.");
             }
-            for (Map<String, Object> old : before) { s.values.remove(String.valueOf(old.get("id"))); s.elements.remove(String.valueOf(old.get("id"))); }
-            area.put("fields", fs);
+            List<Map<String, Object>> now = new ArrayList<>();
+            if (append) now.addAll(before);
+            else for (Map<String, Object> old : before) { s.values.remove(String.valueOf(old.get("id"))); s.elements.remove(String.valueOf(old.get("id"))); }
+            now.addAll(fs);
+            area.put("fields", now);
             for (Map<String, Object> f : fs) if (isInput(f)) s.values.put(String.valueOf(f.get("id")), initial(f));
+            if (height != null) s.el(element.strip()).put("height", height);
             s.changed();
+            return Map.of("count", new BigDecimal(now.size()));
         }
-        return Map.of("count", new BigDecimal(fs.size()));
+    }
+
+    public Map<String, Object> dynamicArea(ActionContext ctx, String name, String element, List<Object> list) {
+        return dynamicArea(ctx, name, element, list, "replace", null);
     }
 }

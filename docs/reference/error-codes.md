@@ -584,7 +584,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `CURRENCY.BAD_RATE` | Rate for … is not a number<br>Rate for … must be greater than 0 | Give each rate as a number, for example 1.08.<br>Give each rate as a number greater than 0. | packages |
 | `CURRENCY.BAD_RESPONSE` | The ECB answer contained no exchange rates<br>No rates object at '…$…' in the answer<br>The rates object has no numeric rates | Check the url returns the eurofxref XML.<br>Set rates_path to the field holding {"CODE": rate, ...}.<br>Check rates_path. | packages |
 | `CURRENCY.BAD_SOURCE` | Unknown rate source '…' | Use ecb, json or fixed. | packages |
-| `CURRENCY.DATE_NOT_SUPPORTED` | A past date works only with the ecb source | Use source ecb, or leave date empty. | packages |
+| `CURRENCY.DATE_NOT_SUPPORTED` | A past date works with the ecb or json source<br>For a past date the json url needs {date} where the day goes | Use source ecb or json, or leave date empty.<br>For example https://api.example.com/{date}?base=EUR. | packages |
 | `CURRENCY.NO_AMOUNT` | Give an amount to convert | Fill in the amount to convert. | packages |
 | `CURRENCY.NO_BASE` | The answer does not say which currency the rates are against<br>The fixed source needs base_currency | Set base_currency.<br>Name the currency your rates are quoted against. | packages |
 | `CURRENCY.NO_RATES` | The fixed source needs a rates Dictionary | … | packages |
@@ -647,9 +647,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `DATETIME.BAD_WEEKEND` | The weekend cannot be every day of the week<br>'…' is not a day of the week | Leave at least one working day, e.g. weekend SAT,SUN.<br>Write the weekend as days such as SAT,SUN or FRI,SAT, or NONE when every day is a working day. | packages |
 | `DATETIME.BAD_ZONE` | Unknown time zone '…' | Use an IANA name such as Europe/London or Asia/Kolkata. | packages |
 | `DATETIME.CALENDAR_NOT_FOUND` | There is no holiday calendar '…' in One CommandCenter | Check the name under Manage > Schedules > Holiday calendars (names are exact), or give the holidays and weekend on the step. | packages |
-| `DATETIME.MISSING` | Input '…' has no date<br>Give a date or a year<br>Give the number of working days | Give a date such as 2026-10-18 or 2026-10-18T14:30:00.<br>Fill in 'value' or 'year'.<br>Fill in 'days', e.g. 5 or -2. | packages |
+| `DATETIME.MISSING` | Input '…' has no date<br>Give a date or a year<br>Give the number of working days | Give a date such as 2026-10-18, or text in the pattern.<br>Give a date such as 2026-10-18 or 2026-10-18T14:30:00.<br>Fill in 'value' or 'year'. | packages |
 | `DATETIME.NO_COMMAND_CENTER` | The holiday calendar '…' is kept in One CommandCenter, and this run is not connected to it<br>This One CommandCenter is too old to give holiday calendars to agents | Run the agent from One CommandCenter, or leave the calendar empty and give the holidays and weekend on the step.<br>Update One CommandCenter, or give the holidays and weekend on the step. | packages |
-| `DATETIME.PARSE_FAILED` | Cannot read '…' as …<br>Cannot read '…' with pattern '…' | Check the text matches the chosen standard format.<br>Check the pattern matches the text exactly. | packages |
+| `DATETIME.PARSE_FAILED` | Cannot read '…' as …<br>Cannot read '…' with pattern '…'<br>'…' (…) does not fit the pattern … | Check the text matches the chosen standard format.<br>Check the pattern matches the text exactly.<br>Check the text or the pattern, e.g. dd/MM/yyyy. | packages |
 
 ## DB
 
@@ -1019,7 +1019,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FORMS.BAD_FIELD` | Each field must be a Dictionary with at least id and type<br>Field ids must be unique and use letters, digits and _ ('…')<br>A dynamic area cannot hold another area | Give each field as a dictionary with at least id and type.<br>Give every field its own id of letters, digits and _.<br>Put the inner area's fields directly in the outer area. | packages |
 | `FORMS.BAD_FORM` | Not a form from the form designer: … (…) | Open it in OneAgentStudio's form designer and save it again. | packages |
 | `FORMS.BAD_KIND` | Unknown highlight kind '…' | Use color, warning or error. | packages |
-| `FORMS.BAD_MODE` | Unknown mode '…' | Use replace or append. | packages |
+| `FORMS.BAD_MODE` | Unknown way to set '…'<br>Unknown mode '…'<br>Unknown way '…' | Use replace or append.<br>Use replace, append or clear. | packages |
 | `FORMS.ELEMENT_NOT_FOUND` | The form has no field or button '…'<br>The form has no field '…' to fill in | Use an id from the form designer (select the field to see its id).<br>Use field ids from the form designer. | packages |
 | `FORMS.NOT_AN_AREA` | '…' is not a dynamic area | Add a Dynamic area in the form designer. | packages |
 | `FORMS.NOT_A_FIELD` | '…' is not a field with a value | Choose an input field, not a button, heading or area. | packages |

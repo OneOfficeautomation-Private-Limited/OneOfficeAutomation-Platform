@@ -508,13 +508,25 @@ public final class ImagePackage {
         return Out.of("x", res.get("x"), "y", res.get("y"));
     }
 
-    @Condition(id = "image_on_screen", name = "Image is on screen", description = "True when the picture is visible on the screen within the tolerance.")
+    @Condition(id = "image_on_screen", name = "Image is on screen",
+            description = "True when the picture is visible on the screen, or inside one window, within the tolerance.")
     public boolean imageOnScreen(ActionContext ctx,
             @Input(name = "template", type = OoaType.FILE, description = "Picture to look for.") String template,
-            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", description = TOL) double tol) {
+            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", description = TOL) double tol,
+            @Input(name = "window", type = OoaType.STRING, required = false, example = "*Invoice*",
+                    description = "G1 (AA parity): look only inside this window (its title, brought to the front); false when it is not open. The whole screen when empty.") String window) {
         BufferedImage t = load(ctx, template);
-        return Boolean.TRUE.equals(result(find(DesktopPackage.screen(), t), t, tol).get("found"));
+        BufferedImage where;
+        if (window != null && !window.isBlank()) {
+            int[] wb;
+            try { wb = DesktopPackage.focusWindow(window.strip(), true); }
+            catch (ActionException e) { if (e.code().endsWith("NOT_FOUND")) return false; throw e; }
+            where = wb == null ? DesktopPackage.screen() : screen(new Rectangle(wb[0], wb[1], wb[2], wb[3]));
+        } else where = DesktopPackage.screen();
+        return Boolean.TRUE.equals(result(find(where, t), t, tol).get("found"));
     }
+
+    public boolean imageOnScreen(ActionContext ctx, String template, double tol) { return imageOnScreen(ctx, template, tol, null); }
 
     @Condition(id = "image_in_image", name = "Image is in image file", description = "True when the picture appears inside an image file.")
     public boolean imageInImage(ActionContext ctx,

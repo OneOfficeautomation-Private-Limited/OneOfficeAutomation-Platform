@@ -186,7 +186,9 @@ public final class CorePackage {
             @Input(name = "message", type = OoaType.STRING, required = false, description = "Why the run is waiting; shown with the paused run.") String message,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, min = 0, description = "Resume by itself after this many seconds; waits until resumed when empty.") Object timeout) { return interp(); }
 
-    @Action(id = "run_bot", name = "Run Agent", category = "Agent", description = "Run another agent with the inputs you give it, and keep the outputs it gives back.")
+    @Action(id = "run_bot", name = "Run Agent", category = "Agent", description = "Run another agent with the inputs you give it, and keep the outputs it gives back.",
+            // G1 (AA parity): repeating, with a tick that reveals the wait between runs
+            panel = "automation, version, inputs, output_map | fail_on_error, timeout_seconds, same_session, repeat_mode, repeat, repeat_for_seconds, [Wait between runs: repeat_delay_seconds]")
     @Output(name = "outputs", type = OoaType.DICTIONARY, description = "The child's output variables (of the last run when repeated).")
     @Output(name = "status", type = OoaType.STRING, description = "Child run status: success or failed.")
     @Output(name = "error", type = OoaType.DICTIONARY, description = "The child's error (code, message, stepId) when it failed and fail_on_error is off; empty otherwise.")
