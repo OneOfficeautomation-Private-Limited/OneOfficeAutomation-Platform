@@ -3,7 +3,7 @@ import {
   type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
 import { AgentInputs, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, type VaultRef, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
-import { Automation, find as findNode } from "./Automation";
+import { Automation, find as findNode, showInList } from "./Automation";
 import { CheckInDialog, CopyToPrivate, PublicRepository, type CheckInDep, type RepoRequest } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
 import { ObjectRepositoryEditor } from "./ObjectRepository";
@@ -325,6 +325,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   };
   const forceClose = (path: string) => {
     const rest = tabs.filter((t) => t.path !== path);
+    showInList(api, path);   // item 13: back on the Agents list, its folder is open and the item selected
     setTabs(rest);
     if (active === path) setActive(rest.length ? rest[rest.length - 1].path : null);
   };

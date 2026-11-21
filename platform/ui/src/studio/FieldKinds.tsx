@@ -218,7 +218,7 @@ export function FileBrowser({ folder, start, onPick, onClose, api: given }: { fo
   useEffect(() => { go(start ? start.replace(/[\\/][^\\/]*\.[^\\/]+$/, "") : ""); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const entries: FsEntry[] = at?.entries ?? [];
   return (
-    <Dialog open title={folder ? "Choose a folder" : "Choose a file"} width={640} onClose={onClose} footer={<>
+    <Dialog open title={folder ? "Choose a folder" : "Choose a file"} width={720} height={500} resizable onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       {at?.path && <Button kind={folder ? "primary" : "secondary"} onClick={() => onPick(at.path!)}>Use this folder</Button>}</>}>
       {error && <p className="st-alert" role="alert">{error}</p>}

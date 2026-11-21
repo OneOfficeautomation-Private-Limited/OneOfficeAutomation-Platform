@@ -209,3 +209,8 @@ body.ui-resizing * { cursor: inherit !important; }
 .ui-ms-problem { margin: 0; color: var(--ui-error-text); }
 .ui-ms-account { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg); margin: 0 0 10px; }
 .ui-ms-account-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Resizable picker dialogs (Studio defects 21 Nov 2026, item 11): drag the corner, maximise from the header */
+.ui-dialog.is-resizable { resize: both; overflow: hidden; min-width: 420px; min-height: 280px; max-height: calc(100vh - 32px); }
+.ui-dialog.is-resizable .ui-dialog-body { flex: 1; min-height: 0; }
+.ui-dialog.is-max { top: 16px; width: calc(100vw - 32px) !important; height: calc(100vh - 32px) !important; max-width: none !important; resize: none; }

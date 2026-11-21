@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
-import type { AgentSummary, Flow, FlowVariable } from "../api/client";
+import { useEffect, useMemo, useState } from "react";
+import type { AgentSummary, Flow, FlowVariable, WorkspaceNode } from "../api/client";
 import { Button, Dialog, TextInput, Tree, type TreeNode } from "../components";
-import { TypeBadge } from "./VariablesPanel";
+import { TypeBadge, useVars } from "./VariablesPanel";
 import { compatible, holdsType, isInput, isOutput, varRef } from "./variables";
 
 /**
@@ -19,10 +19,18 @@ export const folderOf = (path: string) => (path.includes("/") ? path.slice(0, pa
 /** Where an agent is, as people read it: Agents › Finance › Invoice (never the file name). */
 export const agentPlace = (a: AgentSummary) => [AGENTS_ROOT, ...folderOf(a.path).split("/").filter(Boolean), a.name || a.id].join(" › ");
 
-function folderTree(agents: AgentSummary[]): TreeNode {
+/** Every folder of the workspace, empty ones too (the tree used to show only folders that hold agents). */
+function allFolders(n: WorkspaceNode | null | undefined, out: string[] = []): string[] {
+  if (!n) return out;
+  if (n.type === "folder" && n.path) out.push(n.path);
+  for (const c of n.children ?? []) allFolders(c, out);
+  return out;
+}
+
+function folderTree(agents: AgentSummary[], folders: string[] = []): TreeNode {
   const root: TreeNode = { id: "", label: AGENTS_ROOT, children: [] };
   const byPath = new Map<string, TreeNode>([["", root]]);
-  for (const f of [...new Set(agents.map((a) => folderOf(a.path)).filter(Boolean))].sort()) {
+  for (const f of [...new Set([...agents.map((a) => folderOf(a.path)), ...folders].filter(Boolean))].sort()) {
     const parts = f.split("/");
     parts.forEach((part, i) => {
       const p = parts.slice(0, i + 1).join("/");
@@ -39,27 +47,37 @@ function folderTree(agents: AgentSummary[]): TreeNode {
  * Find an agent: Browse shows the folder tree (Agents at the top) and the agents of the chosen folder as a table;
  * Search finds agents in every folder by name or folder. A click chooses a row, Choose (or a double-click) takes it.
  */
+/** The folder Find an agent showed last, so it opens there again (in this Studio window). */
+let lastFinderFolder = "";
+
 export function AgentFinder({ agents, current, onPick, onClose }:
   { agents: AgentSummary[]; current?: string; onPick: (id: string) => void; onClose: () => void }) {
   const start = agents.find((a) => a.id === current);
+  const vars = useVars();
   const [tab, setTab] = useState<"browse" | "search">("browse");
-  const [folder, setFolder] = useState(start ? folderOf(start.path) : "");
+  // item 11: opens in the agent's folder, else the folder used last
+  const first = start ? folderOf(start.path) : lastFinderFolder;
+  const [folder, setFolderState] = useState(first);
+  const setFolder = (f: string) => { lastFinderFolder = f; setFolderState(f); };
+  const [folders, setFolders] = useState<string[]>([]);
+  useEffect(() => { if (typeof vars?.api.tree === "function") vars.api.tree().then((t) => setFolders(allFolders(t)), () => setFolders([])); }, [vars?.api]);
   const [open, setOpen] = useState<Set<string>>(() => {
     const s = new Set<string>([""]);
-    const parts = (start ? folderOf(start.path) : "").split("/").filter(Boolean);
+    const parts = first.split("/").filter(Boolean);
     parts.forEach((_, i) => s.add(parts.slice(0, i + 1).join("/")));
     return s;
   });
   const [q, setQ] = useState("");
   const [chosen, setChosen] = useState<string | undefined>(current);
-  const tree = useMemo(() => folderTree(agents), [agents]);
+  const tree = useMemo(() => folderTree(agents, folders), [agents, folders]);
   const f = q.trim().toLowerCase();
   const rows = tab === "browse" ? agents.filter((a) => folderOf(a.path) === folder && (!f || (a.name || a.id).toLowerCase().includes(f)))
     : agents.filter((a) => !f || (a.name || a.id).toLowerCase().includes(f) || folderOf(a.path).toLowerCase().includes(f));
   const sorted = [...rows].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
   const count = (a: AgentSummary, dir: (v: FlowVariable) => boolean) => (a.variables ?? []).filter(dir).length;
   return (
-    <Dialog open title="Find an agent" width={860} onClose={onClose} footer={<>
+    <Dialog open title="Find an agent" width={860} height={540} resizable onClose={onClose} footer={<>
+      {chosen && agents.find((a) => a.id === chosen) && <span className="st-finder-chosen" title={agentPlace(agents.find((a) => a.id === chosen)!)}>Chosen: {agentPlace(agents.find((a) => a.id === chosen)!)}</span>}
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" disabled={!chosen} onClick={() => chosen && onPick(chosen)}>Choose</Button></>}>
       <div className="st-finder">
@@ -154,7 +172,7 @@ export function QuickMapDialog({ rows, onApply, onClose }:
   const [overwrite, setOverwrite] = useState(false);
   const order: MapState[] = ["ready", "new", "set", "type"];
   return (
-    <Dialog open title="Quick map" width={640} onClose={onClose} footer={<>
+    <Dialog open title="Quick map" width={720} height={520} resizable onClose={onClose} footer={<>
       <Button kind="plain" onClick={onClose}>Cancel</Button>
       <Button kind="primary" onClick={() => onApply({ create, overwrite })}>Apply</Button></>}>
       <div className="st-qmap">

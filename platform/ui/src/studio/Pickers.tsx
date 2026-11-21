@@ -128,7 +128,7 @@ function WsdlPicker({ step }: { step: FlowStep }) {
   };
   return <PickerRow><>
     <Button kind="plain" onClick={() => setOpen(true)}>Choose an operation from the WSDL…</Button>
-    <Dialog open={open} onClose={() => setOpen(false)} title="Choose a SOAP operation" width={640}
+    <Dialog open={open} onClose={() => setOpen(false)} title="Choose a SOAP operation" width={720} height={500} resizable
       footer={<><Button kind="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button kind="primary" disabled={!op} onClick={use}>Use this operation</Button></>}>
       <Field label="WSDL address or file">{(id) => <div className="st-row-tight">
         <TextInput id={id} value={wsdl} placeholder="https://erp.example.com/OrderService?wsdl" onChange={(e) => setWsdl(e.target.value)} />
@@ -238,7 +238,7 @@ function DirectoryPicker({ step, field }: { step: FlowStep; field: string }) {
   const value = tab === "browse" ? pick : built;
   return <PickerRow><>
     <Button kind="plain" onClick={start}>Browse the directory…</Button>
-    <Dialog open={open} onClose={() => setOpen(false)} title="Choose a directory object" width={680}
+    <Dialog open={open} onClose={() => setOpen(false)} title="Choose a directory object" width={760} height={520} resizable
       footer={<><Button kind="secondary" onClick={() => setOpen(false)}>Cancel</Button>
         <Button kind="primary" disabled={!value} onClick={() => { set({ [field]: value }); setOpen(false); }}>Use this name</Button></>}>
       <div className="st-seg" role="radiogroup" aria-label="How to choose">
@@ -310,7 +310,7 @@ function PdfAreaPicker({ step }: { step: FlowStep }) {
   const round = (v: number) => Math.round(v * 2) / 2;
   return <PickerRow><>
     <Button kind="plain" onClick={start}>Draw the area on the page…</Button>
-    <Dialog open={open} onClose={() => setOpen(false)} title="Draw the area to read" width={900}
+    <Dialog open={open} onClose={() => setOpen(false)} title="Draw the area to read" width={900} resizable
       footer={<><Button kind="secondary" onClick={() => setOpen(false)}>Cancel</Button>
         <Button kind="primary" disabled={!rect || rect.w < 1 || rect.h < 1} onClick={() => { set({ x: round(rect!.x), y: round(rect!.y), width: round(rect!.w), height: round(rect!.h), page: Number(page) || 1 }); setOpen(false); }}>Use this area</Button></>}>
       <div className="st-row-tight">
