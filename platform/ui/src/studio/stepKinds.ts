@@ -82,15 +82,29 @@ export const DESKTOP_NAMES: Record<string, string> = {
   select_item: "Select item", expand: "Expand", collapse: "Collapse", toggle: "Toggle", check: "Check", uncheck: "Uncheck", invoke: "Press (invoke)",
   focus: "Set focus", get_children: "Get all children", get_list_items: "Get all items", get_table: "Get table", wait_appear: "Wait for it to appear",
   wait_disappear: "Wait for it to disappear", scroll_into_view: "Scroll into view", get_coordinates: "Get position",
+  get_status: "Get status", select: "Select", get_total_rows: "Get total rows", get_total_columns: "Get total columns",
+  get_cell_text: "Get cell text by position", get_cell_index_by_text: "Get cell position by text", set_cell_text: "Set cell text by position",
+  click_cell: "Click cell by position", click_cell_by_text: "Click cell by text", set_cell_by_text: "Set cell text by text",
+  get_selected: "Get selected text", get_selected_index: "Get selected index (1 = first)", get_total_items: "Get total items",
+  select_path: "Select by path (File > Save)", set_date: "Set date", set_position: "Set position", scroll: "Scroll",
+  click_toolbar_button: "Click tool bar button by position", get_focused: "Get the focused control", get_all_text: "Get all text",
+  get_children_values: "Get names and values of all children",
 };
 const DESKTOP_COMMON = ["get_property", "get_all_properties", "get_text", "get_coordinates", "focus", "wait_appear", "wait_disappear", "scroll_into_view"];
 const DESKTOP_BY_CONTROL: Record<string, string[]> = {
   Edit: ["set_text", "get_text", "click"], Document: ["set_text", "get_text", "click"], Button: ["click", "invoke"], SplitButton: ["click", "invoke", "expand", "collapse"],
-  CheckBox: ["check", "uncheck", "toggle"], RadioButton: ["click", "invoke"], ComboBox: ["select_item", "get_list_items", "expand", "collapse"],
-  List: ["select_item", "get_list_items", "get_children"], ListItem: ["click", "invoke"], Tree: ["select_item", "get_children", "expand", "collapse"],
-  TreeItem: ["expand", "collapse", "click"], Tab: ["select_item", "get_list_items"], TabItem: ["click"], Table: ["get_table", "get_children"],
-  DataGrid: ["get_table", "get_children"], DataItem: ["click", "get_children"], Menu: ["get_children"], MenuBar: ["get_children"],
-  MenuItem: ["click", "invoke", "expand", "collapse"], Hyperlink: ["click", "invoke"], Text: ["get_text"], Window: ["get_children"], Pane: ["get_children"], Group: ["get_children"],
+  CheckBox: ["check", "uncheck", "toggle", "get_status"], RadioButton: ["select", "get_status", "click", "invoke"],
+  ComboBox: ["select_item", "get_selected", "get_selected_index", "get_total_items", "get_list_items", "expand", "collapse"],
+  List: ["select_item", "get_selected", "get_selected_index", "get_total_items", "get_list_items", "get_children", "scroll"], ListItem: ["click", "invoke"],
+  Tree: ["select_item", "select_path", "get_selected", "get_children", "expand", "collapse", "scroll"],
+  TreeItem: ["expand", "collapse", "click"], Tab: ["select_item", "get_selected", "get_selected_index", "get_total_items", "get_list_items"], TabItem: ["click"],
+  Table: ["get_table", "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell", "click_cell_by_text", "set_cell_by_text", "get_total_rows", "get_total_columns", "get_children", "scroll"],
+  DataGrid: ["get_table", "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell", "click_cell_by_text", "set_cell_by_text", "get_total_rows", "get_total_columns", "get_children", "scroll"],
+  DataItem: ["click", "get_children"], Menu: ["select_path", "get_children"], MenuBar: ["select_path", "get_children"],
+  MenuItem: ["click", "invoke", "expand", "collapse"], Hyperlink: ["click", "invoke"], Text: ["get_text"],
+  Window: ["get_all_text", "get_children", "get_children_values", "get_focused"], Pane: ["get_children", "get_children_values", "get_all_text", "scroll"], Group: ["get_children", "get_children_values"],
+  Slider: ["set_position", "get_text"], ScrollBar: ["set_position", "scroll"], ProgressBar: ["get_text"], Calendar: ["set_date", "get_text"],
+  ToolBar: ["click_toolbar_button", "get_children"], Spinner: ["set_position", "set_text", "get_text"],
 };
 
 /** The variable an action's result goes to when it is chosen, and its type. */
