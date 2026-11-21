@@ -86,17 +86,29 @@ public final class CsvPackage {
         }
     }
 
-    /** Reads a CSV file into a header and rows with the read options; shared by read and the rows iterator. */
+    /** The "newline" delimiter: every line is one value (a list of names, one per line). */
+    static boolean newline(String d) { return d != null && (d.strip().equalsIgnoreCase("newline") || d.equals("\\n") || d.equals("\n")); }
+
+    /** Reads a CSV file into a header and rows with the read options; shared by read, open and the rows iterator. */
     static Map<String, Object> load(ActionContext ctx, String path, String d, boolean header, String enc, String trim, int skipLines, Integer maxRows, boolean skipEmptyRows) {
+        if (path == null || path.isBlank()) throw new ActionException("CSV.NO_SOURCE", "Give the file to read, or an open CSV/TXT session", "Fill in the file path, or the session of an Open step.");
         Path p = ctx.resolvePath(path);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
         if (skipLines < 0) throw new ActionException("CSV.BAD_OPTION", "skip_lines cannot be negative", "Use 0 or more.");
         String text;
-        try { text = new String(Files.readAllBytes(p), encoding(enc).charset()); }
+        try {
+            byte[] bytes = Files.readAllBytes(p);
+            // auto: the file's own encoding (a byte order mark, else UTF-8 when it fits, else windows-1252)
+            text = FilePackage.auto(enc) ? FilePackage.decodeAuto(bytes) : new String(bytes, encoding(enc).charset());
+        }
         catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
         if (!text.isEmpty() && text.charAt(0) == '\uFEFF') text = text.substring(1);
         for (int i = 0; i < skipLines && !text.isEmpty(); i++) { int nl = text.indexOf('\n'); text = nl < 0 ? "" : text.substring(nl + 1); }
-        List<List<String>> rows = parse(text, delim(d));
+        List<List<String>> rows;
+        if (newline(d)) {
+            rows = new ArrayList<>();
+            for (String line : text.split("\\r?\\n|\\r", -1)) if (!line.isEmpty()) rows.add(new ArrayList<>(List.of(line)));
+        } else rows = parse(text, delim(d));
         String t = trim == null ? "none" : trim;
         if (!t.equals("none")) for (List<String> r : rows) r.replaceAll(v -> switch (t) {
             case "leading" -> v.stripLeading(); case "trailing" -> v.stripTrailing(); case "both" -> v.strip();
@@ -138,40 +150,115 @@ public final class CsvPackage {
         return t;
     }
 
+    // ---------- sessions: Open, Read, Close and the row loop by session (AA parity, 21 Nov 2026) ----------
+
+    static final String DEFAULT_SESSION = "csv";
+    private static final String D_DELIM = "Field delimiter: , ; | tab, newline (one value per line), or regional (the Windows list separator: ; when the machine's decimal separator is a comma, otherwise ,).";
+    private static final String D_ENC = "Text encoding: auto (the file's own: a byte order mark, else UTF-8 when it fits, else windows-1252), utf-8, utf-8-bom, ansi, unicode, utf-16, windows-1251 ...";
+
+    /** An opened CSV/TXT file: read once by Open, used by Read and the row loop, closed by Close. */
+    static final class CsvSession implements AutoCloseable {
+        final String path;
+        final Map<String, Object> table;
+        CsvSession(String path, Map<String, Object> table) { this.path = path; this.table = table; }
+        @Override public void close() { /* the file was read whole by Open; nothing stays open */ }
+    }
+
+    /** The table of a named session, a private copy (later steps cannot change what the session holds). */
+    static Map<String, Object> sessionTable(ActionContext ctx, String session) {
+        CsvSession s = ctx.sessionOrOnly(session, DEFAULT_SESSION, CsvSession.class);
+        return DataTablePackage.copy(s.table, DataTablePackage.rows(s.table));
+    }
+
+    static boolean given(String s) { return s != null && !s.isBlank(); }
+
+    @Action(id = "open", name = "Open", category = "CSV", idempotent = true, capabilities = "filesystem",
+            description = "Open a CSV or delimited text file as a named session, read once, for Read and Each row steps.",
+            panel = "path, session, header, delimiter, trim, encoding | skip_lines, skip_empty_rows, detect_types, share")
+    @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of data rows.")
+    @Output(name = "columns", type = OoaType.LIST, description = "Column names.")
+    public Map<String, Object> open(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"csv\"", description = "Session name for later steps.") String session,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "First row holds column names.") boolean header,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = D_DELIM) String d,
+            @Input(name = "trim", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "leading", "trailing", "both"},
+                    description = "Remove spaces at the start and/or end of every value.") String trim,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", description = D_ENC) String enc,
+            @Input(name = "skip_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Lines to skip at the top of the file, before the header.") int skipLines,
+            @Input(name = "skip_empty_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out rows whose values are all empty (blank lines are always skipped).") boolean skipEmptyRows,
+            @Input(name = "detect_types", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Turn values that are clearly numbers, true/false or ISO dates into typed values; codes with leading zeros stay text.") boolean detectTypes,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", label = "Agents this one runs may use it",
+                    description = "Agents started from this one with Run agent may use this session by its name.") boolean share) {
+        String name = given(session) ? session.strip() : DEFAULT_SESSION;
+        Map<String, Object> t = load(ctx, path, d, header, enc, trim, skipLines, null, skipEmptyRows);
+        if (detectTypes) typedTable(t);
+        ctx.sessions().put(name, new CsvSession(ctx.resolvePath(path).toString(), t));
+        if (share) ctx.shareSession(name);
+        return Out.of("row_count", java.math.BigDecimal.valueOf(DataTablePackage.rows(t).size()), "columns", new ArrayList<Object>(DataTablePackage.cols(t)));
+    }
+
+    @Action(id = "close", name = "Close", category = "CSV", idempotent = true, description = "Close a CSV/TXT session opened with Open.",
+            panel = "session")
+    public Map<String, Object> close(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"csv\"", description = "Session name.") String session) {
+        String name = ctx.sessionNameOrOnly(given(session) ? session.strip() : DEFAULT_SESSION, DEFAULT_SESSION, CsvSession.class);
+        if (ctx.sessions().remove(name) instanceof CsvSession s) s.close();
+        return Out.of();
+    }
+
     @Action(id = "read", name = "Read to table", category = "CSV", idempotent = true, capabilities = "filesystem",
-            description = "Read a CSV or delimited text file into a table.",
-            panel = "path, header, delimiter, trim, encoding | skip_lines, [Read only the first rows: max_rows], skip_empty_rows, detect_types")
+            description = "Read a CSV or delimited text file, or an open CSV/TXT session, into a table.",
+            panel = "(Read from: A file = path, header, delimiter, trim, encoding / An open session = session) | skip_lines, [Read only the first rows: max_rows], skip_empty_rows, detect_types")
     @Output(name = "table", type = OoaType.TABLE, description = "Table of text values (typed values with detect_types).")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of data rows.")
     public Map<String, Object> read(ActionContext ctx,
-            @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
-            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter: , ; | tab, or regional (the Windows list separator: ; when the machine's decimal separator is a comma, otherwise ,).") String d,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "File path (or use an open session).") String path,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = D_DELIM) String d,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "First row holds column names.") boolean header,
-            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding: utf-8, utf-8-bom, ansi, unicode, utf-16, windows-1251 ...") String enc,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", newStepDefault = "\"auto\"", description = D_ENC) String enc,
             @Input(name = "trim", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "leading", "trailing", "both"},
                     description = "Remove spaces at the start and/or end of every value.") String trim,
             @Input(name = "skip_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Lines to skip at the top of the file, before the header.") int skipLines,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, min = 0, description = "Read at most this many data rows; all when empty.") Integer maxRows,
             @Input(name = "skip_empty_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out rows whose values are all empty (blank lines are always skipped).") boolean skipEmptyRows,
             @Input(name = "detect_types", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "Turn values that are clearly numbers, true/false or ISO dates (2026-10-23) into typed values; codes with leading zeros stay text.") boolean detectTypes) {
-        Map<String, Object> t = load(ctx, path, d, header, enc, trim, skipLines, maxRows, skipEmptyRows);
-        if (detectTypes) typedTable(t);
+                    description = "Turn values that are clearly numbers, true/false or ISO dates (2026-10-23) into typed values; codes with leading zeros stay text.") boolean detectTypes,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "Read the table of this open CSV/TXT session instead of a file (the reading options are those of its Open step).") String session) {
+        Map<String, Object> t;
+        if (given(session)) {
+            t = sessionTable(ctx, session.strip());
+            if (maxRows != null) { List<List<Object>> rs = DataTablePackage.rows(t); if (rs.size() > maxRows) rs.subList(maxRows, rs.size()).clear(); }
+        } else {
+            t = load(ctx, path, d, header, enc, trim, skipLines, maxRows, skipEmptyRows);
+            if (detectTypes) typedTable(t);
+        }
         return Out.of("table", t, "row_count", java.math.BigDecimal.valueOf(((List<?>) t.get("rows")).size()));
     }
 
-    @LoopIterator(id = "rows", name = "Each row in CSV/TXT", description = "Yield each data row of a CSV or delimited text file as a record keyed by column name.")
+    /** Read to table with the signature before session was added. */
+    public Map<String, Object> read(ActionContext ctx, String path, String d, boolean header, String enc, String trim, int skipLines, Integer maxRows, boolean skipEmptyRows, boolean detectTypes) {
+        return read(ctx, path, d, header, enc, trim, skipLines, maxRows, skipEmptyRows, detectTypes, null);
+    }
+
+    @LoopIterator(id = "rows", name = "Each row in CSV/TXT", description = "Yield each data row of a CSV or delimited text file, or of an open CSV/TXT session, as a record keyed by column name.")
     public Iterable<Object> rows(ActionContext ctx,
-            @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
-            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter: , ; | tab, or regional (the Windows list separator: ; when the machine's decimal separator is a comma, otherwise ,).") String d,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "File path (or use an open session).") String path,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = D_DELIM) String d,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "First row holds column names.") boolean header,
-            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding.") String enc,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", newStepDefault = "\"auto\"", description = "Text encoding; auto reads the file's own.") String enc,
             @Input(name = "trim", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "leading", "trailing", "both"},
                     description = "Remove spaces at the start and/or end of every value.") String trim,
             @Input(name = "detect_types", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "Turn values that are clearly numbers, true/false or ISO dates into typed values.") boolean detectTypes) {
-        Map<String, Object> t = load(ctx, path, d, header, enc, trim, 0, null, false);
-        if (detectTypes) typedTable(t);
+                    description = "Turn values that are clearly numbers, true/false or ISO dates into typed values.") boolean detectTypes,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "Go through the rows of this open CSV/TXT session instead of a file.") String session) {
+        Map<String, Object> t;
+        if (given(session)) t = sessionTable(ctx, session.strip());
+        else {
+            t = load(ctx, path, d, header, enc, trim, 0, null, false);
+            if (detectTypes) typedTable(t);
+        }
         List<String> cols = DataTablePackage.cols(t);
         List<Object> out = new ArrayList<>();
         for (List<Object> r : DataTablePackage.rows(t)) {
@@ -180,6 +267,11 @@ public final class CsvPackage {
             out.add(rec);
         }
         return out;
+    }
+
+    /** Each row with the signature before session was added. */
+    public Iterable<Object> rows(ActionContext ctx, String path, String d, boolean header, String enc, String trim, boolean detectTypes) {
+        return rows(ctx, path, d, header, enc, trim, detectTypes, null);
     }
 
     @Action(id = "write", name = "Write from table", category = "CSV", capabilities = "filesystem",

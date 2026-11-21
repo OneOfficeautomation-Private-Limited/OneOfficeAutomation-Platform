@@ -27,6 +27,98 @@ public final class XmlPackage {
         try { return Files.readString(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
+    // ---------- sessions: Start session, End session and the session field of later steps (AA parity, 21 Nov 2026) ----------
+
+    static final String DEFAULT_SESSION = "xml";
+    private static final String D_SESSION = "Work on the XML of this session (Start session) instead of a file or text; changes stay in the session until End session saves them.";
+
+    /** XML loaded once by Start session, read and changed by later steps, saved by End session. */
+    static final class XmlSession implements AutoCloseable {
+        String text;
+        final String source;
+        XmlSession(String text, String source) { this.text = text; this.source = source; }
+        @Override public void close() { /* held in memory only */ }
+    }
+
+    private static boolean given(String s) { return s != null && !s.isBlank(); }
+
+    private static XmlSession xmlSession(ActionContext ctx, String session) { return ctx.sessionOrOnly(session.strip(), DEFAULT_SESSION, XmlSession.class); }
+
+    /** The XML a step reads: the session's when session is given, else the text or the file. */
+    private static String source(ActionContext ctx, String session, String xml, String path) {
+        return given(session) ? xmlSession(ctx, session).text : source(ctx, xml, path);
+    }
+
+    /** Edits the session's XML (kept in the session; also saved to save_to when given), or text or a file as before. */
+    private static String edit(ActionContext ctx, String session, String xml, String path, String saveTo, boolean namespaceAware, java.util.function.Consumer<Document> change) {
+        if (!given(session)) return edit(ctx, xml, path, saveTo, namespaceAware, change);
+        XmlSession s = xmlSession(ctx, session);
+        Document doc = XmlSupport.parse(s.text, namespaceAware);
+        change.accept(doc);
+        s.text = XmlSupport.write(doc, false);
+        if (given(saveTo)) save(ctx, doc, null, saveTo);
+        return s.text;
+    }
+
+    /** Removes text nodes holding only white space (the indentation between elements). */
+    static void dropBlankText(Node n) {
+        for (Node c = n.getFirstChild(); c != null; ) {
+            Node next = c.getNextSibling();
+            if (c.getNodeType() == Node.TEXT_NODE && c.getNodeValue().isBlank()) n.removeChild(c);
+            else if (c.getNodeType() == Node.ELEMENT_NODE) dropBlankText(c);
+            c = next;
+        }
+    }
+
+    @Action(id = "start_session", name = "Start session", category = "XML sessions", idempotent = true, capabilities = "filesystem",
+            description = "Load XML (a file or text) once as a named session, so later steps read and change it and End session saves it.",
+            panel = "(Load from: An XML file = path / XML text = xml), session, drop_blank_text | share")
+    @Output(name = "xml", type = OoaType.STRING, description = "The loaded XML.")
+    public Map<String, Object> startSession(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
+            @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text (or use path).") String xml,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"xml\"", description = "Session name for later steps.") String session,
+            @Input(name = "drop_blank_text", type = OoaType.BOOLEAN, required = false, defaultValue = "false", label = "Leave out blank text",
+                    description = "Remove text that is only spaces and line breaks between elements, so nodes hold only their real text.") boolean dropBlank,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", label = "Agents this one runs may use it",
+                    description = "Agents started from this one with Run agent may use this session by its name.") boolean share) {
+        String text = source(ctx, xml, path);
+        Document doc = XmlSupport.parse(text, false);   // refuses what is not well-formed (and external entities) at once
+        if (dropBlank) { dropBlankText(doc); text = XmlSupport.write(doc, false); }
+        String name = given(session) ? session.strip() : DEFAULT_SESSION;
+        ctx.sessions().put(name, new XmlSession(text, given(xml) ? null : ctx.resolvePath(path).toString()));
+        if (share) ctx.shareSession(name);
+        return Out.of("xml", text);
+    }
+
+    @Action(id = "end_session", name = "End session", category = "XML sessions", capabilities = "filesystem",
+            description = "Close an XML session, optionally saving its XML first: over the file it was loaded from, or to another file.",
+            panel = "session, [Save the XML: save_in_place, save_to, indent]")
+    @Output(name = "xml", type = OoaType.STRING, description = "The XML as the session held it.")
+    @Output(name = "path", type = OoaType.FILE, description = "The file written; empty when nothing was saved.")
+    public Map<String, Object> endSession(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"xml\"", description = "Session name.") String session,
+            @Input(name = "save_in_place", type = OoaType.BOOLEAN, required = false, defaultValue = "false", tone = "danger", label = "Save over the loaded file",
+                    description = "Write the XML back to the file Start session loaded.") boolean inPlace,
+            @Input(name = "save_to", type = OoaType.FILE, required = false, description = "Write the XML to this file (used when not saving over the loaded file).") String saveTo,
+            @Input(name = "indent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Re-format the saved XML with indentation.") boolean indent) {
+        String name = ctx.sessionNameOrOnly(given(session) ? session.strip() : DEFAULT_SESSION, DEFAULT_SESSION, XmlSession.class);
+        XmlSession s = ctx.session(name, XmlSession.class);
+        String target = inPlace ? s.source : given(saveTo) ? saveTo : null;
+        if (inPlace && s.source == null) throw new ActionException("XML.NO_SOURCE", "Session '" + name + "' was loaded from text, not from a file", "Give a file in save_to instead.");
+        String written = "";
+        if (target != null) {
+            Path out = ctx.resolvePath(target);
+            try {
+                if (out.getParent() != null) Files.createDirectories(out.getParent());
+                Files.writeString(out, indent ? XmlSupport.write(XmlSupport.parse(s.text, false), true) : s.text);
+            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + out + ": " + e.getMessage(), "Check the folder exists and the file is not open in another program.", true); }
+            written = out.toString();
+        }
+        ctx.sessions().remove(name);
+        return Out.of("xml", s.text, "path", written);
+    }
+
     private static NodeList select(Document doc, String xpath) { return select(doc, xpath, null); }
 
     /** Prefixes an XPath uses (a:note, //inv:Invoice/@cbc:id), ignoring quoted text and axes such as child::. */
@@ -58,7 +150,7 @@ public final class XmlPackage {
         Set<String> used = prefixes(xpath);
         if (!used.isEmpty() || (namespaces != null && !namespaces.isEmpty())) {
             Map<String, String> ns = declared(doc);
-            if (namespaces != null) namespaces.forEach((k, v) -> ns.put(k, v == null ? "" : String.valueOf(v)));
+            bindGiven(doc, ns, namespaces);
             for (String p : used) if (!ns.containsKey(p))
                 throw new ActionException("XML.UNKNOWN_PREFIX", "XPath prefix '" + p + ":' is not declared in the document or in namespaces",
                         "Add it to namespaces as {\"" + p + "\": \"namespace URI\"}" + (ns.isEmpty() ? "." : "; the document declares " + ns.keySet() + "."));
@@ -72,6 +164,19 @@ public final class XmlPackage {
         catch (XPathExpressionException e) {
             throw new ActionException("XML.BAD_XPATH", "Invalid XPath '" + xpath + "': " + xpathError(e), "Example: /invoice/lines/line[1]/amount");
         }
+    }
+
+    /**
+     * Adds the namespaces input to the prefixes in use; a prefix given with an empty URI stands for the document's own
+     * default namespace (xmlns="..." on the root), so //d:order works without copying the URI.
+     */
+    static void bindGiven(Document doc, Map<String, String> ns, Map<String, Object> namespaces) {
+        if (namespaces == null) return;
+        String dflt = doc.getDocumentElement() == null ? "" : doc.getDocumentElement().getAttribute("xmlns");
+        namespaces.forEach((k, v) -> {
+            String uri = v == null ? "" : String.valueOf(v);
+            ns.put(k, uri.isBlank() ? dflt : uri);
+        });
     }
 
     /** Every xmlns:prefix declared anywhere in the document. */
@@ -96,7 +201,7 @@ public final class XmlPackage {
         return m.replaceAll("(?:[a-z_][\\w]*\\.)+[A-Z]\\w*(?:Exception|Error):\\s*", "").strip();
     }
 
-    private static final String D_NS = "Prefix to namespace URI for prefixes in the XPath, e.g. {\"inv\": \"urn:example:invoice\"}; prefixes declared in the document work without this. Map a default namespace (xmlns=\"...\") to a prefix of your choice to address it.";
+    private static final String D_NS = "Prefix to namespace URI for prefixes in the XPath, e.g. {\"inv\": \"urn:example:invoice\"}; prefixes declared in the document work without this. Map a default namespace (xmlns=\"...\") to a prefix of your choice to address it; a prefix with an empty URI, e.g. {\"d\": \"\"}, stands for the document's own default namespace.";
 
     private static void save(ActionContext ctx, Document doc, String path, String saveTo) {
         Path out = ctx.resolvePath(saveTo != null && !saveTo.isBlank() ? saveTo : path);
@@ -148,11 +253,16 @@ public final class XmlPackage {
     }
 
     public Map<String, Object> getValue(ActionContext ctx, String xpath, String xml, String path, String attribute, String returnValue) {
-        return getValue(ctx, xpath, xml, path, attribute, returnValue, null);
+        return getValue(ctx, xpath, xml, path, attribute, returnValue, null, null);
+    }
+
+    /** Get single node with the signature before session was added. */
+    public Map<String, Object> getValue(ActionContext ctx, String xpath, String xml, String path, String attribute, String returnValue, Map<String, Object> namespaces) {
+        return getValue(ctx, xpath, xml, path, attribute, returnValue, namespaces, null);
     }
 
     @Action(id = "get_value", name = "Get single node", category = "XML", idempotent = true, description = "Read the text of the first element a path such as //order/id finds.",
-            panel = "(Source: An XML file = path / XML text = xml), xpath, attribute | return_value, namespaces")
+            panel = "(Source: An XML file = path / XML text = xml / A session = session), xpath, attribute | return_value, namespaces")
     @Output(name = "value", type = OoaType.STRING, description = "Node text, empty when nothing matches.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a node matched.")
     public Map<String, Object> getValue(ActionContext ctx,
@@ -162,15 +272,18 @@ public final class XmlPackage {
             @Input(name = "attribute", type = OoaType.STRING, required = false, description = "Return this attribute of the node instead of its text.") String attribute,
             @Input(name = "return_value", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "xml", "xpath"},
                     description = "What to return: the node's text, its XML, or its exact XPath.") String returnValue,
-            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces) {
-        NodeList n = select(parseFor(source(ctx, xml, path), xpath, namespaces), xpath, namespaces);
+            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SESSION) String session) {
+        NodeList n = select(parseFor(source(ctx, session, xml, path), xpath, namespaces), xpath, namespaces);
         return Out.of("value", n.getLength() > 0 ? describe(n.item(0), attribute, returnValue) : "", "found", n.getLength() > 0);
     }
 
-    @Action(id = "get_nodes", name = "Get multiple nodes", category = "XML", idempotent = true, description = "Read the text of every element a path such as //order/id finds.",
-            panel = "(Source: An XML file = path / XML text = xml), xpath, return_value, attribute | namespaces")
+    @Action(id = "get_nodes", name = "Get multiple nodes", category = "XML", idempotent = true,
+            description = "Read the text of every element a path such as //order/id finds, as a list and as a table (one row per node, a column per part you name).",
+            panel = "(Source: An XML file = path / XML text = xml / A session = session), xpath, return_value, attribute, columns | namespaces")
     @Output(name = "values", type = OoaType.LIST, description = "Texts of matching nodes.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches.")
+    @Output(name = "table", type = OoaType.TABLE, description = "One row per matching node: the columns you named, or value and xpath when none are named.")
     public Map<String, Object> getNodes(ActionContext ctx,
             @Input(name = "xpath", type = OoaType.STRING, example = "//line/sku", description = "XPath expression.") String xpath,
             @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text (or use path).") String xml,
@@ -178,19 +291,63 @@ public final class XmlPackage {
             @Input(name = "attribute", type = OoaType.STRING, required = false, description = "Return this attribute of each node instead of its text.") String attribute,
             @Input(name = "return_value", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "xml", "xpath"},
                     description = "What to return for each node: its text, its XML, or its exact XPath.") String returnValue,
-            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces) {
-        NodeList n = select(parseFor(source(ctx, xml, path), xpath, namespaces), xpath, namespaces);
+            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces,
+            @Input(name = "columns", type = OoaType.DICTIONARY, required = false, example = "{\"sku\": \"sku\", \"qty\": \"@qty\", \"price\": \"price/amount\"}",
+                    description = "Columns of the table output: column name to an XPath read from each matching node (a child, an @attribute, or . for the node's own text).") Map<String, Object> columns,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SESSION) String session) {
+        Document doc = parseFor(source(ctx, session, xml, path), xpath, namespaces);
+        NodeList n = select(doc, xpath, namespaces);
         List<Object> out = new ArrayList<>();
         for (int i = 0; i < n.getLength(); i++) out.add(describe(n.item(i), attribute, returnValue));
-        return Out.of("values", out, "count", BigDecimal.valueOf(out.size()));
+        List<String> cols = new ArrayList<>();
+        List<Object> rows = new ArrayList<>();
+        if (columns == null || columns.isEmpty()) {
+            cols.addAll(List.of("value", "xpath"));
+            for (int i = 0; i < n.getLength(); i++) rows.add(new ArrayList<Object>(List.of(out.get(i), xpathOf(n.item(i)))));
+        } else {
+            cols.addAll(columns.keySet());
+            XPath x = XPathFactory.newInstance().newXPath();
+            Map<String, String> ns = declared(doc);
+            bindGiven(doc, ns, namespaces);
+            if (!ns.isEmpty()) x.setNamespaceContext(new javax.xml.namespace.NamespaceContext() {
+                public String getNamespaceURI(String prefix) { return ns.getOrDefault(prefix, XMLConstants.NULL_NS_URI); }
+                public String getPrefix(String uri) { return null; }
+                public Iterator<String> getPrefixes(String uri) { return Collections.emptyIterator(); }
+            });
+            Map<String, XPathExpression> exprs = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> c : columns.entrySet()) {
+                String rel = c.getValue() == null ? "." : String.valueOf(c.getValue()).strip();
+                try { exprs.put(c.getKey(), x.compile(rel.isEmpty() ? "." : rel)); }
+                catch (XPathExpressionException e) { throw new ActionException("XML.BAD_XPATH", "Invalid XPath '" + rel + "' for column '" + c.getKey() + "': " + xpathError(e), "Use a path relative to each node, e.g. sku, @qty or price/amount."); }
+            }
+            for (int i = 0; i < n.getLength(); i++) {
+                List<Object> row = new ArrayList<>();
+                for (Map.Entry<String, XPathExpression> e : exprs.entrySet()) {
+                    try { row.add(e.getValue().evaluate(n.item(i), XPathConstants.STRING)); }
+                    catch (XPathExpressionException ex) { throw new ActionException("XML.BAD_XPATH", "Cannot read column '" + e.getKey() + "': " + xpathError(ex), "Use a path relative to each node."); }
+                }
+                rows.add(row);
+            }
+        }
+        return Out.of("values", out, "count", BigDecimal.valueOf(out.size()), "table", com.oneofficeautomation.runner.Values.table(cols, rows));
     }
 
     public Map<String, Object> getNodes(ActionContext ctx, String xpath, String xml, String path, String attribute, String returnValue) {
-        return getNodes(ctx, xpath, xml, path, attribute, returnValue, null);
+        return getNodes(ctx, xpath, xml, path, attribute, returnValue, null, null, null);
+    }
+
+    /** Get multiple nodes with the signature before columns and session were added. */
+    public Map<String, Object> getNodes(ActionContext ctx, String xpath, String xml, String path, String attribute, String returnValue, Map<String, Object> namespaces) {
+        return getNodes(ctx, xpath, xml, path, attribute, returnValue, namespaces, null, null);
     }
 
     public Iterable<Object> nodes(ActionContext ctx, String xpath, String xml, String path, String attribute, String returnValue) {
-        return nodes(ctx, xpath, xml, path, attribute, returnValue, null);
+        return nodes(ctx, xpath, xml, path, attribute, returnValue, null, null);
+    }
+
+    /** Each node with the signature before session was added. */
+    public Iterable<Object> nodes(ActionContext ctx, String xpath, String xml, String path, String attribute, String returnValue, Map<String, Object> namespaces) {
+        return nodes(ctx, xpath, xml, path, attribute, returnValue, namespaces, null);
     }
 
     @LoopIterator(id = "nodes", name = "Each node in XML", description = "Yield each node matching an XPath: its text, XML, XPath or an attribute.")
@@ -201,31 +358,37 @@ public final class XmlPackage {
             @Input(name = "attribute", type = OoaType.STRING, required = false, description = "Yield this attribute of each node instead of its text.") String attribute,
             @Input(name = "return_value", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "xml", "xpath"},
                     description = "What to yield for each node: its text, its XML, or its exact XPath.") String returnValue,
-            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces) {
-        @SuppressWarnings("unchecked") List<Object> values = (List<Object>) getNodes(ctx, xpath, xml, path, attribute, returnValue, namespaces).get("values");
+            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "Go through the nodes of this XML session (Start session) instead of a file or text.") String session) {
+        @SuppressWarnings("unchecked") List<Object> values = (List<Object>) getNodes(ctx, xpath, xml, path, attribute, returnValue, namespaces, null, session).get("values");
         return values;
     }
 
+    /** Convert to dictionary with the signature before session was added. */
+    public Map<String, Object> toDictionary(ActionContext ctx, String xml, String path, String xpath) { return toDictionary(ctx, xml, path, xpath, null); }
+
     @Action(id = "to_dictionary", name = "Convert to dictionary", category = "XML", idempotent = true,
             description = "Turn XML (or the part a path finds) into a Dictionary; attributes become keys starting with @.",
-            panel = "(Source: An XML file = path / XML text = xml), xpath")
+            panel = "(Source: An XML file = path / XML text = xml / A session = session), xpath")
     @Output(name = "value", description = "Dictionary or text.")
     public Map<String, Object> toDictionary(ActionContext ctx,
             @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text (or use path).") String xml,
             @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
-            @Input(name = "xpath", type = OoaType.STRING, required = false, description = "Convert only the first node matching this XPath.") String xpath) {
-        Document doc = XmlSupport.parse(source(ctx, xml, path), true);
+            @Input(name = "xpath", type = OoaType.STRING, required = false, description = "Convert only the first node matching this XPath.") String xpath,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SESSION) String session) {
+        String text = source(ctx, session, xml, path);
+        Document doc = XmlSupport.parse(text, true);
         Element e = doc.getDocumentElement();
         if (xpath != null && !xpath.isBlank()) {
-            NodeList n = select(XmlSupport.parse(source(ctx, xml, path), false), xpath);
+            NodeList n = select(XmlSupport.parse(text, false), xpath);
             if (n.getLength() == 0 || !(n.item(0) instanceof Element el)) return Out.of("value", null);
             e = el;
         }
         return Out.of("value", XmlSupport.toValue(e));
     }
 
-    @Action(id = "set_value", name = "Update node", category = "XML", capabilities = "filesystem", description = "Change the text (or an attribute) of every element a path finds, in a file or in XML text.",
-            panel = "(Source: An XML file = path, save_to / XML text = xml), xpath, value, attribute | attributes, namespaces")
+    @Action(id = "set_value", name = "Update node", category = "XML", capabilities = "filesystem", description = "Change the text (or an attribute) of every element a path finds, in a file, in XML text or in a session.",
+            panel = "(Source: An XML file = path, save_to / XML text = xml / A session = session), xpath, value, attribute | attributes, namespaces")
     @Output(name = "count", type = OoaType.NUMBER, description = "Nodes changed.")
     @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
     public Map<String, Object> setValue(ActionContext ctx,
@@ -237,13 +400,14 @@ public final class XmlPackage {
             @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text to change instead of a file; the result is in the xml output.") String xml,
             @Input(name = "attributes", type = OoaType.DICTIONARY, required = false, example = "{\"status\": \"paid\", \"currency\": \"EUR\"}",
                     description = "Several attributes to set at once, as name to value (created when missing). With these, the node text changes only when value is filled in.") Map<String, Object> attributes,
-            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces) {
+            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SESSION) String session) {
         boolean many = attributes != null && !attributes.isEmpty();
         boolean one = attribute != null && !attribute.isBlank();
         boolean setText = !one && (!many || (value != null && !value.isEmpty()));
         if (value == null && !many) throw new ActionException("XML.NO_VALUE", "Give the new value", "Fill in 'value', or 'attributes' to set several attributes.");
         int[] count = {0};
-        String out = edit(ctx, xml, path, saveTo, namespaced(xpath, namespaces), doc -> {
+        String out = edit(ctx, session, xml, path, saveTo, namespaced(xpath, namespaces), doc -> {
             NodeList n = select(doc, xpath, namespaces);
             count[0] = n.getLength();
             try {
@@ -263,11 +427,16 @@ public final class XmlPackage {
     }
 
     public Map<String, Object> setValue(ActionContext ctx, String path, String xpath, String value, String saveTo, String attribute, String xml, Map<String, Object> attributes) {
-        return setValue(ctx, path, xpath, value, saveTo, attribute, xml, attributes, null);
+        return setValue(ctx, path, xpath, value, saveTo, attribute, xml, attributes, null, null);
+    }
+
+    /** Update node with the signature before session was added. */
+    public Map<String, Object> setValue(ActionContext ctx, String path, String xpath, String value, String saveTo, String attribute, String xml, Map<String, Object> attributes, Map<String, Object> namespaces) {
+        return setValue(ctx, path, xpath, value, saveTo, attribute, xml, attributes, namespaces, null);
     }
 
     @Action(id = "insert_node", name = "Insert node", category = "XML", capabilities = "filesystem", description = "Add an element, with its text and attributes, under, before or after every element a path finds.",
-            panel = "(Source: An XML file = path, save_to / XML text = xml), parent_xpath, name, text, if_exists, position, attributes | reference_child, namespaces")
+            panel = "(Source: An XML file = path, save_to / XML text = xml / A session = session), parent_xpath, name, text, if_exists, position, attributes | reference_child, namespaces")
     @Output(name = "count", type = OoaType.NUMBER, description = "Elements inserted.")
     @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
     public Map<String, Object> insertNode(ActionContext ctx,
@@ -285,7 +454,8 @@ public final class XmlPackage {
             @Input(name = "reference_child", type = OoaType.STRING, required = false, visibleWhen = "position=before|after", example = "total",
                     description = "With position before or after: insert next to the first child of the matched node with this element name, instead of next to the matched node itself.") String referenceChild,
             @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}",
-                    description = "Namespace declarations put on the new element, as prefix to URI (an empty prefix is the default namespace); name may then use the prefix, e.g. inv:note.") Map<String, Object> namespaces) {
+                    description = "Namespace declarations put on the new element, as prefix to URI (an empty prefix is the default namespace); name may then use the prefix, e.g. inv:note.") Map<String, Object> namespaces,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SESSION) String session) {
         String pos = position == null ? "end" : position;
         if (!List.of("end", "start", "before", "after").contains(pos)) throw new ActionException("XML.BAD_OPTION", "Unknown position '" + pos + "'", "Use end, start, before or after.");
         String ref = referenceChild == null || referenceChild.isBlank() ? null : referenceChild.strip();
@@ -301,7 +471,7 @@ public final class XmlPackage {
         }
         int[] count = {0};
         // a prefixed parent_xpath (//inv:lines) resolves through the document's own declarations, as in Get single node
-        String out = edit(ctx, xml, path, saveTo, !prefixes(parentXpath).isEmpty(), doc -> {
+        String out = edit(ctx, session, xml, path, saveTo, !prefixes(parentXpath).isEmpty(), doc -> {
             NodeList n = select(doc, parentXpath, null);
             try {
                 for (int i = 0; i < n.getLength(); i++) {
@@ -341,11 +511,17 @@ public final class XmlPackage {
 
     public Map<String, Object> insertNode(ActionContext ctx, String path, String parentXpath, String name, String text, Map<String, Object> attrs, String saveTo,
             String position, String ifExists, String xml) {
-        return insertNode(ctx, path, parentXpath, name, text, attrs, saveTo, position, ifExists, xml, null, null);
+        return insertNode(ctx, path, parentXpath, name, text, attrs, saveTo, position, ifExists, xml, null, null, null);
     }
 
-    @Action(id = "delete_nodes", name = "Delete nodes", category = "XML", capabilities = "filesystem", description = "Remove every element (or one attribute of each) that a path such as //order/note finds, in a file or in XML text.",
-            panel = "(Source: An XML file = path, save_to / XML text = xml), xpath, attribute | namespaces")
+    /** Insert node with the signature before session was added. */
+    public Map<String, Object> insertNode(ActionContext ctx, String path, String parentXpath, String name, String text, Map<String, Object> attrs, String saveTo,
+            String position, String ifExists, String xml, String referenceChild, Map<String, Object> namespaces) {
+        return insertNode(ctx, path, parentXpath, name, text, attrs, saveTo, position, ifExists, xml, referenceChild, namespaces, null);
+    }
+
+    @Action(id = "delete_nodes", name = "Delete nodes", category = "XML", capabilities = "filesystem", description = "Remove every element (or one attribute of each) that a path such as //order/note finds, in a file, in XML text or in a session.",
+            panel = "(Source: An XML file = path, save_to / XML text = xml / A session = session), xpath, attribute | namespaces")
     @Output(name = "count", type = OoaType.NUMBER, description = "Nodes (or attributes) removed.")
     @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
     public Map<String, Object> deleteNodes(ActionContext ctx,
@@ -354,9 +530,10 @@ public final class XmlPackage {
             @Input(name = "save_to", type = OoaType.FILE, required = false, description = "Save to another file instead of overwriting.") String saveTo,
             @Input(name = "attribute", type = OoaType.STRING, required = false, description = "Remove only this attribute from the matched elements, keeping the elements.") String attribute,
             @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text to change instead of a file; the result is in the xml output.") String xml,
-            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces) {
+            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SESSION) String session) {
         int[] count = {0};
-        String out = edit(ctx, xml, path, saveTo, namespaced(xpath, namespaces), doc -> {
+        String out = edit(ctx, session, xml, path, saveTo, namespaced(xpath, namespaces), doc -> {
             NodeList n = select(doc, xpath, namespaces);
             for (int i = 0; i < n.getLength(); i++) {
                 Node node = n.item(i);
@@ -369,30 +546,103 @@ public final class XmlPackage {
         return Out.of("count", BigDecimal.valueOf(count[0]), "xml", out);
     }
 
+    /** Validate XML with the signature before more_schemas, check_dtd, dtd_path and session were added. */
+    public Map<String, Object> validate(ActionContext ctx, String xsdPath, String xml, String path) { return validate(ctx, xsdPath, xml, path, null, false, null, null); }
+
     @Action(id = "validate", name = "Validate XML", category = "XML", idempotent = true,
-            description = "Check that XML is well written and, if you give an XSD schema, that it follows it; gives the result instead of failing.",
-            panel = "(Source: An XML file = path / XML text = xml), [Check against a schema: xsd_path]")
+            description = "Check that XML is well written and, if you give them, that it follows one or more XSD schemas or its DTD; gives the result instead of failing.",
+            panel = "(Source: An XML file = path / XML text = xml / A session = session), [Check against XSD schemas: xsd_path, more_schemas], [Check against a DTD: check_dtd, dtd_path]")
     @Output(name = "valid", type = OoaType.BOOLEAN, description = "True when the document is valid.")
     @Output(name = "errors", type = OoaType.LIST, description = "Validation errors with line numbers.")
     public Map<String, Object> validate(ActionContext ctx,
             @Input(name = "xsd_path", type = OoaType.FILE, required = false, description = "XSD schema file; without it only well-formedness is checked.") String xsdPath,
             @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text (or use path).") String xml,
-            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path) {
-        String text = source(ctx, xml, path);
-        if (xsdPath == null || xsdPath.isBlank()) {
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
+            @Input(name = "more_schemas", type = OoaType.LIST, required = false, description = "Further XSD files the document must follow together with xsd_path, e.g. one per namespace.") List<Object> moreSchemas,
+            @Input(name = "check_dtd", type = OoaType.BOOLEAN, required = false, defaultValue = "false", label = "Check against the DTD",
+                    description = "Check the document against its DTD: the one inside its DOCTYPE, or the file in dtd_path (a DTD the DOCTYPE points to elsewhere is never downloaded).") boolean checkDtd,
+            @Input(name = "dtd_path", type = OoaType.FILE, required = false, visibleWhen = "check_dtd=true", description = "DTD file to check against; used for the DOCTYPE's outside DTD, or added when the document has no DOCTYPE.") String dtdPath,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "Check the XML of this session (Start session).") String session) {
+        String text = source(ctx, session, xml, path);
+        List<String> xsds = new ArrayList<>();
+        if (given(xsdPath)) xsds.add(xsdPath);
+        if (moreSchemas != null) for (Object o : moreSchemas) if (o != null && !String.valueOf(o).isBlank()) xsds.add(com.oneofficeautomation.runner.Values.text(o));
+        if (xsds.isEmpty() && !checkDtd) {
             try { XmlSupport.parse(text, true); return Out.of("valid", true, "errors", new ArrayList<>()); }
             catch (ActionException e) {
                 if ("XML.EXTERNAL_ENTITY_NOT_ALLOWED".equals(e.code()) || "XML.TOO_MANY_ENTITIES".equals(e.code())) throw e;
                 return Out.of("valid", false, "errors", new ArrayList<Object>(List.of(e.getMessage())));
             }
         }
-        XmlSupport.parse(text, true);  // refuses external entities (XXE) before schema validation
+        Document parsed;
+        try { parsed = XmlSupport.parse(text, true); }  // refuses external entities (XXE) before any schema or DTD check
+        catch (ActionException e) {
+            if ("XML.EXTERNAL_ENTITY_NOT_ALLOWED".equals(e.code()) || "XML.TOO_MANY_ENTITIES".equals(e.code())) throw e;
+            return Out.of("valid", false, "errors", new ArrayList<Object>(List.of(e.getMessage())));
+        }
         List<Object> errors = new ArrayList<>();
+        if (checkDtd) errors.addAll(dtdErrors(ctx, text, parsed, dtdPath));
+        if (!xsds.isEmpty()) errors.addAll(xsdErrors(ctx, text, xsds));
+        return Out.of("valid", errors.isEmpty(), "errors", errors);
+    }
+
+    /** Problems found by checking against the document's DTD (internal subset, or the given local DTD file; nothing is downloaded). */
+    private static List<Object> dtdErrors(ActionContext ctx, String text, Document parsed, String dtdPath) {
+        List<Object> errors = new ArrayList<>();
+        Path dtd = given(dtdPath) ? ctx.resolvePath(dtdPath) : null;
+        if (dtd != null && !Files.isRegularFile(dtd)) throw new ActionException("FILE.NOT_FOUND", "DTD file not found: " + dtd, "Check dtd_path.");
+        String doc = text;
+        if (parsed.getDoctype() == null) {
+            if (dtd == null) throw new ActionException("XML.NO_DTD", "The document has no DOCTYPE, so there is no DTD to check against", "Give the DTD file in dtd_path, or turn off the DTD check.");
+            String root = parsed.getDocumentElement().getTagName();
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("<" + java.util.regex.Pattern.quote(root) + "[\\s/>]").matcher(text);
+            if (!m.find()) throw new ActionException("XML.NO_DTD", "Cannot find the root element <" + root + "> to add the DTD before", "Add a DOCTYPE to the document.");
+            doc = text.substring(0, m.start()) + "<!DOCTYPE " + root + " SYSTEM \"ooa-dtd\">" + text.substring(m.start());
+        }
+        try {
+            javax.xml.parsers.DocumentBuilderFactory f = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            f.setValidating(true);
+            f.setNamespaceAware(true);
+            f.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            f.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            f.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            javax.xml.parsers.DocumentBuilder b = f.newDocumentBuilder();
+            // the only outside DTD ever read is the local file given in dtd_path
+            b.setEntityResolver((publicId, systemId) -> {
+                if (dtd == null) throw new SAXException("the DTD at " + systemId + " is outside the document and is not downloaded; give it in dtd_path");
+                org.xml.sax.InputSource in = new org.xml.sax.InputSource(Files.newBufferedReader(dtd));
+                in.setSystemId(dtd.toUri().toString());
+                return in;
+            });
+            b.setErrorHandler(new org.xml.sax.helpers.DefaultHandler() {
+                @Override public void error(SAXParseException e) { errors.add("line " + e.getLineNumber() + ": " + e.getMessage()); }
+                @Override public void fatalError(SAXParseException e) throws SAXException { errors.add("line " + e.getLineNumber() + ": " + e.getMessage()); throw e; }
+            });
+            try { b.parse(new org.xml.sax.InputSource(new StringReader(doc))); }
+            catch (SAXParseException e) { /* recorded by the error handler */ }
+        } catch (SAXException e) {
+            throw new ActionException("XML.BAD_DTD", "Cannot check against the DTD: " + e.getMessage(), "Give a local DTD file in dtd_path, or check the DTD.");
+        } catch (javax.xml.parsers.ParserConfigurationException | IOException e) {
+            throw new ActionException("XML.BAD_DTD", "Cannot check against the DTD: " + e.getMessage(), "Check the DTD file.");
+        }
+        return errors;
+    }
+
+    /** Problems found by checking against XSD files (all of them together). */
+    private static List<Object> xsdErrors(ActionContext ctx, String text, List<String> xsds) {
+        List<Object> errors = new ArrayList<>();
+        String xsdPath = String.join(", ", xsds);
         try {
             SchemaFactory sf = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
             sf.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
             sf.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "file");
-            Validator v = sf.newSchema(ctx.resolvePath(xsdPath).toFile()).newValidator();
+            javax.xml.transform.Source[] sources = new javax.xml.transform.Source[xsds.size()];
+            for (int i = 0; i < xsds.size(); i++) {
+                Path x = ctx.resolvePath(xsds.get(i));
+                if (!Files.isRegularFile(x)) throw new ActionException("FILE.NOT_FOUND", "Schema file not found: " + x, "Check the XSD paths.");
+                sources[i] = new StreamSource(x.toFile());
+            }
+            Validator v = sf.newSchema(sources).newValidator();
             v.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
             v.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
             v.setErrorHandler(new org.xml.sax.helpers.DefaultHandler() {
@@ -403,16 +653,21 @@ public final class XmlPackage {
         } catch (SAXException e) {
             throw new ActionException("XML.BAD_SCHEMA", "Cannot use schema " + xsdPath + ": " + e.getMessage(), "Check the XSD file.");
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
-        return Out.of("valid", errors.isEmpty(), "errors", errors);
+        return errors;
     }
 
     public Map<String, Object> deleteNodes(ActionContext ctx, String path, String xpath, String saveTo, String attribute, String xml) {
-        return deleteNodes(ctx, path, xpath, saveTo, attribute, xml, null);
+        return deleteNodes(ctx, path, xpath, saveTo, attribute, xml, null, null);
+    }
+
+    /** Delete nodes with the signature before session was added. */
+    public Map<String, Object> deleteNodes(ActionContext ctx, String path, String xpath, String saveTo, String attribute, String xml, Map<String, Object> namespaces) {
+        return deleteNodes(ctx, path, xpath, saveTo, attribute, xml, namespaces, null);
     }
 
     @Action(id = "xpath_function", name = "Evaluate XPath", category = "XML", idempotent = true,
             description = "Work something out from XML with an XPath function, such as count(//line) or sum(//amount): text, a number or true/false.",
-            panel = "expression, (Source: An XML file = path / XML text = xml), result_type | namespaces")
+            panel = "expression, (Source: An XML file = path / XML text = xml / A session = session), result_type | namespaces")
     @Output(name = "result", description = "Result of the expression as String, Number or Boolean.")
     public Map<String, Object> xpathFunction(ActionContext ctx,
             @Input(name = "expression", type = OoaType.STRING, example = "sum(//line/amount)", description = "XPath expression.") String expression,
@@ -420,8 +675,9 @@ public final class XmlPackage {
             @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
             @Input(name = "result_type", type = OoaType.STRING, required = false, defaultValue = "\"string\"", enumValues = {"string", "number", "boolean"},
                     description = "Type of the result.") String resultType,
-            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces) {
-        Document doc = parseFor(source(ctx, xml, path), expression, namespaces);
+            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}", description = D_NS) Map<String, Object> namespaces,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SESSION) String session) {
+        Document doc = parseFor(source(ctx, session, xml, path), expression, namespaces);
         String rt = resultType == null ? "string" : resultType;
         javax.xml.namespace.QName q = switch (rt) {
             case "number" -> XPathConstants.NUMBER;
@@ -434,7 +690,7 @@ public final class XmlPackage {
         if (namespaced(expression, namespaces)) {
             // reuse select's prefix checks and namespace context through a throwaway evaluation of the same context
             Map<String, String> ns = declared(doc);
-            if (namespaces != null) namespaces.forEach((k, v) -> ns.put(k, v == null ? "" : String.valueOf(v)));
+            bindGiven(doc, ns, namespaces);
             for (String p : prefixes(expression)) if (!ns.containsKey(p))
                 throw new ActionException("XML.UNKNOWN_PREFIX", "XPath prefix '" + p + ":' is not declared in the document or in namespaces", "Add it to namespaces as {\"" + p + "\": \"namespace URI\"}.");
             xp.setNamespaceContext(new javax.xml.namespace.NamespaceContext() {
@@ -456,7 +712,12 @@ public final class XmlPackage {
     }
 
     public Map<String, Object> xpathFunction(ActionContext ctx, String expression, String xml, String path, String resultType) {
-        return xpathFunction(ctx, expression, xml, path, resultType, null);
+        return xpathFunction(ctx, expression, xml, path, resultType, null, null);
+    }
+
+    /** Evaluate XPath with the signature before session was added. */
+    public Map<String, Object> xpathFunction(ActionContext ctx, String expression, String xml, String path, String resultType, Map<String, Object> namespaces) {
+        return xpathFunction(ctx, expression, xml, path, resultType, namespaces, null);
     }
 
     @Action(id = "save_file", name = "Save XML file", category = "XML", capabilities = "filesystem",
@@ -467,7 +728,7 @@ public final class XmlPackage {
             @Input(name = "xml", type = OoaType.STRING, description = "XML text to save.") String xml,
             @Input(name = "path", type = OoaType.FILE, description = "Target file.") String path,
             @Input(name = "indent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Re-format with indentation instead of keeping the text as given.") boolean indent,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that is already there; when off, the step fails instead.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace a file that is already there; when off, the step fails instead.") boolean overwrite) {
         if (xml == null || xml.isBlank()) throw new ActionException("XML.NO_SOURCE", "The XML text is empty", "Fill in 'xml'.");
         Document doc = XmlSupport.parse(xml, false);
         String text = indent ? XmlSupport.write(doc, true) : xml;
