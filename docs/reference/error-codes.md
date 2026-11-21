@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1674 codes in 152 areas.
+1684 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -896,11 +896,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `EXCEL.NO_TABLE` | Excel table '…' not found | …The workbook has no Excel tables.…Tables: …, …. | packages-office |
 | `EXCEL.NO_TOKEN` | A SharePoint or OneDrive link needs access_token<br>A onedrive: path needs access_token | Pick the Microsoft Graph token from the vault. | packages-office |
 | `EXCEL.NO_VALUES` | No value fields given | Name at least one field to summarise, e.g. ["Amount"]. | packages-office |
-| `EXCEL.OPEN_FAILED` | Cannot open …: …<br>… | Close the file in Excel and check it is a valid workbook.<br>Check that the workbook exists, is a valid .xlsx or .xls file, and is not open in Excel with a lock. | packages-office |
+| `EXCEL.OPEN_FAILED` | Cannot open …: …<br>Cannot read …: …<br>… | Close the file in Excel and check it is a valid workbook.<br>Check that the file is there and not locked.<br>Check that the workbook exists, is a valid .xlsx or .xls file, and is not open in Excel with a lock. | packages-office |
 | `EXCEL.OVERLAP` | The range overlaps the table … | Pick a range outside existing tables. | packages-office |
 | `EXCEL.PASSWORD_REQUIRED` | The workbook … is password-protected<br>An empty password would leave the sheet unprotected | Set the password input from the credential vault.<br>Give a password, ideally a credential from the vault. | packages-office |
-| `EXCEL.READ_ONLY` | The workbook was opened read-only | Use save_as with another path, or open it without read_only. | packages-office |
-| `EXCEL.SAVE_FAILED` | Cannot save …: … | Close the file if it is open in Excel. | packages-office |
+| `EXCEL.READ_ONLY` | The workbook was opened read-only | Turn off save, or open the workbook without read_only.<br>Use save_as with another path, or open it without read_only. | packages-office |
+| `EXCEL.SAVE_FAILED` | Cannot save …: … | Close the file if it is open in another program.<br>Close the file if it is open in Excel. | packages-office |
 | `EXCEL.SHEET_EXISTS` | Sheet '…' already exists | Choose another name, or tick replace to delete that sheet and its content first.<br>Choose another name. | packages-office |
 | `EXCEL.WRONG_EDIT_PASSWORD` | The password to edit … is wrong | Check the password stored in the credential vault, or open the file read-only without it. | packages-office |
 | `EXCEL.WRONG_PASSWORD` | The password for … is wrong<br>The workbook password is wrong<br>The sheet password is wrong | Check the password stored in the credential vault. | packages-office |
@@ -917,6 +917,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `EXCEL_DESKTOP.EXISTS` | A file already exists at … | Set overwrite to true or choose another path. | packages |
 | `EXCEL_DESKTOP.FAILED` | Excel reported an error: … | Check the workbook, macro name and that macros are allowed. | packages |
 | `EXCEL_DESKTOP.NOT_INSTALLED` | Microsoft Excel is not installed on this runner | Install Excel, or use Excel (no Office needed). | packages |
+| `EXCEL_DESKTOP.NO_SESSION` | No Excel session named '…' is open | Open the workbook with Excel's Open step first, or leave the session empty and give the path. | packages |
 | `EXCEL_DESKTOP.PDF_UNAVAILABLE` | Excel cannot export to PDF on this runner and the Microsoft Print to PDF printer is missing. Office 2007 needs Microsoft's Save as PDF or XPS add-in; Office 2010 and later export directly. | Install the add-in, a newer Office, or the Microsoft Print to PDF printer (Windows features). | packages |
 | `EXCEL_DESKTOP.TOO_MANY_ARGS` | At most 10 macro arguments | Pass at most 10 arguments; put more in cells the macro reads. | packages |
 | `EXCEL_DESKTOP.WRONG_PASSWORD` | Excel could not open the workbook with the given password | Check the password stored in the credential vault. | packages |
@@ -971,7 +972,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FILE.BAD_TARGET` | The target … is a file | With a pattern, the target must be a folder. | packages |
 | `FILE.EXISTS` | File already exists: …<br>Target exists: …<br>Archive already exists: … | Set overwrite to true or choose another name.<br>Choose another name or turn off fail_if_exists.<br>Turn on overwrite or choose another path. | packages, packages-transfer, packages-windows, toolkits/microsoft |
 | `FILE.IO` | Cannot create the folder for …: …<br>Cannot list …: … | Check the runner may write there, or leave the path empty to use a temporary file.<br>Check the folder exists and the runner may read it. | sdk |
-| `FILE.IO_ERROR` | …<br>Cannot read …: …<br>Cannot write …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check the path and permissions.<br>Check the folder exists and can be written. | packages, packages-browser, packages-email, packages-pdf, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
+| `FILE.IO_ERROR` | …<br>Cannot read …: …<br>Cannot write …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check that the temporary folder may be written.<br>Check the path and permissions. | packages, packages-browser, packages-email, packages-pdf, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NOT_CREATED` | The PDF … was not written within … s | Check the printer queue and that the target folder is writable. | packages |
 | `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, sdk, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NO_FILES` | Give at least one file to print | Fill in the files list, or a folder with matching files. | packages |
@@ -1353,16 +1354,22 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `M365.BAD_OPTION` | Unknown … '…'<br>Unknown weekday '…' in recurrence_days_of_week<br>Unknown recurrence_week_of_month '…' | Use …, ….<br>Use full English day names such as monday or friday.<br>Use first, second, third, fourth or last. | toolkits/microsoft |
 | `M365.BAD_RANGE` | Invalid range '…'<br>Invalid start cell '…'<br>Invalid cell '…' | Example: A1:D20.<br>Example: A1.<br>Example: B2. | toolkits/microsoft |
 | `M365.BAD_RESPONSE` | The next page is on another server (…)<br>Planner did not return the task's version (ETag) | Check base_url.<br>The service answered in an unexpected way; try again, and if it keeps happening check the service's status page. | toolkits/microsoft |
+| `M365.BAD_SITE` | The site address must start with https://, e.g. https://contoso.sharepoint.com/sites/Finance | Copy the site's address from the browser. | toolkits/microsoft |
 | `M365.BAD_STATUS` | Unknown status '…' | Use read, unread, flagged, unflagged or complete. | toolkits/microsoft |
+| `M365.BAD_TEMPLATE` | Unknown list template … | Pick one of the templates the step offers. | toolkits/microsoft |
 | `M365.BAD_TIMES` | The end must be after the start<br>The event's start and end could not be read<br>The event's start could not be read | Set the end later than the start.<br>Give start and end.<br>Give start. | toolkits/microsoft |
 | `M365.CONFLICT` | The task kept changing while it was being updated | Try again. | toolkits/microsoft |
 | `M365.COPY_FAILED` | The copy failed: …error…message… | Check the destination and that the name is free. | toolkits/microsoft |
 | `M365.EXISTS` | A file named … already exists there | Set if_exists to replace or rename. | toolkits/microsoft |
 | `M365.NOTHING_TO_DO` | No formatting was given<br>No changes were given<br>Nothing was ticked to clear | Set at least one formatting input, such as fill_color, bold or font_name.<br>Set at least one of subject, start, end, body or location.<br>Tick at least one detail to clear. | toolkits/microsoft |
 | `M365.NOT_FOUND` | No calendar named '…'<br>The link did not lead to a file in OneDrive or SharePoint<br>No worksheet at position … | …Check the name and the account's access.…Available: …, ….<br>Paste the link from the browser's address bar or from File > Info > Copy path, and check the sign-in may read the file.<br>The workbook has … worksheet(s); the first is 1. | toolkits/microsoft |
+| `M365.NO_ATTACHMENT` | The item has no attachment named … | Use Get SharePoint item attachments to see the names. | toolkits/microsoft |
+| `M365.NO_DIGEST` | SharePoint did not give a form digest for changes | Check that the account may change the site. | toolkits/microsoft |
 | `M365.NO_FOLDER` | Mail folder '…' not found | Check the path, e.g. Inbox/Invoices; names are not case-sensitive. | toolkits/microsoft |
+| `M365.NO_LIST` | SharePoint did not describe the list … | Check the list's title or id. | toolkits/microsoft |
 | `M365.NO_OLDER_VERSION` | The file has no earlier version | Version history starts after the file is changed. | toolkits/microsoft |
 | `M365.NO_RECIPIENTS` | No recipients to forward to<br>Without the sender there is nobody left to reply to<br>Nobody to share with | Give at least one address.<br>Turn off exclude_sender.<br>Give at least one email address. | toolkits/microsoft |
+| `M365.NO_SESSION` | No SharePoint site session named '…' | Add Sign in to SharePoint site before this step, or leave the session empty and give access_token and site. | toolkits/microsoft |
 | `M365.NO_VALUES` | The range returned no cells<br>There are no values to write<br>The Data Table is empty | Check the sheet and range.<br>Give a list of rows, each a list of cell values.<br>Check that the table has columns and rows. | toolkits/microsoft |
 | `M365.UPLOAD_EXPIRED` | The upload session expired after … of … bytes<br>The upload session expired | Run the step again to start a new upload. | toolkits/microsoft |
 | `M365.UPLOAD_FAILED` | The service did not open an upload session<br>The service accepted every byte but did not create the file | Try again later. | toolkits/microsoft |
@@ -1501,6 +1508,8 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `OUTLOOK.BAD_ACCOUNT` | No account … in this Outlook profile | Leave From account empty to send from the default account. | packages |
+| `OUTLOOK.BAD_FORMAT` | Unknown file type … | Use msg, txt, html or mht. | packages |
+| `OUTLOOK.BAD_NAME` | The file name … has a character files cannot have | Leave out \ / : * ? " < > \|. | packages |
 | `OUTLOOK.FAILED` | Outlook reported an error: … | Check that Outlook is installed, set up for the runner's account and not showing a dialog.<br>Check that Outlook has a mail profile for the runner's user and is not showing a dialog. | packages |
 | `OUTLOOK.FOLDER_NOT_FOUND` | No folder … in the mailbox | Use Get folders to see the folder paths, e.g. Inbox/Invoices. | packages |
 | `OUTLOOK.MAILBOX_NOT_FOUND` | The mailbox … is not open in this Outlook profile | Add it to the runner user's Outlook, or check its name. | packages |
@@ -1619,6 +1628,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `PPT.PASSWORD_NOT_SUPPORTED` | Passwords can be kept in .pptx files only, not .…<br>Password-protected .… files cannot be opened | Save as .pptx, or clear the password.<br>Remove the password in PowerPoint, or save the file as .pptx. | packages-office |
 | `PPT.READ_ONLY` | The presentation was opened read-only | Use save_as with another path, or open it without read_only. | packages-office |
 | `PPT.SAVE_FAILED` | Cannot save .… here<br>Cannot save …: … | Save as .pptx.<br>Close the file if it is open in PowerPoint.<br>Check the folder is writable. | packages-office |
+| `PPT.WRONG_EDIT_PASSWORD` | The password to edit … is wrong | Check the password stored in the credential vault, or open the file without it. | packages-office |
 
 ## PRINTER
 

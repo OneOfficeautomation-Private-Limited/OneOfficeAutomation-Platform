@@ -3292,36 +3292,60 @@ public final class Microsoft365Package {
 
     private static String spList(String base, String site, String list) { return site(base, site) + "/lists/" + HttpJson.enc(list); }
 
+    public Map<String, Object> listLists(ActionContext ctx, Object token, String site, String base) { return listLists(ctx, token, site, base, null); }
+
     @Action(id = "list_lists", name = "List SharePoint lists", category = "SharePoint", idempotent = true, capabilities = "network",
-            description = "List the lists and libraries of a SharePoint site.",
-            panel = "access_token, site | base_url")
+            description = "List the lists and libraries of a SharePoint site (Microsoft 365, or a site signed in to, also on premises).",
+            panel = "(Connect with: Microsoft 365 = access_token, site / A SharePoint site session = session) | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, display_name, template, web_url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listLists(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SP) Object token,
+            @Input(name = "site", type = OoaType.STRING, required = false, description = D_SITE) String site,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
         List<Object> rows = new ArrayList<>();
+        SharePointSite sp = spSite(ctx, session);
+        if (sp != null) {   // G3: SharePoint's own REST API
+            Object v = sp.get(ctx, "/_api/web/lists?$select=Id,Title,BaseTemplate,RootFolder/Name,RootFolder/ServerRelativeUrl&$expand=RootFolder&$filter=Hidden eq false").get("value");
+            if (v instanceof List<?> l) for (Object o : l) {
+                Map<String, Object> m = map(o), rf = map(m.get("RootFolder"));
+                rows.add(new ArrayList<>(Arrays.asList(m.get("Id"), rf.get("Name"), m.get("Title"), Values.text(m.get("BaseTemplate")), sp.host() + Values.text(rf.get("ServerRelativeUrl")))));
+            }
+            return Map.of("table", Values.table(List.of("id", "name", "display_name", "template", "web_url"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
+        }
+        need(site, "site");
         for (Map<String, Object> l : pages(ctx, token, site(base, site) + "/lists", 0, null))
             rows.add(new ArrayList<>(Arrays.asList(l.get("id"), l.get("name"), l.get("displayName"), at(l, "list", "template"), l.get("webUrl"))));
         return Map.of("table", Values.table(List.of("id", "name", "display_name", "template", "web_url"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
+    public Map<String, Object> getListItems(ActionContext ctx, Object token, String site, String list, String filter, List<Object> columns, int max, String base, boolean display) {
+        return getListItems(ctx, token, site, list, filter, columns, max, base, display, null, null);
+    }
+
     @Action(id = "get_list_items", name = "Get SharePoint list items", category = "SharePoint", idempotent = true, capabilities = "network",
-            description = "Read the items of a SharePoint list as a Data Table, optionally filtered and limited to some columns.",
-            panel = "access_token, site, list, [Filter the items: filter], columns, use_display_names | max_results, base_url")
+            description = "Read the items of a SharePoint list as a Data Table, optionally filtered by field values or a filter, and limited to some columns.",
+            panel = "(Connect with: Microsoft 365 = access_token, site / A SharePoint site session = session), list, [Only items whose fields have these values: match], [Filter the items: filter], columns, use_display_names | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Column id, then one column per list field (named as people see them when use_display_names is on).")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of items.")
     public Map<String, Object> getListItems(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SP) Object token,
+            @Input(name = "site", type = OoaType.STRING, required = false, description = D_SITE) String site,
             @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
             @Input(name = "filter", type = OoaType.STRING, required = false, example = "fields/Status eq 'Open'", description = "OData filter on fields, e.g. fields/Status eq 'Open'.") String filter,
             @Input(name = "columns", type = OoaType.LIST, required = false, description = "Field names to return; all when empty.") List<Object> columns,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Maximum items.") int max,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "use_display_names", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "Name the table's columns as people see them in SharePoint (Status, not Status0 or field_1); columns may then be given that way too.") boolean display) {
+                    description = "Name the table's columns as people see them in SharePoint (Status, not Status0 or field_1); columns may then be given that way too.") boolean display,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session,
+            @Input(name = "match", type = OoaType.DICTIONARY, required = false, example = "{\"Status\":\"Open\",\"Priority\":1}",
+                    description = "Only items whose fields have these values, all of them (G3); combined with filter when both are given.") Map<String, Object> match) {
+        SharePointSite sp = spSite(ctx, session);
+        filter = withMatch(filter, match, sp == null ? "fields/" : "");
+        if (sp != null) return restItems(ctx, sp, list, filter, columns, max);
+        need(site, "site");
         // K7 (batch 10): SharePoint's internal column names (field_1, Status0) as people see them, and back
         Map<String, String> label = new LinkedHashMap<>(), internal = new HashMap<>();
         if (display)
@@ -3362,44 +3386,367 @@ public final class Microsoft365Package {
         return getListItems(ctx, token, site, list, filter, columns, max, base, false);
     }
 
+    /** "Field eq value" for each pair (text quoted, numbers and true/false as they are), joined with and, and the filter. */
+    static String withMatch(String filter, Map<String, Object> match, String prefix) {
+        List<String> parts = new ArrayList<>();
+        if (match != null) for (var e : match.entrySet()) {
+            Object v = e.getValue();
+            String lit = v instanceof Number || v instanceof Boolean ? Values.text(v) : v == null ? "null" : "'" + Values.text(v).replace("'", "''") + "'";
+            parts.add(prefix + e.getKey().strip() + " eq " + lit);
+        }
+        if (filter != null && !filter.isBlank()) parts.add(parts.isEmpty() ? filter.strip() : "(" + filter.strip() + ")");
+        return parts.isEmpty() ? null : String.join(" and ", parts);
+    }
+
+    /** Items through SharePoint's REST API: id, then the fields; the Graph form fields/X in a filter becomes X. */
+    private static Map<String, Object> restItems(ActionContext ctx, SharePointSite sp, String list, String filter, List<Object> columns, int max) {
+        Map<String, Object> q = new LinkedHashMap<>();
+        boolean pick = columns != null && !columns.isEmpty();
+        if (pick) q.put("$select", "Id," + String.join(",", columns.stream().map(Values::text).toList()));
+        q.put("$top", Math.min(5000, Math.max(1, max)));
+        if (filter != null && !filter.isBlank()) q.put("$filter", filter.replace("fields/", ""));
+        String next = SharePointSite.list(list) + "/items?" + HttpJson.query(q);
+        List<Map<String, Object>> items = new ArrayList<>();
+        while (next != null && items.size() < max) {
+            Map<String, Object> page = sp.get(ctx, next);
+            if (page.get("value") instanceof List<?> l) for (Object o : l) if (items.size() < max) items.add(map(o));
+            String link = Values.text(page.get("odata.nextLink"));
+            next = link.isBlank() ? null : link.startsWith(sp.url) ? link.substring(sp.url.length()) : link.startsWith(sp.host()) ? link.substring(sp.host().length()) : null;
+        }
+        LinkedHashSet<String> cols = new LinkedHashSet<>();
+        cols.add("id");
+        if (pick) for (Object c : columns) cols.add(Values.text(c));
+        else for (Map<String, Object> it : items) for (String k : it.keySet()) if (!k.startsWith("odata.") && !k.equals("Id") && !k.equals("ID")) cols.add(k);
+        List<Object> rows = new ArrayList<>();
+        for (Map<String, Object> it : items) {
+            List<Object> row = new ArrayList<>();
+            for (String c : cols) row.add(c.equals("id") ? Values.text(it.get("Id")) : it.get(c));
+            rows.add(row);
+        }
+        return Map.of("table", Values.table(new ArrayList<>(cols), rows), "count", num(rows.size()));
+    }
+
+    public Map<String, Object> createListItem(ActionContext ctx, Object token, String site, String list, Map<String, Object> fields, String base) {
+        return createListItem(ctx, token, site, list, fields, base, null);
+    }
+
     @Action(id = "create_list_item", name = "Create SharePoint list item", category = "SharePoint", capabilities = "network",
             description = "Add an item to a SharePoint list from a dictionary of field names and values.",
-            panel = "access_token, site, list, fields | base_url")
+            panel = "(Connect with: Microsoft 365 = access_token, site / A SharePoint site session = session), list, fields | base_url")
     @Output(name = "item_id", type = OoaType.STRING, description = "New item id.")
     public Map<String, Object> createListItem(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SP) Object token,
+            @Input(name = "site", type = OoaType.STRING, required = false, description = D_SITE) String site,
             @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field internal names and values, e.g. {\"Title\":\"Laptop\",\"Status\":\"Open\"}.") Map<String, Object> fields,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        SharePointSite sp = spSite(ctx, session);
+        if (sp != null) {
+            Map<String, Object> body = new LinkedHashMap<>(Map.of("__metadata", Map.of("type", sp.itemType(ctx, list))));
+            body.putAll(fields);
+            return Out.of("item_id", Values.text(sp.call(ctx, "POST", SharePointSite.list(list) + "/items", body, null, null).get("Id")));
+        }
+        need(site, "site");
         Map<String, Object> r = HttpJson.req(P, "POST", spList(base, site, list) + "/items").bearer(token).json(Map.of("fields", fields)).send(ctx).map();
         return Out.of("item_id", r.get("id"));
     }
 
+    public Map<String, Object> updateListItem(ActionContext ctx, Object token, String site, String list, String id, Map<String, Object> fields, String base) {
+        return updateListItem(ctx, token, site, list, id, fields, base, null);
+    }
+
     @Action(id = "update_list_item", name = "Update SharePoint list item", category = "SharePoint", idempotent = true, capabilities = "network",
             description = "Change some fields of a SharePoint list item; other fields keep their values.",
-            panel = "access_token, site, list, item_id, fields | base_url")
+            panel = "(Connect with: Microsoft 365 = access_token, site / A SharePoint site session = session), list, item_id, fields | base_url")
     public Map<String, Object> updateListItem(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SP) Object token,
+            @Input(name = "site", type = OoaType.STRING, required = false, description = D_SITE) String site,
             @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
             @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field internal names and their new values.") Map<String, Object> fields,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        SharePointSite sp = spSite(ctx, session);
+        if (sp != null) {
+            Map<String, Object> body = new LinkedHashMap<>(Map.of("__metadata", Map.of("type", sp.itemType(ctx, list))));
+            body.putAll(fields);
+            sp.call(ctx, "POST", SharePointSite.list(list) + "/items(" + itemNo(id) + ")", body, Map.of("X-HTTP-Method", "MERGE", "IF-MATCH", "*"), null);
+            return Map.of();
+        }
+        need(site, "site");
         HttpJson.req(P, "PATCH", spList(base, site, list) + "/items/" + HttpJson.enc(id) + "/fields").bearer(token).json(fields).send(ctx);
         return Map.of();
     }
 
     @Action(id = "delete_list_item", name = "Delete SharePoint list item", category = "SharePoint", capabilities = "network",
             description = "Delete an item from a SharePoint list; it goes to the site's recycle bin.",
-            panel = "access_token, site, list, item_id | base_url")
+            panel = "(Connect with: Microsoft 365 = access_token, site / A SharePoint site session = session), list, item_id | base_url")
     public Map<String, Object> deleteListItem(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SP) Object token,
+            @Input(name = "site", type = OoaType.STRING, required = false, description = D_SITE) String site,
+            @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
+            @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        SharePointSite sp = spSite(ctx, session);
+        if (sp != null) { sp.call(ctx, "POST", SharePointSite.list(list) + "/items(" + itemNo(id) + ")/recycle()", null, null, null); return Map.of(); }
+        HttpJson.req(P, "DELETE", spList(base, need(site, "site"), list) + "/items/" + HttpJson.enc(id)).bearer(token).send(ctx);
+        return Map.of();
+    }
+
+    public Map<String, Object> deleteListItem(ActionContext ctx, Object token, String site, String list, String id, String base) {
+        return deleteListItem(ctx, token, site, list, id, base, null);
+    }
+
+    private static int itemNo(String id) {
+        try { return Integer.parseInt(id.strip()); }
+        catch (RuntimeException e) { throw new ActionException(P + ".BAD_INPUT", "The item id " + id + " is not a number", "Use the id column of Get SharePoint list items."); }
+    }
+
+    // ------------------------------------------------------------------------ G3: lists, columns, a site session, attachments
+
+    static final String SP_SESSION = "sharepoint";
+    static final String D_TOKEN_SP = D_TOKEN + " Not needed with a SharePoint site session.";
+    static final String D_SP_SESSION = "A SharePoint site signed in to with Sign in to SharePoint site (also on premises); when given, access_token and site are not used (G3).";
+    static final String[] TEMPLATES = {"genericList", "documentLibrary", "survey", "links", "announcements", "contacts", "events", "tasks", "discussionBoard",
+            "pictureLibrary", "issueTracking", "customGridList", "ganttTasks", "promotedLinks", "webPageLibrary", "xmlForm"};
+
+    /** The site session the step names, or null when it uses Microsoft Graph. */
+    static SharePointSite spSite(ActionContext ctx, String session) {
+        if (session == null || session.isBlank()) return null;
+        Object s = ctx.sessions().get(session.strip());
+        if (s instanceof SharePointSite sp) return sp;
+        throw new ActionException(P + ".NO_SESSION", "No SharePoint site session named '" + session.strip() + "'", "Add Sign in to SharePoint site before this step, or leave the session empty and give access_token and site.");
+    }
+
+    @Action(id = "sharepoint_connect", name = "Sign in to SharePoint site", category = "SharePoint", capabilities = "network",
+            description = "Sign in to one SharePoint site through its own REST API, Online or on premises, for the SharePoint steps after it; it is checked now.",
+            panel = "site_url, (Sign in with: An access token for the site = access_token / The runner's Windows account = / A Windows user name and password = windows_user, windows_domain, windows_password), session | share")
+    @Output(name = "title", type = OoaType.STRING, description = "The site's title.")
+    public Map<String, Object> sharepointConnect(ActionContext ctx,
+            @Input(name = "site_url", type = OoaType.STRING, example = "https://contoso.sharepoint.com/sites/Finance", description = "The site's address, as the browser shows it (without a page).") String siteUrl,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "Access token for SharePoint (its audience is the SharePoint host, not Graph).") Object token,
+            @Input(name = "windows_user", type = OoaType.STRING, required = false, description = "Windows user name, e.g. svc-robot or CONTOSO\\\\svc-robot.") String user,
+            @Input(name = "windows_domain", type = OoaType.STRING, required = false, example = "CONTOSO", description = "Windows domain; empty when the user name has it.") String domain,
+            @Input(name = "windows_password", type = OoaType.CREDENTIAL, required = false, description = "Windows password from the vault.") Object password,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"sharepoint\"", description = "Session name the later SharePoint steps use.") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same site session.") boolean share) {
+        // an access token, else a Windows user name and password (NTLM), else the runner's own Windows account (Kerberos or NTLM)
+        SharePointSite sp = token != null ? new SharePointSite(siteUrl, token, null, null, null, null)
+                : user != null && !user.isBlank() ? new SharePointSite(siteUrl, null, "user_password", user.strip(), domain, password)
+                : new SharePointSite(siteUrl, null, "current_user", null, null, null);
+        String title = Values.text(sp.get(ctx, "/_api/web?$select=Title").get("Title"));
+        String name = session == null || session.isBlank() ? SP_SESSION : session.strip();
+        ctx.sessions().put(name, sp);
+        if (share) ctx.shareSession(name);
+        return Out.of("title", title);
+    }
+
+    public Map<String, Object> createList(ActionContext ctx, Object token, String site, String name, String template, String description, String base) {
+        return createList(ctx, token, site, name, template, description, base, null);
+    }
+
+    @Action(id = "create_list", name = "Create SharePoint list", category = "SharePoint", capabilities = "network",
+            description = "Create a list or library on a SharePoint site from one of 16 templates.",
+            panel = "(Connect with: Microsoft 365 = access_token, site / A SharePoint site session = session), name, template, description | base_url")
+    @Output(name = "list_id", type = OoaType.STRING, description = "The new list's id.")
+    @Output(name = "web_url", type = OoaType.STRING, description = "The new list's address.")
+    public Map<String, Object> createList(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SP) Object token,
+            @Input(name = "site", type = OoaType.STRING, required = false, description = D_SITE) String site,
+            @Input(name = "name", type = OoaType.STRING, example = "Purchase requests", description = "The list's name.") String name,
+            @Input(name = "template", type = OoaType.STRING, required = false, defaultValue = "\"genericList\"", enumValues = {"genericList", "documentLibrary", "survey", "links", "announcements", "contacts",
+                    "events", "tasks", "discussionBoard", "pictureLibrary", "issueTracking", "customGridList", "ganttTasks", "promotedLinks", "webPageLibrary", "xmlForm"},
+                    description = "What kind of list: genericList (a plain list), documentLibrary, tasks, events, contacts, issueTracking and others SharePoint offers.") String template,
+            @Input(name = "description", type = OoaType.STRING, required = false, description = "A description shown on the list.") String description,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        String t = template == null || template.isBlank() ? "genericList" : template.strip();
+        int code = SharePointSite.template(t);
+        SharePointSite sp = spSite(ctx, session);
+        if (sp != null) {
+            Map<String, Object> body = new LinkedHashMap<>(Map.of("__metadata", Map.of("type", "SP.List"), "BaseTemplate", code, "Title", need(name, "name")));
+            if (description != null && !description.isBlank()) body.put("Description", description);
+            Map<String, Object> r = sp.call(ctx, "POST", "/_api/web/lists", body, null, null);
+            return Out.of("list_id", r.get("Id"), "web_url", sp.url + "/Lists/" + need(name, "name"));
+        }
+        Map<String, Object> body = new LinkedHashMap<>(Map.of("displayName", need(name, "name"), "list", Map.of("template", t)));
+        if (description != null && !description.isBlank()) body.put("description", description);
+        Map<String, Object> r = HttpJson.req(P, "POST", site(base, need(site, "site")) + "/lists").bearer(token).json(body).send(ctx).map();
+        return Out.of("list_id", r.get("id"), "web_url", r.get("webUrl"));
+    }
+
+    @Action(id = "update_list", name = "Update SharePoint list", category = "SharePoint", idempotent = true, capabilities = "network",
+            description = "Rename a SharePoint list or change its description.",
+            panel = "(Connect with: Microsoft 365 = access_token, site / A SharePoint site session = session), list, new_name, description | base_url")
+    public Map<String, Object> updateList(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SP) Object token,
+            @Input(name = "site", type = OoaType.STRING, required = false, description = D_SITE) String site,
+            @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
+            @Input(name = "new_name", type = OoaType.STRING, required = false, description = "The list's new name; unchanged when empty.") String newName,
+            @Input(name = "description", type = OoaType.STRING, required = false, description = "The new description; unchanged when empty.") String description,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        boolean rename = newName != null && !newName.isBlank(), describe = description != null && !description.isBlank();
+        if (!rename && !describe) throw new ActionException(P + ".BAD_INPUT", "Nothing to change", "Give new_name, description or both.");
+        SharePointSite sp = spSite(ctx, session);
+        if (sp != null) {
+            Map<String, Object> body = new LinkedHashMap<>(Map.of("__metadata", Map.of("type", "SP.List")));
+            if (rename) body.put("Title", newName.strip());
+            if (describe) body.put("Description", description);
+            sp.call(ctx, "POST", SharePointSite.list(list), body, Map.of("X-HTTP-Method", "MERGE", "IF-MATCH", "*"), null);
+            return Map.of();
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (rename) body.put("displayName", newName.strip());
+        if (describe) body.put("description", description);
+        HttpJson.req(P, "PATCH", spList(base, need(site, "site"), list)).bearer(token).json(body).send(ctx);
+        return Map.of();
+    }
+
+    @Action(id = "delete_list", name = "Delete SharePoint list", category = "SharePoint", capabilities = "network",
+            description = "Delete a SharePoint list or library with its items; it goes to the site's recycle bin.",
+            panel = "(Connect with: Microsoft 365 = access_token, site / A SharePoint site session = session), list | base_url")
+    public Map<String, Object> deleteList(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SP) Object token,
+            @Input(name = "site", type = OoaType.STRING, required = false, description = D_SITE) String site,
+            @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        SharePointSite sp = spSite(ctx, session);
+        if (sp != null) { sp.call(ctx, "POST", SharePointSite.list(list) + "/recycle()", null, null, null); return Map.of(); }
+        HttpJson.req(P, "DELETE", spList(base, need(site, "site"), list)).bearer(token).send(ctx);
+        return Map.of();
+    }
+
+    /** Graph's column definition for a column type. */
+    static Map<String, Object> columnFacet(String type, List<Object> choices, String lookupList, String lookupColumn) {
+        String t = type == null || type.isBlank() ? "text" : type.strip();
+        return switch (t) {
+            case "text" -> Map.of("text", Map.of());
+            case "multiline_text" -> Map.of("text", Map.of("allowMultipleLines", true, "linesForEditing", 6));
+            case "number" -> Map.of("number", Map.of());
+            case "currency" -> Map.of("currency", Map.of());
+            case "yes_no" -> Map.of("boolean", Map.of());
+            case "date_time" -> Map.of("dateTime", Map.of("format", "dateTime"));
+            case "date" -> Map.of("dateTime", Map.of("format", "dateOnly"));
+            case "choice" -> {
+                if (choices == null || choices.isEmpty()) throw new ActionException(P + ".BAD_INPUT", "A choice column needs its choices", "Give choices, e.g. [\"Open\", \"Closed\"].");
+                yield Map.of("choice", Map.of("choices", choices.stream().map(Values::text).toList(), "displayAs", "dropDownMenu", "allowTextEntry", false));
+            }
+            case "multi_choice" -> {
+                if (choices == null || choices.isEmpty()) throw new ActionException(P + ".BAD_INPUT", "A choice column needs its choices", "Give choices, e.g. [\"Open\", \"Closed\"].");
+                yield Map.of("choice", Map.of("choices", choices.stream().map(Values::text).toList(), "displayAs", "checkBoxes", "allowTextEntry", false));
+            }
+            case "person" -> Map.of("personOrGroup", Map.of("allowMultipleSelection", false, "chooseFromType", "peopleOnly"));
+            case "hyperlink" -> Map.of("hyperlinkOrPicture", Map.of("isPicture", false));
+            case "picture" -> Map.of("hyperlinkOrPicture", Map.of("isPicture", true));
+            case "lookup" -> Map.of("lookup", Map.of("listId", need(lookupList, "lookup_list"), "columnName", need(lookupColumn, "lookup_column")));
+            default -> throw new ActionException(P + ".BAD_INPUT", "Unknown column type " + type, "Pick one of the types the step offers.");
+        };
+    }
+
+    @Action(id = "add_list_column", name = "Add SharePoint list column", category = "SharePoint", capabilities = "network",
+            description = "Add a column to a SharePoint list: text, several lines, number, currency, yes/no, date, choice, person, link, picture or a lookup to another list (Microsoft 365).",
+            panel = "access_token, site, list, column_name, type, [Choices: choices], required | display_name, lookup_list, lookup_column, base_url")
+    @Output(name = "column_id", type = OoaType.STRING, description = "The new column's id.")
+    public Map<String, Object> addListColumn(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
-            @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
+            @Input(name = "column_name", type = OoaType.STRING, example = "Status", description = "The column's internal name (no spaces is safest).") String name,
+            @Input(name = "type", type = OoaType.STRING, required = false, defaultValue = "\"text\"",
+                    enumValues = {"text", "multiline_text", "number", "currency", "yes_no", "date_time", "date", "choice", "multi_choice", "person", "hyperlink", "picture", "lookup"},
+                    description = "What the column holds.") String type,
+            @Input(name = "choices", type = OoaType.LIST, required = false, visibleWhen = "type=choice,multi_choice", description = "The choices of a choice column.") List<Object> choices,
+            @Input(name = "required", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Every item must fill it in.") boolean required,
+            @Input(name = "display_name", type = OoaType.STRING, required = false, description = "The name people see; column_name when empty.") String displayName,
+            @Input(name = "lookup_list", type = OoaType.STRING, required = false, visibleWhen = "type=lookup", description = "Id of the list a lookup column reads from.") String lookupList,
+            @Input(name = "lookup_column", type = OoaType.STRING, required = false, visibleWhen = "type=lookup", description = "Column of that list to show, e.g. Title.") String lookupColumn,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        HttpJson.req(P, "DELETE", spList(base, site, list) + "/items/" + HttpJson.enc(id)).bearer(token).send(ctx);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("name", need(name, "column_name"));
+        body.put("displayName", displayName == null || displayName.isBlank() ? name.strip() : displayName.strip());
+        body.put("required", required);
+        body.putAll(columnFacet(type, choices, lookupList, lookupColumn));
+        Map<String, Object> r = HttpJson.req(P, "POST", spList(base, site, list) + "/columns").bearer(token).json(body).send(ctx).map();
+        return Out.of("column_id", r.get("id"));
+    }
+
+    private static String attachments(String list, String id) { return SharePointSite.list(list) + "/items(" + itemNo(id) + ")/AttachmentFiles"; }
+
+    @Action(id = "list_attachments", name = "Get SharePoint item attachments", category = "SharePoint", idempotent = true, capabilities = "network",
+            description = "List the files attached to a SharePoint list item (needs a SharePoint site session).",
+            panel = "session, list, item_id")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: name, server_url.")
+    @Output(name = "names", type = OoaType.LIST, description = "The attachments' file names.")
+    public Map<String, Object> listAttachments(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"sharepoint\"", description = D_SP_SESSION) String session,
+            @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
+            @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id) {
+        SharePointSite sp = spSite(ctx, session);
+        List<Object> rows = new ArrayList<>(), names = new ArrayList<>();
+        if (sp.get(ctx, attachments(list, id)).get("value") instanceof List<?> l) for (Object o : l) {
+            Map<String, Object> m = map(o);
+            rows.add(new ArrayList<>(Arrays.asList(m.get("FileName"), m.get("ServerRelativeUrl"))));
+            names.add(m.get("FileName"));
+        }
+        return Map.of("table", Values.table(List.of("name", "server_url"), rows), "names", names);
+    }
+
+    @Action(id = "add_attachment", name = "Add SharePoint item attachment", category = "SharePoint", capabilities = {"network", "filesystem"},
+            description = "Attach a file, e.g. a picture or a PDF, to a SharePoint list item (needs a SharePoint site session).",
+            panel = "session, list, item_id, file | file_name")
+    public Map<String, Object> addAttachment(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"sharepoint\"", description = D_SP_SESSION) String session,
+            @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
+            @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
+            @Input(name = "file", type = OoaType.FILE, description = "The file to attach.") String file,
+            @Input(name = "file_name", type = OoaType.STRING, required = false, description = "The attachment's name; the file's own name when empty.") String fileName) {
+        SharePointSite sp = spSite(ctx, session);
+        Path p = ctx.resolvePath(file);
+        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
+        String n = fileName == null || fileName.isBlank() ? p.getFileName().toString() : fileName.strip();
+        sp.call(ctx, "POST", attachments(list, id) + "/add(FileName='" + SharePointSite.lit(n) + "')", null, null, p.toAbsolutePath().toString());
+        return Map.of();
+    }
+
+    @Action(id = "download_attachments", name = "Download SharePoint item attachments", category = "SharePoint", capabilities = {"network", "filesystem"},
+            description = "Save the files attached to a SharePoint list item, all or one, into a folder (needs a SharePoint site session).",
+            panel = "session, list, item_id, folder | file_name, overwrite")
+    @Output(name = "files", type = OoaType.LIST, description = "The saved files.")
+    public Map<String, Object> downloadAttachments(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"sharepoint\"", description = D_SP_SESSION) String session,
+            @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
+            @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
+            @Input(name = "folder", type = OoaType.FILE, required = false, description = "Folder to save into; the run's temporary folder when empty.") String folder,
+            @Input(name = "file_name", type = OoaType.STRING, required = false, description = "Only the attachment with this name; all when empty.") String fileName,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace files of the same name.") boolean overwrite) {
+        SharePointSite sp = spSite(ctx, session);
+        List<Object> files = new ArrayList<>();
+        if (sp.get(ctx, attachments(list, id)).get("value") instanceof List<?> l) for (Object o : l) {
+            Map<String, Object> m = map(o);
+            String n = Values.text(m.get("FileName"));
+            if (fileName != null && !fileName.isBlank() && !n.equalsIgnoreCase(fileName.strip())) continue;
+            String dir = folder == null || folder.isBlank() ? "" : folder.replaceAll("[/\\\\]+$", "") + "/";
+            files.add(Values.text(sp.download(ctx, Values.text(m.get("ServerRelativeUrl")), dir, n, overwrite).get("path")));
+        }
+        if (files.isEmpty() && fileName != null && !fileName.isBlank())
+            throw new ActionException(P + ".NO_ATTACHMENT", "The item has no attachment named " + fileName, "Use Get SharePoint item attachments to see the names.");
+        return Map.of("files", files);
+    }
+
+    @Action(id = "delete_attachment", name = "Delete SharePoint item attachment", category = "SharePoint", capabilities = "network",
+            description = "Remove a file attached to a SharePoint list item (needs a SharePoint site session).",
+            panel = "session, list, item_id, file_name")
+    public Map<String, Object> deleteAttachment(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"sharepoint\"", description = D_SP_SESSION) String session,
+            @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
+            @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
+            @Input(name = "file_name", type = OoaType.STRING, description = "The attachment's name.") String fileName) {
+        SharePointSite sp = spSite(ctx, session);
+        sp.call(ctx, "POST", attachments(list, id) + "('" + SharePointSite.lit(need(fileName, "file_name")) + "')", null, Map.of("X-HTTP-Method", "DELETE", "IF-MATCH", "*"), null);
         return Map.of();
     }
 

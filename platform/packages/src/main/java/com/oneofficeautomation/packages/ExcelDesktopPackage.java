@@ -91,6 +91,41 @@ public final class ExcelDesktopPackage {
     }
 
     private static final String D_PASSWORD = "Password needed to open the workbook; passed to Excel through the environment, not the command line.";
+    private static final String D_SESSION = "An Excel session open in this run: the step works on that workbook as it is now, changes not yet saved included; the path is not needed then (G3).";
+
+    /** The workbook an Excel step names by session, or null when the step uses a path. */
+    static OpenWorkbook openWorkbook(ActionContext ctx, String session) {
+        if (session == null || session.isBlank()) return null;
+        Object s = ctx.sessions().get(session.strip());
+        if (s instanceof OpenWorkbook w) return w;
+        throw new ActionException("EXCEL_DESKTOP.NO_SESSION", "No Excel session named '" + session.strip() + "' is open",
+                "Open the workbook with Excel's Open step first, or leave the session empty and give the path.");
+    }
+
+    /** A copy of the open workbook in a new temporary folder, under the workbook's own file name (the extension keeps macros). */
+    static Path copyOf(OpenWorkbook w) {
+        try {
+            Path dir = Files.createTempDirectory("ooa-xl-");
+            Path copy = dir.resolve(w.file().getFileName().toString());
+            w.writeCopy(copy);
+            return copy;
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the temporary folder may be written."); }
+    }
+
+    static void deleteCopy(Path copy) {
+        try { Files.deleteIfExists(copy); Files.deleteIfExists(copy.getParent()); } catch (IOException ignored) { }
+    }
+
+    /** The target path when a file is already there: replace it, stop (fail), or add a number such as (2) to the name (number). */
+    static Path target(ActionContext ctx, String target, boolean overwrite, String ifExists) {
+        String how = ifExists == null || ifExists.isBlank() ? (overwrite ? "replace" : "fail") : ifExists.strip().toLowerCase(Locale.ROOT);
+        if (!overwrite && how.equals("replace")) how = "fail";   // old steps that turned overwrite off keep stopping
+        if (!how.equals("number")) return target(ctx, target, !how.equals("fail"));
+        Path t = target(ctx, target, true);
+        String n = t.getFileName().toString();
+        for (int i = 2; Files.exists(t); i++) t = t.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1"));
+        return t;
+    }
     private static final String D_VISIBLE = "Show the Excel window while the agent works, e.g. to watch a macro; hidden by default.";
 
     // ------------------------------------------------------------------------------------------------
@@ -109,20 +144,36 @@ public final class ExcelDesktopPackage {
         return runMacro(ctx, path, macro, args, save, timeout, null, false);
     }
 
+    public Map<String, Object> runMacro(ActionContext ctx, String path, String macro, List<Object> args, boolean save, int timeout, Object password, boolean visible) {
+        return runMacro(ctx, path, macro, args, save, timeout, password, visible, null);
+    }
+
     @Action(id = "run_macro", name = "Run macro", category = "Macros", timeoutSeconds = 3600, capabilities = "desktop",
-            description = "Open a macro-enabled workbook, optionally password-protected, run a VBA macro with up to 10 arguments and optionally save.",
-            panel = "path, macro, arguments, save | timeout_seconds, password, visible")
+            description = "Run a VBA macro, with up to 10 arguments, in a macro-enabled workbook (a file, or a workbook open in an Excel session, unsaved changes included) and optionally save.",
+            panel = "(Workbook: A file = path / An open Excel session = session), macro, arguments, save | timeout_seconds, password, visible")
     @Output(name = "result", type = OoaType.STRING, description = "Value returned by the macro (for Functions), as text.")
     public Map<String, Object> runMacro(ActionContext ctx,
-            @Input(name = "path", type = OoaType.FILE, description = "Workbook (.xlsm/.xlsb/.xls).") String path,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "Workbook (.xlsm/.xlsb/.xls); not needed when a session is given.") String path,
             @Input(name = "macro", type = OoaType.STRING, example = "Module1.BuildReport", description = "Macro name.") String macro,
             @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments passed to the macro (text).") List<Object> args,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Save the workbook afterwards.") boolean save,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", description = "Maximum run time.") int timeout,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = D_PASSWORD) Object password,
-            @Input(name = "visible", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_VISIBLE) boolean visible) {
-        Script s = runMacroScript(file(ctx, path), macro, args, save, password, visible);
-        return Map.of("result", excel(ctx, s, timeout).stdout().strip());
+            @Input(name = "visible", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_VISIBLE) boolean visible,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SESSION) String session) {
+        OpenWorkbook w = openWorkbook(ctx, session);
+        if (w == null) {
+            Script s = runMacroScript(file(ctx, path), macro, args, save, password, visible);
+            return Map.of("result", excel(ctx, s, timeout).stdout().strip());
+        }
+        // G3: the macro runs on a copy of the open workbook; the session then holds what the macro made, saved when asked
+        Path copy = copyOf(w);
+        try {
+            String result = excel(ctx, runMacroScript(copy.toString(), macro, args, true, null, visible), timeout).stdout().strip();
+            w.replaceWith(copy);
+            if (save) w.save();
+            return Map.of("result", result);
+        } finally { deleteCopy(copy); }
     }
 
     static Script refreshScript(String file, boolean save, Object password) {
@@ -166,7 +217,7 @@ public final class ExcelDesktopPackage {
         return Map.of("count", new java.math.BigDecimal(last.matches("\\d+") ? last : "0"));
     }
 
-    static final String FROM_ENV = "OOA_XL_FROM", TO_ENV = "OOA_XL_TO", SHEET_ENV = "OOA_XL_SHEET";
+    static final String FROM_ENV = "OOA_XL_FROM", TO_ENV = "OOA_XL_TO", SHEET_ENV = "OOA_XL_SHEET", ACTIVE_ENV = "OOA_XL_ACTIVE";
 
     /**
      * Optional values travel in environment variables: they used to be passed as "-" when empty, and powershell -File reads
@@ -183,7 +234,7 @@ public final class ExcelDesktopPackage {
         String body = open(true, secret(password) != null)
                 + "  $from = if ($env:" + FROM_ENV + ") { [int]$env:" + FROM_ENV + " } else { [Type]::Missing }\n"
                 + "  $to = if ($env:" + TO_ENV + ") { [int]$env:" + TO_ENV + " } else { [Type]::Missing }\n"
-                + "  $what = if ($env:" + SHEET_ENV + ") { $wb.Worksheets.Item($env:" + SHEET_ENV + ") } else { $wb }\n"
+                + "  $what = if ($env:" + SHEET_ENV + ") { $wb.Worksheets.Item($env:" + SHEET_ENV + ") } elseif ($env:" + ACTIVE_ENV + ") { $wb.ActiveSheet } else { $wb }\n"
                 + "  try { $what.ExportAsFixedFormat(0, $args[1], [int]$args[2], ($args[3] -eq '1'), ($args[4] -eq '1'), $from, $to) }\n"
                 + "  catch {\n"
                 + "    $why = $_.Exception.Message\n"
@@ -205,11 +256,17 @@ public final class ExcelDesktopPackage {
         return exportPdf(ctx, path, target, sheet, "standard", true, false, null, null, true, null);
     }
 
+    public Map<String, Object> exportPdf(ActionContext ctx, String path, String target, String sheet, String quality, boolean includeProperties,
+                                         boolean ignorePrintAreas, Integer from, Integer to, boolean overwrite, Object password) {
+        return exportPdf(ctx, path, target, sheet, quality, includeProperties, ignorePrintAreas, from, to, overwrite, password, null, false, null);
+    }
+
     @Action(id = "export_pdf", name = "Export to PDF", category = "Convert", timeoutSeconds = 600, capabilities = "desktop",
-            description = "Export the whole workbook, or one sheet, to PDF, choosing quality, page range, print areas and document properties.",
-            panel = "path, (Sheets: The whole workbook = / One sheet = sheet), target, overwrite | quality, include_properties, ignore_print_areas, from_page, to_page, password")
+            description = "Export the whole workbook, the active sheet or one sheet to PDF (from a file, or a workbook open in an Excel session, unsaved changes included), choosing quality, page range, print areas and document properties.",
+            panel = "(Workbook: A file = path / An open Excel session = session), (Sheets: The whole workbook = / The active sheet = active_sheet / One sheet = sheet), target, if_exists | quality, include_properties, ignore_print_areas, from_page, to_page, password, overwrite")
+    @Output(name = "path", type = OoaType.FILE, description = "The PDF file written (with a number added when one was already there).")
     public Map<String, Object> exportPdf(ActionContext ctx,
-            @Input(name = "path", type = OoaType.FILE, description = "Workbook.") String path,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "Workbook; not needed when a session is given.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "PDF file to create.") String target,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Only this sheet; the whole workbook when empty.") String sheet,
             @Input(name = "quality", type = OoaType.STRING, required = false, defaultValue = "\"standard\"", enumValues = {"standard", "minimum"},
@@ -219,13 +276,24 @@ public final class ExcelDesktopPackage {
             @Input(name = "from_page", type = OoaType.NUMBER, required = false, description = "First printed page to export; from the first page when empty.") Integer from,
             @Input(name = "to_page", type = OoaType.NUMBER, required = false, description = "Last printed page to export; to the last page when empty.") Integer to,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace the PDF when it already exists; false stops with EXCEL_DESKTOP.EXISTS.") boolean overwrite,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = D_PASSWORD) Object password) {
-        String src = file(ctx, path);
-        Path t = target(ctx, target, overwrite);
-        ProcessRunner.Result r = excel(ctx, exportPdfScript(src, t.toString(), sheet, quality, includeProperties, ignorePrintAreas, from, to, password), 600);
-        for (String line : r.stderr().split("\\R")) if (line.startsWith("OOA_WARN ")) ctx.warn(line.substring(9));
-        OfficePdf.waitForFile(t, 120);
-        return Map.of();
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = D_PASSWORD) Object password,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = D_SESSION) String session,
+            @Input(name = "active_sheet", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only the active sheet (G3).") boolean activeSheet,
+            @Input(name = "if_exists", type = OoaType.STRING, required = false, newStepDefault = "\"number\"", enumValues = {"replace", "fail", "number"},
+                    description = "When the PDF is already there: replace it, stop the step, or add a number such as (2) to the name (G3); follows overwrite when empty.") String ifExists) {
+        OpenWorkbook w = openWorkbook(ctx, session);
+        Path copy = w == null ? null : copyOf(w);
+        try {
+            String src = copy != null ? copy.toString() : file(ctx, path);
+            if (activeSheet && (sheet == null || sheet.isBlank()) && w != null) sheet = w.activeSheet();
+            Path t = target(ctx, target, overwrite, ifExists);
+            Script script = exportPdfScript(src, t.toString(), sheet, quality, includeProperties, ignorePrintAreas, from, to, copy != null ? null : password);
+            if (activeSheet && (sheet == null || sheet.isBlank())) script.env().put(ACTIVE_ENV, "1");
+            ProcessRunner.Result r = excel(ctx, script, 600);
+            for (String line : r.stderr().split("\\R")) if (line.startsWith("OOA_WARN ")) ctx.warn(line.substring(9));
+            OfficePdf.waitForFile(t, 120);
+            return Map.of("path", t.toString());
+        } finally { if (copy != null) deleteCopy(copy); }
     }
 
     /** Excel's XlFileFormat number for a target extension, or null when not supported. */

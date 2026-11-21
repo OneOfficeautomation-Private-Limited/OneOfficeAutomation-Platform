@@ -71,4 +71,59 @@ class OfficeParityG3Test {
         Map<String, Object> r = excel.replace(ctx, "x", "y", null, false, false, null, "excel", "values", "rows", true, "cell", "A3");
         assertEquals(List.of("A3"), r.get("cells"), "the first one from A3");
     }
+
+    @Test void excelOpensACsvFileAndSavesItBackAsCsv() throws Exception {
+        ExcelPackage excel = new ExcelPackage();
+        ActionContext ctx = OfficeTestSupport.ctx(dir);
+        Files.writeString(dir.resolve("rates.csv"), "\uFEFFName;Note\r\nAcme;\"says \"\"hi\"\"; twice\"\r\nZeta;\"two\nlines\"\r\n");
+        excel.open(ctx, "rates.csv", "excel", false);
+        assertEquals("says \"hi\"; twice", excel.getCell(ctx, "B2", null, "excel").get("value"), "quotes, semicolon delimiter, BOM dropped");
+        assertEquals("two\nlines", excel.getCell(ctx, "B3", null, "excel").get("value"));
+        assertEquals("Name", excel.getCell(ctx, "A1", "rates", "excel").get("value"), "the sheet is named after the file");
+        excel.setCell(ctx, "C1", "Total", null, "excel");
+        excel.save(ctx, null, "excel");
+        assertEquals("Name;Note;Total\r\nAcme;\"says \"\"hi\"\"; twice\";\r\nZeta;\"two\nlines\";\r\n", Files.readString(dir.resolve("rates.csv")),
+                "saved back as CSV with the same delimiter");
+        excel.close(ctx, "excel");
+        excel.open(ctx, "new.csv", "n", true);
+        excel.setCell(ctx, "A1", "x,y", null, "n");
+        excel.save(ctx, null, "n");
+        assertEquals("\"x,y\"\r\n", Files.readString(dir.resolve("new.csv")), "a new CSV file is written as CSV");
+    }
+
+    @Test void theExcelSessionIsAnOpenWorkbookForTheDesktopSteps() throws Exception {
+        ExcelPackage excel = new ExcelPackage();
+        ActionContext ctx = OfficeTestSupport.ctx(dir);
+        excel.open(ctx, "book.xlsx", "excel", true);
+        excel.setCell(ctx, "A1", "unsaved", null, "excel");
+        OpenWorkbook w = (OpenWorkbook) ctx.sessions().get("excel");
+        assertEquals("book.xlsx", w.file().getFileName().toString());
+        assertEquals("Sheet1", w.activeSheet());
+        Path copy = dir.resolve("copy").resolve("book.xlsx");
+        Files.createDirectories(copy.getParent());
+        w.writeCopy(copy);
+        try (var wb = org.apache.poi.ss.usermodel.WorkbookFactory.create(copy.toFile())) {
+            assertEquals("unsaved", wb.getSheetAt(0).getRow(0).getCell(0).getStringCellValue(), "the copy has the unsaved change");
+            wb.getSheetAt(0).getRow(0).getCell(0).setCellValue("by the macro");
+            try (var out = Files.newOutputStream(dir.resolve("copy").resolve("after.xlsx"))) { wb.write(out); }
+        }
+        w.replaceWith(dir.resolve("copy").resolve("after.xlsx"));
+        assertEquals("by the macro", excel.getCell(ctx, "A1", null, "excel").get("value"), "the session holds what the macro made");
+        w.save();
+        try (var wb = org.apache.poi.ss.usermodel.WorkbookFactory.create(dir.resolve("book.xlsx").toFile())) {
+            assertEquals("by the macro", wb.getSheetAt(0).getRow(0).getCell(0).getStringCellValue(), "saved to its own file");
+        }
+    }
+
+    @Test void powerPointChecksThePasswordToEditWhenOpening() {
+        ActionContext ctx = OfficeTestSupport.ctx(dir);
+        ppt.createPresentation(ctx, "locked.pptx", true, "p", null, null, new SecureString("Edit-1", "e"));
+        ppt.save(ctx, null, "p");
+        ppt.close(ctx, "p");
+        ppt.open(ctx, "locked.pptx", false, "a", false, null, new SecureString("Edit-1", "e"));
+        ppt.open(ctx, "locked.pptx", false, "b", false, null, null);   // without it the file still opens
+        assertEquals("PPT.WRONG_EDIT_PASSWORD", assertThrows(ActionException.class,
+                () -> ppt.open(ctx, "locked.pptx", false, "c", false, null, new SecureString("wrong", "e"))).code());
+        ppt.open(ctx, "plain.pptx", true, "d", false, null, new SecureString("any", "e"));   // no password to edit: nothing to check
+    }
 }

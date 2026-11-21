@@ -135,9 +135,13 @@ public final class PowerPointPackage {
 
     public Map<String, Object> open(ActionContext ctx, String path, boolean create, String session) { return open(ctx, path, create, session, false, null); }
 
+    public Map<String, Object> open(ActionContext ctx, String path, boolean create, String session, boolean readOnly, Object password) {
+        return open(ctx, path, create, session, readOnly, password, null);
+    }
+
     @Action(id = "open", name = "Open presentation", category = "Presentation", capabilities = "filesystem",
             description = "Open a .pptx, .ppt or .odp presentation, or create a new empty one, as a named session; can open password-protected .pptx files and open read-only. .ppt and .odp files are converted with PowerPoint or LibreOffice on the runner and saved back in their own format.",
-            panel = "path, read_only, [The file has a password: password] | create, session")
+            panel = "path, read_only, [The file has a password: password], [The file has a password to edit: edit_password] | create, session")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Presentation path.") String path,
             @Input(name = "create", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the presentation when it does not exist.") boolean create,
@@ -145,7 +149,9 @@ public final class PowerPointPackage {
             @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Open for reading only: save over the opened file is refused, save_as to another file still works.") boolean readOnly,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
-                    description = "Password of an encrypted presentation; saves keep the file encrypted with it.") Object password) {
+                    description = "Password of an encrypted presentation; saves keep the file encrypted with it.") Object password,
+            @Input(name = "edit_password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Password to modify a presentation that has one; a wrong one stops the step. Without it such a file still opens (G3).") Object editPassword) {
         Path p = ctx.resolvePath(path);
         String pw = OfficeCrypto.secret(password);
         XMLSlideShow ppt;
@@ -161,6 +167,11 @@ public final class PowerPointPackage {
             }
         } else if (create) ppt = new XMLSlideShow();
         else throw new ActionException("PPT.NOT_FOUND", "Presentation not found: " + p, "Set create to true or fix the path.");
+        String edit = OfficeCrypto.secret(editPassword);
+        if (edit != null && !modifyPasswordMatches(ppt, edit)) {
+            try { ppt.close(); } catch (IOException ignored) { }
+            throw new ActionException("PPT.WRONG_EDIT_PASSWORD", "The password to edit " + p.getFileName() + " is wrong", "Check the password stored in the credential vault, or open the file without it.");
+        }
         DeckSession d = new DeckSession(p, ppt);
         d.readOnly = readOnly;
         d.password = pw;
@@ -223,6 +234,36 @@ public final class PowerPointPackage {
             c.insertAttributeWithValue("hashValue", Base64.getEncoder().encodeToString(hash));
             c.insertAttributeWithValue("saltValue", Base64.getEncoder().encodeToString(salt));
             c.insertAttributeWithValue("spinValue", String.valueOf(spin));
+        }
+    }
+
+    /**
+     * True when the password is the presentation's password to modify, or it has none. Reads both the agile form
+     * (algorithmName, hashValue, saltValue, spinValue) and the older one PowerPoint 2007-2010 wrote (cryptAlgorithmSid,
+     * hashData, saltData, spinCount).
+     */
+    static boolean modifyPasswordMatches(XMLSlideShow ppt, String password) {
+        String ns = "http://schemas.openxmlformats.org/presentationml/2006/main";
+        try (org.apache.xmlbeans.XmlCursor c = ppt.getCTPresentation().newCursor()) {
+            if (!c.toChild(ns, "modifyVerifier")) return true;
+            String alg = c.getAttributeText(new javax.xml.namespace.QName("algorithmName"));
+            String hash = c.getAttributeText(new javax.xml.namespace.QName("hashValue"));
+            String salt = c.getAttributeText(new javax.xml.namespace.QName("saltValue"));
+            String spin = c.getAttributeText(new javax.xml.namespace.QName("spinValue"));
+            if (hash == null) {   // the older form
+                String sid = c.getAttributeText(new javax.xml.namespace.QName("cryptAlgorithmSid"));
+                alg = switch (sid == null ? "4" : sid) { case "12" -> "SHA-256"; case "13" -> "SHA-384"; case "14" -> "SHA-512"; case "3" -> "MD5"; default -> "SHA-1"; };
+                hash = c.getAttributeText(new javax.xml.namespace.QName("hashData"));
+                salt = c.getAttributeText(new javax.xml.namespace.QName("saltData"));
+                spin = c.getAttributeText(new javax.xml.namespace.QName("spinCount"));
+            }
+            if (hash == null || salt == null) return true;
+            org.apache.poi.poifs.crypt.HashAlgorithm h = org.apache.poi.poifs.crypt.HashAlgorithm.fromString(alg == null ? "SHA-512" : alg);
+            byte[] want = org.apache.poi.poifs.crypt.CryptoFunctions.hashPassword(password, h, Base64.getDecoder().decode(salt),
+                    spin == null ? 100_000 : Integer.parseInt(spin.strip()), false);
+            return Arrays.equals(want, Base64.getDecoder().decode(hash));
+        } catch (IllegalArgumentException e) {
+            return false;   // a verifier that cannot be read does not let a password through
         }
     }
 

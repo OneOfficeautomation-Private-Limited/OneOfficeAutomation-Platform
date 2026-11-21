@@ -40,7 +40,7 @@ public final class ExcelPackage {
     private static final String CELL = "^[A-Za-z]{1,3}[1-9][0-9]*$";
 
     /** Workbook session shared by later steps; closed automatically at the end of the run. */
-    public static final class WorkbookSession implements AutoCloseable {
+    public static final class WorkbookSession implements AutoCloseable, OpenWorkbook {
         Path path;
         Workbook wb;
         /** Cell or range chosen by go_to_cell / select_range; empty until one of them runs. */
@@ -58,8 +58,26 @@ public final class ExcelPackage {
         boolean header = true;
         /** Opened with skip_hidden_sheets: hidden sheets are left out of lists and counts and cannot be used by name. */
         boolean skipHidden;
+        /** G3 (AA parity): opened from a .csv or .txt file; Save writes it back as text with this delimiter. */
+        Character csvDelimiter;
         WorkbookSession(Path path, Workbook wb) { this.path = path; this.wb = wb; }
         @Override public void close() throws IOException { wb.close(); }
+
+        // G3 (AA parity): the Excel desktop steps work on the open workbook through OpenWorkbook
+        @Override public Path file() { return path; }
+        @Override public String activeSheet() { return wb.getSheetName(wb.getActiveSheetIndex()); }
+        @Override public void writeCopy(Path target) { writeFile(this, target, null); }
+        @Override public void replaceWith(Path source) {
+            Workbook next = csvDelimiter != null && isCsv(source) ? csvWorkbook(readCsvText(source), csvDelimiter, stem(path)) : load(source, null);
+            Workbook old = wb;
+            wb = next;
+            selection = null;
+            try { old.close(); } catch (IOException ignored) { }
+        }
+        @Override public void save() {
+            if (readOnly) throw new ActionException("EXCEL.READ_ONLY", "The workbook was opened read-only", "Turn off save, or open the workbook without read_only.");
+            writeFile(this, path, password);
+        }
     }
 
     /** The step's workbook: its session, or the one open workbook when the step keeps the default name (T1). */
@@ -219,7 +237,7 @@ public final class ExcelPackage {
     static final String D_SHARE = "Agents this one runs may use it.";
 
     @Action(id = "open", name = "Open workbook", category = "Workbook", capabilities = {"filesystem", "network"},
-            description = "Open an .xlsx or .xls workbook (a local path, onedrive:path or a pasted SharePoint or OneDrive link), or create a new one, as a named session; can open encrypted files, open read-only and skip hidden sheets.",
+            description = "Open an .xlsx or .xls workbook (a local path, onedrive:path or a pasted SharePoint or OneDrive link), or a .csv or .txt file (one sheet, saved back as text), or create a new one, as a named session; can open encrypted files, open read-only and skip hidden sheets.",
             panel = "path, header, [Open a named sheet: sheet], read_only, [The file has a password: password], [The file has a password to edit: edit_password], skip_hidden_sheets, [Set a sensitivity label: sensitivity_label, label_site_id, continue_if_label_fails], [The file is on OneDrive or SharePoint: access_token, drive] | create, session, share, graph_url")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook path.") String path,
@@ -265,7 +283,14 @@ public final class ExcelPackage {
         Path p = ctx.resolvePath(path);
         String pw = OfficeCrypto.secret(password);
         Workbook wb;
-        if (Files.exists(p)) wb = load(p, pw);
+        Character csv = null;
+        if (isCsv(p) && Files.exists(p)) {   // G3 (AA parity): a CSV or text file opens as a workbook of one sheet
+            String text = readCsvText(p);
+            csv = guessDelimiter(text);
+            wb = csvWorkbook(text, csv, stem(p));
+        }
+        else if (isCsv(p) && create) { wb = new XSSFWorkbook(); wb.createSheet(stem(p)); csv = ','; }
+        else if (Files.exists(p)) wb = load(p, pw);
         else if (create) {
             wb = new XSSFWorkbook();
             wb.createSheet("Sheet1");
@@ -276,6 +301,7 @@ public final class ExcelPackage {
             throw new ActionException("EXCEL.WRONG_EDIT_PASSWORD", "The password to edit " + p.getFileName() + " is wrong", "Check the password stored in the credential vault, or open the file read-only without it.");
         }
         WorkbookSession s = new WorkbookSession(p, wb);
+        s.csvDelimiter = csv;
         s.readOnly = readOnly;
         s.password = pw;
         s.header = header;
@@ -361,7 +387,98 @@ public final class ExcelPackage {
         return failed;
     }
 
+    static boolean isCsv(Path p) { String n = p.getFileName().toString().toLowerCase(Locale.ROOT); return n.endsWith(".csv") || n.endsWith(".txt"); }
+
+    static String stem(Path p) {
+        String n = p.getFileName().toString();
+        int i = n.lastIndexOf('.');
+        String st = (i > 0 ? n.substring(0, i) : n).replaceAll("[\\[\\]*?:/\\\\]", "_");
+        return st.isBlank() ? "Sheet1" : st.length() > 31 ? st.substring(0, 31) : st;
+    }
+
+    /** The file's text: UTF-8 (a leading byte-order mark dropped), or Windows-1252 when it is not UTF-8. */
+    static String readCsvText(Path p) {
+        String text;
+        try {
+            byte[] b = Files.readAllBytes(p);
+            try { text = java.nio.charset.StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(b)).toString(); }
+            catch (java.nio.charset.CharacterCodingException e) { text = new String(b, java.nio.charset.Charset.forName("windows-1252")); }
+        } catch (IOException e) {
+            throw new ActionException("EXCEL.OPEN_FAILED", "Cannot read " + p + ": " + e.getMessage(), "Check that the file is there and not locked.");
+        }
+        return text.startsWith("\uFEFF") ? text.substring(1) : text;
+    }
+
+    /** The delimiter of a CSV text: the one of comma, semicolon, tab and | that appears most in its first line (comma when none). */
+    static char guessDelimiter(String text) {
+        String first = text.lines().findFirst().orElse("");
+        char best = ','; long most = 0;
+        for (char d : new char[]{',', ';', '\t', '|'}) {
+            long n = first.chars().filter(c -> c == d).count();
+            if (n > most) { most = n; best = d; }
+        }
+        return best;
+    }
+
+    /** A workbook of one sheet holding the CSV's rows as text; quoted fields may hold the delimiter, quotes and line breaks. */
+    static Workbook csvWorkbook(String text, char d, String sheetName) {
+        XSSFWorkbook wb = new XSSFWorkbook();
+        Sheet sh = wb.createSheet(sheetName);
+        List<String> row = new ArrayList<>();
+        StringBuilder cell = new StringBuilder();
+        boolean quoted = false;
+        int r = 0;
+        for (int i = 0; i <= text.length(); i++) {
+            boolean end = i == text.length();
+            char ch = end ? '\n' : text.charAt(i);
+            if (quoted && !end) {
+                if (ch == '"' && i + 1 < text.length() && text.charAt(i + 1) == '"') { cell.append('"'); i++; }
+                else if (ch == '"') quoted = false;
+                else cell.append(ch);
+                continue;
+            }
+            if (ch == '"' && cell.length() == 0) { quoted = true; continue; }
+            if (ch == d) { row.add(cell.toString()); cell.setLength(0); continue; }
+            if (ch == '\r') continue;
+            if (ch == '\n') {
+                row.add(cell.toString()); cell.setLength(0);
+                if (!(end && row.size() == 1 && row.get(0).isEmpty())) {
+                    Row out = sh.createRow(r++);
+                    for (int c = 0; c < row.size(); c++) if (!row.get(c).isEmpty()) out.createCell(c).setCellValue(row.get(c));
+                }
+                row = new ArrayList<>();
+                continue;
+            }
+            cell.append(ch);
+        }
+        return wb;
+    }
+
+    /** One sheet written as CSV text (UTF-8) with the delimiter, the values as they read; fields that need it are quoted. */
+    static void writeCsv(WorkbookSession s, Sheet sh, Path target, char d) throws IOException {
+        FormulaEvaluator ev = evaluator(s);
+        StringBuilder sb = new StringBuilder();
+        int width = lastCol(sh) + 1;
+        for (int r = 0; r <= sh.getLastRowNum(); r++) {
+            Row row = sh.getRow(r);
+            for (int c = 0; c < width; c++) {
+                if (c > 0) sb.append(d);
+                Object v = row == null ? null : read(row.getCell(c), ev);
+                String t = v == null ? "" : Values.text(v);
+                boolean quote = t.indexOf(d) >= 0 || t.indexOf('"') >= 0 || t.indexOf('\r') >= 0 || t.indexOf('\n') >= 0 || t.startsWith(" ") || t.endsWith(" ");
+                sb.append(quote ? "\"" + t.replace("\"", "\"\"") + "\"" : t);
+            }
+            sb.append("\r\n");
+        }
+        Files.writeString(target, sb.toString(), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     private static void writeFile(WorkbookSession s, Path target, String password) {
+        if (s.csvDelimiter != null && isCsv(target)) {   // G3: a workbook opened from CSV is saved back as CSV (its first sheet)
+            try { writeCsv(s, s.wb.getSheetAt(0), target, s.csvDelimiter); }
+            catch (IOException e) { throw new ActionException("EXCEL.SAVE_FAILED", "Cannot save " + target + ": " + e.getMessage(), "Close the file if it is open in another program."); }
+            return;
+        }
         s.unevaluated = recalculate(s.wb);
         try {
             if (password != null && !(s.wb instanceof XSSFWorkbook)) {  // .xls files use the legacy RC4 encryption
@@ -3525,23 +3642,7 @@ public final class ExcelPackage {
         try {
             if (target.getParent() != null) Files.createDirectories(target.getParent());
             switch (fmt) {
-                case "csv" -> {
-                    Sheet sh = sheet(s, sheet);
-                    FormulaEvaluator ev = evaluator(s);
-                    StringBuilder sb = new StringBuilder();
-                    int width = lastCol(sh) + 1;
-                    for (int r = 0; r <= sh.getLastRowNum(); r++) {
-                        Row row = sh.getRow(r);
-                        for (int c = 0; c < width; c++) {
-                            if (c > 0) sb.append(',');
-                            Object v = row == null ? null : read(row.getCell(c), ev);
-                            String t = v == null ? "" : Values.text(v);
-                            sb.append(t.matches(".*[\",\\r\\n].*") || t.startsWith(" ") || t.endsWith(" ") ? "\"" + t.replace("\"", "\"\"") + "\"" : t);
-                        }
-                        sb.append("\r\n");
-                    }
-                    Files.writeString(target, sb.toString(), java.nio.charset.StandardCharsets.UTF_8);
-                }
+                case "csv" -> writeCsv(s, sheet(s, sheet), target, s.csvDelimiter != null ? s.csvDelimiter : ',');
                 case "xlsx", "xls" -> {
                     boolean wantX = fmt.equals("xlsx");
                     Workbook wb = s.wb;
