@@ -55,8 +55,15 @@ public final class EmailPackage {
         /** Without a password or token the server is used without signing in (an internal relay). */
         boolean signIn() { return password != null || token != null; }
 
-        Session session() {
+        Session session() { return session(60, false); }
+
+        /** The session with a send time limit; partial = deliver to the good addresses when the server refuses some. */
+        Session session(int timeoutSeconds, boolean partial) {
             Properties p = props("smtp", host, port, security, token != null);
+            int t = Math.max(1, timeoutSeconds) * 1000;
+            p.put("mail.smtp.timeout", String.valueOf(t));
+            p.put("mail.smtp.writetimeout", String.valueOf(t));
+            if (partial) p.put("mail.smtp.sendpartial", "true");
             if (!signIn()) p.put("mail.smtp.auth", "false");
             return Session.getInstance(p);
         }
@@ -139,7 +146,7 @@ public final class EmailPackage {
 
     @Action(id = "send", name = "Send email", category = "Send", timeoutSeconds = 120, capabilities = "network",
             description = "Send an email (plain text or HTML) with optional CC, BCC and attachments through an SMTP server.",
-            panel = "to, cc, bcc, reply_to, importance, subject, attachments, body, html, [Send through a specific server: smtp_host, port, security, user, password, access_token] | from, read_receipt, inline_images, session")
+            panel = "to, cc, bcc, reply_to, importance, subject, attachments, body_type, body, html, [Send through a specific server: smtp_host, port, security, user, password, access_token] | from, footer, read_receipt, inline_images, skip_missing_attachments, skip_invalid_addresses, charset, timeout_seconds, session")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message-ID of the sent email.")
     public Map<String, Object> send(ActionContext ctx,
             @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com", description = D_SMTP) String host,
@@ -148,14 +155,14 @@ public final class EmailPackage {
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Mailbox user name; the mailbox session's user when empty.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
                     description = "Password or app password from the vault; with neither password nor token the server is used without signing in (internal relay).") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token (Microsoft 365, Gmail) from the vault; or leave it empty and choose a connection that signs in, which gets and renews the token.") Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "from", type = OoaType.STRING, required = false, description = "Sender address; the user when empty.") String from,
             @Input(name = "to", description = "Recipient address(es): text separated by , or ; or a List.") Object to,
             @Input(name = "cc", required = false, description = "CC address(es).") Object cc,
             @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
             @Input(name = "subject", type = OoaType.STRING, description = "Subject.") String subject,
             @Input(name = "body", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Message body.") String body,
-            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Body is HTML.") boolean html,
+            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "html=true", description = D_HTML) boolean html,
             @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach.") List<Object> attachments,
             @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"normal", "high", "low"},
                     description = "Importance shown by the recipient's mail program.") String importance,
@@ -164,22 +171,96 @@ public final class EmailPackage {
             @Input(name = "inline_images", type = OoaType.LIST, required = false,
                     description = "HTML body only: image files embedded in the email; refer to each in the body as cid: plus its file name, e.g. <img src=\"cid:logo.png\">.") List<Object> inline,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"",
-                    description = "Mailbox session whose outgoing server is used when smtp_host is empty.") String mailSession) {
+                    description = "Mailbox session whose outgoing server is used when smtp_host is empty.") String mailSession,
+            @Input(name = "body_type", type = OoaType.STRING, required = false, defaultValue = "\"plain\"", enumValues = {"plain", "html", "rich"}, description = D_BODY_TYPE) String bodyType,
+            @Input(name = "footer", type = OoaType.STRING, required = false, description = D_FOOTER) String footer,
+            @Input(name = "skip_missing_attachments", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_SKIP_MISSING) boolean skipMissing,
+            @Input(name = "skip_invalid_addresses", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_SKIP_INVALID) boolean skipInvalid,
+            @Input(name = "charset", type = OoaType.STRING, required = false, defaultValue = "\"UTF-8\"", example = "ISO-8859-1", description = D_CHARSET) String charset,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", newStepDefault = "120", min = 1, max = 600, description = D_SEND_TIMEOUT) int timeout) {
         Smtp k = smtp(ctx, mailSession, host, port, security, user, password, token);
-        Session session = k.session();
+        Session session = k.session(timeout, skipInvalid);
+        boolean asHtml = isHtml(bodyType, html);
+        String cs = charset(charset);
         try {
-            MimeMessage msg = buildMessage(session, from != null && !from.isBlank() ? from : k.user(), to, cc, bcc, subject, body, html,
-                    fileParts(ctx, attachments), inlineParts(ctx, inline), importance, replyTo, receipt);
-            try (Transport t = session.getTransport("smtp")) {
-                k.connect(t);
-                t.sendMessage(msg, msg.getAllRecipients());
-            }
+            Object t = skipInvalid ? validOnly(ctx, to, "to") : to, c = skipInvalid ? validOnly(ctx, cc, "cc") : cc, b = skipInvalid ? validOnly(ctx, bcc, "bcc") : bcc;
+            MimeMessage msg = buildMessage(session, from != null && !from.isBlank() ? from : k.user(), t, c, b, subject, withFooter(body, footer, asHtml), asHtml,
+                    fileParts(ctx, attachments, skipMissing), inlineParts(ctx, inline), importance, replyTo, receipt, cs);
+            transmit(ctx, msg, k, session, skipInvalid);
             ctx.info("Sent '" + subject + "' to " + Arrays.toString(msg.getRecipients(Message.RecipientType.TO)));
             return Map.of("message_id", Objects.toString(msg.getMessageID(), ""));
         } catch (AddressException e) {
-            throw new ActionException("EMAIL.BAD_ADDRESS", "Invalid email address: " + e.getMessage(), "Check the sender and recipient addresses.");
+            throw new ActionException("EMAIL.BAD_ADDRESS", "Invalid email address: " + e.getMessage(), "Check the sender and recipient addresses, or tick skip_invalid_addresses.");
         } catch (MessagingException e) { throw mail(e);
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
+    }
+
+    static final String D_TOKEN = "OAuth 2.0 access token (Microsoft 365, Gmail) from the vault; or leave it empty and choose a saved sign-in connection, which gets and renews the token.";
+    static final String D_HTML = "Older steps: the body is HTML. New steps choose the body type instead.";
+    static final String D_BODY_TYPE = "How the body is written: plain text, HTML code, or rich text from the editor (sent as HTML).";
+    static final String D_FOOTER = "Text added after the body, such as a signature or a disclaimer (written like the body).";
+    static final String D_SKIP_MISSING = "Send without an attachment whose file is missing (a warning says which) instead of failing.";
+    static final String D_SKIP_INVALID = "Leave out addresses that are not valid or that the server refuses (a warning says which) and send to the others.";
+    static final String D_CHARSET = "Character set of the subject and body, e.g. UTF-8 (the default) or ISO-8859-1.";
+    static final String D_SEND_TIMEOUT = "How long to wait for the mail server while sending, in seconds.";
+
+    /** The body is HTML when the body type says so (html or rich text), or, on older steps, when the html tick is on. */
+    static boolean isHtml(String bodyType, boolean html) {
+        String t = bodyType == null || bodyType.isBlank() ? "plain" : bodyType.strip().toLowerCase(Locale.ROOT);
+        return switch (t) {
+            case "plain", "text" -> html;
+            case "html", "rich" -> true;
+            default -> throw new ActionException("EMAIL.BAD_INPUT", "Unknown body type '" + bodyType + "'", "Use plain, html or rich.");
+        };
+    }
+
+    /** The body with the footer after it (an empty line between), or the body alone. */
+    static String withFooter(String body, String footer, boolean html) {
+        String b = body == null ? "" : body;
+        if (footer == null || footer.isBlank()) return b;
+        return b.isEmpty() ? footer : b + (html ? "<br><br>" : "\r\n\r\n") + footer;
+    }
+
+    /** A supported character set name; UTF-8 when empty. */
+    static String charset(String name) {
+        String n = name == null || name.isBlank() ? "UTF-8" : name.strip();
+        try { if (java.nio.charset.Charset.isSupported(n)) return n; } catch (java.nio.charset.IllegalCharsetNameException ignored) { }
+        throw new ActionException("EMAIL.BAD_INPUT", "Unknown character set '" + name + "'", "Use UTF-8, ISO-8859-1, windows-1252 or another standard name.");
+    }
+
+    /** The valid addresses of a recipient field; the invalid ones are left out with a warning. */
+    static List<Object> validOnly(ActionContext ctx, Object v, String input) {
+        if (v == null) return null;
+        List<String> parts = new ArrayList<>();
+        if (v instanceof List<?> l) for (Object o : l) parts.add(Values.text(o)); else parts.add(Values.text(v));
+        String all = String.join(",", parts).replace(';', ',');
+        List<Object> good = new ArrayList<>();
+        List<String> bad = new ArrayList<>();
+        try {
+            for (InternetAddress a : InternetAddress.parse(all, true)) {
+                try { a.validate(); good.add(a.toString()); } catch (AddressException e) { bad.add(a.toString()); }
+            }
+        } catch (AddressException whole) {
+            for (String one : all.split(",")) {
+                if (one.isBlank()) continue;
+                try { InternetAddress a = new InternetAddress(one.strip(), true); a.validate(); good.add(a.toString()); }
+                catch (AddressException e) { bad.add(one.strip()); }
+            }
+        }
+        if (!bad.isEmpty() && ctx != null) ctx.warn("Left out invalid address(es) in " + input + ": " + String.join(", ", bad));
+        return good;
+    }
+
+    /** Sends; with partial on, addresses the server refuses are left out with a warning when the others got it. */
+    static void transmit(ActionContext ctx, MimeMessage msg, Smtp k, Session session, boolean partial) throws MessagingException {
+        try (Transport t = session.getTransport("smtp")) {
+            k.connect(t);
+            t.sendMessage(msg, msg.getAllRecipients());
+        } catch (SendFailedException e) {
+            Address[] sent = e.getValidSentAddresses();
+            if (!partial || sent == null || sent.length == 0) throw e;
+            if (ctx != null) ctx.warn("The server refused " + Arrays.toString(e.getInvalidAddresses()) + "; sent to " + Arrays.toString(sent));
+        }
     }
 
     /** Jakarta Mail store protocol for the reading protocol and connection security, e.g. imaps or pop3. */
@@ -209,13 +290,13 @@ public final class EmailPackage {
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "993", description = "Server port: 993 IMAP over SSL, 143 IMAP, 995 POP3 over SSL, 110 POP3. Left at 993, the usual port of the chosen protocol and security is used.") int port,
             @Input(name = "user", type = OoaType.STRING, description = "Mailbox user name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password or app password from the vault.") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token from the vault.") Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "protocol", type = OoaType.STRING, required = false, defaultValue = "\"imap\"", enumValues = {"imap", "pop3"},
                     description = "imap keeps folders and read status on the server; pop3 reads only the inbox and cannot mark or move emails.") String protocol,
             @Input(name = "security", type = OoaType.STRING, required = false, defaultValue = "\"ssl\"", enumValues = {"ssl", "starttls", "none"}, description = "Connection security.") String security,
             @Input(name = "shared_mailbox", type = OoaType.STRING, required = false, example = "invoices@acme.com",
                     description = "Open this shared mailbox with the user's own sign-in (Exchange and Microsoft 365; the user needs full access to it).") String shared,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "15", min = 1, max = 300, description = "How long to wait for the server to answer when connecting.") int timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "15", newStepDefault = "60", min = 1, max = 300, description = "How long to wait for the server to answer when connecting.") int timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session,
             @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com",
                     description = "Outgoing server to keep with this session, so Send, Reply and Forward need no server or sign-in of their own.") String smtpHost,
@@ -267,46 +348,138 @@ public final class EmailPackage {
     }
 
     @Action(id = "list", name = "Find emails", category = "Mailbox", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List emails in a folder, newest first, filtered by unread, sender, subject and date; loop over the table to process them.",
-            panel = "folder, unread_only, read_only, from_contains, subject_contains, since, before, max_results | to_contains, body_contains, has_attachments_only, oldest_first, session")
-    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, from, subject, received, unread, has_attachments.")
+            description = "List emails in one or more folders, newest first, filtered by read status, sender, subject and date; loop over the table to process them.",
+            panel = "folder, status, from_contains, subject_contains, since, before, max_results | to_contains, body_contains, has_attachments_only, oldest_first, local_time, unread_only, read_only, session")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, from, subject, received, unread, has_attachments, cc, sent, attachment_count, folder.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails.")
     public Map<String, Object> list(ActionContext ctx,
-            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
-            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = D_FOLDERS) String folder,
+            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "unread_only=true", description = D_UNREAD_ONLY) boolean unread,
             @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
-            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text; separate several with ; to match any of them.") String subject,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this date.") LocalDateTime since,
-            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Maximum emails returned.") int max,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 0, description = "Maximum emails returned; 0 = no limit.") int max,
             @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this date.") LocalDateTime before,
-            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "read_only=true", description = D_READ_ONLY) boolean readOnly,
             @Input(name = "to_contains", type = OoaType.STRING, required = false, description = "A To recipient contains this text.") String to,
             @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "The body contains this text (searched by the server).") String bodyText,
             @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
             @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the oldest emails first instead of the newest.") boolean oldestFirst,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = D_STATUS) String status,
+            @Input(name = "local_time", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_LOCAL_TIME) boolean localTime) {
+        boolean[] rs = readStatus(status, unread, readOnly);
         List<Object> rows = new ArrayList<>();
-        for (Map<String, Object> e : find(ms(ctx, session), folder, unread, readOnly, from, subject, since, before, to, bodyText, withAtts, oldestFirst, max))
+        for (Map<String, Object> e : find(ms(ctx, session), folder, rs[0], rs[1], from, subject, since, before, to, bodyText, withAtts, oldestFirst, max, zone(localTime)))
             rows.add(new ArrayList<>(e.values()));
         return Map.of("table", Values.table(SUMMARY_COLUMNS, rows), "count", BigDecimal.valueOf(rows.size()));
     }
 
-    static final List<String> SUMMARY_COLUMNS = List.of("id", "from", "subject", "received", "unread", "has_attachments");
+    /** Earlier signature, kept for callers written before status and local_time. */
+    public Map<String, Object> list(ActionContext ctx, String folder, boolean unread, String from, String subject, LocalDateTime since, int max, LocalDateTime before,
+                                    boolean readOnly, String to, String bodyText, boolean withAtts, boolean oldestFirst, String session) {
+        return list(ctx, folder, unread, from, subject, since, max, before, readOnly, to, bodyText, withAtts, oldestFirst, session, "any", false);
+    }
+
+    static final List<String> SUMMARY_COLUMNS = List.of("id", "from", "subject", "received", "unread", "has_attachments", "cc", "sent", "attachment_count", "folder");
+
+    static final String D_FOLDERS = "Mail folder; several separated by ; and * for any text, e.g. INBOX; Invoices/*.";
+    static final String D_STATUS = "Which emails: any, only unread or only read.";
+    static final String D_UNREAD_ONLY = "Older steps: only unread emails. New steps choose the status instead.";
+    static final String D_READ_ONLY = "Older steps: only emails already read. New steps choose the status instead.";
+    static final String D_SUBJECT = "Subject contains this text; in double quotes (\"Invoice 7\") the whole subject must be exactly that; separate several with ; to match any of them.";
+    static final String D_LOCAL_TIME = "Give dates (and read since and before) in this computer's time zone instead of UTC.";
+
+    /** Unread-only and read-only from the status choice, or from the older ticks. */
+    static boolean[] readStatus(String status, boolean unreadOnly, boolean readOnly) {
+        String st = status == null || status.isBlank() ? "any" : status.strip().toLowerCase(Locale.ROOT);
+        if (!st.equals("any") && !st.equals("unread") && !st.equals("read"))
+            throw new ActionException("EMAIL.BAD_INPUT", "Unknown status '" + status + "'", "Use any, unread or read.");
+        return new boolean[]{unreadOnly || st.equals("unread"), readOnly || st.equals("read")};
+    }
+
+    static java.time.ZoneId zone(boolean local) { return local ? java.time.ZoneId.systemDefault() : ZoneOffset.UTC; }
+
+    /** The folders a filter names: several separated by ;, each may use * (any text, also in subfolders) or % (any text in one level). */
+    static List<String> folderNames(MailSession s, String spec) throws MessagingException {
+        String text = spec == null || spec.isBlank() ? "INBOX" : spec;
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        for (String part : text.split(";")) {
+            String p = part.strip();
+            if (p.isEmpty()) continue;
+            if (p.contains("*") || p.contains("%")) {
+                for (Folder f : s.store.getDefaultFolder().list(p)) if ((f.getType() & Folder.HOLDS_MESSAGES) != 0) out.add(f.getFullName());
+            } else out.add(p);
+        }
+        if (out.isEmpty()) throw new ActionException("EMAIL.NO_FOLDER", "No mail folder matches '" + text + "'", "Use Get folders to see the exact names.");
+        return new ArrayList<>(out);
+    }
+
+    /** A subject filter value in double quotes means the whole subject; returns the value without them. */
+    static String unquote(String v) {
+        String t = v.strip();
+        return t.length() >= 2 && t.startsWith("\"") && t.endsWith("\"") ? t.substring(1, t.length() - 1).strip() : t;
+    }
+
+    /** True when the subject matches one of the ;-separated values: contains it, or, for a "quoted" value, is exactly it (case ignored). */
+    static boolean subjectMatches(String subject, String spec) {
+        if (spec == null || spec.isBlank()) return true;
+        String s = subject == null ? "" : subject.strip();
+        for (String v : spec.split(";")) {
+            String t = v.strip();
+            if (t.isEmpty()) continue;
+            boolean exact = t.length() >= 2 && t.startsWith("\"") && t.endsWith("\"");
+            if (exact ? s.equalsIgnoreCase(unquote(t)) : s.toLowerCase(Locale.ROOT).contains(t.toLowerCase(Locale.ROOT))) return true;
+        }
+        return false;
+    }
+
+    /** The emails of a folder matching the search; a "quoted" subject is then checked exactly (the server only searches for text in it). */
+    static Message[] matching(Folder f, SearchTerm t, String subject) throws MessagingException {
+        Message[] msgs = matching(f, t);
+        if (subject == null || !subject.contains("\"")) return msgs;
+        List<Message> keep = new ArrayList<>();
+        for (Message m : msgs) if (subjectMatches(m.getSubject(), subject)) keep.add(m);
+        return keep.toArray(new Message[0]);
+    }
 
     /** The emails matching the Find emails filters, newest first unless oldest_first, each as id, from, subject, received, unread, has_attachments. */
     static List<Map<String, Object>> find(MailSession s, String folder, boolean unread, boolean readOnly, String from, String subject, LocalDateTime since,
                                           LocalDateTime before, String to, String bodyText, boolean withAtts, boolean oldestFirst, int max) {
+        return find(s, folder, unread, readOnly, from, subject, since, before, to, bodyText, withAtts, oldestFirst, max, ZoneOffset.UTC);
+    }
+
+    /** One email found: its folder and the message, in the folder's order. */
+    private record Hit(String folder, Folder f, Message m, long when, int order) {}
+
+    /**
+     * The matching emails of one or more folders (see folderNames), newest first unless oldestFirst; max 0 = no limit. One
+     * folder keeps the server's order (arrival); several are merged by received date.
+     */
+    static List<Map<String, Object>> find(MailSession s, String folder, boolean unread, boolean readOnly, String from, String subject, LocalDateTime since,
+                                          LocalDateTime before, String to, String bodyText, boolean withAtts, boolean oldestFirst, int max, java.time.ZoneId zone) {
         try {
-            Folder f = s.folder(folder);
-            Message[] msgs = matching(f, filter(unread, readOnly, from, subject, since, before, to, bodyText, s.pop3));
-            FetchProfile fp = new FetchProfile();
-            fp.add(FetchProfile.Item.ENVELOPE); fp.add(FetchProfile.Item.FLAGS); fp.add(FetchProfile.Item.CONTENT_INFO); fp.add(UIDFolder.FetchProfileItem.UID);
-            f.fetch(msgs, fp);
+            SearchTerm term = filter(unread, readOnly, from, subject, since, before, to, bodyText, s.pop3, zone);
+            List<String> names = folderNames(s, folder);
+            List<Hit> hits = new ArrayList<>();
+            for (String name : names) {
+                Folder f = s.folder(name);
+                Message[] msgs = matching(f, term, subject);
+                FetchProfile fp = new FetchProfile();
+                fp.add(FetchProfile.Item.ENVELOPE); fp.add(FetchProfile.Item.FLAGS); fp.add(FetchProfile.Item.CONTENT_INFO); fp.add(UIDFolder.FetchProfileItem.UID);
+                f.fetch(msgs, fp);
+                for (Message m : msgs) {
+                    if (withAtts && !m.isMimeType("multipart/mixed")) continue;
+                    Date d = m.getReceivedDate() != null ? m.getReceivedDate() : m.getSentDate();
+                    hits.add(new Hit(name, f, m, d == null ? 0 : d.getTime(), hits.size()));
+                }
+            }
+            if (names.size() > 1) hits.sort(Comparator.comparingLong(Hit::when).thenComparingInt(Hit::order));
+            if (!oldestFirst) Collections.reverse(hits);
             List<Map<String, Object>> out = new ArrayList<>();
-            for (int k = 0; k < msgs.length && out.size() < max; k++) {
-                Message m = msgs[oldestFirst ? k : msgs.length - 1 - k];
-                if (withAtts && !m.isMimeType("multipart/mixed")) continue;
-                out.add(summary(idOf(f, m), m));
+            for (Hit h : hits) {
+                if (max > 0 && out.size() >= max) break;
+                out.add(summary(idOf(h.f(), h.m()), h.m(), h.folder(), zone));
             }
             return out;
         } catch (MessagingException e) { throw mail(e); }
@@ -314,44 +487,95 @@ public final class EmailPackage {
 
     /** One row of Find emails, keyed by SUMMARY_COLUMNS. */
     static Map<String, Object> summary(long id, Message m) throws MessagingException {
-        Date d = m.getReceivedDate() != null ? m.getReceivedDate() : m.getSentDate();
+        return summary(id, m, m.getFolder() == null ? "" : m.getFolder().getFullName(), ZoneOffset.UTC);
+    }
+
+    static Map<String, Object> summary(long id, Message m, String folder, java.time.ZoneId zone) throws MessagingException {
+        Date d = m.getReceivedDate() != null ? m.getReceivedDate() : m.getSentDate(), sent = m.getSentDate();
         Map<String, Object> e = new LinkedHashMap<>();
         e.put("id", BigDecimal.valueOf(id));
         e.put("from", fromText(m));
         e.put("subject", Objects.toString(m.getSubject(), ""));
-        e.put("received", d == null ? null : LocalDateTime.ofInstant(d.toInstant(), ZoneOffset.UTC));
+        e.put("received", d == null ? null : LocalDateTime.ofInstant(d.toInstant(), zone));
         e.put("unread", !m.isSet(Flags.Flag.SEEN));
         e.put("has_attachments", m.isMimeType("multipart/mixed"));
+        e.put("cc", addressList(m.getRecipients(Message.RecipientType.CC)));
+        e.put("sent", sent == null ? null : LocalDateTime.ofInstant(sent.toInstant(), zone));
+        e.put("attachment_count", BigDecimal.valueOf(attachmentCount(m)));
+        e.put("folder", folder);
         return e;
     }
 
+    /** Attachments of an email, counted from its structure (no body is downloaded); the same parts Save attachments saves. */
+    static int attachmentCount(Part p) {
+        try {
+            if (p.isMimeType("multipart/*")) {
+                Multipart mp = (Multipart) p.getContent();
+                int n = 0;
+                for (int i = 0; i < mp.getCount(); i++) n += attachmentCount(mp.getBodyPart(i));
+                return n;
+            }
+            String disp = p.getDisposition();
+            return p.getFileName() != null && (Part.ATTACHMENT.equalsIgnoreCase(disp) || Part.INLINE.equalsIgnoreCase(disp) || !p.isMimeType("text/*")) ? 1 : 0;
+        } catch (MessagingException | IOException e) { return 0; }
+    }
+
     @LoopIterator(id = "emails", name = "Each email in a mailbox",
-            description = "Yield each email matching the Find emails filters as a dictionary: id, from, subject, received, unread, has_attachments.")
+            description = "Yield each email matching the Find emails filters as a dictionary: id, from, subject, received, unread, has_attachments, cc, sent, attachment_count, folder.")
     public Iterable<Object> emails(ActionContext ctx,
-            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
-            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = D_FOLDERS) String folder,
+            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "unread_only=true", description = D_UNREAD_ONLY) boolean unread,
             @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
-            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text; separate several with ; to match any of them.") String subject,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this date.") LocalDateTime since,
-            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 1, description = "Stop after this many emails.") int max,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 0, description = "Stop after this many emails; 0 = no limit.") int max,
             @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this date.") LocalDateTime before,
-            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "read_only=true", description = D_READ_ONLY) boolean readOnly,
             @Input(name = "to_contains", type = OoaType.STRING, required = false, description = "A To recipient contains this text.") String to,
             @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "The body contains this text (searched by the server).") String bodyText,
             @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
             @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Give the oldest emails first instead of the newest.") boolean oldestFirst,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
-            @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = com.oneofficeautomation.packages.MailRecord.D_WITH_BODY) boolean withBody) {
+            @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = com.oneofficeautomation.packages.MailRecord.D_WITH_BODY) boolean withBody,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = D_STATUS) String status,
+            @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mark each email read when the loop reaches it (IMAP only).") boolean markRead,
+            @Input(name = "local_time", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_LOCAL_TIME) boolean localTime) {
+        boolean[] rs = readStatus(status, unread, readOnly);
+        MailSession s = ms(ctx, session);
         // the list is taken before the loop starts, so emails can be moved or deleted inside it
-        List<Map<String, Object>> found = new ArrayList<>(find(ms(ctx, session), folder, unread, readOnly, from, subject, since, before, to, bodyText, withAtts, oldestFirst, max));
-        return com.oneofficeautomation.packages.MailRecord.each(found, withBody,
-                row -> (Map<String, Object>) get(ctx, ((Number) row.get("id")).longValue(), folder, false, session).get("email"));
+        List<Map<String, Object>> found = new ArrayList<>(find(s, folder, rs[0], rs[1], from, subject, since, before, to, bodyText, withAtts, oldestFirst, max, zone(localTime)));
+        Iterable<Object> each = com.oneofficeautomation.packages.MailRecord.each(found, withBody,
+                row -> (Map<String, Object>) get(ctx, ((Number) row.get("id")).longValue(), folderOf(row, folder), false, session, localTime).get("email"));
+        if (!markRead || s.pop3) return each;
+        return () -> new Iterator<>() {
+            final Iterator<Object> it = each.iterator();
+            @Override public boolean hasNext() { return it.hasNext(); }
+            @Override public Object next() {
+                Object o = it.next();
+                if (o instanceof Map<?, ?> row && row.get("id") instanceof Number id) {
+                    try { byUid(s.folder(folderOf(row, folder)), id.longValue()).setFlag(Flags.Flag.SEEN, true); }
+                    catch (MessagingException e) { throw mail(e); }
+                }
+                return o;
+            }
+        };
+    }
+
+    /** The folder an email row came from (several folders may be searched), else the step's folder. */
+    static String folderOf(Map<?, ?> row, String folder) {
+        return row.get("folder") instanceof String f && !f.isBlank() ? f : folder == null || folder.isBlank() ? "INBOX" : folder;
     }
 
     /** Earlier signature, kept for callers written before with_body. */
     public Iterable<Object> emails(ActionContext ctx, String folder, boolean unread, String from, String subject, LocalDateTime since, int max, LocalDateTime before,
                                    boolean readOnly, String to, String bodyText, boolean withAtts, boolean oldestFirst, String session) {
         return emails(ctx, folder, unread, from, subject, since, max, before, readOnly, to, bodyText, withAtts, oldestFirst, session, false);
+    }
+
+    /** Earlier signature, kept for callers written before status, mark_read and local_time. */
+    public Iterable<Object> emails(ActionContext ctx, String folder, boolean unread, String from, String subject, LocalDateTime since, int max, LocalDateTime before,
+                                   boolean readOnly, String to, String bodyText, boolean withAtts, boolean oldestFirst, String session, boolean withBody) {
+        return emails(ctx, folder, unread, from, subject, since, max, before, readOnly, to, bodyText, withAtts, oldestFirst, session, withBody, "any", false, false);
     }
 
     private static void collect(Part p, StringBuilder text, StringBuilder html, List<Part> attachments) throws MessagingException, IOException {
@@ -363,23 +587,28 @@ public final class EmailPackage {
     }
 
     @Action(id = "get", name = "Read email", category = "Mailbox", idempotent = true, capabilities = "network", description = "Read one email: sender, recipients, subject, text, HTML and attachment names.",
-            panel = "id, folder, mark_read | session")
-    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
+            panel = "id, folder, mark_read | local_time, session")
+    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, bcc, subject, received, text, html, attachments, attachment_count, reply_to, sent, message_id, importance, flagged, size. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> get(ActionContext ctx,
-            @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
+            @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
             @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Mark the email as read (IMAP only).") boolean markRead,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session,
+            @Input(name = "local_time", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_LOCAL_TIME) boolean localTime) {
         try {
             MailSession s = ms(ctx, session);
-            Message m = byUid(s.folder(folder), id);
+            Target t = target(ctx, id, folder);
+            Message m = byUid(s.folder(t.folder()), t.id());
             boolean wasUnread = !m.isSet(Flags.Flag.SEEN);
-            Map<String, Object> e = details(m, id);
+            Map<String, Object> e = details(m, t.id(), zone(localTime));
             e.put("unread", wasUnread && !(markRead && !s.pop3));
             if (markRead && !s.pop3) m.setFlag(Flags.Flag.SEEN, true);
             return Map.of("email", com.oneofficeautomation.packages.MailRecord.withCommonKeys(e));
         } catch (MessagingException | IOException e) { throw e instanceof MessagingException me ? mail(me) : new ActionException("EMAIL.READ_FAILED", e.getMessage(), "Check the mail server's address, port and the sign-in in the connection, and that the mailbox exists."); }
     }
+
+    /** Earlier signature, kept for callers written before local_time. */
+    public Map<String, Object> get(ActionContext ctx, long id, String folder, boolean markRead, String session) { return get(ctx, Long.valueOf(id), folder, markRead, session, false); }
 
     /** High, low or normal, from the Importance, Priority or X-Priority header. */
     static String importanceOf(Part m) throws MessagingException {
@@ -392,7 +621,9 @@ public final class EmailPackage {
 
     private static List<Object> addressList(Address[] a) { return a == null ? List.of() : Arrays.stream(a).map(x -> (Object) x.toString()).toList(); }
 
-    static Map<String, Object> details(Message m, long id) throws MessagingException, IOException {
+    static Map<String, Object> details(Message m, long id) throws MessagingException, IOException { return details(m, id, ZoneOffset.UTC); }
+
+    static Map<String, Object> details(Message m, long id, java.time.ZoneId zone) throws MessagingException, IOException {
         StringBuilder text = new StringBuilder(), html = new StringBuilder();
         List<Part> atts = new ArrayList<>();
         collect(m, text, html, atts);
@@ -403,15 +634,17 @@ public final class EmailPackage {
         e.put("from", fromText(m));
         e.put("to", addressList(m.getRecipients(Message.RecipientType.TO)));
         e.put("cc", addressList(m.getRecipients(Message.RecipientType.CC)));
+        e.put("bcc", addressList(m.getRecipients(Message.RecipientType.BCC)));
         e.put("subject", Objects.toString(m.getSubject(), ""));
         Date d = m.getReceivedDate(), sent = m.getSentDate();
-        e.put("received", d == null ? null : LocalDateTime.ofInstant(d.toInstant(), ZoneOffset.UTC));
+        e.put("received", d == null ? null : LocalDateTime.ofInstant(d.toInstant(), zone));
         e.put("text", text.toString());
         e.put("html", html.toString());
         e.put("attachments", names);
+        e.put("attachment_count", BigDecimal.valueOf(names.size()));
         Address[] replyTo = m.getReplyTo();
         e.put("reply_to", addressList(replyTo));
-        e.put("sent", sent == null ? null : LocalDateTime.ofInstant(sent.toInstant(), ZoneOffset.UTC));
+        e.put("sent", sent == null ? null : LocalDateTime.ofInstant(sent.toInstant(), zone));
         e.put("message_id", m instanceof MimeMessage mm ? Objects.toString(mm.getMessageID(), "") : "");
         e.put("importance", importanceOf(m));
         e.put("flagged", m.isSet(Flags.Flag.FLAGGED));
@@ -429,20 +662,25 @@ public final class EmailPackage {
 
     @Action(id = "save_attachments", name = "Save attachments", category = "Mailbox", capabilities = {"network", "filesystem"},
             description = "Save an email's attachments to a folder, optionally only names matching a pattern such as *.pdf.",
-            panel = "id, target_folder, overwrite | name_pattern, folder, include_inline, session")
+            panel = "id, target_folder, overwrite | name_pattern, folder, include_inline, mark_read, session")
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
     public Map<String, Object> saveAttachments(ActionContext ctx,
-            @Input(name = "id", type = OoaType.NUMBER, description = "Email id.") long id,
+            @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
             @Input(name = "target_folder", type = OoaType.FILE, description = "Folder to save into.") String target,
             @Input(name = "name_pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Only names matching this pattern, e.g. *.pdf.") String pattern,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace files of the same name instead of adding a number such as (2).") boolean overwrite,
             @Input(name = "include_inline", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also save images embedded in the body, such as signature logos.") boolean inline,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session,
+            @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mark the email read afterwards (IMAP only); otherwise its read status stays as it was.") boolean markRead) {
         try {
-            Message m = byUid(ms(ctx, session).folder(folder), id);
+            MailSession s = ms(ctx, session);
+            Target t = target(ctx, id, folder);
+            Message m = byUid(s.folder(t.folder()), t.id());
             Path dir = ctx.resolvePath(target);
-            return Map.of("files", saveParts(m, dir, pattern, overwrite, inline));
+            List<Object> saved = saveParts(m, dir, pattern, overwrite, inline);
+            if (markRead && !s.pop3) m.setFlag(Flags.Flag.SEEN, true);
+            return Map.of("files", saved);
         } catch (MessagingException e) { throw mail(e);
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
@@ -468,34 +706,40 @@ public final class EmailPackage {
     }
 
     @Action(id = "save_all_attachments", name = "Save all attachments", category = "Mailbox", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Save the attachments of every email in a folder that matches the filters, optionally marking those emails as read.",
-            panel = "unread_only, mark_read, folder, target_folder, overwrite | name_pattern, from_contains, subject_contains, since, before, session")
+            description = "Save the attachments of every email in one or more folders that matches the filters, optionally marking those emails as read.",
+            panel = "status, mark_read, folder, target_folder, overwrite | name_pattern, from_contains, subject_contains, since, before, unread_only, session")
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
     @Output(name = "email_count", type = OoaType.NUMBER, description = "Number of emails that matched.")
     public Map<String, Object> saveAllAttachments(ActionContext ctx,
             @Input(name = "target_folder", type = OoaType.FILE, description = "Folder to save into.") String target,
             @Input(name = "name_pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Only names matching this pattern, e.g. *.pdf.") String pattern,
-            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
-            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = D_FOLDERS) String folder,
+            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "unread_only=true", description = D_UNREAD_ONLY) boolean unread,
             @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
-            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text; separate several with ; to match any of them.") String subject,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this date.") LocalDateTime since,
             @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this date.") LocalDateTime before,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace files of the same name instead of adding a number such as (2).") boolean overwrite,
-            @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mark each matching email as read afterwards (IMAP only).") boolean markRead,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
+            @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mark each matching email as read afterwards (IMAP only); otherwise read status stays as it was.") boolean markRead,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = D_STATUS) String status) {
         try {
             MailSession s = ms(ctx, session);
-            Folder f = s.folder(folder);
-            Message[] msgs = matching(f, filter(unread, false, from, subject, since, before, null, null, s.pop3));
+            boolean[] rs = readStatus(status, unread, false);
+            SearchTerm term = filter(rs[0], rs[1], from, subject, since, before, null, null, s.pop3);
             Path dir = ctx.resolvePath(target);
             List<Object> saved = new ArrayList<>();
-            for (Message m : msgs) {
-                saved.addAll(saveParts(m, dir, pattern, overwrite, true));
-                if (markRead && !s.pop3) m.setFlag(Flags.Flag.SEEN, true);
+            int count = 0;
+            for (String name : folderNames(s, folder)) {
+                Message[] msgs = matching(s.folder(name), term, subject);
+                count += msgs.length;
+                for (Message m : msgs) {
+                    saved.addAll(saveParts(m, dir, pattern, overwrite, true));
+                    if (markRead && !s.pop3) m.setFlag(Flags.Flag.SEEN, true);
+                }
             }
-            ctx.info("Saved " + saved.size() + " attachment(s) from " + msgs.length + " email(s)");
-            return Map.of("files", saved, "email_count", BigDecimal.valueOf(msgs.length));
+            ctx.info("Saved " + saved.size() + " attachment(s) from " + count + " email(s)");
+            return Map.of("files", saved, "email_count", BigDecimal.valueOf(count));
         } catch (MessagingException e) { throw mail(e);
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
@@ -503,15 +747,17 @@ public final class EmailPackage {
     @Action(id = "mark", name = "Mark read or unread", category = "Mailbox", capabilities = "network", description = "Mark an email as read or unread, and optionally set or clear its follow-up flag.",
             panel = "id, read, folder | flagged, session")
     public Map<String, Object> mark(ActionContext ctx,
-            @Input(name = "id", type = OoaType.NUMBER, description = "Email id.") long id,
-            @Input(name = "read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "True = read, false = unread.") boolean read,
+            @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
+            @Input(name = "read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", label = "Mark as read (untick: mark as unread)", tone = "plain",
+                    description = "Ticked = read, not ticked = unread.") boolean read,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
             @Input(name = "flagged", type = OoaType.BOOLEAN, required = false, description = "Set (true) or clear (false) the follow-up flag; unchanged when empty.") Boolean flagged,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session) {
         try {
             MailSession s = ms(ctx, session);
             imapOnly(s, "Change status");
-            Message m = byUid(s.folder(folder), id);
+            Target t = target(ctx, id, folder);
+            Message m = byUid(s.folder(t.folder()), t.id());
             m.setFlag(Flags.Flag.SEEN, read);
             if (flagged != null) m.setFlag(Flags.Flag.FLAGGED, flagged);
         } catch (MessagingException e) { throw mail(e); }
@@ -521,7 +767,7 @@ public final class EmailPackage {
     @Action(id = "move", name = "Move email", category = "Mailbox", capabilities = "network", description = "Move an email to another folder, e.g. Processed.",
             panel = "id, folder, to_folder | create_folder, session")
     public Map<String, Object> move(ActionContext ctx,
-            @Input(name = "id", type = OoaType.NUMBER, description = "Email id.") long id,
+            @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
             @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder.") String to,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Current folder.") String folder,
             @Input(name = "create_folder", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the destination folder when it does not exist.") boolean create,
@@ -529,8 +775,9 @@ public final class EmailPackage {
         try {
             MailSession s = ms(ctx, session);
             imapOnly(s, "Move");
-            Folder src = s.folder(folder);
-            Message m = byUid(src, id);
+            Target t = target(ctx, id, folder);
+            Folder src = s.folder(t.folder());
+            Message m = byUid(src, t.id());
             Folder dst = destination(s, to, create);
             src.copyMessages(new Message[]{m}, dst);
             m.setFlag(Flags.Flag.DELETED, true);
@@ -551,18 +798,19 @@ public final class EmailPackage {
     @Action(id = "delete", name = "Delete email", category = "Mailbox", capabilities = "network", description = "Delete an email (moved to Trash/Deleted Items when that folder exists), or delete it for good.",
             panel = "id, folder | permanent, session")
     public Map<String, Object> delete(ActionContext ctx,
-            @Input(name = "id", type = OoaType.NUMBER, description = "Email id.") long id,
+            @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
             @Input(name = "permanent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Delete for good instead of moving to Trash or Deleted Items.") boolean permanent,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session) {
         try {
             MailSession s = ms(ctx, session);
+            Target at = target(ctx, id, folder);
             if (!permanent && !s.pop3) for (String trash : List.of("Deleted Items", "Trash", "[Gmail]/Trash")) {
                 Folder t = s.store.getFolder(trash);
-                if (t.exists() && !trash.equalsIgnoreCase(folder)) return move(ctx, id, trash, folder, false, session);
+                if (t.exists() && !trash.equalsIgnoreCase(at.folder())) return move(ctx, at.id(), trash, at.folder(), false, session);
             }
-            Folder src = s.folder(folder);
-            byUid(src, id).setFlag(Flags.Flag.DELETED, true);
+            Folder src = s.folder(at.folder());
+            byUid(src, at.id()).setFlag(Flags.Flag.DELETED, true);
             expunge(src);
         } catch (MessagingException e) { throw mail(e); }
         return Map.of();
@@ -610,17 +858,23 @@ public final class EmailPackage {
     /** Search for the filters; dates compare the sent date on POP3, whose servers keep no received date. */
     static SearchTerm filter(boolean unread, boolean read, String from, String subject, LocalDateTime since, LocalDateTime before,
                              String to, String body, boolean sentDates) {
+        return filter(unread, read, from, subject, since, before, to, body, sentDates, ZoneOffset.UTC);
+    }
+
+    /** The same, with since and before read in the given time zone; a "quoted" subject is searched as its text. */
+    static SearchTerm filter(boolean unread, boolean read, String from, String subject, LocalDateTime since, LocalDateTime before,
+                             String to, String body, boolean sentDates, java.time.ZoneId zone) {
         if (unread && read) throw new ActionException("EMAIL.BAD_INPUT", "unread_only and read_only cannot both be true", "Choose one of them.");
         List<SearchTerm> terms = new ArrayList<>();
         if (unread) terms.add(new FlagTerm(new Flags(Flags.Flag.SEEN), false));
         if (read) terms.add(new FlagTerm(new Flags(Flags.Flag.SEEN), true));
-        SearchTerm f = anyOf(from, FromStringTerm::new), sj = anyOf(subject, SubjectTerm::new);
+        SearchTerm f = anyOf(from, FromStringTerm::new), sj = anyOf(subject, v -> new SubjectTerm(unquote(v)));
         if (f != null) terms.add(f);
         if (sj != null) terms.add(sj);
         if (to != null && !to.isBlank()) terms.add(new RecipientStringTerm(Message.RecipientType.TO, to));
         if (body != null && !body.isBlank()) terms.add(new BodyTerm(body));
-        if (since != null) { Date d = Date.from(since.toInstant(ZoneOffset.UTC)); terms.add(sentDates ? new SentDateTerm(ComparisonTerm.GE, d) : new ReceivedDateTerm(ComparisonTerm.GE, d)); }
-        if (before != null) { Date d = Date.from(before.toInstant(ZoneOffset.UTC)); terms.add(sentDates ? new SentDateTerm(ComparisonTerm.LT, d) : new ReceivedDateTerm(ComparisonTerm.LT, d)); }
+        if (since != null) { Date d = Date.from(since.atZone(zone).toInstant()); terms.add(sentDates ? new SentDateTerm(ComparisonTerm.GE, d) : new ReceivedDateTerm(ComparisonTerm.GE, d)); }
+        if (before != null) { Date d = Date.from(before.atZone(zone).toInstant()); terms.add(sentDates ? new SentDateTerm(ComparisonTerm.LT, d) : new ReceivedDateTerm(ComparisonTerm.LT, d)); }
         return terms.isEmpty() ? null : terms.size() == 1 ? terms.get(0) : new AndTerm(terms.toArray(new SearchTerm[0]));
     }
 
@@ -640,22 +894,27 @@ public final class EmailPackage {
 
     private static String addressText(Address[] a) { return a == null ? "" : String.join(", ", Arrays.stream(a).map(x -> x instanceof InternetAddress ia ? ia.toUnicodeString() : x.toString()).toList()); }
 
-    private static void setBody(MimeMessage m, String body, boolean html, List<MimeBodyPart> extra) throws MessagingException {
-        if (extra.isEmpty()) { m.setText(body, "UTF-8", html ? "html" : "plain"); return; }
+    private static void setBody(MimeMessage m, String body, boolean html, List<MimeBodyPart> extra, String charset) throws MessagingException {
+        if (extra.isEmpty()) { m.setText(body, charset, html ? "html" : "plain"); return; }
         MimeMultipart mp = new MimeMultipart();
         MimeBodyPart text = new MimeBodyPart();
-        text.setText(body, "UTF-8", html ? "html" : "plain");
+        text.setText(body, charset, html ? "html" : "plain");
         mp.addBodyPart(text);
         for (MimeBodyPart p : extra) mp.addBodyPart(p);
         m.setContent(mp);
     }
 
-    private static List<MimeBodyPart> fileParts(ActionContext ctx, List<Object> files) throws MessagingException, IOException {
+    private static List<MimeBodyPart> fileParts(ActionContext ctx, List<Object> files) throws MessagingException, IOException { return fileParts(ctx, files, false); }
+
+    /** Attachment parts; a missing file fails the step, or with skipMissing is left out with a warning. */
+    static List<MimeBodyPart> fileParts(ActionContext ctx, List<Object> files, boolean skipMissing) throws MessagingException, IOException {
         List<MimeBodyPart> out = new ArrayList<>();
         if (files == null) return out;
         for (Object a : files) {
+            if (a == null || Values.text(a).isBlank()) continue;
             Path p = ctx == null ? Path.of(Values.text(a)) : ctx.resolvePath(Values.text(a));
-            if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Attachment not found: " + p, "Check the attachment path.");
+            if (!Files.isRegularFile(p) && skipMissing) { if (ctx != null) ctx.warn("Attachment not found, sent without it: " + p); continue; }
+            if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Attachment not found: " + p, "Check the attachment path, or tick skip_missing_attachments.");
             MimeBodyPart part = new MimeBodyPart();
             part.attachFile(p.toFile());
             out.add(part);
@@ -692,6 +951,13 @@ public final class EmailPackage {
     static MimeMessage buildMessage(Session session, String from, Object to, Object cc, Object bcc, String subject, String body, boolean html,
                                     List<MimeBodyPart> attachments, List<MimeBodyPart> inline, String importance, Object replyTo, boolean receipt)
             throws MessagingException {
+        return buildMessage(session, from, to, cc, bcc, subject, body, html, attachments, inline, importance, replyTo, receipt, "UTF-8");
+    }
+
+    /** The same, with the character set of the subject and body. */
+    static MimeMessage buildMessage(Session session, String from, Object to, Object cc, Object bcc, String subject, String body, boolean html,
+                                    List<MimeBodyPart> attachments, List<MimeBodyPart> inline, String importance, Object replyTo, boolean receipt, String charset)
+            throws MessagingException {
         MimeMessage msg = new MimeMessage(session);
         // without a sender (an internal relay used without signing in has no user to send as) this used to crash with a NullPointerException
         if (from == null || from.isBlank())
@@ -702,12 +968,12 @@ public final class EmailPackage {
         if (bcc != null) msg.setRecipients(Message.RecipientType.BCC, addresses(bcc));
         if (msg.getAllRecipients() == null || msg.getAllRecipients().length == 0)
             throw new ActionException("EMAIL.BAD_ADDRESS", "The email has no recipient", "Give at least one address in to, cc or bcc.");
-        msg.setSubject(subject, "UTF-8");
+        msg.setSubject(subject, charset);
         MimeBodyPart text = new MimeBodyPart();
-        text.setText(body == null ? "" : body, "UTF-8", html ? "html" : "plain");
+        text.setText(body == null ? "" : body, charset, html ? "html" : "plain");
         MimeBodyPart main = text;
         if (inline != null && !inline.isEmpty()) {
-            if (!html) throw new ActionException("EMAIL.BAD_INPUT", "Inline images need an HTML body", "Set html to true and refer to each image as cid:file-name.");
+            if (!html) throw new ActionException("EMAIL.BAD_INPUT", "Inline images need an HTML body", "Choose the HTML or rich text body type and refer to each image as cid:file-name.");
             MimeMultipart related = new MimeMultipart("related");
             related.addBodyPart(text);
             for (MimeBodyPart p : inline) related.addBodyPart(p);
@@ -738,13 +1004,19 @@ public final class EmailPackage {
 
     static MimeMessage buildForward(Session session, Message orig, String from, Object to, Object cc, Object bcc, String note, boolean html, boolean asAttachment,
                                     List<MimeBodyPart> files, String importance, Object replyTo) throws MessagingException, IOException {
+        return buildForward(session, orig, from, to, cc, bcc, note, html, asAttachment, files, importance, replyTo, "UTF-8", null);
+    }
+
+    /** Forward with a character set and, when given, a subject of its own instead of Fwd: and the original's. */
+    static MimeMessage buildForward(Session session, Message orig, String from, Object to, Object cc, Object bcc, String note, boolean html, boolean asAttachment,
+                                    List<MimeBodyPart> files, String importance, Object replyTo, String charset, String ownSubject) throws MessagingException, IOException {
         MimeMessage m = new MimeMessage(session);
         try { m.setFrom(new InternetAddress(from, true)); }
         catch (AddressException e) { throw new ActionException("EMAIL.BAD_ADDRESS", "Invalid sender address: " + e.getMessage(), "Check from or user."); }
         m.setRecipients(Message.RecipientType.TO, required(to, "to"));
         copies(m, cc, bcc);
         String subject = Objects.toString(orig.getSubject(), "");
-        m.setSubject(subject.matches("(?is)^(fwd?|fw):.*") ? subject : "Fwd: " + subject, "UTF-8");
+        m.setSubject(ownSubject != null && !ownSubject.isBlank() ? ownSubject : subject.matches("(?is)^(fwd?|fw):.*") ? subject : "Fwd: " + subject, charset);
         String body = note == null ? "" : note;
         List<MimeBodyPart> extra = new ArrayList<>();
         if (asAttachment) {
@@ -781,7 +1053,7 @@ public final class EmailPackage {
             }
         }
         if (files != null) extra.addAll(files);
-        setBody(m, body, html, extra);
+        setBody(m, body, html, extra, charset);
         m.setSentDate(new Date());
         applyOptions(m, importance, replyTo, false);
         m.saveChanges();
@@ -805,6 +1077,13 @@ public final class EmailPackage {
     /** Reply with extra CC and BCC recipients and an importance. */
     static MimeMessage buildReply(Message orig, String from, String body, boolean html, boolean all, boolean includeOriginal, List<MimeBodyPart> attachments,
                                   Object extraCc, Object bcc, String importance, Object newReplyTo, boolean excludeSender) throws MessagingException, IOException {
+        return buildReply(orig, from, body, html, all, includeOriginal, attachments, extraCc, bcc, importance, newReplyTo, excludeSender, "UTF-8", null);
+    }
+
+    /** Reply with a character set and, when given, a subject of its own instead of Re: and the original's. */
+    static MimeMessage buildReply(Message orig, String from, String body, boolean html, boolean all, boolean includeOriginal, List<MimeBodyPart> attachments,
+                                  Object extraCc, Object bcc, String importance, Object newReplyTo, boolean excludeSender, String charset, String ownSubject)
+            throws MessagingException, IOException {
         MimeMessage m = (MimeMessage) (orig instanceof MimeMessage mm ? mm.reply(false, false) : orig.reply(false));
         InternetAddress me;
         try { me = new InternetAddress(from, true); }
@@ -841,7 +1120,8 @@ public final class EmailPackage {
                 text = q.toString();
             }
         }
-        setBody(m, text, html, attachments == null ? List.of() : attachments);
+        if (ownSubject != null && !ownSubject.isBlank()) m.setSubject(ownSubject, charset);
+        setBody(m, text, html, attachments == null ? List.of() : attachments, charset);
         m.setSentDate(new Date());
         applyOptions(m, importance, newReplyTo, false);
         m.saveChanges();
@@ -879,52 +1159,90 @@ public final class EmailPackage {
 
     private static String sender(String from, String user) { return from != null && !from.isBlank() ? from : user; }
 
+    /** The email a step means: its own id and folder, or (id left empty inside an Each email loop) the loop's current email, in its folder. */
+    record Target(long id, String folder) {}
+
+    static final String D_ID = "Email id from Find emails; empty inside an Each email loop = the loop's current email.";
+
+    static Target target(ActionContext ctx, Long id, String folder) {
+        String f = folder == null || folder.isBlank() ? "INBOX" : folder;
+        if (id != null) return new Target(id, f);
+        Object item = ctx == null ? null : ctx.loopItem();
+        if (item instanceof Map<?, ?> m) {
+            Object v = m.get("id");
+            Long n = v instanceof Number num ? Long.valueOf(num.longValue()) : v instanceof String str && str.strip().matches("\\d+") ? Long.valueOf(str.strip()) : null;
+            if (n != null) return new Target(n, m.get("folder") instanceof String lf && !lf.isBlank() ? lf : f);
+        }
+        throw new ActionException("EMAIL.BAD_INPUT", "Give the email's id, or put this step inside an Each email loop", "Fill in id with an id from Find emails.");
+    }
+
     @Action(id = "forward", name = "Forward email", category = "Send", timeoutSeconds = 120, capabilities = "network",
             description = "Forward an email from the open mailbox with a note, either inline with its attachments or attached as an .eml file.",
-            panel = "id, to, cc, bcc, reply_to, attachments, importance, note, html, [Send through another server: smtp_host, port, security, user, password, access_token] | as_attachment, from, folder, session")
+            panel = "id, to, cc, bcc, reply_to, attachments, importance, body_type, note, html, [Send through another server: smtp_host, port, security, user, password, access_token] | as_attachment, subject, from, footer, folder, skip_missing_attachments, skip_invalid_addresses, charset, timeout_seconds, session")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message-ID of the sent email.")
     public Map<String, Object> forward(ActionContext ctx,
-            @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
+            @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
             @Input(name = "to", description = "Recipient address(es): text separated by , or ; or a List.") Object to,
             @Input(name = "cc", required = false, description = "CC address(es).") Object cc,
             @Input(name = "note", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Text placed above the forwarded email.") String note,
-            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Note is HTML.") boolean html,
+            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "html=true", description = D_HTML) boolean html,
             @Input(name = "as_attachment", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Attach the original as an .eml file instead of quoting it.") boolean asAttachment,
             @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com", description = D_SMTP) String host,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "587", description = "587 for STARTTLS, 465 for SSL.") int port,
             @Input(name = "security", type = OoaType.STRING, required = false, defaultValue = "\"starttls\"", enumValues = {"starttls", "ssl", "none"}, description = "Connection security.") String security,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Mailbox user name for SMTP sign-in; the session's user when empty.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password or app password from the vault.") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token from the vault.") Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "from", type = OoaType.STRING, required = false, description = "Sender address; the user when empty.") String from,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder of the email.") String folder,
             @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
             @Input(name = "attachments", type = OoaType.LIST, required = false, description = "More file paths to attach.") List<Object> attachments,
             @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"normal", "high", "low"}, description = "Importance of the forwarded email.") String importance,
             @Input(name = "reply_to", required = false, description = "Address(es) that replies go to, when not the sender.") Object replyTo,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
+            @Input(name = "body_type", type = OoaType.STRING, required = false, defaultValue = "\"plain\"", enumValues = {"plain", "html", "rich"}, description = D_BODY_TYPE) String bodyType,
+            @Input(name = "subject", type = OoaType.STRING, required = false, description = "Subject of the forward; Fwd: and the original subject when empty.") String subject,
+            @Input(name = "footer", type = OoaType.STRING, required = false, description = D_FOOTER) String footer,
+            @Input(name = "skip_missing_attachments", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_SKIP_MISSING) boolean skipMissing,
+            @Input(name = "skip_invalid_addresses", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_SKIP_INVALID) boolean skipInvalid,
+            @Input(name = "charset", type = OoaType.STRING, required = false, defaultValue = "\"UTF-8\"", example = "ISO-8859-1", description = D_CHARSET) String charset,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", newStepDefault = "120", min = 1, max = 600, description = D_SEND_TIMEOUT) int timeout) {
         try {
-            Message orig = byUid(ms(ctx, session).folder(folder), id);
+            Target t = target(ctx, id, folder);
+            Message orig = byUid(ms(ctx, session).folder(t.folder()), t.id());
             Smtp k = smtp(ctx, session, host, port, security, user, password, token);
-            MimeMessage msg = buildForward(k.session(), orig, sender(from, k.user()), to, cc, bcc, note, html, asAttachment,
-                    fileParts(ctx, attachments), importance, replyTo);
-            smtpSend(msg, k);
-            ctx.info("Forwarded email " + id + " to " + addressText(msg.getRecipients(Message.RecipientType.TO)));
+            Session s = k.session(timeout, skipInvalid);
+            boolean asHtml = isHtml(bodyType, html);
+            MimeMessage msg = buildForward(s, orig, sender(from, k.user()), skipInvalid ? validOnly(ctx, to, "to") : to, skipInvalid ? validOnly(ctx, cc, "cc") : cc,
+                    skipInvalid ? validOnly(ctx, bcc, "bcc") : bcc, withFooter(note, footer, asHtml), asHtml, asAttachment,
+                    fileParts(ctx, attachments, skipMissing), importance, replyTo, charset(charset), subject);
+            transmit(ctx, msg, k, s, skipInvalid);
+            ctx.info("Forwarded email " + t.id() + " to " + addressText(msg.getRecipients(Message.RecipientType.TO)));
             return Map.of("message_id", Objects.toString(msg.getMessageID(), ""));
         } catch (MessagingException e) { throw mail(e);
         } catch (IOException e) { throw new ActionException("EMAIL.READ_FAILED", e.getMessage(), "Check the mail server's address, port and the sign-in in the connection, and that the mailbox exists."); }
     }
 
-    private Map<String, Object> replyImpl(ActionContext ctx, long id, String body, boolean html, boolean all, boolean include, List<Object> attachments,
+    /** What reply and reply to all send, besides the reply itself. */
+    record ReplyOptions(String bodyType, String subject, String footer, boolean skipMissing, boolean skipInvalid, String charset, int timeout) {
+        static final ReplyOptions OLD = new ReplyOptions("plain", null, null, false, false, "UTF-8", 60);
+    }
+
+    private Map<String, Object> replyImpl(ActionContext ctx, Long id, String body, boolean html, boolean all, boolean include, List<Object> attachments,
                                           String host, int port, String security, String user, Object password, Object token, String from, String folder,
-                                          Object cc, Object bcc, String importance, Object replyTo, boolean excludeSender, String session) {
+                                          Object cc, Object bcc, String importance, Object replyTo, boolean excludeSender, String session, ReplyOptions o) {
         try {
-            Message orig = byUid(ms(ctx, session).folder(folder), id);
+            Target t = target(ctx, id, folder);
+            Message orig = byUid(ms(ctx, session).folder(t.folder()), t.id());
             Smtp k = smtp(ctx, session, host, port, security, user, password, token);
-            MimeMessage msg = buildReply(orig, sender(from, k.user()), body, html, all, include, fileParts(ctx, attachments), cc, bcc, importance, replyTo, excludeSender);
-            smtpSend(msg, k);
+            Session s = k.session(o.timeout(), o.skipInvalid());
+            boolean asHtml = isHtml(o.bodyType(), html);
+            MimeMessage msg = buildReply(orig, sender(from, k.user()), withFooter(body, o.footer(), asHtml), asHtml, all, include, fileParts(ctx, attachments, o.skipMissing()),
+                    o.skipInvalid() ? validOnly(ctx, cc, "cc") : cc, o.skipInvalid() ? validOnly(ctx, bcc, "bcc") : bcc, importance, replyTo, excludeSender,
+                    charset(o.charset()), o.subject());
+            transmit(ctx, msg, k, s, o.skipInvalid());
             try { orig.setFlag(Flags.Flag.ANSWERED, true); } catch (MessagingException ignored) { }
-            ctx.info("Replied to email " + id);
+            ctx.info("Replied to email " + t.id());
             return Map.of("message_id", Objects.toString(msg.getMessageID(), ""));
         } catch (MessagingException e) { throw mail(e);
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
@@ -932,12 +1250,12 @@ public final class EmailPackage {
 
     @Action(id = "reply", name = "Reply to email", category = "Send", timeoutSeconds = 120, capabilities = "network",
             description = "Reply to the sender of an email in the open mailbox, keeping it in the same conversation and quoting the original.",
-            panel = "id, cc, bcc, reply_to, attachments, importance, body, html, [Send through another server: smtp_host, port, security, user, password, access_token] | include_original, from, folder, session")
+            panel = "id, cc, bcc, reply_to, attachments, importance, body_type, body, html, [Send through another server: smtp_host, port, security, user, password, access_token] | include_original, subject, from, footer, folder, skip_missing_attachments, skip_invalid_addresses, charset, timeout_seconds, session")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message-ID of the reply.")
     public Map<String, Object> reply(ActionContext ctx,
-            @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
+            @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
             @Input(name = "body", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Reply text.") String body,
-            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Body is HTML.") boolean html,
+            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "html=true", description = D_HTML) boolean html,
             @Input(name = "include_original", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Quote the original email below the reply.") boolean include,
             @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach.") List<Object> attachments,
             @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com", description = D_SMTP) String host,
@@ -945,25 +1263,35 @@ public final class EmailPackage {
             @Input(name = "security", type = OoaType.STRING, required = false, defaultValue = "\"starttls\"", enumValues = {"starttls", "ssl", "none"}, description = "Connection security.") String security,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Mailbox user name for SMTP sign-in; the session's user when empty.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password or app password from the vault.") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token from the vault.") Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "from", type = OoaType.STRING, required = false, description = "Sender address; the user when empty.") String from,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder of the email.") String folder,
             @Input(name = "cc", required = false, description = "More CC address(es).") Object cc,
             @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
             @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"normal", "high", "low"}, description = "Importance of the reply.") String importance,
             @Input(name = "reply_to", required = false, description = "Address(es) that replies go to, when not the sender.") Object replyTo,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
-        return replyImpl(ctx, id, body, html, false, include, attachments, host, port, security, user, password, token, from, folder, cc, bcc, importance, replyTo, false, session);
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
+            @Input(name = "body_type", type = OoaType.STRING, required = false, defaultValue = "\"plain\"", enumValues = {"plain", "html", "rich"}, description = D_BODY_TYPE) String bodyType,
+            @Input(name = "subject", type = OoaType.STRING, required = false, description = D_REPLY_SUBJECT) String subject,
+            @Input(name = "footer", type = OoaType.STRING, required = false, description = D_FOOTER) String footer,
+            @Input(name = "skip_missing_attachments", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_SKIP_MISSING) boolean skipMissing,
+            @Input(name = "skip_invalid_addresses", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_SKIP_INVALID) boolean skipInvalid,
+            @Input(name = "charset", type = OoaType.STRING, required = false, defaultValue = "\"UTF-8\"", example = "ISO-8859-1", description = D_CHARSET) String charset,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", newStepDefault = "120", min = 1, max = 600, description = D_SEND_TIMEOUT) int timeout) {
+        return replyImpl(ctx, id, body, html, false, include, attachments, host, port, security, user, password, token, from, folder, cc, bcc, importance, replyTo, false, session,
+                new ReplyOptions(bodyType, subject, footer, skipMissing, skipInvalid, charset, timeout));
     }
+
+    static final String D_REPLY_SUBJECT = "Subject of the reply; Re: and the original subject when empty.";
 
     @Action(id = "reply_all", name = "Reply to all", category = "Send", timeoutSeconds = 120, capabilities = "network",
             description = "Reply to the sender and all other recipients of an email, keeping it in the same conversation and quoting the original.",
-            panel = "id, cc, bcc, reply_to, exclude_sender, importance, attachments, body, html, [Send through another server: smtp_host, port, security, user, password, access_token] | include_original, from, folder, session")
+            panel = "id, cc, bcc, reply_to, exclude_sender, importance, attachments, body_type, body, html, [Send through another server: smtp_host, port, security, user, password, access_token] | include_original, subject, from, footer, folder, skip_missing_attachments, skip_invalid_addresses, charset, timeout_seconds, session")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message-ID of the reply.")
     public Map<String, Object> replyAll(ActionContext ctx,
-            @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
+            @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
             @Input(name = "body", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Reply text.") String body,
-            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Body is HTML.") boolean html,
+            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "html=true", description = D_HTML) boolean html,
             @Input(name = "include_original", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Quote the original email below the reply.") boolean include,
             @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach.") List<Object> attachments,
             @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com", description = D_SMTP) String host,
@@ -971,7 +1299,7 @@ public final class EmailPackage {
             @Input(name = "security", type = OoaType.STRING, required = false, defaultValue = "\"starttls\"", enumValues = {"starttls", "ssl", "none"}, description = "Connection security.") String security,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Mailbox user name for SMTP sign-in; the session's user when empty.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password or app password from the vault.") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token from the vault.") Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "from", type = OoaType.STRING, required = false, description = "Sender address; the user when empty; also left out of the recipients.") String from,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder of the email.") String folder,
             @Input(name = "cc", required = false, description = "More CC address(es).") Object cc,
@@ -979,72 +1307,96 @@ public final class EmailPackage {
             @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"normal", "high", "low"}, description = "Importance of the reply.") String importance,
             @Input(name = "reply_to", required = false, description = "Address(es) that replies go to, when not the sender.") Object replyTo,
             @Input(name = "exclude_sender", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave the original sender out and reply only to the other recipients.") boolean excludeSender,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
-        return replyImpl(ctx, id, body, html, true, include, attachments, host, port, security, user, password, token, from, folder, cc, bcc, importance, replyTo, excludeSender, session);
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
+            @Input(name = "body_type", type = OoaType.STRING, required = false, defaultValue = "\"plain\"", enumValues = {"plain", "html", "rich"}, description = D_BODY_TYPE) String bodyType,
+            @Input(name = "subject", type = OoaType.STRING, required = false, description = D_REPLY_SUBJECT) String subject,
+            @Input(name = "footer", type = OoaType.STRING, required = false, description = D_FOOTER) String footer,
+            @Input(name = "skip_missing_attachments", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_SKIP_MISSING) boolean skipMissing,
+            @Input(name = "skip_invalid_addresses", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_SKIP_INVALID) boolean skipInvalid,
+            @Input(name = "charset", type = OoaType.STRING, required = false, defaultValue = "\"UTF-8\"", example = "ISO-8859-1", description = D_CHARSET) String charset,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", newStepDefault = "120", min = 1, max = 600, description = D_SEND_TIMEOUT) int timeout) {
+        return replyImpl(ctx, id, body, html, true, include, attachments, host, port, security, user, password, token, from, folder, cc, bcc, importance, replyTo, excludeSender, session,
+                new ReplyOptions(bodyType, subject, footer, skipMissing, skipInvalid, charset, timeout));
     }
 
     @Action(id = "delete_all", name = "Delete all matching emails", category = "Mailbox", timeoutSeconds = 600, capabilities = "network",
-            description = "Delete every email in a folder that matches the filters (all emails when no filter is set).",
-            panel = "folder, unread_only, read_only, subject_contains, from_contains, since, before | permanent, expunge, to_contains, body_contains, session")
+            description = "Delete every email in one or more folders that matches the filters (all emails when no filter is set).",
+            panel = "folder, status, subject_contains, from_contains, since, before | permanent, expunge, to_contains, body_contains, unread_only, read_only, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails deleted.")
     public Map<String, Object> deleteAll(ActionContext ctx,
-            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
-            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = D_FOLDERS) String folder,
+            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "unread_only=true", description = D_UNREAD_ONLY) boolean unread,
             @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
-            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text; separate several with ; to match any of them.") String subject,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this date.") LocalDateTime since,
             @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this date.") LocalDateTime before,
             @Input(name = "permanent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Delete for good instead of moving to Trash or Deleted Items.") boolean permanent,
             @Input(name = "expunge", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Permanent mode: remove the emails now; when false they are only marked deleted until the session closes.") boolean expunge,
-            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "read_only=true", description = D_READ_ONLY) boolean readOnly,
             @Input(name = "to_contains", type = OoaType.STRING, required = false, description = "A To recipient contains this text.") String toText,
             @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "The body contains this text (searched by the server).") String bodyText,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = D_STATUS) String status) {
         try {
             MailSession s = ms(ctx, session);
-            Folder src = s.folder(folder);
-            Message[] msgs = matching(src, filter(unread, readOnly, from, subject, since, before, toText, bodyText, s.pop3));
-            if (msgs.length == 0) return Map.of("count", BigDecimal.ZERO);
-            if (!permanent && !s.pop3) for (String trash : List.of("Deleted Items", "Trash", "[Gmail]/Trash")) {
-                Folder t = s.store.getFolder(trash);
-                if (t.exists() && !trash.equalsIgnoreCase(folder)) { src.copyMessages(msgs, t); expunge = true; break; }
+            boolean[] rs = readStatus(status, unread, readOnly);
+            SearchTerm term = filter(rs[0], rs[1], from, subject, since, before, toText, bodyText, s.pop3);
+            int count = 0;
+            for (String name : folderNames(s, folder)) {
+                Folder src = s.folder(name);
+                Message[] msgs = matching(src, term, subject);
+                if (msgs.length == 0) continue;
+                boolean now = expunge;
+                if (!permanent && !s.pop3) for (String trash : List.of("Deleted Items", "Trash", "[Gmail]/Trash")) {
+                    Folder t = s.store.getFolder(trash);
+                    if (t.exists() && !trash.equalsIgnoreCase(name)) { src.copyMessages(msgs, t); now = true; break; }
+                }
+                src.setFlags(msgs, new Flags(Flags.Flag.DELETED), true);
+                if (now) expunge(src);
+                count += msgs.length;
+                ctx.info("Deleted " + msgs.length + " email(s) from " + name);
             }
-            src.setFlags(msgs, new Flags(Flags.Flag.DELETED), true);
-            if (expunge) expunge(src);
-            ctx.info("Deleted " + msgs.length + " email(s) from " + folder);
-            return Map.of("count", BigDecimal.valueOf(msgs.length));
+            return Map.of("count", BigDecimal.valueOf(count));
         } catch (MessagingException e) { throw mail(e); }
     }
 
     @Action(id = "move_all", name = "Move all matching emails", category = "Mailbox", timeoutSeconds = 600, capabilities = "network",
-            description = "Move every email in a folder that matches the filters to another folder.",
-            panel = "to_folder, unread_only, read_only, folder, subject_contains, from_contains, since, before | to_contains, body_contains, create_folder, session")
+            description = "Move every email in one or more folders that matches the filters to another folder.",
+            panel = "to_folder, status, folder, subject_contains, from_contains, since, before | to_contains, body_contains, create_folder, unread_only, read_only, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails moved.")
     public Map<String, Object> moveAll(ActionContext ctx,
             @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder.") String to,
-            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Current folder.") String folder,
-            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Current folder; several separated by ; and * for any text, e.g. INBOX; Invoices/*.") String folder,
+            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "unread_only=true", description = D_UNREAD_ONLY) boolean unread,
             @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
-            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text; separate several with ; to match any of them.") String subject,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this date.") LocalDateTime since,
             @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this date.") LocalDateTime before,
-            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "read_only=true", description = D_READ_ONLY) boolean readOnly,
             @Input(name = "to_contains", type = OoaType.STRING, required = false, description = "A To recipient contains this text.") String toText,
             @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "The body contains this text (searched by the server).") String bodyText,
             @Input(name = "create_folder", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the destination folder when it does not exist.") boolean create,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = D_STATUS) String status) {
         try {
             MailSession s = ms(ctx, session);
             imapOnly(s, "Move all");
-            Folder src = s.folder(folder);
+            boolean[] rs = readStatus(status, unread, readOnly);
+            SearchTerm term = filter(rs[0], rs[1], from, subject, since, before, toText, bodyText, false);
             Folder dst = destination(s, to, create);
-            Message[] msgs = matching(src, filter(unread, readOnly, from, subject, since, before, toText, bodyText, false));
-            if (msgs.length == 0) return Map.of("count", BigDecimal.ZERO);
-            src.copyMessages(msgs, dst);
-            src.setFlags(msgs, new Flags(Flags.Flag.DELETED), true);
-            src.expunge();
-            ctx.info("Moved " + msgs.length + " email(s) from " + folder + " to " + to);
-            return Map.of("count", BigDecimal.valueOf(msgs.length));
+            int count = 0;
+            for (String name : folderNames(s, folder)) {
+                if (name.equalsIgnoreCase(dst.getFullName())) continue;
+                Folder src = s.folder(name);
+                Message[] msgs = matching(src, term, subject);
+                if (msgs.length == 0) continue;
+                src.copyMessages(msgs, dst);
+                src.setFlags(msgs, new Flags(Flags.Flag.DELETED), true);
+                src.expunge();
+                count += msgs.length;
+                ctx.info("Moved " + msgs.length + " email(s) from " + name + " to " + to);
+            }
+            return Map.of("count", BigDecimal.valueOf(count));
         } catch (MessagingException e) { throw mail(e); }
     }
 
@@ -1062,24 +1414,39 @@ public final class EmailPackage {
 
     @Action(id = "save_email_as_msg", name = "Save email as .msg", category = "Mailbox", capabilities = {"network", "filesystem"},
             description = "Save an email, with its recipients, HTML body and attachments, as an Outlook .msg file.",
-            panel = "id, folder, local_path, overwrite | session")
+            panel = "id, folder, local_path, file_name, overwrite | session")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
     @Output(name = "attachments", type = OoaType.NUMBER, description = "Number of attachments saved in the file.")
     public Map<String, Object> saveMsg(ActionContext ctx,
-            @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
-            @Input(name = "local_path", type = OoaType.FILE, example = "mail/invoice.msg", description = "Where to save the .msg file; a path ending in / or \\ is a folder, and the file is named after the subject.") String local,
+            @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
+            @Input(name = "local_path", type = OoaType.FILE, required = false, example = "mail/", description = D_SAVE_PATH + ".msg file.") String local,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
+            @Input(name = "file_name", type = OoaType.STRING, required = false, description = D_FILE_NAME) String fileName) {
         try {
-            Message m = byUid(ms(ctx, session).folder(folder), id);
+            Target t = target(ctx, id, folder);
+            Message m = byUid(ms(ctx, session).folder(t.folder()), t.id());
             com.oneofficeautomation.packages.MsgFile.Message msg = toMsg(m);
-            Path p = mailTarget(ctx.resolvePath(local), local.endsWith("/") || local.endsWith("\\"), m.getSubject(), overwrite, ".msg");
+            Path p = saveTarget(ctx, local, fileName, m.getSubject(), overwrite, ".msg");
             com.oneofficeautomation.packages.MsgFile.write(msg, p);
             return Map.of("path", p.toString(), "attachments", BigDecimal.valueOf(msg.attachments.size()));
         }
         catch (MessagingException e) { throw mail(e);
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
+    }
+
+    static final String D_SAVE_PATH = "Folder or file to save into (a path ending in / or \\ is a folder); empty = a temporary file of this run. In a folder the file is named after the subject (or file name); the step gives the path. Saves the ";
+    static final String D_FILE_NAME = "Name of the file in the folder; the email's subject when empty.";
+
+    /** Where Save email writes: a folder (named after the file name or the subject), a file, or a temporary file when no path is given. */
+    static Path saveTarget(ActionContext ctx, String local, String fileName, String subject, boolean overwrite, String extension) {
+        String base = fileName != null && !fileName.isBlank() ? fileName.strip() : subject == null || subject.isBlank() ? "email" : subject;
+        String name = safeName(base.replaceAll("[/\\\\]", "_") + (base.toLowerCase(Locale.ROOT).endsWith(extension) ? "" : extension));
+        if (local == null || local.isBlank()) return mailTarget(ctx.outputPath(null, name), false, subject, overwrite, extension);
+        boolean folder = local.endsWith("/") || local.endsWith("\\") || (fileName != null && !fileName.isBlank());
+        Path p = ctx.resolvePath(local);
+        return folder || Files.isDirectory(p) ? mailTarget(p.resolve(name), false, subject, overwrite, extension) : mailTarget(p, false, subject, overwrite, extension);
     }
 
     /** The parts of a MIME message an Outlook .msg file holds. */
@@ -1130,17 +1497,19 @@ public final class EmailPackage {
 
     @Action(id = "save_email_as_eml", name = "Save email as .eml", category = "Mailbox", capabilities = {"network", "filesystem"},
             description = "Save a complete email, with attachments, as an .eml file that mail programs can open.",
-            panel = "id, folder, local_path, overwrite | session")
+            panel = "id, folder, local_path, file_name, overwrite | session")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
     public Map<String, Object> saveEml(ActionContext ctx,
-            @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
-            @Input(name = "local_path", type = OoaType.FILE, example = "mail/invoice.eml", description = "Where to save the .eml file; a path ending in / or \\ is a folder, and the file is named after the subject.") String local,
+            @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
+            @Input(name = "local_path", type = OoaType.FILE, required = false, example = "mail/", description = D_SAVE_PATH + ".eml file.") String local,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session,
+            @Input(name = "file_name", type = OoaType.STRING, required = false, description = D_FILE_NAME) String fileName) {
         try {
-            Message m = byUid(ms(ctx, session).folder(folder), id);
-            return Map.of("path", writeEml(m, emlTarget(ctx.resolvePath(local), local.endsWith("/") || local.endsWith("\\"), m.getSubject(), overwrite)).toString());
+            Target t = target(ctx, id, folder);
+            Message m = byUid(ms(ctx, session).folder(t.folder()), t.id());
+            return Map.of("path", writeEml(m, saveTarget(ctx, local, fileName, m.getSubject(), overwrite, ".eml")).toString());
         }
         catch (MessagingException e) { throw mail(e);
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }

@@ -100,16 +100,16 @@ class EmailReadStatusTest {
     }
 
     @Test void saveAttachmentsKeepsEmailUnread() throws Exception {
-        List<?> files = (List<?>) pkg.saveAttachments(ctx, firstId(), work.resolve("out").toString(), "*", "INBOX", false, true, "mail").get("files");
+        List<?> files = (List<?>) pkg.saveAttachments(ctx, firstId(), work.resolve("out").toString(), "*", "INBOX", false, true, "mail", false).get("files");
         assertEquals(1, files.size());
         assertEquals(List.of(false, false), seen());
     }
 
     @Test void saveAllAttachmentsMarksReadOnlyWhenAsked() throws Exception {
-        List<?> files = (List<?>) pkg.saveAllAttachments(ctx, work.resolve("all").toString(), "*", "INBOX", false, null, null, null, null, false, false, "mail").get("files");
+        List<?> files = (List<?>) pkg.saveAllAttachments(ctx, work.resolve("all").toString(), "*", "INBOX", false, null, null, null, null, false, false, "mail", "any").get("files");
         assertEquals(2, files.size());
         assertEquals(List.of(false, false), seen(), "mark_read false keeps the emails unread");
-        pkg.saveAllAttachments(ctx, work.resolve("all2").toString(), "*", "INBOX", false, null, null, null, null, false, true, "mail");
+        pkg.saveAllAttachments(ctx, work.resolve("all2").toString(), "*", "INBOX", false, null, null, null, null, false, true, "mail", "any");
         assertEquals(List.of(true, true), seen());
     }
 }
