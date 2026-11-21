@@ -118,6 +118,9 @@ public final class EmailPackage {
         if ("starttls".equals(security)) { p.put(pre + "starttls.enable", "true"); p.put(pre + "starttls.required", "true"); p.put(pre + "ssl.checkserveridentity", "true"); }
         if (oauth) { p.put(pre + "auth.mechanisms", "XOAUTH2"); p.put(pre + "auth.login.disable", "true"); p.put(pre + "auth.plain.disable", "true"); }
         if (protocol.startsWith("smtp")) p.put(pre + "auth", "true");
+        // read bodies and attachments without the server marking the email read (C1): a step sets the read flag
+        // itself, and only when asked (mark_read)
+        if (protocol.startsWith("imap")) p.put(pre + "peek", "true");
         return p;
     }
 
