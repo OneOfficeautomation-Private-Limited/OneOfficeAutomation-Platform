@@ -253,6 +253,15 @@ public final class Runner {
      * interruptions also covers their waits: a Supplier of the names of the handlers that responded.
      */
     public static final String INTERRUPT_CHECK_SESSION = "ooa.interrupt_scope.check";
+    /** Service a toolkit uses to work out a condition object as If does (an interrupt rule's when_condition): Function to Boolean. */
+    public static final String CONDITION_SERVICE = "condition_evaluator";
+    /**
+     * Service that reads the items of a loop type or a command's list output, for the trigger loop's new items:
+     * {source: "toolkit/id", inputs, connection, list_output, step} to a List.
+     */
+    public static final String ITEM_SOURCE_SERVICE = "item_source";
+    /** Most items one look at a source reads. */
+    static final int MAX_SOURCE_ITEMS = 10_000;
 
     static final class Scope {
         final Map<String, String> types = new LinkedHashMap<>();
@@ -1844,6 +1853,9 @@ public final class Runner {
                 m.putIfAbsent(RunSuspension.SERVICE, suspension());
                 // coded agents (G70): a toolkit command the code calls runs as part of the calling step
                 m.putIfAbsent("action_invoker", (java.util.function.Function<Map<String, Object>, Object>) this::invokeForCode);
+                // an interrupt rule's condition (Add interrupt rule, when_condition) is worked out as If's condition is
+                m.putIfAbsent(CONDITION_SERVICE, (java.util.function.Function<Object, Object>) c -> condition(c, "interrupt"));
+                m.putIfAbsent(ITEM_SOURCE_SERVICE, (java.util.function.Function<Map<String, Object>, Object>) this::readItems);
                 // the item of the innermost loop around the step: "the current email" for steps that leave their id empty
                 m.putIfAbsent(ActionContext.LOOP_ITEM_SERVICE, (java.util.function.Supplier<Object>) () -> { Object o = loopItems.peek(); return o == NO_ITEM ? null : o; });
                 stepServices = java.util.Collections.unmodifiableMap(m);
@@ -1870,6 +1882,42 @@ public final class Runner {
             Map<String, Object> args = prepareArgs(spec, req.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of());
             emit("log", sid, logData("info", "The code calls " + action));
             return invoke(pkg, spec, args, ctx(sid));
+        }
+
+        /**
+         * The items of a loop type, or the list output of a command, read once (the trigger loop's new items): checked and
+         * run as a step's are (inputs, a saved connection with its vault credentials, the agent's toolkit versions).
+         */
+        @SuppressWarnings("unchecked")
+        Object readItems(Map<String, Object> req) {
+            String source = String.valueOf(req.get("source")).strip();
+            int slash = source.lastIndexOf('/');
+            if (slash <= 0) throw new OoaException("TRIGGER.NO_SOURCE", "Name the source as toolkit/loop type or toolkit/command", "For example ooa.email/emails.");
+            String pid = source.substring(0, slash), id = source.substring(slash + 1);
+            PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
+            ActionSpec spec = pkg.spec("iterator", id);
+            boolean command = spec == null;
+            if (command) spec = pkg.spec("action", id);
+            if (spec == null) throw new OoaException("TRIGGER.NO_SOURCE", pid + "@" + pkg.version() + " has no loop type or command '" + id + "'", "Choose a loop type or a command that gives a list.");
+            String sid = String.valueOf(req.getOrDefault("step", "trigger"));
+            Map<String, Object> raw = spec.currentArgs(req.get("inputs") instanceof Map<?, ?> in ? new LinkedHashMap<>((Map<String, Object>) in) : new LinkedHashMap<>());
+            if (req.get("connection") instanceof String cn && !cn.isBlank()) raw = withConnection(cn.strip(), pid, spec, raw);
+            Object res = invoke(pkg, spec, prepareArgs(spec, raw), ctx(sid));
+            List<Object> out = new ArrayList<>();
+            if (!command) {
+                Iterator<Object> it = ((Iterable<Object>) res).iterator();
+                try { while (it.hasNext() && out.size() < MAX_SOURCE_ITEMS) out.add(it.next()); }
+                finally { if (it instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { } }
+                return out;
+            }
+            Map<String, Object> result = res instanceof Map<?, ?> r ? (Map<String, Object>) r : Map.of();
+            String name = req.get("list_output") instanceof String lo && !lo.isBlank() ? lo.strip() : null;
+            if (name == null) for (ActionSpec.OutputSpec o : spec.outputs()) if (o.type() == OoaType.LIST) { name = o.name(); break; }
+            if (name == null || !(result.get(name) instanceof List<?> l))
+                throw new OoaException("TRIGGER.NO_LIST", source + " gives no list" + (name == null ? "" : " in output '" + name + "'"),
+                        "Name the output that holds the list in list_output.");
+            for (Object o : l) { if (out.size() >= MAX_SOURCE_ITEMS) break; out.add(o); }
+            return out;
         }
 
         /** Suspend and resume for this run (G36): where it may stop, what it saves, and the answer when it comes back. */

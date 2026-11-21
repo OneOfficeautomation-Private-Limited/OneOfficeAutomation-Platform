@@ -16,8 +16,8 @@ import java.util.*;
 public final class InterruptsPackage {
 
     @Action(id = "add_rule", name = "Add interrupt rule", category = "Interrupts",
-            description = "Add (or replace by name) a rule for this run: when a window or element appears, click, press keys, close the window or run a child agent.",
-            panel = "name, when_window, when_element, then, target, inputs | browser_session, max_times")
+            description = "Add (or replace by name) a rule for this run: when a window or element appears, or a condition becomes true, click, press keys, close the window or run a child agent.",
+            panel = "name, (When: A window appears = when_window / An element appears = when_element, browser_session / A condition is true = when_condition), then, target, inputs | max_times")
     public Map<String, Object> addRule(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, example = "Session expired", description = "Rule name; adding a rule with the same name replaces it.") String name,
             @Input(name = "when_window", type = OoaType.STRING, required = false, example = "*Session expired*",
@@ -30,10 +30,17 @@ public final class InterruptsPackage {
             @Input(name = "target", type = OoaType.STRING, required = false,
                     visibleWhen = "then=click|press_keys|run_agent", description = "For click: a selector in the browser session or x,y screen coordinates; for press_keys: keys such as ENTER or ALT+F4; for run_agent: the agent id.") String target,
             @Input(name = "inputs", type = OoaType.DICTIONARY, required = false, visibleWhen = "then=run_agent", description = "Inputs for the child agent (run_agent).") Map<String, Object> inputs,
-            @Input(name = "max_times", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Respond at most this many times in the run; 0 means no limit.") int maxTimes) {
-        InterruptRules.of(ctx).add(new InterruptRules.Rule(name, whenWindow, whenElement, session, then, target, inputs, maxTimes));
+            @Input(name = "max_times", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Respond at most this many times in the run; 0 means no limit.") int maxTimes,
+            @Input(name = "when_condition", required = false,
+                    description = "Any condition, as for If (a toolkit's condition such as Image found), that marks the interruption; variables in it are read when the rule is added (Watch for interruptions reads them each time).") Object whenCondition) {
+        InterruptRules.of(ctx).add(new InterruptRules.Rule(name, whenWindow, whenElement, session, then, target, inputs, maxTimes, whenCondition));
         ctx.info("Interrupt rule '" + name + "' is active for this run");
         return Map.of();
+    }
+
+    public Map<String, Object> addRule(ActionContext ctx, String name, String whenWindow, String whenElement, String session, String then, String target,
+                                       Map<String, Object> inputs, int maxTimes) {
+        return addRule(ctx, name, whenWindow, whenElement, session, then, target, inputs, maxTimes, null);
     }
 
     @Action(id = "remove_rule", name = "Remove interrupt rule", category = "Interrupts", description = "Remove one interrupt rule by name.",

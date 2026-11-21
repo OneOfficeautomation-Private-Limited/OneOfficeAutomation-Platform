@@ -107,6 +107,37 @@ public final class FormsPackage {
         }
     }
 
+    /** The open form (FORMS.NOT_OPEN otherwise); used by the trigger loop's form events. */
+    static FormWindow.Session openForm(ActionContext ctx, String name) { return session(ctx, name); }
+
+    /**
+     * The next event of the open form within `seconds` ({event, element, value, values}), only of these types ("any",
+     * "button", "change" or "submit") and of this element when given; {event: close} when the form was closed; null when
+     * nothing happened. A submit or close ends the form's session, as Wait for form event does.
+     */
+    static Map<String, Object> nextEvent(ActionContext ctx, String name, String types, String element, double seconds) {
+        FormWindow.Session s = session(ctx, name, true);
+        long end = System.nanoTime() + (long) (seconds * 1e9);
+        while (true) {
+            Map<String, Object> e = s.closed && s.events.isEmpty() ? Map.of("type", "close", "element", "") : waitFor(ctx, s, Set.of(types), Math.max(0.05, (end - System.nanoTime()) / 1e9));
+            if (e == null) return null;
+            String type = String.valueOf(e.get("type"));
+            if (type.equals("close") || type.equals("submit")) { if (type.equals("submit")) s.close(); ctx.sessions().remove("form:" + s.name); }
+            if (type.equals("close")) return Map.of("event", "close");
+            if (element != null && !element.isBlank() && !element.strip().equals(String.valueOf(e.get("element"))) && !type.equals("submit")) {
+                if (System.nanoTime() >= end) return null;
+                continue;
+            }
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("event", type);
+            out.put("element", String.valueOf(e.getOrDefault("element", "")));
+            out.put("value", e.get("value") == null ? "" : e.get("value"));
+            out.put("values", answers(s));
+            out.put("form", s.name);
+            return out;
+        }
+    }
+
     private static Map<String, Object> waitFor(ActionContext ctx, FormWindow.Session s, Set<String> types, double timeoutSeconds) {
         long end = System.nanoTime() + (long) (Math.max(0.1, timeoutSeconds) * 1e9);
         while (true) {

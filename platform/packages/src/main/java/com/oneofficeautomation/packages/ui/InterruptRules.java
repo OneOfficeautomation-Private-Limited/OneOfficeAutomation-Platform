@@ -22,12 +22,20 @@ public final class InterruptRules {
     public static final String SESSION = "ooa.interrupt_rules";
     public static final Set<String> RESPONSES = Set.of("click", "press_keys", "close_window", "run_agent", "ignore");
 
-    /** One rule. Exactly one of whenWindow (title pattern) and whenElement (selector in a browser session) is set. */
-    public record Rule(String name, String whenWindow, String whenElement, String session, String then, String target, Map<String, Object> inputs, int maxTimes) {
+    /**
+     * One rule. Exactly one of whenWindow (title pattern), whenElement (selector in a browser session) and whenCondition
+     * (any condition, as for If, worked out by the runner) is set.
+     */
+    public record Rule(String name, String whenWindow, String whenElement, String session, String then, String target, Map<String, Object> inputs, int maxTimes,
+                       Object whenCondition) {
         public Rule {
             if (name == null || name.isBlank()) throw new ActionException("INTERRUPT.BAD_RULE", "A rule needs a name", "Give the rule a name.");
             boolean w = whenWindow != null && !whenWindow.isBlank(), e = whenElement != null && !whenElement.isBlank();
-            if (w == e) throw new ActionException("INTERRUPT.BAD_RULE", "Rule '" + name + "': give either a window title pattern or an element selector", "Use when_window or when_element, not both.");
+            boolean c = whenCondition != null && !(whenCondition instanceof String s && s.isBlank()) && !(whenCondition instanceof Map<?, ?> m && m.isEmpty());
+            if ((w ? 1 : 0) + (e ? 1 : 0) + (c ? 1 : 0) != 1)
+                throw new ActionException("INTERRUPT.BAD_RULE", "Rule '" + name + "': give one of a window title pattern, an element selector or a condition",
+                        "Use when_window, when_element or when_condition, only one of them.");
+            if (!c) whenCondition = null;
             if (w) TitlePattern.of(whenWindow);   // validates a re: pattern
             if (!RESPONSES.contains(then)) throw new ActionException("INTERRUPT.BAD_RULE", "Rule '" + name + "': the response must be one of " + new TreeSet<>(RESPONSES), "Use one of the responses the message lists.");
             if (Set.of("click", "press_keys", "run_agent").contains(then) && (target == null || target.isBlank()))
@@ -37,7 +45,11 @@ public final class InterruptRules {
             inputs = inputs == null ? Map.of() : Map.copyOf(inputs);
             maxTimes = Math.max(0, maxTimes);
         }
+        public Rule(String name, String whenWindow, String whenElement, String session, String then, String target, Map<String, Object> inputs, int maxTimes) {
+            this(name, whenWindow, whenElement, session, then, target, inputs, maxTimes, null);
+        }
         public boolean windowRule() { return whenWindow != null && !whenWindow.isBlank(); }
+        public boolean conditionRule() { return whenCondition != null; }
     }
 
     /** What is on screen now. */
@@ -45,6 +57,8 @@ public final class InterruptRules {
         List<String> windowTitles();
         /** Null when no element toolkit has this session open (element rules for it are skipped). */
         Boolean elementPresent(String session, String selector);
+        /** Whether a rule's condition holds now; null when this run cannot work conditions out (the rule is skipped). */
+        default Boolean conditionTrue(Object condition) { return null; }
     }
 
     /** How a rule responds; matchedWindow is the full title of the window that matched a window rule, else null. */
@@ -81,8 +95,9 @@ public final class InterruptRules {
         for (Rule r : rules) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("name", r.name());
-            m.put(r.windowRule() ? "when_window" : "when_element", r.windowRule() ? r.whenWindow() : r.whenElement());
-            if (!r.windowRule()) m.put("browser_session", r.session());
+            if (r.conditionRule()) m.put("when_condition", r.whenCondition());
+            else m.put(r.windowRule() ? "when_window" : "when_element", r.windowRule() ? r.whenWindow() : r.whenElement());
+            if (!r.windowRule() && !r.conditionRule()) m.put("browser_session", r.session());
             m.put("then", r.then());
             if (r.target() != null) m.put("target", r.target());
             m.put("max_times", BigDecimal.valueOf(r.maxTimes()));
@@ -114,6 +129,11 @@ public final class InterruptRules {
                         var p = TitlePattern.of(r.whenWindow());
                         for (String t : titles) if (p.test(t)) { matched = t; break; }
                         if (matched == null) continue;
+                    } else if (r.conditionRule()) {
+                        Boolean holds;
+                        try { holds = probe.conditionTrue(r.whenCondition()); }
+                        catch (RuntimeException e) { rethrowCancel(e); log.accept("Interrupt rule '" + r.name() + "': cannot check its condition: " + e.getMessage()); holds = null; }
+                        if (!Boolean.TRUE.equals(holds)) continue;
                     } else {
                         Boolean present;
                         try { present = probe.elementPresent(r.session(), r.whenElement()); }
@@ -123,7 +143,7 @@ public final class InterruptRules {
                     fired.merge(r.name(), 1, Integer::sum);
                     handled.add(r.name());
                     any = true;
-                    log.accept("Interrupt rule '" + r.name() + "': " + (matched != null ? "window '" + matched + "'" : "element " + r.whenElement()) + " appeared; responding with " + r.then()
+                    log.accept("Interrupt rule '" + r.name() + "': " + (matched != null ? "window '" + matched + "'" : r.conditionRule() ? "its condition" : "element " + r.whenElement()) + " appeared; responding with " + r.then()
                             + (r.target() == null ? "" : " " + r.target()));
                     try {
                         switch (r.then()) {
