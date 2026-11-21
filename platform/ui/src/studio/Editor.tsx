@@ -641,7 +641,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
       { key: "breakpoint", label: breakpoints.includes(step.id) ? "Remove breakpoint" : "Breakpoint", separatorBefore: true, shortcut: keyOf("run.breakpoint"), onSelect: () => chosen.forEach(onToggleBreakpoint) },
     );
     if (step.action === "core/run_bot" && step.args?.automation && chosen.length === 1)
-      items.push({ key: "child", label: "Open the agent it runs", description: agentName(step.args.automation), separatorBefore: true, onSelect: () => onOpenChild(step.id) });
+      items.push({ key: "child", label: "Open the agent it runs in a new tab", description: agentName(step.args.automation), separatorBefore: true, onSelect: () => onOpenChild(step.id) });
     const target = step.action === "core/run_subflow" ? String(step.args?.subflow ?? "") : "";
     if (target && whole.subflows?.some((s) => s.name === target) && chosen.length === 1)
       items.push({ key: "subflow", label: "Open the subflow it runs", description: target, separatorBefore: true, onSelect: () => { setShown(target); onSelect([]); } });
@@ -706,6 +706,9 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
           {isSel && chosen.length === 1 && !running && !inHandler(flow, r.step.id) &&
             <button type="button" className="st-run-here" onClick={() => onRunFrom(r.step.id, false, false, undefined)}
               title="Run the agent from this step: earlier steps are skipped and their values come from the last run"><Icon name="play" size={12} />Run from here</button>}
+          {/* item 12: a Run agent step opens the agent it runs in a new tab, from the step itself */}
+          {r.step.action === "core/run_bot" && typeof r.step.args?.automation === "string" && !String(r.step.args.automation).startsWith("$") && r.step.args.automation !== flow.id &&
+            <button type="button" className="st-run-here" onClick={() => onOpenChild(r.step.id)} title="Open the agent this step runs in a new tab"><Icon name="expand" size={12} />Open in new tab</button>}
           <button type="button" className="st-add-here" aria-label={"Add a step after line " + r.n} title="Add a step after this one: pick it in Actions"
             onClick={() => { selectOne(r.step.id); window.dispatchEvent(new Event(ADD_STEP_EVENT)); }}><Icon name="plus" size={12} stroke={2.6} /><span>Add step</span></button>
           {hasParts && <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"}

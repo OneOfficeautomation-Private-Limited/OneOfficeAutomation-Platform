@@ -133,7 +133,9 @@ export type RunError = { code: string; message: string; suggestedFix?: string | 
 export type FormulaPreview = { value?: unknown; text?: string; type?: string; missing?: string[]; error?: { code: string; message: string } };
 export type RunResult = { status: string; outputs?: Record<string, unknown>; error?: RunError | null; durationMs?: number; stepsExecuted?: number };
 /** Where a debugged run is stopped, and the values it holds there. */
-export type DebugState = { stepId: string; action: string; reason?: string; variables?: Record<string, unknown> };
+export type DebugState = { stepId: string; action: string; reason?: string; variables?: Record<string, unknown>;
+  /** The agent it stopped in (its id) and how deep: 0 the agent being debugged, 1 an agent it runs, and so on. */
+  automation?: string; depth?: number };
 export type RunState = { run_id: string; state: string; debug?: DebugState; elapsed_ms: number; events: RunEvent[]; result?: RunResult };
 /**
  * How a run starts: debugging (with breakpoints), from a step (start_at) or only one step (only_step); the skipped

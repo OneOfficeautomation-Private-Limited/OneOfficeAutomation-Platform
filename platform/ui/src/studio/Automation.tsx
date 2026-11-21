@@ -51,7 +51,7 @@ export type RepoHooks = { states: Record<string, RepoState>; onCheckIn: (paths: 
   onRevert: (local: string) => void };
 /** What can be checked in: agents, workflows and forms. */
 const CHECKS_IN = ["bot", "process", "form"];
-const STATUS: Record<RepoState["status"], [string, string]> = {
+export const STATUS: Record<RepoState["status"], [string, string]> = {
   new: ["New", "Not in the repository yet: Check in puts it there, in the same folder."],
   linked: ["In the repository", "A copy of an agent in the repository. Sign in to One CommandCenter to see whether it is checked out."],
   checked_out: ["Checked out", "Checked out to you, unchanged since."],

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
+  type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type DebugState, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
 import { AgentInputs, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, type VaultRef, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
-import { Automation, find as findNode, showInList } from "./Automation";
+import { Automation, find as findNode, showInList, STATUS as FILE_STATUS } from "./Automation";
+import { FileProperties } from "./FileProperties";
 import { CheckInDialog, CopyToPrivate, PublicRepository, type CheckInDep, type RepoRequest } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
 import { ObjectRepositoryEditor } from "./ObjectRepository";
@@ -413,6 +414,29 @@ export function App({ api: given }: { api?: StudioApi }) {
     } catch (e) { fail(e); }
   };
 
+  // ---- item 2: File properties (rename, description, folder) of an open item ----
+  const [propsFor, setPropsFor] = useState<string | null>(null);
+  const [tabMenu, setTabMenu] = useState<string | null>(null);
+  const baseName = (path: string) => path.split("/").pop()!.replace(/\.(flow|form|process|doc|objects)\.json$/i, "").replace(/\.[^.]+$/, (e) => /\.(py|ps1|vbs|js|txt|csv|json)$/i.test(e) ? "" : e);
+  const saveProps = async (path: string, next: { name: string; description: string; folder: string }) => {
+    const tab = tabsRef.current.find((t) => t.path === path);
+    if (!tab) return;
+    const wasClean = !isDirty(tab);
+    let p = path;
+    try {
+      if (next.name !== baseName(p)) { const to = await api.rename(p, next.name); moved(p, to); p = to; }
+      const folderNow = p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
+      if (next.folder !== folderNow) { const to = await api.move(p, next.folder); moved(p, to); p = to; }
+      const target = p;
+      if (tab.kind === "agent") {
+        patch(target, (t) => ({ ...t, name: next.name, flow: { ...t.flow, name: next.name, ...(next.description || t.flow.description ? { description: next.description } : {}) } }));
+        if (wasClean) setTimeout(() => save(target), 0);   // nothing else unsaved: keep the file as shown
+      } else patchItem(target, (t) => ({ ...t, name: next.name }));
+      await reloadTree();
+      setNotice("Saved the file properties of " + next.name + ".");
+    } catch (e) { fail(e); throw e; }
+  };
+
   const close = (path: string) => {
     const tab = tabs.find((t) => t.path === path);
     if (tab && isDirty(tab)) setClosing(path); else forceClose(path);
@@ -457,6 +481,28 @@ export function App({ api: given }: { api?: StudioApi }) {
     } catch (e) { fail(e); }
   };
   /** Reads what the run reports until it ends: new events only, a little slower while it waits at a breakpoint. */
+  const agentsRef = useRef(agents);
+  agentsRef.current = agents;
+  /**
+   * Item 12 (21 Nov 2026): a debug run that stops inside an agent it runs (Step into on a Run agent step, or a
+   * breakpoint there) opens that agent in its own tab at the line it stopped on, with the path back at the top; the
+   * debug buttons there drive the same run. Back in the parent, its tab comes forward again.
+   */
+  const intoChild = useRef<Record<string, string | null>>({});
+  const followInto = async (parentPath: string, run: LiveRun, dbg: DebugState) => {
+    const child = agentsRef.current.find((a) => a.id === dbg.automation);
+    if (!child) return;
+    if (!tabsRef.current.some((t) => t.path === child.path)) {
+      const parent = tabsRef.current.find((t) => t.path === parentPath);
+      const callLine = parent && parent.kind === "agent" ? agentRows(parent.flow).rows.find((r) => r.kind === "step" && r.step.action === "core/run_bot" && r.step.args?.automation === child.id) : undefined;
+      const here: Trail | null = parent && parent.kind === "agent" ? { path: parent.path, name: parent.flow.name || parent.name,
+        stepId: callLine?.kind === "step" ? callLine.step.id : "", line: callLine?.kind === "step" ? callLine.n : 0 } : null;
+      await open({ name: child.path.split("/").pop()!, path: child.path, type: "bot" }, here ? { trail: [...(parent?.kind === "agent" ? parent.trail ?? [] : []), here] } : undefined);
+    }
+    intoChild.current[parentPath] = child.path;
+    patch(child.path, (t) => ({ ...t, run: { ...run, stopped: dbg }, breakpoints: t.breakpoints }));
+    setActive(child.path);
+  };
   const follow = async (path: string, id: string) => {
     let after = 0;
     for (;;) {
@@ -465,6 +511,14 @@ export function App({ api: given }: { api?: StudioApi }) {
         after = st.events.reduce((m, e) => Math.max(m, e.seq), after);
         patch(path, (t) => t.run?.id !== id ? t : { ...t, run: { ...t.run, state: st.state, events: [...t.run.events, ...st.events], result: st.result,
           stopped: st.debug, elapsed: st.elapsed_ms } });
+        const parentRun = (tabsRef.current.find((t) => t.path === path) as AgentTab | undefined)?.run;
+        if (st.debug && (st.debug.depth ?? 0) > 0 && parentRun) await followInto(path, { ...parentRun, state: st.state, stopped: st.debug }, st.debug);
+        else if (intoChild.current[path]) {
+          // left the agent it ran: its tab keeps the last state, the parent comes forward when it stops again or ends
+          const childPath = intoChild.current[path]!;
+          patch(childPath, (t) => t.run?.id === id ? { ...t, run: { ...t.run, stopped: undefined, state: st.state } } : t);
+          if (st.debug || ["success", "failed", "cancelled", "stopped", "timeout"].includes(st.state)) { setActive(path); intoChild.current[path] = null; }
+        }
         if (["success", "failed", "cancelled", "stopped", "timeout"].includes(st.state)) return;
         const tab = tabsRef.current.find((t) => t.path === path);
         if (!tab || tab.kind !== "agent" || (tab.run && tab.run.id !== id)) return;   // the agent was closed, or a newer run replaced this one
@@ -496,6 +550,10 @@ export function App({ api: given }: { api?: StudioApi }) {
                 onClick={() => backTo(i)}>{t.name} › line {t.line}</button><span aria-hidden="true"> / </span></span>)
             : current ? current.path.split("/").slice(0, -1).map((p, i) => <span key={i}>{p}<span aria-hidden="true"> › </span></span>) : null}
           <span className="st-crumb-current">{current ? current.name : "Agents"}</span>
+          {/* item 2 (21 Nov 2026, as AA's editor): rename, describe or move the open item from its name */}
+          {current && <button type="button" className="st-crumb-edit" aria-label={"Rename " + current.name} title="File properties: name, description, folder (F2)"
+            onClick={() => setPropsFor(current.path)}><Icon name="textAa" size={13} /></button>}
+          {current && repoStates[current.path] && <span className="st-crumb-state" title={FILE_STATUS[repoStates[current.path].status]?.[1]}>{FILE_STATUS[repoStates[current.path].status]?.[0]}</span>}
           {current?.kind === "agent" && (() => {
             const callers = agents.filter((a) => a.path !== current.path && current.flow.id && (a.runs ?? []).includes(current.flow.id));
             return callers.length ? <span className="st-crumb-callers" title="Agents in this workspace with a Run agent step for this agent"> · Run by {callers.map((a, i) =>
@@ -524,6 +582,15 @@ export function App({ api: given }: { api?: StudioApi }) {
         </div>
       </header>
 
+      {propsFor && (() => {
+        const t = tabs.find((x) => x.path === propsFor);
+        if (!t) return null;
+        const clone = repoStates[t.path]?.status === "cloned";
+        return <FileProperties key={propsFor} path={t.path} name={t.kind === "agent" ? (t.flow.name || t.name) : t.name}
+          description={t.kind === "agent" ? t.flow.description : undefined} tree={tree} isAgent={t.kind === "agent"}
+          readOnly={clone ? "A clone is read-only: copy it to Private to rename it." : undefined}
+          onSave={(next) => saveProps(t.path, next)} onClose={() => setPropsFor(null)} />;
+      })()}
       {error && <Notice kind="error" text={error} onClose={() => setError(null)} />}
       {notice && !error && <Notice text={notice} onClose={() => setNotice(null)} />}
       <MinorNotices />
@@ -557,7 +624,16 @@ export function App({ api: given }: { api?: StudioApi }) {
           {tabs.length > 0 && (
             <div className="st-tabs" role="tablist" aria-label="Open items">
               {tabs.map((t) => (
-                <div key={t.path} className={`st-tab${t.path === active ? " is-active" : ""}`}>
+                <div key={t.path} className={`st-tab${t.path === active ? " is-active" : ""}`} onContextMenu={(e) => { e.preventDefault(); setTabMenu(t.path); }}>
+                  <Menu compact label={"Tab " + t.name + " menu"} open={tabMenu === t.path} onOpenChange={(o) => setTabMenu(o ? t.path : null)} align="start"
+                    items={[
+                      { key: "rename", label: "Rename…", onSelect: () => setPropsFor(t.path) },
+                      { key: "props", label: "File properties…", onSelect: () => setPropsFor(t.path) },
+                      { key: "show", label: "Show in the Agents list", onSelect: () => { showInList(api, t.path); setActive(null); } },
+                      { key: "close", label: "Close", separatorBefore: true, onSelect: () => close(t.path) },
+                      { key: "others", label: "Close others", onSelect: () => tabs.filter((x) => x.path !== t.path).forEach((x) => close(x.path)) },
+                    ]}
+                    trigger={<span className="st-tab-menu-anchor" aria-hidden="true" />} />
                   <button type="button" role="tab" aria-selected={t.path === active} onClick={() => setActive(t.path)}>
                     {t.name}{isDirty(t) && <span className="st-dot" aria-label="unsaved changes" title="Unsaved changes"> ●</span>}
                   </button>

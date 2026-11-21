@@ -1147,3 +1147,10 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .ui-dialog.is-resizable .st-finder-body { height: auto; grid-template-columns: auto 1fr; }
 .ui-dialog.is-resizable .st-finder-body.is-search { grid-template-columns: 1fr; }
 .ui-dialog.is-resizable .st-finder-tree { width: 230px; box-sizing: border-box; }
+
+/* ---- Item 2: rename from the name at the top left, the file's state beside it, a tab menu (21 Nov 2026) ---- */
+.st-crumb-edit { border: 0; background: transparent; color: var(--ui-frame-text-2); cursor: pointer; padding: 2px 4px; border-radius: 4px; display: inline-flex; align-items: center; }
+.st-crumb-edit:hover, .st-crumb-edit:focus-visible { color: var(--ui-frame-text); background: rgba(255, 255, 255, .12); outline: none; }
+.st-crumb-state { margin-left: 6px; font-size: 11px; font-weight: 600; border-radius: 9px; padding: 1px 8px; background: #fff6db; color: #7a4b00; }
+.st-tab { position: relative; }
+.st-tab-menu-anchor { position: absolute; left: 8px; bottom: 0; width: 1px; height: 1px; }

@@ -336,11 +336,12 @@ export function RunAgentFields({ step }: { step: FlowStep }) {
         <span className={"st-run-place" + (child ? "" : " is-empty")} aria-label="Chosen agent">
           {child ? agentPlace(child) : id ? id + " (not in this workspace)" : others.length ? "No agent chosen" : "No other agents in this workspace"}</span>
         <Button kind="secondary" onClick={() => setFinding(true)} disabled={!others.length}>Choose…</Button>
+        {/* item 12 (21 Nov 2026): the agent it runs opens in a new tab beside this one, with a path back to this step */}
+        {child && vars.openChild && <Button kind="secondary" icon="expand" onClick={() => vars.openChild!(step.id)} title="Open the agent it runs in a new tab, to check or debug it">Open in new tab</Button>}
       </div>}
       {source === "self" && <p className="ui-field-hint">Runs this agent again from its first step (at most 10 levels deep).</p>}
       {fromVariable && <CommitInput key={id} label="Variable with the agent id" mono want="String" initial={id === "$" ? "" : id} placeholder="$agent_id$"
         onCommit={(t) => set("automation", t.trim() ? (t.trim().startsWith("$") ? t.trim() : varRef(t.trim())) : "$")} />}
-      {child && !self && vars.openChild && <button type="button" className="st-link" onClick={() => vars.openChild!(step.id)}>Open this agent</button>}
       {finding && <AgentFinder agents={others} current={child && !self ? child.id : undefined} onClose={() => setFinding(false)}
         onPick={(picked) => { setFinding(false); setDone(null); set("automation", picked); }} />}
       {!child ? <p className="ui-field-hint">{fromVariable ? "The agent is chosen when the step runs: give its inputs as a Dictionary (Inputs, below); all its outputs come back in Save results in › Outputs."
