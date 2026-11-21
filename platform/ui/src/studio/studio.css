@@ -1129,3 +1129,10 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-rules-preview { border: 1px solid var(--ui-border); border-radius: 6px; padding: 5px 8px; background: var(--ui-soft); color: var(--ui-text); }
 .st-rules-preview.is-error { border-color: var(--ui-error-line); background: var(--ui-error-bg); color: var(--ui-error-text); }
 .st-link-btn { border: 0; background: transparent; color: var(--ui-accent-text); font-weight: 600; cursor: pointer; padding: 2px 0; font-size: 12px; }
+
+/* ---- Commands panel: one line per command, sub-headings, highlighted result (Studio defects 21 Nov 2026, items 5-6) ---- */
+.st-action-cat { padding: 6px 10px 2px 30px; font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--ui-text-2); list-style: none; }
+.st-actions .st-action { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-actions .st-action.is-hi { background: var(--ui-selected); box-shadow: inset 0 0 0 1px var(--ui-accent); color: var(--ui-text); }
+.st-actions .st-actions-about { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-actions .st-group:focus-visible { box-shadow: var(--ui-focus); outline: none; }

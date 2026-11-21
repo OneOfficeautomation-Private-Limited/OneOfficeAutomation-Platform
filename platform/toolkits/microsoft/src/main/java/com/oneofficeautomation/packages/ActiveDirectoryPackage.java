@@ -1247,7 +1247,7 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> move(s, ouDn(s, ou), target));
     }
 
-    @Action(id = "get_ou_property", name = "Get organizational unit properties", category = "Organizational units", idempotent = true, capabilities = "network", description = "Read attributes of an organizational unit.",
+    @Action(id = "get_ou_property", name = "Get OU properties", category = "Organizational units", idempotent = true, capabilities = "network", description = "Read attributes of an organizational unit.",
             panel = "session, ou, attributes")
     @Output(name = "properties", type = OoaType.DICTIONARY, description = "dn plus the requested attributes (all readable ones when none are listed).")
     public Map<String, Object> getOuProperty(ActionContext ctx,
@@ -1257,7 +1257,7 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> Map.of("properties", properties(s, ouDn(s, ou), attrs)));
     }
 
-    @Action(id = "set_ou_property", name = "Set organizational unit property", category = "Organizational units", capabilities = "network", description = "Change one attribute of an organizational unit, e.g. description or managedBy.",
+    @Action(id = "set_ou_property", name = "Set OU property", category = "Organizational units", capabilities = "network", description = "Change one attribute of an organizational unit, e.g. description or managedBy.",
             panel = "session, ou, attribute, value")
     public Map<String, Object> setOuProperty(ActionContext ctx,
             @Input(name = "ou", type = OoaType.STRING, description = D_OU) String ou,

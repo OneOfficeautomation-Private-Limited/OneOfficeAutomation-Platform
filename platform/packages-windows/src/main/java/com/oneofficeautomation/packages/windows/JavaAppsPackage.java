@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * switched on; the agent answers on 127.0.0.1 only, to requests carrying the token it gave this runner. It works for
  * applications running as the same user as the runner, on Java 8 or later, that allow agents to be loaded.
  */
-@OoaPackage(id = "ooa.java_apps", name = "Java applications (Swing/AWT)", version = "1.0.0",
+@OoaPackage(id = "ooa.java_apps", name = "Java apps", version = "1.0.0",
         description = "Find and work with the controls of desktop applications written in Java (Swing and AWT): read and type text, press buttons, read labels and tables.")
 public final class JavaAppsPackage {
     static final String P = "JAVA_APPS";

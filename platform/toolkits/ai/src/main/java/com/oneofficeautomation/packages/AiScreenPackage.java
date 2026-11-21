@@ -146,7 +146,7 @@ public final class AiScreenPackage {
         return Map.of("x", at.get("x"), "y", at.get("y"), "label", at.get("label"));
     }
 
-    @Action(id = "type_described", name = "Type into described control (AI)", category = "AI screen", timeoutSeconds = 180, capabilities = {"desktop", "network", "ai"},
+    @Action(id = "type_described", name = "Type into control", category = "AI screen", timeoutSeconds = 180, capabilities = {"desktop", "network", "ai"},
             description = "Find a field on the screen from a plain description with a vision model, click into it and type text (pasted, so any language works).",
             panel = "description, text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url) | min_confidence")
     @Output(name = "label", type = OoaType.STRING, description = "What the model says it typed into.")

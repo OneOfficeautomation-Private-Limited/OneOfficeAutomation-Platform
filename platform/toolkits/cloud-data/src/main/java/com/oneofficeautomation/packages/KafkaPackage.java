@@ -244,7 +244,7 @@ public final class KafkaPackage {
         return Out.of("table", Values.table(List.of("topic", "partition", "offset", "key", "value"), rows), "messages", messages, "count", BigDecimal.valueOf(messages.size()));
     }
 
-    @Action(id = "commit_offsets", name = "Mark messages as read up to an offset", category = "Messages", capabilities = "network",
+    @Action(id = "commit_offsets", name = "Commit offsets", category = "Messages", capabilities = "network",
             description = "Record, for a consumer group, that one partition of a topic has been handled up to and including an offset, so the next read starts after it. "
                     + "Use it with Read messages and mark_as_read off to mark messages only once they are processed, or to skip ahead or go back. "
                     + "Run it while no other reader of the group is active. Needs a REST Proxy that supports consumer instances.",

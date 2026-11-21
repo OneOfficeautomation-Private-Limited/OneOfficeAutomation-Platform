@@ -16,7 +16,7 @@ import java.util.*;
  * The inputs go to the PowerShell script in a JSON file, never into the script code or the command line, and the
  * script answers in JSON.
  */
-@OoaPackage(id = "ooa.outlook_desktop", name = "Outlook (desktop, needs Outlook)", version = "1.0.0",
+@OoaPackage(id = "ooa.outlook_desktop", name = "Outlook desktop", version = "1.0.0",
         description = "Find, read, send, reply to, forward, move and file emails with the Outlook installed on the runner, using its mail profile.")
 public final class OutlookDesktopPackage {
 

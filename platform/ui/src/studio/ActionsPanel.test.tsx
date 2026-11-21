@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PackageManifest } from "../api/client";
 import { ActionsPanel } from "./Editor";
 
@@ -22,11 +22,35 @@ describe("the action library (usage review item 26)", () => {
     expect(names).not.toContain("Open file");
   });
 
-  it("finds an action by its AA command name and says which name matched", () => {
+  it("finds an action by its AA command name, on one line, with the matched name in the tooltip (item 5)", () => {
     render(<ActionsPanel packages={PACKAGES} onAdd={() => {}} />);
     fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), { target: { value: "simulate keystrokes" } });
     const action = screen.getAllByRole("button").find((b) => b.classList.contains("st-action"))!;
-    expect(action.textContent).toContain("Type text");
-    expect(within(action).getByText("Also called: Simulate keystrokes")).toBeTruthy();
+    expect(action.textContent).toBe("Type text");
+    expect(action.getAttribute("title")).toContain("Found by: Simulate keystrokes");
+    expect(screen.queryByText(/Also called/)).toBeNull();
+  });
+
+  it("Down and Enter in the search add the highlighted result (AA's Quick add)", () => {
+    const onAdd = vi.fn();
+    render(<ActionsPanel packages={PACKAGES} onAdd={onAdd} />);
+    const box = screen.getByRole("textbox", { name: "Search actions" });
+    fireEvent.change(box, { target: { value: "t" } });
+    const results = screen.getAllByRole("button").filter((b) => b.classList.contains("st-action"));
+    expect(results.length).toBeGreaterThan(1);
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    expect(results[1].classList.contains("is-hi")).toBe(true);
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(onAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("a letter typed on the toolkit list jumps to the next toolkit starting with it, not to commands (item 6)", () => {
+    render(<ActionsPanel packages={PACKAGES} onAdd={() => {}} />);
+    const groups = screen.getAllByRole("button").filter((b) => b.classList.contains("st-group"));
+    groups[0].focus();
+    const letter = (groups[groups.length - 1].dataset.name ?? "x")[0];
+    fireEvent.keyDown(groups[0], { key: letter });
+    expect((document.activeElement as HTMLElement).dataset.name?.toLowerCase().startsWith(letter.toLowerCase())).toBe(true);
+    expect(document.activeElement?.classList.contains("st-group")).toBe(true);
   });
 });

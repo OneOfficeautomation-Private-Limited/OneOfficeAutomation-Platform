@@ -33,7 +33,7 @@ public final class SystemPackage {
         return name.toUpperCase(Locale.ROOT).matches(".*(PASSWORD|PASSWD|SECRET|TOKEN|API_KEY|APIKEY|PRIVATE|CREDENTIAL).*");
     }
 
-    @Action(id = "get_environment_variables", name = "Get all environment variables", category = "System", idempotent = true,
+    @Action(id = "get_environment_variables", name = "List environment variables", category = "System", idempotent = true,
             description = "Return every environment variable of the runner as a dictionary; variables that look like secrets are left out.")
     @Output(name = "variables", type = OoaType.DICTIONARY, description = "Variable name to value, sorted by name.")
     @Output(name = "hidden_count", type = OoaType.NUMBER, description = "How many secret-looking variables were left out.")

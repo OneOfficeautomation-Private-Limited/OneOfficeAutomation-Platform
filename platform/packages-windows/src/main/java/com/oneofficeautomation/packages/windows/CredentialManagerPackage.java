@@ -18,7 +18,7 @@ import java.util.*;
  * (CredReadW, CredWriteW, CredDeleteW, CredEnumerateW) called with JNA, the same way the Window toolkit calls user32.
  * Secrets come back as Credential values, so they are masked in logs and never written to run output.
  */
-@OoaPackage(id = "ooa.credential_manager", name = "Windows Credential Manager", version = "1.0.0",
+@OoaPackage(id = "ooa.credential_manager", name = "Credential Manager", version = "1.0.0",
         description = "Read, list, save and remove generic credentials in the Windows Credential Manager of the agent's user account.")
 public final class CredentialManagerPackage {
     static final String P = "CREDMAN";

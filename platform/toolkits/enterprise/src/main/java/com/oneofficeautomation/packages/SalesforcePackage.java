@@ -266,7 +266,7 @@ public final class SalesforcePackage {
     /** Records a call of the sObject Collections API (Salesforce's limit). */
     static final int COLLECTION_SIZE = 200;
 
-    @Action(id = "save_records", name = "Create, update or upsert many records", category = "Records", timeoutSeconds = 3600, capabilities = "network",
+    @Action(id = "save_records", name = "Save many records", category = "Records", timeoutSeconds = 3600, capabilities = "network",
             description = "Write the rows of a Data Table as records, 200 a call (Salesforce's collections API), and get a result for each row.",
             panel = "object, records, operation, external_id_field, instance_url, access_token | all_or_none, api_version")
     @Output(name = "results", type = OoaType.TABLE, description = "One row per record: row (1, 2, ...), id, success, created, error.")

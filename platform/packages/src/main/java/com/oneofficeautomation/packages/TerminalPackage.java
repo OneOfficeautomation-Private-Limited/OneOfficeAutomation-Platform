@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
  * (s3270 on Linux/macOS, ws3270 from the wc3270 installer on Windows), IBM i (TN5250) hosts through
  * {@link Tn5250Session}, and VT100/ANSI hosts over SSH through {@link VtSshSession}. Rows and columns are 1-based, as on screen.
  */
-@OoaPackage(id = "ooa.terminal", name = "Terminal emulator (TN3270, TN5250, VT over SSH)", version = "1.2.0",
+@OoaPackage(id = "ooa.terminal", name = "Terminal emulator", version = "1.2.0",
         description = "Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. 3270 needs the free wc3270 engine on the runner (wc3270 installer); 5250 and SSH need nothing.")
 public final class TerminalPackage {
 

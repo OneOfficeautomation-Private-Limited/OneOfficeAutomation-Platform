@@ -14,7 +14,7 @@ import java.util.*;
  * and macro arguments are passed as script arguments and passwords as environment variables, never pasted into
  * script code or shown on the command line.
  */
-@OoaPackage(id = "ooa.excel_desktop", name = "Excel (desktop, needs Excel)", version = "1.0.0",
+@OoaPackage(id = "ooa.excel_desktop", name = "Excel desktop", version = "1.0.0",
         description = "Run macros, refresh data and pivots, update links, export to PDF and convert workbooks using the installed Microsoft Excel.")
 public final class ExcelDesktopPackage {
 

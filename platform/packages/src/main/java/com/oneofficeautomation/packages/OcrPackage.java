@@ -383,7 +383,7 @@ public final class OcrPackage {
         return readScreen(ctx, x, y, w, h, lang, psm, after, before, trim, scale, mode, waitMs, null);
     }
 
-    @Action(id = "read_with_cloud", name = "Read text with a cloud engine", category = "OCR", timeoutSeconds = 600, capabilities = {"filesystem", "network"},
+    @Action(id = "read_with_cloud", name = "Read text (cloud)", category = "OCR", timeoutSeconds = 600, capabilities = {"filesystem", "network"},
             description = "Read an image or PDF, or an area of the screen, with Azure AI Document Intelligence (printed and handwritten text) or Google Vision, "
                     + "through a session from that toolkit's Connect step.",
             panel = "engine, (Read: A file = path / The screen = x, y, width, height), session | language")
