@@ -537,8 +537,8 @@ public final class Microsoft365Package {
     public Map<String, Object> upload(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "local_path", type = OoaType.FILE, description = "File to upload.") String local,
-            @Input(name = "remote_path", type = OoaType.STRING, example = "Reports/2026/summary.xlsx", description = "Target path in the drive, including the file name.") String remote,
-            @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", enumValues = {"fail", "rename", "replace"}, description = "When the name is taken at the destination: fail, rename (add a number) or replace.") String ifExists,
+            @Input(name = "remote_path", type = OoaType.STRING, example = "Reports/2026/summary.xlsx", description = "Target path in the drive, including the file name; ending with / it is a folder and the file keeps its name (G3).") String remote,
+            @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", newStepDefault = "\"rename\"", enumValues = {"fail", "rename", "replace"}, description = "When the name is taken at the destination: fail, rename (add a number) or replace.") String ifExists,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base,
             @Input(name = "chunk_size_mb", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0.3125, max = 60,
@@ -549,6 +549,7 @@ public final class Microsoft365Package {
         int chunk = chunkBytes(chunkMb);
         long size;
         try { size = Files.size(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+        if (remote != null && (remote.endsWith("/") || remote.endsWith("\\"))) remote = remote.replace('\\', '/') + p.getFileName();   // into a folder
         String target = drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":";
         Map<String, Object> r;
         if (size <= SIMPLE_UPLOAD_LIMIT) {
@@ -646,11 +647,11 @@ public final class Microsoft365Package {
     public Map<String, Object> download(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "remote_path", type = OoaType.STRING, description = "Path of the file in the drive.") String remote,
-            @Input(name = "local_path", type = OoaType.FILE, description = "Where to save it.") String local,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
+            @Input(name = "local_path", type = OoaType.FILE, required = false, description = "Where to save it: a file, or a folder (the drive's file name); the run's temporary folder when empty (G3).") String local,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
-        Path p = ctx.resolvePath(local);
+        Path p = ctx.outputPath(local, remote == null ? "file" : remote.replace('\\', '/').substring(remote.replace('\\', '/').lastIndexOf('/') + 1));
         if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
         // K3 (batch 10): straight to the file, so a file of any size does not pass through memory
         HttpJson.req(P, "GET", drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":/content").bearer(token).timeout(3600).download(ctx, p);
@@ -1087,11 +1088,33 @@ public final class Microsoft365Package {
 
     /** Forward or reply. With attachments it goes through a draft (create, attach, send), since the direct call cannot carry files. */
     private static void respond(ActionContext ctx, Object token, String mbRoot, String id, String op, Map<String, Object> body, List<Object> attachments) {
+        respond(ctx, token, mbRoot, id, op, body, attachments, null);
+    }
+
+    /** The files to attach that are there; with "skip" a missing one is left out and logged (G3), else it stops the step. */
+    static List<Object> present(ActionContext ctx, List<Object> attachments, String ifMissing) {
+        if (attachments == null || !"skip".equalsIgnoreCase(ifMissing == null ? "" : ifMissing.strip())) return attachments;
+        List<Object> out = new ArrayList<>();
+        for (Object a : attachments) {
+            if (Files.isRegularFile(ctx.resolvePath(Values.text(a)))) out.add(a);
+            else ctx.warn("The attachment " + Values.text(a) + " is not there; the email goes without it");
+        }
+        return out;
+    }
+
+    /** Forward or reply; an HTML note (G3) goes into a draft above the original message before it is sent. */
+    private static void respond(ActionContext ctx, Object token, String mbRoot, String id, String op, Map<String, Object> body, List<Object> attachments, String htmlNote) {
         String url = mbRoot + "/messages/" + HttpJson.enc(id);
-        if (attachments == null || attachments.isEmpty()) { HttpJson.req(P, "POST", url + "/" + op).bearer(token).json(body).send(ctx); return; }
+        if ((attachments == null || attachments.isEmpty()) && htmlNote == null) { HttpJson.req(P, "POST", url + "/" + op).bearer(token).json(body).send(ctx); return; }
         String create = "create" + Character.toUpperCase(op.charAt(0)) + op.substring(1);
         String draft = s(HttpJson.req(P, "POST", url + "/" + create).bearer(token).json(body).send(ctx).map().get("id"));
-        for (Object a : attachments)
+        if (htmlNote != null) {
+            Map<String, Object> d = HttpJson.req(P, "GET", mbRoot + "/messages/" + HttpJson.enc(draft) + "?$select=body").bearer(token).send(ctx).map();
+            String old = s(at(d, "body", "content"));
+            String merged = old.matches("(?is).*<body[^>]*>.*") ? old.replaceFirst("(?is)(<body[^>]*>)", "$1" + java.util.regex.Matcher.quoteReplacement(htmlNote) + "<br>") : htmlNote + "<br>" + old;
+            HttpJson.req(P, "PATCH", mbRoot + "/messages/" + HttpJson.enc(draft)).bearer(token).json(Map.of("body", Map.of("contentType", "html", "content", merged))).send(ctx);
+        }
+        for (Object a : attachments == null ? List.of() : attachments)
             HttpJson.req(P, "POST", mbRoot + "/messages/" + HttpJson.enc(draft) + "/attachments").bearer(token).json(fileAttachment(ctx, Values.text(a))).send(ctx);
         HttpJson.req(P, "POST", mbRoot + "/messages/" + HttpJson.enc(draft) + "/send").bearer(token).send(ctx);
     }
@@ -1186,7 +1209,7 @@ public final class Microsoft365Package {
 
     @Action(id = "forward_mail", name = "Forward email", category = "Mail", capabilities = "network",
             description = "Forward an email to new recipients with an optional note above the original message.",
-            panel = "access_token, id, from, to, cc, bcc, attachments, comment | importance, mailbox, base_url")
+            panel = "access_token, id, from, to, cc, bcc, attachments, comment, html | if_attachment_missing, importance, mailbox, base_url")
     public Map<String, Object> forwardMail(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
@@ -1198,20 +1221,25 @@ public final class Microsoft365Package {
             @Input(name = "from", type = OoaType.STRING, required = false, example = "invoices@acme.com", description = "Send as this address, e.g. a shared mailbox; the account needs Send As rights. The mailbox itself when empty.") String sendAs,
             @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"low", "normal", "high"}, description = "Importance shown to the recipients.") String importance,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "G3 (AA parity): the note is HTML (bold, links, lists), placed above the original message.") boolean html,
+            @Input(name = "if_attachment_missing", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "skip"},
+                    description = "G3 (AA parity): when a file to attach is not there: stop the step, or send without it (logged).") String ifMissing) {
         if (HttpJson.addressList(to).isEmpty()) throw new ActionException(P + ".NO_RECIPIENTS", "No recipients to forward to", "Give at least one address.");
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("toRecipients", recipients(to));
         body.put("comment", comment == null ? "" : comment);
         Map<String, Object> more = extra(cc, bcc, sendAs, importance);
         if (!more.isEmpty()) body.put("message", more);
-        respond(ctx, token, root(base, mailbox), id, "forward", body, attachments);
+        if (html) body.remove("comment");
+        respond(ctx, token, root(base, mailbox), id, "forward", body, present(ctx, attachments, ifMissing), html ? comment : null);
         return Map.of();
     }
 
     @Action(id = "reply_mail", name = "Reply to email", category = "Mail", capabilities = "network",
             description = "Reply to the sender of an email, or to everyone on it, with a note above the original message.",
-            panel = "access_token, id, reply_all, from, cc, bcc, attachments, comment | exclude_sender, importance, mailbox, base_url")
+            panel = "access_token, id, reply_all, from, cc, bcc, attachments, comment, html | exclude_sender, if_attachment_missing, importance, mailbox, base_url")
     public Map<String, Object> replyMail(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
@@ -1224,7 +1252,11 @@ public final class Microsoft365Package {
             @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"low", "normal", "high"}, description = "Importance shown to the recipients.") String importance,
             @Input(name = "exclude_sender", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Reply all only: leave the original sender out and reply to the other recipients.") boolean excludeSender,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "G3 (AA parity): the note is HTML (bold, links, lists), placed above the original message.") boolean html,
+            @Input(name = "if_attachment_missing", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "skip"},
+                    description = "G3 (AA parity): when a file to attach is not there: stop the step, or send without it (logged).") String ifMissing) {
         String r = root(base, mailbox);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("comment", comment == null ? "" : comment);
@@ -1242,8 +1274,19 @@ public final class Microsoft365Package {
             more.put("ccRecipients", ccList);
         }
         if (!more.isEmpty()) body.put("message", more);
-        respond(ctx, token, r, id, all ? "replyAll" : "reply", body, attachments);
+        if (html) body.remove("comment");
+        respond(ctx, token, r, id, all ? "replyAll" : "reply", body, present(ctx, attachments, ifMissing), html ? comment : null);
         return Map.of();
+    }
+
+    public Map<String, Object> forwardMail(ActionContext ctx, Object token, String id, Object to, String comment, Object cc, Object bcc, List<Object> attachments,
+            String sendAs, String importance, String mailbox, String base) {
+        return forwardMail(ctx, token, id, to, comment, cc, bcc, attachments, sendAs, importance, mailbox, base, false, "fail");
+    }
+
+    public Map<String, Object> replyMail(ActionContext ctx, Object token, String id, String comment, boolean all, Object cc, Object bcc, List<Object> attachments,
+            String sendAs, String importance, boolean excludeSender, String mailbox, String base) {
+        return replyMail(ctx, token, id, comment, all, cc, bcc, attachments, sendAs, importance, excludeSender, mailbox, base, false, "fail");
     }
 
     @Action(id = "reply_all_mail", name = "Reply all to email", category = "Mail", capabilities = "network",
@@ -1261,7 +1304,7 @@ public final class Microsoft365Package {
             @Input(name = "exclude_sender", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave the original sender out and reply to the other recipients.") boolean excludeSender,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        return replyMail(ctx, token, id, comment, true, cc, bcc, attachments, sendAs, importance, excludeSender, mailbox, base);
+        return replyMail(ctx, token, id, comment, true, cc, bcc, attachments, sendAs, importance, excludeSender, mailbox, base, false, "fail");
     }
 
     @Action(id = "mail_folder_exists", name = "Folder exists", category = "Mail", idempotent = true, capabilities = "network",
@@ -1596,13 +1639,18 @@ public final class Microsoft365Package {
     public Map<String, Object> checkPermissions(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
-            @Input(name = "email", type = OoaType.STRING, description = "Email address of the person.") String email,
+            @Input(name = "email", type = OoaType.STRING, required = false, description = "Email address of the person; the signed-in account itself when empty (G3).") String email,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        if (email == null || email.isBlank()) {   // G3 (AA parity): the agent's own rights
+            Map<String, Object> me = HttpJson.req(P, "GET", base.replaceAll("/+$", "") + "/me?$select=mail,userPrincipalName").bearer(token).send(ctx).map();
+            email = String.valueOf(me.get("mail") != null ? me.get("mail") : me.get("userPrincipalName"));
+        }
+        String who = email.trim();
         Set<Object> roles = new LinkedHashSet<>();
         boolean found = false;
         for (Map<String, Object> p : pages(ctx, token, item(drive, base, ref, "/permissions"), 0, null))
-            if (permissionEmails(p).stream().anyMatch(e -> e.equalsIgnoreCase(email.trim()))) { found = true; roles.addAll(list(p.get("roles"))); }
+            if (permissionEmails(p).stream().anyMatch(e -> e.equalsIgnoreCase(who))) { found = true; roles.addAll(list(p.get("roles"))); }
         return Map.of("has_access", found, "roles", new ArrayList<>(roles));
     }
 
@@ -1666,11 +1714,11 @@ public final class Microsoft365Package {
     public Map<String, Object> exportPdf(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
-            @Input(name = "local_path", type = OoaType.FILE, example = "out/report.pdf", description = "Where to save the PDF.") String local,
+            @Input(name = "local_path", type = OoaType.FILE, required = false, example = "out/report.pdf", description = "Where to save the PDF: a file or a folder; the run's temporary folder when empty (G3).") String local,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite) {
-        Path p = ctx.resolvePath(local);
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite) {
+        Path p = ctx.outputPath(local, "document.pdf");
         if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
         HttpJson.req(P, "GET", item(drive, base, ref, "/content") + "?format=pdf").bearer(token).timeout(1800).download(ctx, p);
         return Map.of("path", p.toString());
