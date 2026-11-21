@@ -175,13 +175,14 @@ public final class ListPackage {
     @Action(id = "set_item", name = "Set item", category = "List", idempotent = true, description = "Replace the item at a position.",
             panel = "list, position, item")
     @Output(name = "list", type = OoaType.LIST, description = "Updated list.")
+    @Output(name = "previous", description = "The item that was at that position before (G1, AA parity).")
     public Map<String, Object> setItem(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
             @Input(name = "position", type = OoaType.NUMBER, description = "Zero-based position.") int pos,
             @Input(name = "item", required = false, description = "New item.") Object item) {
         List<Object> out = new ArrayList<>(list);
-        out.set(index(out, pos, false), item);
-        return Out.of("list", out);
+        Object previous = out.set(index(out, pos, false), item);
+        return Out.of("list", out, "previous", previous);
     }
 
     @Action(id = "append_list", name = "Append list", category = "List", idempotent = true, description = "Join two lists into one, the second after the first.",

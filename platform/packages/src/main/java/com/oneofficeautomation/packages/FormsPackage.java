@@ -422,6 +422,35 @@ public final class FormsPackage {
             @Input(name = "label", type = OoaType.STRING, description = "The new label.") String label) {
         FormWindow.Session s = session(ctx, name); element(s, element); return changed(s, element.strip(), "label", label == null ? "" : label);
     }
+    // G1 (AA parity): the whole form out of the way while the agent works, and back
+    @Action(id = "hide_form", name = "Hide form", category = "Interactive forms", capabilities = "desktop",
+            description = "Move the open form's window out of the way (minimised to the task bar) while the agent works; its answers are kept.", panel = "name")
+    public Map<String, Object> hideForm(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name) {
+        formWindow(ctx, name, true);
+        return Map.of();
+    }
+
+    @Action(id = "show_form", name = "Show form", category = "Interactive forms", capabilities = "desktop",
+            description = "Bring a hidden (minimised) form back in front of the other windows.", panel = "name")
+    public Map<String, Object> showForm(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name) {
+        formWindow(ctx, name, false);
+        return Map.of();
+    }
+
+    /** Tests replace this to check Hide and Show without a desktop: (window title, minimise) to whether it worked. */
+    static java.util.function.BiFunction<String, Boolean, Boolean> minimise = (title, min) -> com.oneofficeautomation.packages.ui.DesktopEvents.installed()
+            .map(d -> d.minimiseWindow(title, min))
+            .orElseThrow(() -> new ActionException("FORMS.WINDOWS_ONLY", "Hiding and showing a form needs a Windows runner with the Window toolkit installed",
+                    "Run this agent on a Windows runner with a signed-in desktop."));
+
+    private static void formWindow(ActionContext ctx, String name, boolean hide) {
+        FormWindow.Session s = session(ctx, name);
+        String title = s.title == null || s.title.isBlank() ? s.name : s.title;
+        if (!Boolean.TRUE.equals(minimise.apply(title, hide)))
+            throw new ActionException("FORMS.NO_WINDOW", "The window of form '" + s.name + "' was not found on the screen",
+                    "Check that the form is still open; a form window renamed by the person cannot be found by its title.", true);
+    }
+
     @Action(id = "change_title", name = "Change form title", category = "Interactive forms", capabilities = "desktop", description = "Change the title shown on the form window.",
             panel = "name, title")
     public Map<String, Object> changeTitle(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,

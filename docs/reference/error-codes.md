@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1666 codes in 152 areas.
+1688 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -337,9 +337,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `CHILD.BAD_REPEAT` | repeat must be 1 or more, got … | Use 1 to run the child once. | runner |
+| `CHILD.BAD_REPEAT` | Unknown repeat_mode '…'<br>repeat must be 1 or more, got …<br>repeat_for_seconds is needed to repeat for a length of time | Use times, for_duration or until_stopped.<br>Use 1 to run the child once.<br>Give the number of seconds to keep running the child. | runner |
 | `CHILD.BAD_TIMEOUT` | timeout_seconds must be more than 0 | Leave it empty for no limit. | runner |
 | `CHILD.DEPTH` | Child agent nesting is too deep | Keep child agent chains under … levels; check for recursion. | runner |
+| `CHILD.NO_AGENT` | Choose the agent to run | Pick the published agent whose success is checked. | runner |
 | `CHILD.OUTPUT_MISSING` | Child agent '…' has no output '…' | Outputs: …, …. | runner |
 
 ## CLI
@@ -723,6 +724,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `DESKTOP_UI.BAD_INPUT` | Give the window title or its program<br>Give the control's name, role or path | Fill in the window's title or its program.<br>Give a control's name, role or path; Capture in the step fills them in. | packages-windows |
 | `DESKTOP_UI.BAD_OBJECT` | … | Capture the object again with Pick object, or fix the object dictionary. | packages-windows |
 | `DESKTOP_UI.BAD_OPTION` | levels must be 1 to 50 | Go up 1 to 50 levels. | packages-windows |
+| `DESKTOP_UI.BAD_STATE` | Unknown state '…' | Use exists, enabled or focused. | packages-windows |
 | `DESKTOP_UI.BRIDGE_FAILED` | The UI Automation helper did not start…<br>Cannot start the UI Automation helper: … | Check that Windows PowerShell 5.1 and .NET Framework 4 are available on this machine.<br>Check that powershell.exe is on the PATH (Windows PowerShell 5.1). | packages-windows |
 | `DESKTOP_UI.BRIDGE_STOPPED` | The UI Automation helper has stopped…<br>The UI Automation helper stopped while working… | Run the step again. | packages-windows |
 | `DESKTOP_UI.BRIDGE_TIMEOUT` | The application did not answer UI Automation within … s | The application may be busy or not responding; wait for it or raise the timeout. | packages-windows |
@@ -737,7 +739,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `DICT.KEY_NOT_FOUND` | Key '…' is not in the dictionary | Keys: …, ….<br>Check the key; keys are case-sensitive. | packages |
+| `DICT.BAD_POSITION` | Position … is outside the dictionary (0 to …) | Use 0 for the first place, or leave it empty for the end. | packages |
+| `DICT.KEY_NOT_FOUND` | Key '…' is not in the dictionary<br>There is no key at position … (the dictionary has …) | Keys: …, ….<br>Use a position from 0 to ….<br>Check the key; keys are case-sensitive. | packages |
+| `DICT.NO_KEY` | Give the key to remove, or its position | Fill in the key, or the position counted from 0. | packages |
 
 ## DLL
 
@@ -964,13 +968,16 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FILE.BAD_NAME` | The extension or prefix holds a character a file name cannot have | Leave out \ / : * ? " < > \|. | packages |
 | `FILE.BAD_OPERATOR` | Unknown operator '…' | Use eq, ne, gt, ge, lt or le. | packages |
 | `FILE.BAD_OPTION` | Unknown trim '…'<br>Unknown sort '…'<br>Give the number of days | Use none, leading, trailing or both.<br>Use name, modified or size.<br>Fill in 'days'. | packages |
+| `FILE.BAD_RULE` | The file name rules … | Open the step and fix the rule in the file field's Name rule mode. | sdk |
 | `FILE.BAD_TARGET` | The target … is a file | With a pattern, the target must be a folder. | packages |
 | `FILE.EXISTS` | File already exists: …<br>Target exists: …<br>Archive already exists: … | Set overwrite to true or choose another name.<br>Choose another name or turn off fail_if_exists.<br>Turn on overwrite or choose another path. | packages, packages-transfer, packages-windows, toolkits/microsoft |
+| `FILE.IO` | Cannot create the folder for …: …<br>Cannot list …: … | Check the runner may write there, or leave the path empty to use a temporary file.<br>Check the folder exists and the runner may read it. | sdk |
 | `FILE.IO_ERROR` | …<br>Cannot read …: …<br>Cannot write …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check the path and permissions.<br>Check the folder exists and can be written. | packages, packages-browser, packages-email, packages-pdf, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NOT_CREATED` | The PDF … was not written within … s | Check the printer queue and that the target folder is writable. | packages |
-| `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
+| `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, sdk, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NO_FILES` | Give at least one file to print | Fill in the files list, or a folder with matching files. | packages |
-| `FILE.OUTSIDE_WORKSPACE` | This run may only use files in its own workspace, not … | Use a path relative to the workspace. | sdk |
+| `FILE.NO_MATCH` | No file matches: … | Check the folder and the rules (the field's Name rule mode), or wait for the file first with Wait for file. | runner |
+| `FILE.OUTSIDE_WORKSPACE` | This run may only use files in its own workspace, not … | Use a folder relative to the workspace.<br>Use a path relative to the workspace. | runner, sdk |
 | `FILE.READ_FAILED` | Cannot read …: … | Check that the file exists, is not open in another program, and that the runner's account may read it. | toolkits/enterprise |
 | `FILE.TOO_LARGE` | … is … MB; Base64 text is limited to 50 MB of file | Send large files as files (for example with a REST upload) rather than as text. | packages |
 | `FILE.WAIT_TIMEOUT` | No finished file matching … appeared in time | Raise timeout_seconds, or check the folder and name pattern. | packages |
@@ -988,7 +995,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FLOW.SCHEMA_MISSING` | flow.v1.json is not on the classpath | Run gradlew :adapters-jackson:syncFlowSchema | adapters-jackson |
 | `FLOW.UNKNOWN_ACTION` | Unknown core action '…'<br>…@… has no action '…' | Update the runner; the agent uses a command this runner does not know.<br>Install the toolkit version the agent was built with, or update the step to the installed version. | runner |
 | `FLOW.UNKNOWN_CONDITION` | Unknown condition '…' | Update the runner; the agent uses a condition this runner does not know. | runner |
-| `FLOW.UNKNOWN_ITERATOR` | Unknown iterator '…' | Update the runner; the agent uses a loop kind this runner does not know. | runner |
+| `FLOW.UNKNOWN_ITERATOR` | Unknown iterator '…'<br>Unknown trigger '…' | Update the runner; the agent uses a loop kind this runner does not know.<br>Update the runner; the agent uses a trigger this runner does not know. | runner |
 
 ## FOLDER
 
@@ -1020,8 +1027,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FORMS.NOT_OPEN` | The form '…' is not open | Display it first (Display form) with this name, and do not close it before this step.<br>Check the name given when it was displayed. | packages |
 | `FORMS.NO_BROWSER` | Cannot open a window for the form: … | Install Microsoft Edge or Google Chrome on the runner. | packages |
 | `FORMS.NO_DESKTOP` | Forms need a runner with a desktop and a signed-in person | Run this agent attended, on a runner where someone is signed in. | packages |
+| `FORMS.NO_WINDOW` | The window of form '…' was not found on the screen | Check that the form is still open; a form window renamed by the person cannot be found by its title. | packages |
 | `FORMS.SERVER_FAILED` | Cannot show forms on this computer: … | Make sure the runner has an unlocked desktop session where the form can open. | packages |
 | `FORMS.TIMEOUT` | Nothing happened on the form within … s | Raise the time-out, or handle timed_out. | packages |
+| `FORMS.WINDOWS_ONLY` | Hiding and showing a form needs a Windows runner with the Window toolkit installed | Run this agent on a Windows runner with a signed-in desktop. | packages |
 
 ## FUZZY
 
@@ -1145,6 +1154,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `INSIGHTS.BAD_CATEGORY` | Invalid category '…' | Use letters, digits, - and _. | packages |
 | `INSIGHTS.BAD_TRANSACTION` | Invalid transaction name '…' | Use up to 100 characters without < or >. | packages |
 | `INSIGHTS.NOT_OPEN` | Transaction '…' was not opened | Add Open transaction with the same name before this step. | packages |
+| `INSIGHTS.NO_VARIABLES` | This run cannot list its variables | List the values in values instead. | packages |
 | `INSIGHTS.RESERVED_NAME` | transaction, outcome, started and duration_seconds are recorded automatically | Rename that value. | packages |
 | `INSIGHTS.SECRET` | Credentials cannot be recorded as insights | Record a value that is not a credential, or leave the field out. | packages |
 
@@ -1152,7 +1162,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `INTERRUPT.BAD_RULE` | close_window answers window rules only<br>A rule needs a name<br>Rule '…': give either a window title pattern or an element selector | Use close_window only on window rules.<br>Give the rule a name.<br>Use when_window or when_element, not both. | packages |
+| `INTERRUPT.BAD_RULE` | close_window answers window rules only<br>A rule needs a name<br>Rule '…': give one of a window title pattern, an element selector or a condition | Use close_window only on window rules.<br>Give the rule a name.<br>Use when_window, when_element or when_condition, only one of them. | packages |
 | `INTERRUPT.NO_REPOSITORY` | This run cannot start child agents | Run the agent from OneAgentStudio or One CommandCenter. | packages |
 | `INTERRUPT.NO_SESSION` | No browser session '…' is open to click … | Use x,y screen coordinates for desktop windows, or open the browser session first. | packages |
 
@@ -1335,6 +1345,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `LOOP.BAD_RANGE` | '…' must be a whole number, got …<br>from_index and to_index cannot be negative<br>step must be 1 or more for this iterator, got … | Use 0, 1, 2 ...<br>Indexes start at 0.<br>Use 1 to visit every item, 2 for every second item. | runner |
 | `LOOP.LIMIT` | Loop exceeded … iterations | A reversed loop reads every item first; raise max_iterations or turn reverse off.<br>Check the loop condition or raise max_iterations. | runner |
 | `LOOP.NO_COLUMN` | The current row has no column '…' | Columns: …. | runner |
+| `LOOP.NO_TRIGGERS` | The trigger loop has no handlers<br>Handler … of the trigger loop has no trigger | Add a handler with the event it waits for (a new file, a key press, a new e-mail...).<br>Choose the event the handler waits for. | runner |
 
 ## M365
 
@@ -1630,7 +1641,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `PROCESS.FAILED` | … exited with code …: … | Check the arguments, or set fail_on_error to false to handle the exit code yourself. | packages |
-| `PROCESS.NOT_FOUND` | Cannot start '…': …<br>… is only the Microsoft Store shortcut, not an installed Python | Check the program is installed or give its full path.<br>Check the program is installed and on the PATH, or give its full path.<br>Install Python from python.org (or turn off the Microsoft Store shortcut in App execution aliases), then try again. | packages |
+| `PROCESS.NOT_FOUND` | Cannot start '…': …<br>… is only the Microsoft Store shortcut, not an installed Python | Check the program is installed, or give its full path. A name alone is looked up on the PATH and in Windows' list of installed applications (App Paths), as Win+R does.<br>Check the program is installed and on the PATH, or give its full path.<br>Install Python from python.org (or turn off the Microsoft Store shortcut in App execution aliases), then try again. | packages |
 | `PROCESS.TIMEOUT` | '…' did not finish within … s | Raise timeout_seconds or check the program is not waiting for input. | packages |
 
 ## QUEUE
@@ -1828,6 +1839,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SCRIPT.BAD_ARGUMENT` | At most 64 arguments can be passed to a VBScript function<br>VBScript function arguments cannot contain line breaks | Pass at most 64 arguments; put more in a file or a list the function reads.<br>Pass multi-line text through a file instead. | packages |
 | `SCRIPT.BAD_FUNCTION` | Invalid function name '…' | Give a plain Python name such as calculate_total.<br>Give a plain JavaScript name such as calculateTotal.<br>Give a plain VBScript name such as FormatInvoice. | packages |
 | `SCRIPT.BAD_INTERPRETER` | Invalid interpreter '…' | Give the program name or full path, e.g. C:/Python312/python.exe. | packages |
+| `SCRIPT.BAD_LANGUAGE` | Unknown script language '…' | Use powershell, python, javascript or vbscript. | packages |
 | `SCRIPT.BAD_RESULT` | The function result could not be read as JSON | Return numbers, text, lists or dictionaries. | packages |
 | `SCRIPT.FAILED` | Script exited with code …: …<br>… did not return a result (exit code …exit_code…): …error_output…<br>VBScript did not return a result (exit code …exit_code…): …error_output… | Read the error output, fix the script, or set fail_on_error to false.<br>Check the file runs on its own.<br>Check the file runs on its own with cscript. | packages |
 | `SCRIPT.INTERPRETER_NOT_FOUND` | Python is not installed on this runner (tried …, …)<br>…Python is not installed on this runner…Microsoft Store… (python only opens the Microsoft Store)……None of … is installed on this runner | Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter.<br>…Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter, e.g. C:/Python312/python.exe.…Install the interpreter on the runner or add it to the PATH. | packages |
@@ -1839,7 +1851,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `SERVICE.UNAVAILABLE` | No agent repository available for child agents<br>Platform service '…' is not available to this run | Run the agent from One CommandCenter or Studio, which give child agents a repository.<br>Check the run was started with the required platform services. | runner, sdk |
+| `SERVICE.UNAVAILABLE` | This run cannot start child agents<br>No agent repository available for child agents<br>Platform service '…' is not available to this run | Run the agent from OneAgentStudio or One CommandCenter, which give child agents a repository.<br>Run the agent from One CommandCenter or Studio, which give child agents a repository.<br>Check the run was started with the required platform services. | runner, sdk |
 
 ## SERVICENOW
 
@@ -1881,6 +1893,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `SESSION.NOT_FOUND` | Session '…' is not open<br>Several are open (…, …); this step does not say which | Add an 'open' step that creates session '…' before this step.<br>Choose the session on this step. | sdk |
+| `SESSION.NO_NAME` | Give the session's name | Use the name given on the step that opened it, for example excel. | runner |
 | `SESSION.WRONG_TYPE` | Session '…' is a …, expected … | Use the session from the matching Open step (a browser session for browser steps, and so on). | sdk |
 
 ## SLACK
@@ -1997,16 +2010,18 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `STRING.BAD_LENGTH` | max_length cannot be negative<br>Length cannot be negative (…)<br>Length … is out of range | Use 0 or more.<br>Use a length from 0 to 100000.<br>Choose a smaller positive length. | packages |
 | `STRING.BAD_MODE` | Unknown compare mode '…' | Use exact, ignore_case or natural. | packages |
 | `STRING.BAD_OCCURRENCE` | Occurrences start at 1<br>Occurrences start at 1, got … | Use 1 for the first match. | packages |
-| `STRING.BAD_OPTION` | Unknown until option '…' | Use marker, end_of_line or end_of_text. | packages |
+| `STRING.BAD_OPTION` | Unknown markers option '…'<br>Unknown length option '…'<br>Unknown until option '…' | Use either or both.<br>Use up_to or exactly.<br>Use marker, end_of_line or end_of_text. | packages |
 | `STRING.BAD_PATTERN` | The pattern '…' is not valid: … | Fix the pattern, or untick Use a pattern to find the text as it is. | packages |
 | `STRING.BAD_POSITION` | Start position … is outside the text (length …)<br>End position … is before start position …<br>Position … is past the end of the text (length …) | Use a position from 0 to the text length.<br>Use an end at or after the start.<br>Use a position from 0 to …, or -1 for the end. | packages |
 | `STRING.BAD_REGEX` | Invalid regular expression: … | Escape special characters such as ( ) [ ] . * | packages |
 | `STRING.BAD_SEPARATORS` | Decimal and grouping separators are both '…' | Use different separators. | packages |
 | `STRING.CANNOT_DECODE` | The text is not valid …: … | Check that the text really is …-encoded. | packages |
 | `STRING.EMPTY_FIND` | Nothing to count | Fill in the text to count. | packages |
-| `STRING.MISSING_VALUE` | The template needs {…}, which the values do not have | Add … to the values, or choose to keep or empty missing places. | packages |
+| `STRING.MISSING_VALUE` | The template needs {…}, which the values do not have<br>The text needs $…$, which is not a variable of the agent…Credential… that may be filled in (a credential)…… | Add … to the values, or choose to keep or empty missing places.<br>Check the name, or choose to keep or empty places without a value. | packages |
 | `STRING.NOT_A_NUMBER` | '…' is not a number for locale … (decimal '…', grouping '…') | Check the locale or set decimal_separator and grouping_separator. | packages |
 | `STRING.NO_CHARACTER_SET` | No character set selected | Turn on letters, digits or symbols. | packages |
+| `STRING.NO_VALUES` | Give the values to fill in | Fill in values, or tick 'from the agent's variables'. | packages |
+| `STRING.NO_VARIABLES` | This run cannot read its variables | Give the values in values instead. | packages |
 | `STRING.TOO_LONG` | The result would be longer than 1,000,000 characters | Repeat the text fewer times. | packages |
 
 ## STUDIO
@@ -2038,6 +2053,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `STUDIO.NO_ACCESS` | This folder cannot be opened: … | Choose another folder. | cli |
 | `STUDIO.NO_BROWSER_MODULE` | The Browser module is not installed | Add packages-browser to ooa.optionalModules in gradle.properties. | cli |
 | `STUDIO.NO_DESKTOP_MODULE` | The Windows desktop module is not installed<br>The Window toolkit is not installed<br>The Desktop objects toolkit is not installed | Add packages-windows to ooa.optionalModules in gradle.properties.<br>Add packages-windows to ooa.optionalModules in gradle.properties and run Studio on Windows. | cli |
+| `STUDIO.NO_NATIVE_DIALOG` | Windows' file dialog is not available here<br>The file dialog was interrupted<br>… | Choose from the list instead (Studio is used from another computer, or not on Windows).<br>Try Browse… again, or choose from the list.<br>Choose from the list instead. | cli |
 | `STUDIO.PORT_IN_USE` | Port … is already in use; another OneAgentStudio may still be running | Stop the other OneAgentStudio (Ctrl+C in its window), or start this one with --port …. | cli |
 | `STUDIO.TOO_LARGE` | Uploads are limited to … MB per file<br>The folder is larger than 200 MB<br>The file is larger than 200 MB | Upload a smaller file, or put large files in a share the runner reads.<br>Download smaller folders, or copy it in File Explorer.<br>Copy it in File Explorer instead. | cli, vendor-tools |
 | `STUDIO.TOO_MANY_RUNS` | Four runs are already in progress | Wait for a run to finish or stop one. | cli |
@@ -2196,25 +2212,31 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `TRIGGER.BAD_BOT` | Trigger '…': agent not found: … | Choose an agent from the workspace. | cli |
 | `TRIGGER.BAD_CLICK` | … | Give the window title or the process. | packages |
+| `TRIGGER.BAD_EVENT` | Unknown change '…'<br>Unknown watch '…'<br>Unknown event '…' | Use created, modified, deleted, renamed or any.<br>Use files, folders or both.<br>Use starts or stops. | packages |
 | `TRIGGER.BAD_FOLDER` | Trigger '…': folder not found: … | Create the folder first. | cli |
 | `TRIGGER.BAD_ID` | Trigger ids must be unique: letters, digits, - and _ | Give every trigger its own id of letters, digits, - and _. | cli |
 | `TRIGGER.BAD_INPUT` | … | Check the trigger settings. | packages |
 | `TRIGGER.BAD_INTERVAL` | The interval must be greater than 0 seconds<br>interval_seconds must be greater than 0 | Use for example 1.<br>Use for example 60. | packages |
 | `TRIGGER.BAD_KEY` | … | Write the key like F9 or CTRL+ENTER. | packages |
 | `TRIGGER.BAD_LIMIT` | Limits cannot be negative<br>settle_seconds cannot be negative | Use 0 for no limit.<br>Set settle_seconds to 0 or more. | packages |
-| `TRIGGER.BAD_PATTERN` | Invalid file pattern '…' | Use a glob such as *.csv. | packages |
+| `TRIGGER.BAD_PATTERN` | Invalid file pattern '…'<br>Invalid title pattern '…': … | Use a glob such as *.csv.<br>Check the regular expression after re:. | packages |
 | `TRIGGER.BAD_SCHEDULE` | Trigger '…': give either every_minutes or daily_at (HH:mm)<br>every_minutes must be at least 1<br>daily_at must look like 08:30 | Fill in either every_minutes or daily_at.<br>Set every_minutes to 1 or more.<br>Write the time as hours and minutes, for example 08:30. | cli |
 | `TRIGGER.BAD_TYPE` | Trigger '…': type must be file, schedule or webhook | Choose file, schedule or webhook. | cli |
 | `TRIGGER.DISABLED` | Webhook '…' is disabled | Enable the webhook in Details > Triggers. | cli |
+| `TRIGGER.FAILED` | Trigger '…' failed: … | Check the trigger's settings, then run the agent again. | runner |
 | `TRIGGER.FORBIDDEN` | Wrong webhook secret | Use the webhook's current secret from Details > Triggers. | cli |
 | `TRIGGER.HOOK_FAILED` | Cannot watch the keyboard or mouse: … | Run the agent on a Windows runner with a signed-in desktop. | packages |
 | `TRIGGER.INVALID` | Send a list of triggers<br>Each trigger must be an object | Reload the page and save the triggers again. | cli |
-| `TRIGGER.IO_ERROR` | Cannot read folder …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it. | packages |
+| `TRIGGER.IO_ERROR` | Cannot read folder …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check that the folder exists and that the runner's account may read it. | packages |
 | `TRIGGER.NOT_FOUND` | Trigger '…' not found<br>Webhook '…' not found | Reload Details > Triggers; it may have been deleted.<br>Check the webhook's address in Details > Triggers. | cli |
 | `TRIGGER.NO_FOLDER` | Folder not found: …<br>The watched folder was removed: … | Create the folder or check the path.<br>Recreate the folder and start the agent again. | packages |
+| `TRIGGER.NO_LIST` | … gives no list…… in output '…'… | Name the output that holds the list in list_output. | runner |
 | `TRIGGER.NO_PROCESS` | Give the program's executable name | For example notepad.exe.<br>Fill in the program's executable name, for example excel.exe. | packages |
+| `TRIGGER.NO_SERVICE` | Give the service's name | For example Spooler. | packages |
+| `TRIGGER.NO_SOURCE` | Choose the loop type or command to watch<br>Name the source as toolkit/loop type or toolkit/command<br>…@… has no loop type or command '…' | For example ooa.email/emails or ooa.servicenow/query.<br>For example ooa.email/emails.<br>Choose a loop type or a command that gives a list. | packages, runner |
+| `TRIGGER.NO_WINDOW` | Give the window's title or a pattern | For example *Invoice*. | packages |
 | `TRIGGER.WEAK_SECRET` | Trigger '…': webhook secret must be at least 16 characters | Use a webhook secret of at least 16 characters. | cli |
-| `TRIGGER.WINDOWS_ONLY` | … (this computer runs …os.name…) | Run this agent on a Windows runner with a signed-in desktop. | packages |
+| `TRIGGER.WINDOWS_ONLY` | Watching windows needs a Windows runner with the Window toolkit installed<br>… (this computer runs …os.name…) | Run this agent on a Windows runner with a signed-in desktop. | packages |
 
 ## UI
 

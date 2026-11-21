@@ -9,7 +9,7 @@ import java.util.*;
 public final class DictionaryPackage {
 
     @Action(id = "put", name = "Put", category = "Dictionary", idempotent = true, description = "Add or replace the value for a key.",
-            panel = "dictionary, key, value | only_if_missing")
+            panel = "dictionary, key, value | only_if_missing, position")
     @Output(name = "dictionary", type = OoaType.DICTIONARY, description = "Updated dictionary.")
     @Output(name = "previous", description = "The value the key had before, empty when the key is new.")
     @Output(name = "existed", type = OoaType.BOOLEAN, description = "True when the key was already there.")
@@ -17,12 +17,28 @@ public final class DictionaryPackage {
             @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Source dictionary.") Map<String, Object> dict,
             @Input(name = "key", type = OoaType.STRING, description = "Key to set; added when the dictionary does not have it yet, its value replaced when it does (keys are case-sensitive).") String key,
             @Input(name = "value", required = false, description = "Value.") Object value,
-            @Input(name = "only_if_missing", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Keep the existing value when the key is already there.") boolean onlyIfMissing) {
+            @Input(name = "only_if_missing", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Keep the existing value when the key is already there.") boolean onlyIfMissing,
+            @Input(name = "position", type = OoaType.NUMBER, required = false, min = 0,
+                    description = "G1 (AA parity): where a new key goes, counted from 0 (0 = first); at the end when empty. A key already there keeps its place.") Integer position) {
         Map<String, Object> out = new LinkedHashMap<>(dict);
         boolean existed = out.containsKey(key);
         Object prev = out.get(key);
-        if (!(existed && onlyIfMissing)) out.put(key, value);
+        if (!(existed && onlyIfMissing)) {
+            if (!existed && position != null) {
+                if (position < 0 || position > out.size())
+                    throw new ActionException("DICT.BAD_POSITION", "Position " + position + " is outside the dictionary (0 to " + out.size() + ")", "Use 0 for the first place, or leave it empty for the end.");
+                Map<String, Object> placed = new LinkedHashMap<>();
+                int i = 0;
+                for (var e : out.entrySet()) { if (i++ == position) placed.put(key, value); placed.put(e.getKey(), e.getValue()); }
+                if (position == out.size()) placed.put(key, value);
+                out = placed;
+            } else out.put(key, value);
+        }
         return Out.of("dictionary", out, "previous", prev, "existed", existed);
+    }
+
+    public Map<String, Object> put(ActionContext ctx, Map<String, Object> dict, String key, Object value, boolean onlyIfMissing) {
+        return put(ctx, dict, key, value, onlyIfMissing, null);
     }
 
     @Action(id = "get", name = "Get", category = "Dictionary", idempotent = true, description = "Read the value for a key, or a default when the key is missing.",
@@ -48,19 +64,34 @@ public final class DictionaryPackage {
     }
 
     @Action(id = "remove", name = "Remove", category = "Dictionary", idempotent = true, description = "Remove a key and its value from a dictionary; returns the dictionary without it.",
-            panel = "dictionary, key | fail_if_missing")
+            panel = "dictionary, (Remove: A key = key / The key at a position = position) | fail_if_missing")
     @Output(name = "dictionary", type = OoaType.DICTIONARY, description = "Updated dictionary.")
     @Output(name = "removed", description = "The value that was removed, empty when the key was not there.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the key was there.")
     public Map<String, Object> remove(ActionContext ctx,
             @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Source dictionary.") Map<String, Object> dict,
-            @Input(name = "key", type = OoaType.STRING, description = "Key to remove.") String key,
-            @Input(name = "fail_if_missing", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Fail with DICT.KEY_NOT_FOUND when the key is not there.") boolean failIfMissing) {
+            @Input(name = "key", type = OoaType.STRING, required = false, description = "Key to remove.") String key,
+            @Input(name = "fail_if_missing", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Fail with DICT.KEY_NOT_FOUND when the key is not there.") boolean failIfMissing,
+            @Input(name = "position", type = OoaType.NUMBER, required = false, min = 0,
+                    description = "G1 (AA parity): remove the key at this place, counted from 0, instead of naming it.") Integer position) {
         Map<String, Object> out = new LinkedHashMap<>(dict);
+        if ((key == null || key.isEmpty()) && position == null)
+            throw new ActionException("DICT.NO_KEY", "Give the key to remove, or its position", "Fill in the key, or the position counted from 0.");
+        if ((key == null || key.isEmpty()) && position != null) {
+            if (position < 0 || position >= out.size()) {
+                if (failIfMissing) throw new ActionException("DICT.KEY_NOT_FOUND", "There is no key at position " + position + " (the dictionary has " + out.size() + ")", "Use a position from 0 to " + Math.max(0, out.size() - 1) + ".");
+                return Out.of("dictionary", out, "removed", null, "found", false);
+            }
+            key = new ArrayList<>(out.keySet()).get(position);
+        }
         boolean found = out.containsKey(key);
         if (!found && failIfMissing) throw new ActionException("DICT.KEY_NOT_FOUND", "Key '" + key + "' is not in the dictionary", "Check the key; keys are case-sensitive.");
         Object removed = out.remove(key);
         return Out.of("dictionary", out, "removed", removed, "found", found);
+    }
+
+    public Map<String, Object> remove(ActionContext ctx, Map<String, Object> dict, String key, boolean failIfMissing) {
+        return remove(ctx, dict, key, failIfMissing, null);
     }
 
     @Action(id = "keys", name = "Get keys", category = "Dictionary", idempotent = true, description = "List all keys of a dictionary, in the order they were added.",

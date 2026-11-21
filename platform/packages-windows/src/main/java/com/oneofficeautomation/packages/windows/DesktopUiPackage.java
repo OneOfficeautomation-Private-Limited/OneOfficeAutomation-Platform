@@ -677,9 +677,22 @@ public final class DesktopUiPackage {
         return out;
     }
 
-    @Condition(id = "object_exists", name = "Desktop object exists", description = "True when the captured control can be found now in a Windows application (self-healing applies).")
-    public boolean objectExists(ActionContext ctx, @Input(name = "object", type = OoaType.DICTIONARY, description = D_OBJECT) Map<String, Object> object) {
-        try { locate(ctx, DesktopObject.parse(object), 0); return true; }
+    @Condition(id = "object_exists", name = "Desktop object exists",
+            description = "True when the captured control can be found now in a Windows application (self-healing applies), and, when asked, is enabled or has the keyboard focus.")
+    public boolean objectExists(ActionContext ctx, @Input(name = "object", type = OoaType.DICTIONARY, description = D_OBJECT) Map<String, Object> object,
+            @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"exists\"", enumValues = {"exists", "enabled", "focused"},
+                    description = "G1 (AA parity): what to check besides being there: nothing more, that it can be used (enabled), or that it has the keyboard focus.") String state) {
+        String want = state == null || state.isBlank() ? "exists" : state.strip();
+        if (!List.of("exists", "enabled", "focused").contains(want))
+            throw new ActionException("DESKTOP_UI.BAD_STATE", "Unknown state '" + state + "'", "Use exists, enabled or focused.");
+        SelfHealing.Found<Element> f;
+        try { f = locate(ctx, DesktopObject.parse(object), 0); }
         catch (ActionException e) { if ("DESKTOP_UI.OBJECT_NOT_FOUND".equals(e.code())) return false; throw e; }
+        if (want.equals("exists")) return true;
+        Object v = property(ctx, f.element(), want.equals("enabled") ? "IsEnabled" : "HasKeyboardFocus");
+        return Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
     }
+
+    /** The condition as before (no state): saved agents and callers keep working. */
+    public boolean objectExists(ActionContext ctx, Map<String, Object> object) { return objectExists(ctx, object, "exists"); }
 }
