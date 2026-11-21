@@ -370,7 +370,7 @@ public final class TriggerLoopPackage {
             @Input(name = "max_events", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_MAX_EVENTS) int maxEvents,
             @Input(name = "max_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_MAX_SECONDS) double maxSeconds) {
         if (title == null || title.isBlank()) throw new ActionException(P + ".NO_WINDOW", "Give the window's title or a pattern", "For example *Invoice*.");
-        com.oneofficeautomation.packages.ui.TitlePattern match;
+        java.util.function.Predicate<String> match;
         try { match = com.oneofficeautomation.packages.ui.TitlePattern.of(title.strip()); }
         catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_PATTERN", "Invalid title pattern '" + title + "': " + e.getMessage(), "Check the regular expression after re:."); }
         String ev0 = event == null || event.isBlank() ? "opens" : event.strip();

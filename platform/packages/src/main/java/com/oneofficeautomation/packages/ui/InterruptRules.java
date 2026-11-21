@@ -109,7 +109,8 @@ public final class InterruptRules {
 
     /**
      * Checks every rule and responds to those whose window or element is showing. A response can reveal another
-     * pop-up, so up to three rounds run; each rule responds at most once per round and never beyond its max_times.
+     * pop-up, so up to three rounds run; each rule responds at most once per round (a condition rule once per check)
+     * and never beyond its max_times.
      * A failing response is logged, never thrown: the agent's own action then decides whether the run fails.
      * Returns the names of the rules that responded, in order.
      */
@@ -123,6 +124,8 @@ public final class InterruptRules {
                 boolean any = false;
                 for (Rule r : rules) {
                     if (r.maxTimes() > 0 && timesFired(r.name()) >= r.maxTimes()) continue;
+                    // a condition may still hold after the response (nothing on screen went away): once per check
+                    if (r.conditionRule() && handled.contains(r.name())) continue;
                     String matched = null;
                     if (r.windowRule()) {
                         if (titles == null) titles = safeTitles(probe, log);
