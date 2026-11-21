@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1666 codes in 152 areas.
+1674 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -852,12 +852,13 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `EXCEL.AUTOFIT_FAILED` | Cannot measure the text to fit the columns: … | On a Linux server install a font package (for example fontconfig and dejavu fonts), or set widths with set_column_width. | packages-office |
+| `EXCEL.BAD_CELL` | Give both the row and the column<br>Give the cell the search starts at | Fill in both, or leave both empty for the active cell.<br>Fill in start_cell, e.g. C10. | packages-office |
 | `EXCEL.BAD_CLEAR` | Clear must be contents, formats or all, not '…' | Pick one of the three. | packages-office |
 | `EXCEL.BAD_COLOR` | '…' is not a colour | Use a hex colour such as #FFC000, red,green,blue numbers such as 255,192,0, or a name: …, …. | packages-office |
 | `EXCEL.BAD_COLUMN` | No column given<br>'…' is not a column<br>Column number … is out of range | Give a column letter such as C or a number such as 3.<br>Columns are numbered 1 to 16384.<br>Pick columns inside the range. | packages-office |
 | `EXCEL.BAD_COUNT` | Count must be at least 1 | Set count to 1 or more. | packages-office |
 | `EXCEL.BAD_DIRECTION` | Direction must be down or right, not '…'<br>Direction must be down, up, right or left, not '…' | Use down or right.<br>Use down, up, right or left. | packages-office |
-| `EXCEL.BAD_FILTER` | The between operator needs value and value_to | Set both bounds. | packages-office |
+| `EXCEL.BAD_FILTER` | An Excel filter needs a header row for its buttons<br>The between operator needs value and value_to | Tick header, or leave apply_in_file off.<br>Set both bounds. | packages-office |
 | `EXCEL.BAD_FORMAT` | Unsupported format '…' | Use xlsx, xls or csv. | packages-office |
 | `EXCEL.BAD_FORMULA` | Invalid formula '…': …<br>Replacing in … gives an invalid formula '…' | Check the formula syntax.<br>Check the replacement text. | packages-office |
 | `EXCEL.BAD_FUNCTION` | '…' is not a summary function | Use sum, count, average, max or min, e.g. Amount:average. | packages-office |
@@ -865,12 +866,13 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `EXCEL.BAD_LINK` | The new link is empty | Give the path of the new source workbook. | packages-office |
 | `EXCEL.BAD_MOVE` | Unknown move '…'<br>The move goes past the edge of the sheet | Use none, left, right, up, down, row_start, row_end, column_start or column_end.<br>Start from another cell. | packages-office |
 | `EXCEL.BAD_NAME` | '…' cannot be a table name | Start with a letter; use letters, digits, _ and .; it must not look like a cell address. | packages-office |
-| `EXCEL.BAD_OPERATOR` | Unknown operator '…' | Use equals, not_equals, contains, starts_with, ends_with, gt, gte, lt, lte, empty or not_empty. | packages-office |
+| `EXCEL.BAD_OPERATOR` | Unknown operator '…' | Use equals, not_equals, contains, starts_with, ends_with, gt, gte, lt, lte, between, empty or not_empty.<br>Use equals, not_equals, contains, starts_with, ends_with, gt, gte, lt, lte, empty or not_empty. | packages-office |
+| `EXCEL.BAD_OPTION` | select must be range, rows, columns or whole_sheet, not '…'<br>Unknown start '…'<br>sort_as must be auto, number or text, not '…' | Pick range, rows, columns or whole_sheet.<br>Use top, active_cell, cell or end.<br>Pick auto, number or text. | packages-office |
 | `EXCEL.BAD_PASTE` | Paste must be all, values, formulas or formats, not '…' | Pick one of the four. | packages-office |
 | `EXCEL.BAD_PATH` | Give the workbook's path in the drive after onedrive:, for example onedrive:Reports/2026/sales.xlsx | Write the path after onedrive:, for example onedrive:Reports/2026/sales.xlsx. | packages-office |
 | `EXCEL.BAD_POSITION` | Position must be between 1 and …<br>Table '…' has no column … | Leave position empty to add at the end.<br>Use a position between 1 and …. | packages-office |
 | `EXCEL.BAD_RANGE` | '…' is not a range<br>End row … is before start row …<br>The copy would go past the edge of the sheet | Use an address such as A1:D20.<br>Give an end row at or after the start row.<br>Pick a destination nearer the top-left. | packages-office |
-| `EXCEL.BAD_ROW` | Row number … is out of range | Rows are numbered from 1. | packages-office |
+| `EXCEL.BAD_ROW` | Row … comes before row …<br>Row number … is out of range<br>'…' is not a row or rows | Give from_row first and to_row at or after it.<br>Rows are numbered from 1.<br>Write a row number such as 3, or rows such as 3:5. | packages-office |
 | `EXCEL.BAD_SHEET` | A sheet name cannot be empty<br>Sheet name '…' has … characters; Excel allows at most 31<br>Sheet name '…' contains one of : \ / ? * [ ] | Give the sheet a name.<br>Shorten the sheet name to 31 characters or fewer.<br>Remove : \ / ? * [ ] from the sheet name. | packages-office |
 | `EXCEL.BAD_SHEET_NAME` | … | Sheet names are at most 31 characters and cannot contain : \ / ? * [ ]. | packages-office |
 | `EXCEL.BAD_SHIFT` | Shift must be up or left, not '…' | Use up or left. | packages-office |
@@ -886,22 +888,23 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `EXCEL.NOTHING_TO_LOCK` | No password was given<br>Neither the structure nor the windows were chosen | Give a password to open the file, a structure password, or both.<br>Set lock_structure or lock_windows to true. | packages-office |
 | `EXCEL.NOTHING_TO_UNLOCK` | Nothing to unprotect was chosen | Give the structure password, set remove_open_password, or both. | packages-office |
 | `EXCEL.NOT_FOUND` | Workbook not found: … | Set create to true or fix the path.<br>Fix the path. | packages-office |
-| `EXCEL.NOT_SUPPORTED` | A password to open needs an .xlsx workbook | Save the workbook as .xlsx first. | packages-office |
+| `EXCEL.NOT_SUPPORTED` | A password to edit needs an .xlsx workbook<br>A password to open needs an .xlsx workbook | Save the workbook as .xlsx first. | packages-office |
 | `EXCEL.NO_EMPTY_CELL` | No empty cell before the edge of the sheet | Start from another cell or search in the other direction. | packages-office |
 | `EXCEL.NO_LINK` | The workbook has no link to '…' | Use get_links to see the linked workbooks. | packages-office |
 | `EXCEL.NO_SELECTION` | No range given and the sheet has no active cell | Set the range, or run select_range or go_to_cell first. | packages-office |
-| `EXCEL.NO_SHEET` | Sheet '…' not found<br>There is no sheet number … (the workbook has …)<br>Give a sheet name or index | Sheets: …, ….<br>Use an index from 1 to ….<br>Set the sheet name or its 1-based index. | packages-office |
+| `EXCEL.NO_SHEET` | Sheet '…' not found… among the visible sheets (the workbook was opened to skip hidden sheets)……<br>There is no sheet number … (the workbook has … visible……)<br>Give a sheet name or index | Sheets: …, ….<br>Use an index from 1 to ….<br>Set the sheet name or its 1-based index. | packages-office |
 | `EXCEL.NO_TABLE` | Excel table '…' not found | …The workbook has no Excel tables.…Tables: …, …. | packages-office |
-| `EXCEL.NO_TOKEN` | A onedrive: path needs access_token | Pick the Microsoft Graph token from the vault. | packages-office |
+| `EXCEL.NO_TOKEN` | A SharePoint or OneDrive link needs access_token<br>A onedrive: path needs access_token | Pick the Microsoft Graph token from the vault. | packages-office |
 | `EXCEL.NO_VALUES` | No value fields given | Name at least one field to summarise, e.g. ["Amount"]. | packages-office |
 | `EXCEL.OPEN_FAILED` | Cannot open …: …<br>… | Close the file in Excel and check it is a valid workbook.<br>Check that the workbook exists, is a valid .xlsx or .xls file, and is not open in Excel with a lock. | packages-office |
 | `EXCEL.OVERLAP` | The range overlaps the table … | Pick a range outside existing tables. | packages-office |
 | `EXCEL.PASSWORD_REQUIRED` | The workbook … is password-protected<br>An empty password would leave the sheet unprotected | Set the password input from the credential vault.<br>Give a password, ideally a credential from the vault. | packages-office |
 | `EXCEL.READ_ONLY` | The workbook was opened read-only | Use save_as with another path, or open it without read_only. | packages-office |
 | `EXCEL.SAVE_FAILED` | Cannot save …: … | Close the file if it is open in Excel. | packages-office |
-| `EXCEL.SHEET_EXISTS` | Sheet '…' already exists | Set replace to true or choose another name.<br>Choose another name. | packages-office |
+| `EXCEL.SHEET_EXISTS` | Sheet '…' already exists | Choose another name, or tick replace to delete that sheet and its content first.<br>Choose another name. | packages-office |
+| `EXCEL.WRONG_EDIT_PASSWORD` | The password to edit … is wrong | Check the password stored in the credential vault, or open the file read-only without it. | packages-office |
 | `EXCEL.WRONG_PASSWORD` | The password for … is wrong<br>The workbook password is wrong<br>The sheet password is wrong | Check the password stored in the credential vault. | packages-office |
-| `EXCEL.XLSX_ONLY` | … is only supported for .xlsx workbooks | Save the workbook as .xlsx first (save_as with format xlsx). | packages-office |
+| `EXCEL.XLSX_ONLY` | Sensitivity labels are only supported for .xlsx workbooks<br>… is only supported for .xlsx workbooks<br>An Excel filter in the file needs an .xlsx workbook | Save the workbook as .xlsx first.<br>Save the workbook as .xlsx first (save_as with format xlsx).<br>Save the workbook as .xlsx first, or use hide_rows. | packages-office |
 
 ## EXCEL_DESKTOP
 
@@ -964,13 +967,16 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FILE.BAD_NAME` | The extension or prefix holds a character a file name cannot have | Leave out \ / : * ? " < > \|. | packages |
 | `FILE.BAD_OPERATOR` | Unknown operator '…' | Use eq, ne, gt, ge, lt or le. | packages |
 | `FILE.BAD_OPTION` | Unknown trim '…'<br>Unknown sort '…'<br>Give the number of days | Use none, leading, trailing or both.<br>Use name, modified or size.<br>Fill in 'days'. | packages |
+| `FILE.BAD_RULE` | The file name rules … | Open the step and fix the rule in the file field's Name rule mode. | sdk |
 | `FILE.BAD_TARGET` | The target … is a file | With a pattern, the target must be a folder. | packages |
 | `FILE.EXISTS` | File already exists: …<br>Target exists: …<br>Archive already exists: … | Set overwrite to true or choose another name.<br>Choose another name or turn off fail_if_exists.<br>Turn on overwrite or choose another path. | packages, packages-transfer, packages-windows, toolkits/microsoft |
+| `FILE.IO` | Cannot create the folder for …: …<br>Cannot list …: … | Check the runner may write there, or leave the path empty to use a temporary file.<br>Check the folder exists and the runner may read it. | sdk |
 | `FILE.IO_ERROR` | …<br>Cannot read …: …<br>Cannot write …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check the path and permissions.<br>Check the folder exists and can be written. | packages, packages-browser, packages-email, packages-pdf, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NOT_CREATED` | The PDF … was not written within … s | Check the printer queue and that the target folder is writable. | packages |
-| `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
+| `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, sdk, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NO_FILES` | Give at least one file to print | Fill in the files list, or a folder with matching files. | packages |
-| `FILE.OUTSIDE_WORKSPACE` | This run may only use files in its own workspace, not … | Use a path relative to the workspace. | sdk |
+| `FILE.NO_MATCH` | No file matches: … | Check the folder and the rules (the field's Name rule mode), or wait for the file first with Wait for file. | runner |
+| `FILE.OUTSIDE_WORKSPACE` | This run may only use files in its own workspace, not … | Use a folder relative to the workspace.<br>Use a path relative to the workspace. | runner, sdk |
 | `FILE.READ_FAILED` | Cannot read …: … | Check that the file exists, is not open in another program, and that the runner's account may read it. | toolkits/enterprise |
 | `FILE.TOO_LARGE` | … is … MB; Base64 text is limited to 50 MB of file | Send large files as files (for example with a REST upload) rather than as text. | packages |
 | `FILE.WAIT_TIMEOUT` | No finished file matching … appeared in time | Raise timeout_seconds, or check the folder and name pattern. | packages |
@@ -1353,7 +1359,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `M365.COPY_FAILED` | The copy failed: …error…message… | Check the destination and that the name is free. | toolkits/microsoft |
 | `M365.EXISTS` | A file named … already exists there | Set if_exists to replace or rename. | toolkits/microsoft |
 | `M365.NOTHING_TO_DO` | No formatting was given<br>No changes were given<br>Nothing was ticked to clear | Set at least one formatting input, such as fill_color, bold or font_name.<br>Set at least one of subject, start, end, body or location.<br>Tick at least one detail to clear. | toolkits/microsoft |
-| `M365.NOT_FOUND` | No calendar named '…'<br>No worksheet at position …<br>No … named '…' | …Check the name and the account's access.…Available: …, ….<br>The workbook has … worksheet(s); the first is 1.<br>Check the group's display name, or give its object id. | toolkits/microsoft |
+| `M365.NOT_FOUND` | No calendar named '…'<br>The link did not lead to a file in OneDrive or SharePoint<br>No worksheet at position … | …Check the name and the account's access.…Available: …, ….<br>Paste the link from the browser's address bar or from File > Info > Copy path, and check the sign-in may read the file.<br>The workbook has … worksheet(s); the first is 1. | toolkits/microsoft |
 | `M365.NO_FOLDER` | Mail folder '…' not found | Check the path, e.g. Inbox/Invoices; names are not case-sensitive. | toolkits/microsoft |
 | `M365.NO_OLDER_VERSION` | The file has no earlier version | Version history starts after the file is changed. | toolkits/microsoft |
 | `M365.NO_RECIPIENTS` | No recipients to forward to<br>Without the sender there is nobody left to reply to<br>Nobody to share with | Give at least one address.<br>Turn off exclude_sender.<br>Give at least one email address. | toolkits/microsoft |
@@ -1630,7 +1636,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `PROCESS.FAILED` | … exited with code …: … | Check the arguments, or set fail_on_error to false to handle the exit code yourself. | packages |
-| `PROCESS.NOT_FOUND` | Cannot start '…': …<br>… is only the Microsoft Store shortcut, not an installed Python | Check the program is installed or give its full path.<br>Check the program is installed and on the PATH, or give its full path.<br>Install Python from python.org (or turn off the Microsoft Store shortcut in App execution aliases), then try again. | packages |
+| `PROCESS.NOT_FOUND` | Cannot start '…': …<br>… is only the Microsoft Store shortcut, not an installed Python | Check the program is installed, or give its full path. A name alone is looked up on the PATH and in Windows' list of installed applications (App Paths), as Win+R does.<br>Check the program is installed and on the PATH, or give its full path.<br>Install Python from python.org (or turn off the Microsoft Store shortcut in App execution aliases), then try again. | packages |
 | `PROCESS.TIMEOUT` | '…' did not finish within … s | Raise timeout_seconds or check the program is not waiting for input. | packages |
 
 ## QUEUE
@@ -2038,6 +2044,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `STUDIO.NO_ACCESS` | This folder cannot be opened: … | Choose another folder. | cli |
 | `STUDIO.NO_BROWSER_MODULE` | The Browser module is not installed | Add packages-browser to ooa.optionalModules in gradle.properties. | cli |
 | `STUDIO.NO_DESKTOP_MODULE` | The Windows desktop module is not installed<br>The Window toolkit is not installed<br>The Desktop objects toolkit is not installed | Add packages-windows to ooa.optionalModules in gradle.properties.<br>Add packages-windows to ooa.optionalModules in gradle.properties and run Studio on Windows. | cli |
+| `STUDIO.NO_NATIVE_DIALOG` | Windows' file dialog is not available here<br>The file dialog was interrupted<br>… | Choose from the list instead (Studio is used from another computer, or not on Windows).<br>Try Browse… again, or choose from the list.<br>Choose from the list instead. | cli |
 | `STUDIO.PORT_IN_USE` | Port … is already in use; another OneAgentStudio may still be running | Stop the other OneAgentStudio (Ctrl+C in its window), or start this one with --port …. | cli |
 | `STUDIO.TOO_LARGE` | Uploads are limited to … MB per file<br>The folder is larger than 200 MB<br>The file is larger than 200 MB | Upload a smaller file, or put large files in a share the runner reads.<br>Download smaller folders, or copy it in File Explorer.<br>Copy it in File Explorer instead. | cli, vendor-tools |
 | `STUDIO.TOO_MANY_RUNS` | Four runs are already in progress | Wait for a run to finish or stop one. | cli |
@@ -2347,6 +2354,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `WORD.READ_ONLY` | The document was opened read-only | Use save_as with another path, or open it without read_only. | packages-office |
 | `WORD.SAVE_FAILED` | Cannot save .… here<br>Cannot save …: … | Save as .docx.<br>Close the file if it is open in Word.<br>Check the folder is writable. | packages-office |
 | `WORD.TEXT_NOT_FOUND` | Text '…' was not found in the document<br>Text '…' is not inside a single paragraph's runs | Check the marker text; it must appear exactly.<br>Use new_paragraph true. | packages-office |
+| `WORD.WRONG_EDIT_PASSWORD` | The password to edit … is wrong | Check the password stored in the credential vault, or open the file without it. | packages-office |
 
 ## WORD_OPEN
 

@@ -23,7 +23,7 @@ public final class WordPackage {
         /** Password the file was opened or created with; saves keep the file encrypted. */
         String password;
         /** Where the last insert ended: the paragraph or table it added (a CTP or CTTbl), for position "cursor". */
-        org.apache.xmlbeans.XmlObject cursor;
+        org.apache.xmlbeans.XmlObject cursor;   // set by Insert text; compared by identity
         DocSession(Path p, XWPFDocument d) { path = p; doc = d; }
         @Override public void close() throws IOException { doc.close(); }
     }
@@ -1057,7 +1057,8 @@ public final class WordPackage {
     public Map<String, Object> insertText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to insert; line breaks are kept.") String text,
             @Input(name = "position", type = OoaType.STRING, required = false, defaultValue = "\"end\"",
-                    enumValues = {"end", "start", "after_text", "before_text", "bookmark"}, description = "Where to insert: end, start of the document, after_text, before_text or bookmark.") String position,
+                    enumValues = {"end", "start", "after_text", "before_text", "bookmark", "cursor"},
+                    description = "Where to insert: end, start of the document, after_text, before_text, bookmark, or cursor: where the last Insert text of this session ended (G3, AA's cursor; the end at first).") String position,
             @Input(name = "anchor", type = OoaType.STRING, required = false, description = "Marker text or bookmark name the position refers to.") String anchor,
             @Input(name = "new_paragraph", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
                     description = "Put the text in its own paragraph; false adds it inside the existing paragraph.") boolean newParagraph,
@@ -1071,9 +1072,18 @@ public final class WordPackage {
             @Input(name = "as_html", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "The text is HTML: headings, paragraphs, bold/italic/underline, colours and sizes, links, bulleted and numbered lists, tables and pictures "
                             + "(data: URIs or local files) become Word formatting; it always starts in its own paragraph.") boolean asHtml) {
-        XWPFDocument d = s(ctx, session).doc;
+        DocSession ds = s(ctx, session);
+        XWPFDocument d = ds.doc;
         RunFormat fmt = new RunFormat(bold, italic, underline, size, hexColour(colour), font, null, null);
         String pos = position == null ? "end" : position.toLowerCase(Locale.ROOT);
+        if (pos.equals("cursor")) {   // where the last insert ended; the end of the document before any insert
+            XWPFParagraph at = null;
+            if (ds.cursor != null) for (XWPFParagraph p : allParagraphs(d)) if (p.getCTP() == ds.cursor) { at = p; break; }
+            XWPFParagraph p = at == null ? appendParagraph(d) : newParagraph ? paragraphAfter(at) : at;
+            writeStyled(fmt, p.createRun(), text);
+            ds.cursor = p.getCTP();
+            return Map.of();
+        }
         if (!pos.equals("end") && !pos.equals("start") && (anchor == null || anchor.isEmpty()))
             throw new ActionException("WORD.NO_ANCHOR", "Position '" + pos + "' needs an anchor", "Set anchor to the marker text or bookmark name.");
         if (asHtml) {
@@ -1087,6 +1097,7 @@ public final class WordPackage {
                 XWPFParagraph last = !els.isEmpty() && els.get(els.size() - 1) instanceof XWPFParagraph lp ? lp : null;
                 XWPFParagraph p = !newParagraph && last != null ? last : appendParagraph(d);
                 writeStyled(fmt, p.createRun(), text);
+                ds.cursor = p.getCTP();
             }
             case "start" -> {
                 List<XWPFParagraph> ps = d.getParagraphs();
@@ -1109,6 +1120,7 @@ public final class WordPackage {
                         try { np = insertBefore(p, c); } finally { c.close(); }
                     }
                     writeStyled(fmt, np.createRun(), text);
+                    ds.cursor = np.getCTP();
                 } else {
                     String all = p.getRuns().stream().map(WordPackage::runText).reduce("", String::concat);
                     int found = all.indexOf(anchor);
@@ -1128,7 +1140,7 @@ public final class WordPackage {
                 for (XWPFParagraph p : allParagraphs(d)) {
                     for (var bm : p.getCTP().getBookmarkStartList()) {
                         if (!anchor.equals(bm.getName())) continue;
-                        if (newParagraph) { writeStyled(fmt, paragraphAfter(p).createRun(), text); return Map.of(); }
+                        if (newParagraph) { XWPFParagraph np = paragraphAfter(p); writeStyled(fmt, np.createRun(), text); ds.cursor = np.getCTP(); return Map.of(); }
                         int runsBefore = 0;  // runs that come before the bookmark start inside the paragraph
                         org.apache.xmlbeans.XmlCursor c = p.getCTP().newCursor();
                         try {

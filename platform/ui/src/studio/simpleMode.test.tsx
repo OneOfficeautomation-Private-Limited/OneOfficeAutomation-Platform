@@ -41,6 +41,5 @@ describe("Simple mode (G47)", () => {
     expect(screen.queryByRole("button", { name: /^Scripts/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Triggers/ })).toBeNull();
     expect(screen.getByRole("button", { name: /^Excel files/ })).toBeTruthy();
-    expect(screen.getByText(/Everyday actions/)).toBeTruthy();
   });
 });

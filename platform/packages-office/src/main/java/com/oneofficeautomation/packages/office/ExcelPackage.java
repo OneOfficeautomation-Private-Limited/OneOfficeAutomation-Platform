@@ -595,12 +595,12 @@ public final class ExcelPackage {
     }
 
     public Map<String, Object> find(ActionContext ctx, String text, boolean matchCase, String sheet, String session) {
-        return find(ctx, text, matchCase, sheet, session, null, false, "values", "rows");
+        return find(ctx, text, matchCase, sheet, session, null, false, "values", "rows", "top", null);
     }
 
     @Action(id = "find", name = "Find", category = "Cells", idempotent = true,
             description = "Find cells whose content contains (or equals) a text, in the whole sheet or a range; returns their addresses in search order.",
-            panel = "range, text, search_by, match_case, whole_cell | look_in, sheet, session")
+            panel = "range, text, search_by, match_case, whole_cell | start_from, start_cell, look_in, sheet, session")
     @Output(name = "cells", type = OoaType.LIST, description = "Addresses such as B7.")
     @Output(name = "first_cell", type = OoaType.STRING, description = "Address of the first match; empty when nothing matched.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matching cells.")
@@ -614,7 +614,10 @@ public final class ExcelPackage {
             @Input(name = "look_in", type = OoaType.STRING, required = false, defaultValue = "\"values\"", enumValues = {"values", "formulas"},
                     description = "values searches the calculated results; formulas searches the formula text of formula cells and the value of the others.") String lookIn,
             @Input(name = "search_by", type = OoaType.STRING, required = false, defaultValue = "\"rows\"", enumValues = {"rows", "columns"},
-                    description = "Order of the results: rows goes across each row first, columns goes down each column first.") String searchBy) {
+                    description = "Order of the results: rows goes across each row first, columns goes down each column first.") String searchBy,
+            @Input(name = "start_from", type = OoaType.STRING, required = false, defaultValue = "\"top\"", enumValues = {"top", "active_cell", "cell", "end"},
+                    description = "G3 (AA parity): where the search starts: the top of the sheet, the active cell, a given cell (start_cell), or the end (searching backwards); it goes round to the start, as Excel does.") String startFrom,
+            @Input(name = "start_cell", type = OoaType.STRING, required = false, visibleWhen = "start_from=cell", example = "C10", description = "The cell the search starts at.") String startCell) {
         WorkbookSession s = session(ctx, session);
         FormulaEvaluator ev = evaluator(s);
         AreaReference a = range == null || range.isBlank() ? null : area(s, range);
@@ -630,6 +633,7 @@ public final class ExcelPackage {
         }
         if ("columns".equalsIgnoreCase(searchBy))
             found.sort(Comparator.comparingInt(Cell::getColumnIndex).thenComparingInt(Cell::getRowIndex));
+        found = fromStart(found, sheet(s, sheet), startFrom, startCell, "columns".equalsIgnoreCase(searchBy));
         List<Object> hits = new ArrayList<>();
         for (Cell c : found) hits.add(addr(c.getRowIndex(), c.getColumnIndex()));
         return out("cells", hits, "first_cell", hits.isEmpty() ? "" : hits.get(0), "count", n(hits.size()));
@@ -759,7 +763,7 @@ public final class ExcelPackage {
             panel = "save, fail_if_read_only | session")
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
-            @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save,
+            @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true", description = "Save the changes to the opened file before closing (on for new steps, as AA).") boolean save,
             @Input(name = "fail_if_read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "save=true",
                     description = "When the workbook was opened read-only, stop with an error instead of saving; false closes it without saving and logs a warning.") boolean failIfReadOnly) {
         session = ctx.sessionNameOrOnly(session, "excel", WorkbookSession.class);
@@ -1199,7 +1203,7 @@ public final class ExcelPackage {
     public Map<String, Object> deleteCells(ActionContext ctx,
             @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "B2:C3",
                     description = "Cell or range to delete; when empty, the range chosen by select_range or the cell chosen by go_to_cell (the sheet's active cell).") String range,
-            @Input(name = "shift", type = OoaType.STRING, required = false, defaultValue = "\"up\"", enumValues = {"up", "left", "entire_row", "entire_column"},
+            @Input(name = "shift", type = OoaType.STRING, required = false, defaultValue = "\"up\"", newStepDefault = "\"left\"", enumValues = {"up", "left", "entire_row", "entire_column"},
                     description = "up or left moves the remaining cells into the gap; entire_row or entire_column deletes the whole rows or columns the range touches.") String shift,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
@@ -2746,12 +2750,12 @@ public final class ExcelPackage {
     // ------------------------------------------------------------------------------------------------
 
     public Map<String, Object> replace(ActionContext ctx, String find, String with, String range, boolean matchCase, boolean wholeCell, String sheet, String session) {
-        return replace(ctx, find, with, range, matchCase, wholeCell, sheet, session, "values", "rows", false);
+        return replace(ctx, find, with, range, matchCase, wholeCell, sheet, session, "values", "rows", false, "top", null);
     }
 
     @Action(id = "replace", name = "Replace", category = "Cells",
             description = "Replace text in the cells of a sheet or range, optionally matching case or the whole cell, inside formulas, or only in the first matching cell.",
-            panel = "range, find, search_by, match_case, whole_cell, replace_with | first_only, look_in, sheet, session")
+            panel = "range, find, search_by, match_case, whole_cell, replace_with | first_only, start_from, start_cell, look_in, sheet, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of cells changed.")
     @Output(name = "cells", type = OoaType.LIST, description = "Addresses of the changed cells, in search order.")
     public Map<String, Object> replace(ActionContext ctx,
@@ -2766,7 +2770,10 @@ public final class ExcelPackage {
                     description = "values changes text cells; formulas also changes the formula text of formula cells, e.g. a sheet name inside references.") String lookIn,
             @Input(name = "search_by", type = OoaType.STRING, required = false, defaultValue = "\"rows\"", enumValues = {"rows", "columns"},
                     description = "Search order: rows goes across each row first, columns goes down each column first; matters with first_only.") String searchBy,
-            @Input(name = "first_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Change only the first matching cell in search order.") boolean firstOnly) {
+            @Input(name = "first_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Change only the first matching cell in search order.") boolean firstOnly,
+            @Input(name = "start_from", type = OoaType.STRING, required = false, defaultValue = "\"top\"", enumValues = {"top", "active_cell", "cell", "end"},
+                    description = "G3 (AA parity): where the search starts: the top of the sheet, the active cell, a given cell (start_cell), or the end (searching backwards); it goes round to the start, as Excel does.") String startFrom,
+            @Input(name = "start_cell", type = OoaType.STRING, required = false, visibleWhen = "start_from=cell", example = "C10", description = "The cell the search starts at.") String startCell) {
         if (find == null || find.isEmpty()) throw new ActionException("EXCEL.EMPTY_FIND", "Text to find is empty", "Give the text to replace.");
         WorkbookSession s = session(ctx, session);
         Sheet sh = sheet(s, sheet);
@@ -2781,6 +2788,7 @@ public final class ExcelPackage {
             cells.add(c);
         }
         if ("columns".equalsIgnoreCase(searchBy)) cells.sort(Comparator.comparingInt(Cell::getColumnIndex).thenComparingInt(Cell::getRowIndex));
+        cells = fromStart(cells, sh, startFrom, startCell, "columns".equalsIgnoreCase(searchBy));
         List<Object> changed = new ArrayList<>();
         for (Cell c : cells) {
             boolean f = c.getCellType() == CellType.FORMULA;
@@ -2797,6 +2805,36 @@ public final class ExcelPackage {
             if (firstOnly) break;
         }
         return out("count", n(changed.size()), "cells", changed);
+    }
+
+    /**
+     * The cells in search order from where the search starts (G3, as Excel's Find from the active cell): those at or after
+     * the start first, then round from the top; "end" searches backwards from the last cell.
+     */
+    static List<Cell> fromStart(List<Cell> inOrder, Sheet sh, String startFrom, String startCell, boolean byColumns) {
+        String from = startFrom == null || startFrom.isBlank() ? "top" : startFrom.strip();
+        if (from.equals("top")) return inOrder;
+        if (from.equals("end")) { List<Cell> r = new ArrayList<>(inOrder); Collections.reverse(r); return r; }
+        String at = from.equals("active_cell") ? activeCell(sh) : startCell;
+        if (!from.equals("active_cell") && !from.equals("cell"))
+            throw new ActionException("EXCEL.BAD_OPTION", "Unknown start '" + startFrom + "'", "Use top, active_cell, cell or end.");
+        if (at == null || at.isBlank()) throw new ActionException("EXCEL.BAD_CELL", "Give the cell the search starts at", "Fill in start_cell, e.g. C10.");
+        CellReference ref = new CellReference(at.strip());
+        Comparator<int[]> order = byColumns ? Comparator.<int[]>comparingInt(x -> x[1]).thenComparingInt(x -> x[0]) : Comparator.<int[]>comparingInt(x -> x[0]).thenComparingInt(x -> x[1]);
+        int[] start = {ref.getRow(), ref.getCol()};
+        List<Cell> after = new ArrayList<>(), before = new ArrayList<>();
+        for (Cell c : inOrder) (order.compare(new int[]{c.getRowIndex(), c.getColumnIndex()}, start) >= 0 ? after : before).add(c);
+        after.addAll(before);
+        return after;
+    }
+
+    public Map<String, Object> find(ActionContext ctx, String text, boolean matchCase, String sheet, String session, String range, boolean wholeCell, String lookIn, String searchBy) {
+        return find(ctx, text, matchCase, sheet, session, range, wholeCell, lookIn, searchBy, "top", null);
+    }
+
+    public Map<String, Object> replace(ActionContext ctx, String find, String with, String range, boolean matchCase, boolean wholeCell, String sheet, String session,
+            String lookIn, String searchBy, boolean firstOnly) {
+        return replace(ctx, find, with, range, matchCase, wholeCell, sheet, session, lookIn, searchBy, firstOnly, "top", null);
     }
 
     private static boolean inArea(AreaReference a, Cell c) {
@@ -3475,7 +3513,7 @@ public final class ExcelPackage {
             @Input(name = "format", type = OoaType.STRING, required = false, enumValues = {"xlsx", "xls", "csv"}, description = "File format; taken from the file extension when empty.") String format,
             @Input(name = "sheet", type = OoaType.STRING, required = false, visibleWhen = "format=csv", description = "Sheet written for csv; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that already exists at the target path; false stops with EXCEL.EXISTS.") boolean overwrite,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace a file that already exists at the target path; false stops with EXCEL.EXISTS.") boolean overwrite,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
                     description = "Encrypt the new xlsx or xls file with this password; later saves keep it. Not used for csv.") Object password) {
         WorkbookSession s = session(ctx, session);
