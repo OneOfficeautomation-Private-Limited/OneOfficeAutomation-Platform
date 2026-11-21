@@ -5,6 +5,7 @@ import pytest
 
 from ooa.runner import ListSink, Runner
 from ooa.sdk import ActionException, Input, Output, action, package, sign_package, PublisherKey
+from ooa.sdk.package import condition, iterator
 from ooa.sdk.registry import PackageRegistry
 from ooa.packages import FIRST_PARTY
 
@@ -39,6 +40,41 @@ class Flaky:
         return {}
 
 
+@package("acme.popup", "Popup", "1.0.0", description="A pretend pop-up for tests.", publisher="acme")
+class Popup:
+    showing = False
+    closed = 0
+
+    @action("show", "Show", description="Shows the pop-up.")
+    def show(self, ctx):
+        Popup.showing = True
+        return {}
+
+    @action("close", "Close", description="Closes the pop-up.")
+    def close(self, ctx):
+        Popup.showing = False
+        Popup.closed += 1
+        return {}
+
+    @action("click", "Click", description="Fails while the pop-up shows.")
+    def click(self, ctx):
+        if Popup.showing:
+            raise ActionException("A pop-up is in the way", code="UI.BLOCKED")
+        return {}
+
+    @condition("showing", "Pop-up shows", description="True while the pop-up shows.")
+    def is_showing(self, ctx):
+        return Popup.showing
+
+    @iterator("numbers", "Numbers", description="1 and 2.")
+    def numbers(self, ctx):
+        return [1, 2]
+
+    @iterator("letters", "Letters", description="x.")
+    def letters(self, ctx):
+        return ["x"]
+
+
 @pytest.fixture(scope="module")
 def reg():
     key, acme = PublisherKey.generate("oneofficeautomation"), PublisherKey.generate("acme")
@@ -47,6 +83,7 @@ def reg():
     for cls in FIRST_PARTY:
         r.install(cls, sign_package(cls, key))
     r.install(Flaky, sign_package(Flaky, acme))
+    r.install(Popup, sign_package(Popup, acme))
     return r
 
 
@@ -252,3 +289,23 @@ def test_state_machine_limit_goto_and_validation(reg):
                  "Variable '$ghost' is not declared", "Final state 'B' has transitions", "State 'C' is not final and has no transitions",
                  "State 'D' cannot be reached from the start state 'A'"):
         assert frag in msgs, frag
+
+
+def test_watch_for_interruptions(reg):
+    Popup.showing, Popup.closed = False, 0
+    handler = {"name": "Pop-up", "when": {"condition": "acme.popup/showing"}, "children": [{"id": "h", "action": "acme.popup/close"}]}
+    res = Runner(reg).run(bot([{"id": "w", "action": "core/interrupt_scope", "handlers": [handler],
+                               "children": [{"id": "a", "action": "acme.popup/show"}, {"id": "b", "action": "acme.popup/click"}]}]))
+    assert res.ok and Popup.closed == 1
+    Popup.showing = False
+    res = Runner(reg).run(bot([{"id": "a", "action": "acme.popup/show"}, {"id": "b", "action": "acme.popup/click"}]))
+    assert res.error["code"] == "UI.BLOCKED"
+
+
+def test_trigger_loop_with_several_handlers(reg):
+    f = bot([{"id": "l", "action": "core/loop", "args": {"iterator": "triggers"},
+              "handlers": [{"trigger": "acme.popup/numbers", "as": "item", "children": [{"id": "n", "action": "core/set", "args": {"variable": "seen", "value": "${seen}${item}"}}]},
+                           {"trigger": "acme.popup/letters", "as": "item", "children": [{"id": "q", "action": "core/set", "args": {"variable": "seen", "value": "${seen}${item}"}}]}]}],
+            [{"name": "seen", "type": "String", "direction": "output", "default": ""}, {"name": "item", "type": "Any"}])
+    res = Runner(reg).run(f)
+    assert res.ok and sorted(res.outputs["seen"]) == ["1", "2", "x"]

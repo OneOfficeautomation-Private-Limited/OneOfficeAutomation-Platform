@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from ..sdk.package import Input, Output, action, package
 
-CONTAINERS = {"if", "loop", "try", "step", "parallel"}
-BUILTIN_ITERATORS = ("times", "while", "list", "dictionary", "table_rows")
+CONTAINERS = {"if", "loop", "try", "step", "parallel", "interrupt_scope"}
+BUILTIN_ITERATORS = ("times", "while", "list", "dictionary", "table_rows", "triggers")
 # how core/switch compares its value with a case's values, and the condition operator that compares the same way
 SWITCH_MATCHES = ("equals", "contains", "starts_with", "ends_with", "regex", "expression")
 SWITCH_OPS = {"equals": "eq", "contains": "contains", "starts_with": "startsWith", "ends_with": "endsWith", "regex": "matches"}
@@ -59,6 +59,15 @@ class CorePackage:
 
     @action("try", "Try", category="Error handling", description="Run the steps inside; if one fails, run the first Catch that takes the error, then always Finally.")
     def try_(self, ctx, **a): _interp()
+
+    @action("interrupt_scope", "Watch for interruptions", category="Error handling",
+            description="Run the steps inside while watching for interruptions such as a pop-up: when a handler's condition becomes true, its steps run and the agent carries on.",
+            inputs=[Input("title", "String", required=False, description="What the watched steps do, shown in OneAgentStudio."),
+                    Input("check_every_seconds", "Number", required=False, default=0.5,
+                          description="How often the handlers are checked while the agent waits; they are always checked before each toolkit step."),
+                    Input("retry_failed_step", "Boolean", required=False, default=False,
+                          description="When a step fails and a handler then finds and deals with an interruption, run that step once more.")])
+    def interrupt_scope(self, ctx, **a): _interp()
 
     @action("step", "Step", category="Logic", description="A named group of steps that keeps the agent tidy; it changes nothing when the agent runs.",
             inputs=[Input("title", "String", required=False, description="Group title shown in Studio.")])

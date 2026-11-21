@@ -74,6 +74,9 @@ def walk_steps(steps, parent=None):
         for c in s.get("cases", []) or []:
             yield from walk_steps(c.get("children"), s)
         yield from walk_steps(s.get("default"), s)
+        for h in s.get("handlers") or []:
+            if isinstance(h, dict):
+                yield from walk_steps(h.get("children"), s)
         for lst in state_lists(s):
             yield from walk_steps(lst, s)
 
@@ -267,6 +270,11 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
                 for t in st.get("transitions") or []:
                     if t.get("when") is not None:
                         refs |= references(_norm_condition(t["when"]))
+            for h in step.get("handlers") or []:
+                if isinstance(h, dict):
+                    if h.get("when") is not None:
+                        refs |= references(_norm_condition(h["when"]))
+                    refs |= references(h.get("args") or {})
         except OoaError as e:
             add(e.message, sid, "args", e.suggested_fix)
             refs = set()
@@ -292,6 +300,18 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
             _switch_problems(step, args, add)
         if "states" in step and step["action"] != "core/state_machine":
             add("states are only allowed on core/state_machine", sid)
+        triggers = step["action"] == "core/loop" and args.get("iterator") == "triggers"
+        if "handlers" in step and step["action"] != "core/interrupt_scope" and not triggers:
+            add("handlers are only allowed on core/interrupt_scope and on a core/loop whose iterator is triggers", sid, "handlers")
+        if triggers and not step.get("handlers"):
+            add("The trigger loop has no handlers", sid, "handlers", "Add a handler with the event it waits for.")
+        for i, h in enumerate(step.get("handlers") or []):
+            if not isinstance(h, dict):
+                continue
+            if step["action"] == "core/interrupt_scope" and h.get("when") is None:
+                add(f"Handler {i + 1} has no condition", sid, f"handlers/{i}/when", "Choose what marks the interruption.")
+            if triggers and not h.get("trigger"):
+                add(f"Handler {i + 1} has no trigger", sid, f"handlers/{i}/trigger", "Choose the event the handler waits for.")
         if step["action"] == "core/state_machine":
             _state_machine_problems(step, args, add)
         if step["action"] == "core/loop":
