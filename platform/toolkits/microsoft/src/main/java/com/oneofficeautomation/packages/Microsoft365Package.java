@@ -657,6 +657,31 @@ public final class Microsoft365Package {
         return Map.of("path", p.toString());
     }
 
+    /** A link copied from SharePoint or OneDrive (browser address bar, Copy link, or File > Info > Copy path). */
+    public static boolean isShareLink(String path) {
+        if (path == null) return false;
+        String p = path.strip().toLowerCase(Locale.ROOT);
+        return p.startsWith("https://") && (p.contains(".sharepoint.com/") || p.contains("onedrive.live.com/") || p.startsWith("https://1drv.ms/") || p.contains("/_layouts/"));
+    }
+
+    /**
+     * The drive and the path inside it of a pasted SharePoint or OneDrive link, found through Graph's shares address
+     * ({@code u!} + the link in URL-safe Base64): {"drives/{drive-id}", "Folder/Book.xlsx", item id}.
+     */
+    public static String[] shareLink(ActionContext ctx, Object token, String url, String base) {
+        String id = "u!" + Base64.getUrlEncoder().withoutPadding().encodeToString(url.strip().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Map<String, Object> item = HttpJson.req(P, "GET", g(base) + "/shares/" + id + "/driveItem?$select=id,name,parentReference").bearer(token).send(ctx).map();
+        Object ref = item.get("parentReference");
+        String driveId = ref instanceof Map<?, ?> m && m.get("driveId") != null ? String.valueOf(m.get("driveId")) : null;
+        String parent = ref instanceof Map<?, ?> m && m.get("path") != null ? String.valueOf(m.get("path")) : "";
+        if (driveId == null || item.get("name") == null)
+            throw new ActionException(P + ".NOT_FOUND", "The link did not lead to a file in OneDrive or SharePoint",
+                    "Paste the link from the browser's address bar or from File > Info > Copy path, and check the sign-in may read the file.");
+        int root = parent.indexOf("root:");
+        String folder = root < 0 ? "" : java.net.URLDecoder.decode(parent.substring(root + 5).replaceAll("^/+", ""), java.nio.charset.StandardCharsets.UTF_8);
+        return new String[]{"drives/" + driveId, (folder.isEmpty() ? "" : folder + "/") + item.get("name"), s(item.get("id"))};
+    }
+
     @Action(id = "list_files", name = "List files", category = "Files", idempotent = true, capabilities = "network", description = "List the files and folders in a drive folder.",
             panel = "access_token, folder | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, type, size, modified, web_url.")
