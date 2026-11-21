@@ -55,9 +55,13 @@ public final class NetworkPackage {
     @Condition(id = "host_reachable", capabilities = "network", name = "Host is reachable", description = "True when the host answers a ping within the timeout.")
     public boolean reachable(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Host name or IP address.") String host,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = "Timeout in milliseconds.") int timeout) {
-        try { return InetAddress.getByName(host).isReachable(timeout); } catch (IOException e) { return false; }
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = "Timeout in milliseconds.") int timeout,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 3600,
+                    description = "Keep trying this many seconds until it answers; 0 tries once (G4).") double wait) {
+        return ctx.keepTrying(wait, () -> { try { return InetAddress.getByName(host).isReachable(timeout); } catch (IOException e) { return false; } });
     }
+
+    public boolean reachable(ActionContext ctx, String host, int timeout) { return reachable(ctx, host, timeout, 0); }
 
     @Condition(id = "port_open", capabilities = "network", name = "Port is open", description = "True when a TCP port accepts connections.")
     public boolean portOpen(ActionContext ctx,

@@ -150,6 +150,21 @@ public final class ActionContext {
         return s == null || "null".equals(s) ? "" : String.valueOf(s).strip();
     }
 
+    /**
+     * G4 (AA parity): checks again every 300 ms until the check is true or the seconds have passed (0 checks once);
+     * a stopped run ends the wait. Conditions use it for their "keep trying" option.
+     */
+    public boolean keepTrying(double seconds, java.util.function.BooleanSupplier check) {
+        long end = System.currentTimeMillis() + (long) (Math.max(0, Math.min(3600, seconds)) * 1000);
+        while (true) {
+            if (check.getAsBoolean()) return true;
+            long left = end - System.currentTimeMillis();
+            if (left <= 0) return false;
+            checkCancelled();
+            try { Thread.sleep(Math.min(300, left)); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
+        }
+    }
+
     public void checkCancelled() {
         if (cancelled.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter", "The run was stopped before this step finished. Run the agent again when it should go on.");
     }

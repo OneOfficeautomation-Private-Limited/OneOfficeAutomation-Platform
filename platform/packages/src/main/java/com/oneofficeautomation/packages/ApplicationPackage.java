@@ -124,7 +124,7 @@ public final class ApplicationPackage {
      */
     @Action(id = "open_program_file", name = "Open program/file", category = "Application", capabilities = "desktop",
             description = "Open a program with its parameters, or a file in the application that opens it (a PDF in the PDF viewer).",
-            panel = "location, parameters, start_in, wait_seconds")
+            panel = "location, parameters, start_in, wait_seconds, wait_for_window")
     @Output(name = "process_id", type = OoaType.NUMBER, description = "The program's process id, for Stop program; 0 when a file was opened in its application.")
     public Map<String, Object> openProgramFile(ActionContext ctx,
             @Input(name = "location", type = OoaType.FILE, example = "C:/Program Files/Notepad++/notepad++.exe",
@@ -134,15 +134,42 @@ public final class ApplicationPackage {
             @Input(name = "start_in", type = OoaType.FILE, required = false,
                     description = "For a program: the folder it starts in. Empty: the agent's working folder.") String startIn,
             @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0,
-                    description = "Pause this long after opening so its window can appear; 0 continues at once.") double waitSeconds) {
+                    description = "Pause this long after opening so its window can appear; 0 continues at once.") double waitSeconds,
+            @Input(name = "wait_for_window", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true",
+                    description = "For a program: go on as soon as its window shows, waiting at most wait_seconds (G4); off always pauses the whole time.") boolean waitForWindow) {
         String loc = location == null ? "" : location.strip();
         if (loc.length() > 1 && loc.startsWith("\"") && loc.endsWith("\"")) loc = loc.substring(1, loc.length() - 1).strip();
         if (loc.isEmpty()) throw new ActionException("APPLICATION.NO_LOCATION", "Choose the program or file to open", "Browse for it, or type its path.");
-        if (isProgram(loc, ctx)) return startProgram(ctx, loc, splitParameters(parameters), startIn, "normal", null, waitSeconds, false);
+        if (isProgram(loc, ctx)) {
+            if (!waitForWindow || waitSeconds <= 0) return startProgram(ctx, loc, splitParameters(parameters), startIn, "normal", null, waitSeconds, false);
+            Map<String, Object> started = startProgram(ctx, loc, splitParameters(parameters), startIn, "normal", null, 0, false);
+            long pid = started.get("process_id") instanceof Number n ? n.longValue() : 0;
+            if (pid > 0 && !ctx.keepTrying(waitSeconds, () -> hasWindow(pid)))
+                ctx.warn(loc + " showed no window within " + BigDecimal.valueOf(waitSeconds).stripTrailingZeros().toPlainString() + " s");
+            return started;
+        }
         if (parameters != null && !parameters.isBlank()) ctx.warn("Parameters are passed to programs only; " + loc + " opens in its own application without them");
         openFile(ctx, loc);
         pause(ctx, waitSeconds);
         return Map.of("process_id", BigDecimal.ZERO);
+    }
+
+    public Map<String, Object> openProgramFile(ActionContext ctx, String location, String parameters, String startIn, double waitSeconds) {
+        return openProgramFile(ctx, location, parameters, startIn, waitSeconds, false);
+    }
+
+    /** True when the process (or a program it started) shows a main window; Windows only. */
+    static boolean hasWindow(long pid) {
+        if (!ProcessRunner.WINDOWS) return true;
+        try {
+            Process p = new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command",
+                    "@(Get-CimInstance Win32_Process -Filter 'ParentProcessId=" + pid + "' | ForEach-Object { $_.ProcessId }) + " + pid
+                            + " | ForEach-Object { (Get-Process -Id $_ -ErrorAction SilentlyContinue).MainWindowHandle } | Where-Object { $_ -ne 0 } | Select-Object -First 1")
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).strip();
+            p.waitFor(10, java.util.concurrent.TimeUnit.SECONDS);
+            return !out.isEmpty() && !out.equals("0");
+        } catch (Exception e) { return true; }
     }
 
     /** A program: a name ending .exe, .bat, .cmd or .com, or a name with no extension that is not a file (notepad, found on the PATH). */
@@ -315,8 +342,12 @@ public final class ApplicationPackage {
         return Map.of("stopped", BigDecimal.valueOf(n));
     }
 
-    private static boolean matches(ProcessHandle h, String name) {
-        return h.info().command().map(c -> Path.of(c).getFileName().toString().equalsIgnoreCase(name)).orElse(false);
+    /** The program's file name, or (G4) its full path when the name has a folder in it. */
+    static boolean matches(ProcessHandle h, String name) {
+        if (name == null || name.isBlank()) return false;
+        String n = name.strip().replace('/', '\\');
+        boolean full = n.contains("\\");
+        return h.info().command().map(c -> full ? c.replace('/', '\\').equalsIgnoreCase(n) : Path.of(c).getFileName().toString().equalsIgnoreCase(n)).orElse(false);
     }
 
     // ----- command sessions: a console program kept open across steps (write a line, read until a prompt) -----
@@ -491,7 +522,11 @@ public final class ApplicationPackage {
     }
 
     @Condition(id = "is_running", name = "Program is running", description = "True when a process with this program file name is running.")
-    public boolean isRunning(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = "Program file name, e.g. EXCEL.EXE.") String name) {
-        return ProcessHandle.allProcesses().anyMatch(h -> matches(h, name));
+    public boolean isRunning(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = "Program file name, e.g. EXCEL.EXE, or its full path, e.g. C:\\Tools\\app.exe (G4).") String name,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 3600,
+                    description = "Keep trying this many seconds until it runs; 0 checks once (G4).") double wait) {
+        return ctx.keepTrying(wait, () -> ProcessHandle.allProcesses().anyMatch(h -> matches(h, name)));
     }
+
+    public boolean isRunning(ActionContext ctx, String name) { return isRunning(ctx, name, 0); }
 }

@@ -49,7 +49,7 @@ export const WEB_NAMES: Record<string, string> = {
   focus: "Set focus", set_text: "Set text", append_text: "Append text", clear: "Clear text", press_key: "Press a key",
   get_text: "Get text", get_value: "Get value", get_attribute: "Get attribute", get_property: "Get property", get_all_properties: "Get all properties",
   get_html: "Get HTML", get_inner_html: "Get inner HTML", get_coordinates: "Get position", get_children_text: "Get the text of all children", get_table: "Get table",
-  select_by_text: "Select item by text", select_by_value: "Select item by value", select_by_index: "Select item by index (0 = first)",
+  select_by_text: "Select item by text", select_by_value: "Select item by value", select_by_index: "Select item by index",
   get_selected: "Get selected text", get_selected_index: "Get selected index (1 = first)", get_total_items: "Get total items", get_options: "Get all items",
   check: "Check", uncheck: "Uncheck", toggle: "Toggle", select: "Select", get_status: "Get status", is_checked: "Is checked",
   is_visible: "Is visible", is_enabled: "Is enabled", is_present: "Is present", count: "Count matches", scroll_into_view: "Scroll into view",
@@ -57,6 +57,8 @@ export const WEB_NAMES: Record<string, string> = {
   upload_file: "Upload file", screenshot: "Screenshot", get_total_rows: "Get total rows", get_total_columns: "Get total columns",
   get_cell_text: "Get cell text by position", get_cell_index_by_text: "Get cell position by text", set_cell_text: "Set cell text by position",
   click_cell: "Click cell by position", set_position: "Set position", get_control_type: "Get control type",
+  click_cell_by_text: "Click cell by text", set_cell_by_text: "Set cell text by text", expand: "Expand", collapse: "Collapse",
+  select_path: "Select by path (File > Save)", get_children_values: "Get names and values of all children",
 };
 const WEB_COMMON = ["get_property", "get_all_properties", "click", "double_click", "right_click", "hover", "focus", "scroll_into_view", "highlight",
   "screenshot", "get_coordinates", "is_visible", "is_present", "wait_to_appear", "wait_to_disappear"];
@@ -67,11 +69,12 @@ const WEB_BY_CONTROL: Record<string, string[]> = {
   "Radio button": ["select", "get_status", "is_checked"],
   "Drop-down list": ["select_by_text", "select_by_value", "select_by_index", "get_selected", "get_selected_index", "get_total_items", "get_options"],
   "List": ["select_by_text", "select_by_value", "select_by_index", "get_selected", "get_selected_index", "get_total_items", "get_options"],
-  "Table": ["get_table", "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell", "get_total_rows", "get_total_columns"],
+  "Table": ["get_table", "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell", "click_cell_by_text", "set_cell_by_text", "get_total_rows", "get_total_columns"],
   "Button": ["get_text", "is_enabled"], "Link": ["get_text", "get_attribute"], "Label": ["get_text"], "Image": ["get_attribute"],
   "Calendar": ["set_text", "get_value"], "Slider": ["set_position", "get_value"], "File input": ["upload_file"],
-  "Tab": ["get_text", "get_total_items"], "Menu": ["get_text", "get_total_items", "get_children_text"], "Tree": ["get_text", "get_children_text"],
-  "Element": ["get_text", "get_html", "get_inner_html", "get_children_text", "set_text", "get_attribute"],
+  "Tab": ["get_text", "get_total_items", "get_selected_index", "select_path"], "Menu": ["get_text", "get_total_items", "get_children_text", "select_path", "expand", "collapse"],
+  "Tree": ["get_text", "get_children_text", "select_path", "expand", "collapse", "get_selected_index"],
+  "Element": ["get_text", "get_html", "get_inner_html", "get_children_text", "get_children_values", "set_text", "get_attribute", "expand", "collapse"],
 };
 
 export const DESKTOP_NAMES: Record<string, string> = {
@@ -97,7 +100,7 @@ const OUTCOME: Record<string, string> = {
   get_children_text: "children_text", get_table: "table_data", get_selected: "selected_item", get_selected_index: "selected_index",
   get_total_items: "item_count", get_options: "items", get_status: "status", is_checked: "is_checked", is_visible: "is_visible", is_enabled: "is_enabled",
   is_present: "is_present", count: "match_count", get_total_rows: "row_count", get_total_columns: "column_count", get_cell_text: "cell_text",
-  get_cell_index_by_text: "cell_position", get_control_type: "control_type", toggle: "is_checked", get_children: "children", get_list_items: "items",
+  get_cell_index_by_text: "cell_position", get_control_type: "control_type", get_children_values: "children_values", toggle: "is_checked", get_children: "children", get_list_items: "items",
 };
 export function outcomeOf(action: string): { name: string; type: string } | null {
   const name = OUTCOME[action];

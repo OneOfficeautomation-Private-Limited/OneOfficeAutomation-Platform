@@ -678,8 +678,15 @@ public final class DesktopUiPackage {
     }
 
     @Condition(id = "object_exists", name = "Desktop object exists", description = "True when the captured control can be found now in a Windows application (self-healing applies).")
-    public boolean objectExists(ActionContext ctx, @Input(name = "object", type = OoaType.DICTIONARY, description = D_OBJECT) Map<String, Object> object) {
-        try { locate(ctx, DesktopObject.parse(object), 0); return true; }
-        catch (ActionException e) { if ("DESKTOP_UI.OBJECT_NOT_FOUND".equals(e.code())) return false; throw e; }
+    public boolean objectExists(ActionContext ctx, @Input(name = "object", type = OoaType.DICTIONARY, description = D_OBJECT) Map<String, Object> object,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 3600,
+                    description = "Keep trying this many seconds until it is there; 0 checks once (G4).") double wait) {
+        DesktopObject o = DesktopObject.parse(object);
+        return ctx.keepTrying(wait, () -> {
+            try { locate(ctx, o, 0); return true; }
+            catch (ActionException e) { if ("DESKTOP_UI.OBJECT_NOT_FOUND".equals(e.code())) return false; throw e; }
+        });
     }
+
+    public boolean objectExists(ActionContext ctx, Map<String, Object> object) { return objectExists(ctx, object, 0); }
 }
