@@ -89,7 +89,7 @@ public final class SapPackage {
     public Map<String, Object> logOn(ActionContext ctx,
             @Input(name = "system", type = OoaType.STRING, example = "PRD - Live production", description = "System description exactly as in SAP Logon.") String system,
             @Input(name = "client", type = OoaType.STRING, example = "100", description = "Client.") String client,
-            @Input(name = "user", type = OoaType.STRING, description = "User.") String user,
+            @Input(name = "user", type = OoaType.STRING, acceptsCredential = true, description = "SAP user name; it may come from the vault.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "Password from the vault.") SecureString password,
             @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"EN\"", description = "Logon language.") String lang,
             @Input(name = "system_type", type = OoaType.STRING, required = false, defaultValue = "\"description\"", enumValues = {"description", "connection_string"},
@@ -263,14 +263,44 @@ public final class SapPackage {
     /** Earlier signature, kept for callers written before fail_on_error_message. */
     public Map<String, Object> press(ActionContext ctx, String elementId, int c, int s) { return press(ctx, elementId, c, s, false); }
 
-    @Action(id = "send_key", name = "Send key", category = "Fields", timeoutSeconds = 120, capabilities = "desktop", description = "Send a virtual key: 0 Enter, 3 Back (F3), 8 Execute (F8), 11 Save (Ctrl+S), 12 Cancel (F12).",
-            panel = "vkey | window, fail_on_error_message, connection, session")
+    /** SAP GUI's virtual key numbers by the key's name (the numbers SAP GUI scripting's sendVKey takes). */
+    static final Map<String, Integer> KEYS = new LinkedHashMap<>();
+    static {
+        KEYS.put("Enter", 0);
+        for (int i = 1; i <= 12; i++) KEYS.put("F" + i, i);
+        KEYS.put("Ctrl+S", 11);
+        for (int i = 1; i <= 12; i++) if (i != 10) KEYS.put("Shift+F" + i, 12 + i);
+        KEYS.put("Ctrl+Shift+0", 22);
+        for (int i = 1; i <= 12; i++) KEYS.put("Ctrl+F" + i, 24 + i);
+        for (int i = 1; i <= 12; i++) KEYS.put("Ctrl+Shift+F" + i, 36 + i);
+        String[][] more = {{"Ctrl+E", "70"}, {"Ctrl+F", "71"}, {"Ctrl+/", "72"}, {"Ctrl+\\", "73"}, {"Ctrl+N", "74"}, {"Ctrl+O", "75"}, {"Ctrl+X", "76"},
+                {"Ctrl+C", "77"}, {"Ctrl+V", "78"}, {"Ctrl+Z", "79"}, {"Ctrl+Page up", "80"}, {"Page up", "81"}, {"Page down", "82"}, {"Ctrl+Page down", "83"},
+                {"Ctrl+G", "84"}, {"Ctrl+R", "85"}, {"Ctrl+P", "86"}};
+        for (String[] m : more) KEYS.put(m[0], Integer.parseInt(m[1]));
+    }
+
+    /** The virtual key number of a key name (case and spaces ignored), or SAP.BAD_KEY. */
+    static int vkeyOf(String name) {
+        String want = name.strip().replace(" ", "").toLowerCase(Locale.ROOT);
+        for (var e : KEYS.entrySet()) if (e.getKey().replace(" ", "").toLowerCase(Locale.ROOT).equals(want)) return e.getValue();
+        throw new ActionException("SAP.BAD_KEY", "Unknown key '" + name + "'", "Pick a key from the list (Enter, F1-F12, Shift+F1, Ctrl+S, Page down ...), or give its virtual key number.");
+    }
+
+    @Action(id = "send_key", name = "Send key", category = "Fields", timeoutSeconds = 120, capabilities = "desktop", description = "Press a key in SAP GUI, such as Enter, F3 (Back), F8 (Execute), Ctrl+S (Save) or F12 (Cancel).",
+            panel = "(Key: By name = key / By number = vkey) | window, fail_on_error_message, connection, session")
     public Map<String, Object> sendKey(ActionContext ctx,
             @Input(name = "vkey", type = OoaType.NUMBER, defaultValue = "0", required = false, description = "SAP virtual key number.") int vkey,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
             @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s,
             @Input(name = "window", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Window to send the key to (0 = main window, 1 = the first pop-up).") int window,
-            @Input(name = "fail_on_error_message", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Stop with an error when the status bar then shows an error message.") boolean failOnError) {
+            @Input(name = "fail_on_error_message", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Stop with an error when the status bar then shows an error message.") boolean failOnError,
+            @Input(name = "key", type = OoaType.STRING, required = false, newStepDefault = "\"Enter\"", enumValues = {"Enter", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+                    "Ctrl+S", "Shift+F1", "Shift+F2", "Shift+F3", "Shift+F4", "Shift+F5", "Shift+F6", "Shift+F7", "Shift+F8", "Shift+F9", "Shift+F11", "Shift+F12",
+                    "Ctrl+F1", "Ctrl+F2", "Ctrl+F3", "Ctrl+F4", "Ctrl+F5", "Ctrl+F6", "Ctrl+F7", "Ctrl+F8", "Ctrl+F9", "Ctrl+F10", "Ctrl+F11", "Ctrl+F12",
+                    "Ctrl+Shift+F1", "Ctrl+Shift+F2", "Ctrl+Shift+F3", "Ctrl+Shift+F4", "Ctrl+Shift+F5", "Ctrl+Shift+F6", "Ctrl+Shift+F7", "Ctrl+Shift+F8", "Ctrl+Shift+F9", "Ctrl+Shift+F10", "Ctrl+Shift+F11", "Ctrl+Shift+F12",
+                    "Page up", "Page down", "Ctrl+Page up", "Ctrl+Page down", "Ctrl+E", "Ctrl+F", "Ctrl+G", "Ctrl+N", "Ctrl+O", "Ctrl+P", "Ctrl+R", "Ctrl+X", "Ctrl+C", "Ctrl+V", "Ctrl+Z"},
+                    description = "Key to press, by name; the number below is used when this is empty.") String key) {
+        if (key != null && !key.isBlank()) vkey = vkeyOf(key);
         if (vkey < 0 || vkey > 99) throw new ActionException("SAP.BAD_KEY", "Invalid virtual key " + vkey, "Use a virtual key number from 0 to 99 (for example 0 is Enter, 3 is F3 Back, 11 is Ctrl+S Save).");
         if (window < 0 || window > 9) throw new ActionException("SAP.BAD_WINDOW", "Invalid window number " + window, "Use a window number from 0 to 9; the main window is 0.");
         run(ctx, "Attach a(0), a(1)\r\nsess.findById(\"wnd[\" & a(3) & \"]\").sendVKey CInt(a(2)): Check \"Key\"" + STATUS_CHECK + "\r\nWScript.StdOut.WriteLine \"{}\"",
@@ -280,6 +310,9 @@ public final class SapPackage {
 
     /** Earlier signature, kept for callers written before the window option. */
     public Map<String, Object> sendKey(ActionContext ctx, int vkey, int c, int s) { return sendKey(ctx, vkey, c, s, 0, false); }
+
+    /** Earlier signature, kept for callers written before the key name. */
+    public Map<String, Object> sendKey(ActionContext ctx, int vkey, int c, int s, int window, boolean failOnError) { return sendKey(ctx, vkey, c, s, window, failOnError, null); }
 
     @Action(id = "get_status_bar", name = "Get status bar", category = "Fields", idempotent = true, capabilities = "desktop",
             description = "Read the status bar message and type (S success, W warning, E error, I info), with its message class and number.",
@@ -846,16 +879,30 @@ public final class SapPackage {
             """;
 
     @Action(id = "get_table_cell", name = "Get table cell", category = "Tables", idempotent = true, capabilities = "desktop", description = "Read one cell of an ALV grid or table control.",
-            panel = "id, row, column | connection, session")
+            panel = "id, row, column, count_from_one | connection, session")
     @Output(name = "text", type = OoaType.STRING, description = "Cell value.")
     public Map<String, Object> getCell(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
-            @Input(name = "row", type = OoaType.NUMBER, description = "Row (0-based, counted from the top of the whole table).") int row,
-            @Input(name = "column", type = OoaType.STRING, description = "Column: 0-based position, title, or technical field name.") String column,
+            @Input(name = "row", type = OoaType.NUMBER, description = "Row, counted from the top of the whole table (from 1 or from 0, as set below).") int row,
+            @Input(name = "column", type = OoaType.STRING, description = "Column: its position (from 1 or from 0, as set below), title, or technical field name.") String column,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
-            @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s) {
-        if (row < 0) throw new ActionException("SAP.BAD_ROW", "Rows start at 0", "Give a row number from 0 (the first row).");
-        return Map.of("text", String.valueOf(run(ctx, TABLE_LIB + GET_CELL, args(c, s, id(elementId), String.valueOf(row)), line(column)).getOrDefault("text", "")));
+            @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s,
+            @Input(name = "count_from_one", label = "Count rows and columns from 1", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true", tone = "plain",
+                    description = "The first row and column are number 1; when off they are number 0, as in steps made before.") boolean fromOne) {
+        int r = row - (fromOne ? 1 : 0);
+        if (r < 0) throw new ActionException("SAP.BAD_ROW", "Rows start at " + (fromOne ? 1 : 0), "Give a row number from " + (fromOne ? 1 : 0) + " (the first row).");
+        return Map.of("text", String.valueOf(run(ctx, TABLE_LIB + GET_CELL, args(c, s, id(elementId), String.valueOf(r)), line(zeroBasedColumn(column, fromOne))).getOrDefault("text", "")));
+    }
+
+    /** Earlier signature, kept for callers written before count_from_one. */
+    public Map<String, Object> getCell(ActionContext ctx, String elementId, int row, String column, int c, int s) { return getCell(ctx, elementId, row, column, c, s, false); }
+
+    /** A column given by position counted from 1 as the 0-based position SAP GUI uses; titles and field names stay. */
+    static String zeroBasedColumn(String column, boolean fromOne) {
+        if (!fromOne || column == null || !column.strip().matches("\\d+")) return column;
+        int n = Integer.parseInt(column.strip());
+        if (n < 1) throw new ActionException("SAP.BAD_COLUMN", "Columns start at 1", "Give a column position from 1, its title or its technical field name.");
+        return String.valueOf(n - 1);
     }
 
     static final String SET_CELL = "Attach a(0), a(1)\n" + find("Table") + """
@@ -874,23 +921,31 @@ public final class SapPackage {
         return setCell(ctx, elementId, Integer.valueOf(row), column, value, c, s, null);
     }
 
+    /** Earlier signature, kept for callers written before count_from_one. */
+    public Map<String, Object> setCell(ActionContext ctx, String elementId, Integer row, String column, Object value, int c, int s, String findText) {
+        return setCell(ctx, elementId, row, column, value, c, s, findText, false);
+    }
+
     @Action(id = "set_table_cell", name = "Set table cell", category = "Tables", capabilities = "desktop",
             description = "Type a value into an editable cell of an ALV grid or table control, chosen by row and column or found by the text it holds.",
-            panel = "id, (Find the cell: By row = row / By the text it holds = find_text), column, value | connection, session")
-    @Output(name = "row", type = OoaType.NUMBER, description = "Row (0-based) of the cell that was changed.")
+            panel = "id, (Find the cell: By row = row / By the text it holds = find_text), column, value, count_from_one | connection, session")
+    @Output(name = "row", type = OoaType.NUMBER, description = "Row of the cell that was changed (from 1 or from 0, as set).")
     @Output(name = "column", type = OoaType.STRING, description = "Column of the cell that was changed, as given or as found.")
     public Map<String, Object> setCell(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
-            @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row (0-based, counted from the top of the whole table); not used with find_text.") Integer row,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row, counted from the top of the whole table (from 1 or from 0, as set below); not used with find_text.") Integer row,
             @Input(name = "column", type = OoaType.STRING, required = false,
-                    description = "Column: 0-based position, title, or technical field name. With find_text, only this column is searched (all columns when empty).") String column,
+                    description = "Column: its position (from 1 or from 0, as set below), title, or technical field name. With find_text, only this column is searched (all columns when empty).") String column,
             @Input(name = "value", description = "New value, or a Credential variable.") Object value,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
             @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s,
             @Input(name = "find_text", type = OoaType.STRING, required = false,
-                    description = "Find the cell by the text it holds now (surrounding spaces and case ignored) and write into the first match, searching top to bottom; row is then not used.") String findText) {
+                    description = "Find the cell by the text it holds now (surrounding spaces and case ignored) and write into the first match, searching top to bottom; row is then not used.") String findText,
+            @Input(name = "count_from_one", label = "Count rows and columns from 1", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true", tone = "plain",
+                    description = "The first row and column are number 1; when off they are number 0, as in steps made before.") boolean fromOne) {
         int r;
         String col;
+        column = zeroBasedColumn(column, fromOne);
         if (findText != null && !findText.isBlank()) {
             Map<String, Object> hit = findCell(ctx, elementId, findText, column, c, s, false, false);
             if (!Boolean.TRUE.equals(hit.get("found")))
@@ -900,13 +955,14 @@ public final class SapPackage {
             col = String.valueOf(hit.get("column"));
         } else {
             if (row == null) throw new ActionException("SAP.BAD_ROW", "Give the row of the cell, or find_text to find the cell by its text", "Fill in Row, or Find text to find the cell by its text.");
-            if (row < 0) throw new ActionException("SAP.BAD_ROW", "Rows start at 0", "Give a row number from 0 (the first row).");
+            row = row - (fromOne ? 1 : 0);
+            if (row < 0) throw new ActionException("SAP.BAD_ROW", "Rows start at " + (fromOne ? 1 : 0), "Give a row number from " + (fromOne ? 1 : 0) + " (the first row).");
             if (column == null || column.isBlank()) throw new ActionException("SAP.BAD_COLUMN", "Give the column of the cell", "Use a 0-based position, the column title or the technical field name.");
             r = row;
             col = column;
         }
         run(ctx, TABLE_LIB + SET_CELL, args(c, s, id(elementId), String.valueOf(r)), line(col) + line(secret(value)));
-        return Out.of("row", BigDecimal.valueOf(r), "column", col);
+        return Out.of("row", BigDecimal.valueOf(r + (fromOne ? 1 : 0)), "column", col);
     }
 
     static final String FIND_CELL = "Attach a(0), a(1)\n" + find("Table") + """
