@@ -398,6 +398,23 @@ public final class Runner {
          * The step's arguments with the inputs it leaves empty taken from the saved connection: plain values as they
          * are, credentials fetched from the vault just in time (and masked in logs). What the step sets itself wins.
          */
+        /**
+         * The saved connection that the toolkit's Connect step chose in this run (ConnectionSession; the latest wins),
+         * or null: the toolkit's later steps without a connection of their own use it.
+         */
+        String connectedAs(String pid) {
+            ConnectionSession best = null;
+            for (Object o : sessions.values())
+                if (o instanceof ConnectionSession c && pid.equals(c.packageId()) && (best == null || c.openedAt() >= best.openedAt())) best = c;
+            return best == null ? null : best.connection();
+        }
+
+        /** Loops and conditions of a toolkit use its Connect step's connection too (they have no connection of their own). */
+        Map<String, Object> withConnectedAs(String pid, ActionSpec spec, Map<String, Object> raw) {
+            String cn = connectedAs(pid);
+            return cn == null ? raw : withConnection(cn, pid, spec, raw);
+        }
+
         @SuppressWarnings("unchecked")
         Map<String, Object> withConnection(String name, String pid, ActionSpec spec, Map<String, Object> raw) {
             if (!(connections().get(name) instanceof Map<?, ?> found))
@@ -1192,7 +1209,7 @@ public final class Runner {
                     PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
                     ActionSpec spec = pkg.spec("condition", cid);
                     if (spec == null) throw new OoaException("FLOW.UNKNOWN_CONDITION", "Unknown condition '" + addr + "'", "Update the runner; the agent uses a condition this runner does not know.");
-                    Object r = invoke(pkg, spec, prepareArgs(spec, (Map<String, Object>) resolve(m.getOrDefault("args", Map.of()))), ctx(stepId));
+                    Object r = invoke(pkg, spec, prepareArgs(spec, withConnectedAs(pid, spec, (Map<String, Object>) resolve(m.getOrDefault("args", Map.of())))), ctx(stepId));
                     return Boolean.TRUE.equals(r);
                 }
             }
@@ -1280,7 +1297,7 @@ public final class Runner {
                     PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
                     ActionSpec spec = pkg.spec("iterator", iid);
                     if (spec == null) throw new OoaException("FLOW.UNKNOWN_ITERATOR", "Unknown iterator '" + it + "'", "Update the runner; the agent uses a loop kind this runner does not know.");
-                    Object res = invoke(pkg, spec, prepareArgs(spec, (Map<String, Object>) resolve(a.getOrDefault("iterator_args", Map.of()))), ctx(sid));
+                    Object res = invoke(pkg, spec, prepareArgs(spec, withConnectedAs(pid, spec, (Map<String, Object>) resolve(a.getOrDefault("iterator_args", Map.of())))), ctx(sid));
                     Iterator<Object> src = ((Iterable<Object>) res).iterator();
                     if (src instanceof AutoCloseable c) release = c;
                     if (reverse) {
@@ -1921,7 +1938,8 @@ public final class Runner {
                 OoaException err;
                 try {
                     Map<String, Object> raw = spec.currentArgs((Map<String, Object>) resolve(step.getOrDefault("args", Map.of())));
-                    if (step.get("connection") instanceof String cn && !cn.isBlank()) raw = withConnection(cn.strip(), pid, spec, raw);
+                    String cn = step.get("connection") instanceof String s && !s.isBlank() ? s.strip() : connectedAs(pid);
+                    if (cn != null) raw = withConnection(cn, pid, spec, raw);
                     Map<String, Object> args = prepareArgs(spec, raw);
                     ActionContext c = ctx(sid);
                     if (mocks != null && mocks.get(sid) instanceof Map<?, ?> mock) { result = mocked(sid, (Map<String, Object>) mock); break; }
