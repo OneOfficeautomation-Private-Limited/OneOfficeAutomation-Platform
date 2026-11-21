@@ -10,12 +10,12 @@ import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
 import { Button, Dialog, Field, HelpButton, Icon, IconButton, IconTile, is, keyOf, Menu, Select, SidePanel, Splitter, TabPanel, Tabs, TextArea, TextInput, usePanelSize, usePersistent, withKey, type MenuItem, reportMinor } from "../components";
 import { ACTIONS_HELP, DETAILS_HELP, EDITOR_HELP, OUTPUT_HELP } from "./studioHelp";
-import { ConditionEditor } from "./ConditionEditor";
+import { ConditionEditor, SpecFields } from "./ConditionEditor";
 import {
   addBranch, addOnError, blockIds, CLIP_KEY, setCatch, copySteps, disabledState, duplicateSteps, findStep, foldedSet, inHandler, innerLists, isBlock, moveManyTo, moveSelection, ON_ERROR, partList, parseSection,
   pasteSteps, readClip, removeBranch, removeOnError, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded, setOnError,
   replaceInSteps, setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
-  moveCase, parseLoose, setCaseValues, showValue,
+  moveCase, moveHandler, parseLoose, setCaseValues, setHandler, showValue,
   addTransition, moveState, moveTransition, renameState, setStateFinal, setTransition,
   addSubflow, listOf, removeSubflow, renameSubflow, swapSubflow,
 } from "./flowEdit";
@@ -25,7 +25,7 @@ import { TriggersPanel } from "./TriggersPanel";
 import { KINDS, TRIGGER_GROUPS } from "../shell/triggerKinds";
 import { lastValues, varRef } from "./variables";
 import { ConnectorsDialog, SavedConnectionsDialog } from "./WorkspaceTools";
-import { VariableDialog, VariablesPanel, VarsContext, type NewVariable, type VarsCtx, type WhereChoice } from "./VariablesPanel";
+import { useVars, VariableDialog, VariablesPanel, VarsContext, type NewVariable, type VarsCtx, type WhereChoice } from "./VariablesPanel";
 
 /** The address of the agent's first Open page step, to suggest when a capture opens a new page. */
 const openUrl = (flow: Flow): string | undefined => {
@@ -320,7 +320,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
     wrapRef.current?.requestFullscreen?.().catch(() => {});   // refused or not offered: the page area is used
   };
   const folded = useMemo(() => foldedSet(flow), [flow]);
-  const { rows, handlerFrom } = useMemo(() => agentRows(flow, folded), [flow, folded]);
+  const { rows, handlerFrom } = useMemo(() => agentRows(flow, folded, packages), [flow, folded, packages]);
   const [rightTab, setRightTab] = useState("properties");
   useEffect(() => { if (askTrigger) { setRightTab("triggers"); setRightHidden(false); } }, [askTrigger]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [rightHidden, setRightHidden] = usePersistent("panel.details.hidden", false);
@@ -1020,11 +1020,16 @@ function SubflowDialog({ rename, onClose, onSave }: { rename?: string; onClose: 
   );
 }
 
-function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default" | "states") => void }) {
-  if (step.action !== "core/if" && step.action !== "core/try" && step.action !== "core/switch" && step.action !== "core/state_machine") return null;
+function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default" | "states" | "handlers") => void }) {
+  const triggers = step.action === "core/loop" && step.args?.iterator === "triggers";
+  if (step.action !== "core/if" && step.action !== "core/try" && step.action !== "core/switch" && step.action !== "core/state_machine"
+    && step.action !== "core/interrupt_scope" && !triggers) return null;
   return <>
     <h3 className="st-prop-section">Parts</h3>
     <div className="st-row st-pad">
+      {/* G1 (AA parity): another pop-up to deal with, another trigger to watch */}
+      {step.action === "core/interrupt_scope" && <Button kind="secondary" icon="plus" onClick={() => onAdd("handlers")}>Interruption</Button>}
+      {triggers && <Button kind="secondary" icon="plus" onClick={() => onAdd("handlers")}>Trigger</Button>}
       {step.action === "core/if" && <>
         <Button kind="secondary" icon="plus" onClick={() => onAdd("elseIf")}>Else if</Button>
         {!step.else && <Button kind="secondary" icon="plus" onClick={() => onAdd("else")}>Else</Button>}
@@ -1040,6 +1045,8 @@ function BlockParts({ step, onAdd }: { step: FlowStep; onAdd: (kind: "elseIf" | 
       {step.action === "core/state_machine" && <Button kind="secondary" icon="plus" onClick={() => onAdd("states")}>State</Button>}
     </div>
     {step.action === "core/state_machine" && <p className="st-pad st-muted">Select a state's heading in the list to rename it, mark it final or add transitions; select a transition's heading to choose where it leads and when.</p>}
+    {step.action === "core/interrupt_scope" && <p className="st-pad st-muted">The steps right under the block are watched. Select an interruption's heading to choose what shows it (a condition) and add the steps that deal with it.</p>}
+    {triggers && <p className="st-pad st-muted">Each trigger is watched at the same time; select a trigger's heading to choose what it waits for, and add the steps that run for each of its events.</p>}
   </>;
 }
 
@@ -1125,6 +1132,57 @@ function CaseValues({ flow, id, k, onEdit }: { flow: Flow; id: string; k: number
       ))}
     </div>
   );
+}
+
+/**
+ * A handler's settings (G1, AA parity). Watch for interruptions: its name, the condition that shows the interruption
+ * (any condition, as for If: a window, an element, an image found), and how often it may respond. A trigger loop: its
+ * name, the trigger (a loop type of the Trigger loop toolkit) with its own fields, and the variable for each event.
+ * Both: switched off, and moved up or down (handlers are checked from the top).
+ */
+function HandlerFields({ flow, id, k, onEdit }: { flow: Flow; id: string; k: number; onEdit: (next: Flow, select?: string[]) => void }) {
+  const vars = useVars();
+  const packages = vars?.packages ?? [];
+  const step = findStep(flow, id)?.step;
+  const h = step?.handlers?.[k];
+  if (!step || !h) return null;
+  const isLoop = step.action === "core/loop";
+  const count = step.handlers?.length ?? 0;
+  const set = (patch: Parameters<typeof setHandler>[3]) => onEdit(setHandler(flow, id, k, patch));
+  const triggerOptions = [{ value: "", label: "Choose what to wait for…" }, ...[...packages].filter((p) => p.iterators?.length && (p.id === "ooa.triggerloop" || p.id.startsWith("ooa.triggerloop")))
+    .flatMap((p) => p.iterators!.map((x) => ({ value: p.id + "/" + x.id, label: x.name, group: p.name }))),
+    ...[...packages].filter((p) => p.iterators?.length && !p.id.startsWith("ooa.triggerloop")).sort((a, b) => a.name.localeCompare(b.name))
+      .flatMap((p) => p.iterators!.map((x) => ({ value: p.id + "/" + x.id, label: x.name, group: p.name }))),
+    ...(h.trigger && !packages.some((p) => p.iterators?.some((x) => p.id + "/" + x.id === h.trigger)) ? [{ value: h.trigger, label: h.trigger + " (not installed)" }] : [])];
+  const [pid, iid] = (h.trigger ?? "").split("/");
+  const spec = packages.find((p) => p.id === pid)?.iterators?.find((x) => x.id === iid);
+  return <>
+    <Field label="Name" hint="Shown on its heading and in the run log." layout="beside">{(fid) =>
+      <CommitInput key={id + k + (h.name ?? "")} id={fid} initial={h.name ?? ""} placeholder={isLoop ? "New invoice" : "Session expired"} onCommit={(t) => set({ name: t.trim() || undefined })} />}</Field>
+    {!isLoop && <>
+      <Field label="Shown when" hint="Any condition, as for If: a window or element exists, an image is found, a value. Checked before each step and while the agent waits.">{() =>
+        <ConditionEditor key={id + ":h" + k} value={h.when} onCommit={(v) => set({ when: v })} />}</Field>
+      <Field label="Respond at most" hint="Times while the block runs; empty: every time it shows." layout="beside">{(fid) =>
+        <CommitInput key={id + k + "m" + (h.max_times ?? "")} id={fid} initial={h.max_times === undefined ? "" : String(h.max_times)} placeholder="No limit" want="Number"
+          onCommit={(t) => { const n = Number(t.trim()); set({ max_times: t.trim() === "" || !Number.isFinite(n) || n <= 0 ? undefined : Math.floor(n) }); }} />}</Field>
+    </>}
+    {isLoop && <>
+      <Field label="Wait for" layout="beside" hint={spec?.description}>{(fid) =>
+        <Select id={fid} aria-label="What this trigger waits for" value={h.trigger ?? ""} options={triggerOptions}
+          onChange={(e) => set({ trigger: e.target.value || undefined, args: undefined })} />}</Field>
+      {spec && <Field label="Settings" layout="beside">{() =>
+        <SpecFields args={(h.args ?? {}) as Record<string, unknown>} spec={spec} keyPrefix={id + ":h" + k + (h.trigger ?? "")}
+          onChange={(a) => set({ args: Object.fromEntries(Object.entries(a).filter(([, v]) => v !== undefined && v !== "")) })} />}</Field>}
+      <Field label="Store each event in" hint="A Dictionary variable; the loop's own one when empty." layout="beside">{() =>
+        <VariableChooser value={h.as} type="Dictionary" label="Store each event in" nameHint="event" onPick={(f, n) => setHandler(f, id, k, { as: n || undefined })} />}</Field>
+    </>}
+    <label className="st-check-line"><input type="checkbox" checked={!!h.disabled} onChange={(e) => set({ disabled: e.target.checked })} />
+      Switched off (not watched; its steps stay)</label>
+    {count > 1 && <div className="st-row">
+      <Button kind="secondary" icon="up" disabled={k === 0} onClick={() => { const m = moveHandler(flow, id, k, -1); if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); }}>Move up</Button>
+      <Button kind="secondary" icon="down" disabled={k === count - 1} onClick={() => { const m = moveHandler(flow, id, k, 1); if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); }}>Move down</Button>
+    </div>}
+  </>;
 }
 
 /** The error handler in a few words: what it keeps the error in and how the run ends after it. */
@@ -1236,13 +1294,14 @@ function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: 
           hint="Cases are tried from the top; only the first that matches runs.">{() => <CaseValues flow={flow} id={id} k={+k} onEdit={onEdit} />}</Field>}
         {kind === "entry" && <StateFields key={id + part} flow={flow} id={id} k={+k} onEdit={onEdit} />}
         {kind === "trans" && <TransitionFields key={id + part} flow={flow} id={id} k={+k} j={+part.split(":")[2]} onEdit={onEdit} />}
+        {kind === "handlers" && <HandlerFields key={id + part} flow={flow} id={id} k={+k} onEdit={onEdit} />}
         {kind === "cases" && (step.cases?.length ?? 0) > 1 && <div className="st-row">
           <Button kind="secondary" icon="up" disabled={+k === 0} onClick={() => { const m = moveCase(flow, id, +k, -1); if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); }}>Move case up</Button>
           <Button kind="secondary" icon="down" disabled={+k === (step.cases?.length ?? 0) - 1} onClick={() => { const m = moveCase(flow, id, +k, 1); if (m.part) onEdit(m.flow, [sectionKey(id, m.part)]); }}>Move case down</Button>
         </div>}
       </div>
       {part !== "children" && removed !== flow && <div className="st-pad">
-        <Button kind="secondary" icon="trash" onClick={() => onEdit(removed, [id])}>{kind === "entry" ? "Remove this state" : kind === "trans" ? "Remove this transition" : "Remove this part"}{inside ? ` and its ${inside} step${inside > 1 ? "s" : ""}` : ""}</Button>
+        <Button kind="secondary" icon="trash" onClick={() => onEdit(removed, [id])}>{kind === "entry" ? "Remove this state" : kind === "trans" ? "Remove this transition" : kind === "handlers" ? (step.action === "core/loop" ? "Remove this trigger" : "Remove this interruption") : "Remove this part"}{inside ? ` and its ${inside} step${inside > 1 ? "s" : ""}` : ""}</Button>
       </div>}
     </div>
   );

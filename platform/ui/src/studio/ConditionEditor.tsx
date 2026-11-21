@@ -54,11 +54,17 @@ function ConditionTest({ value }: { value: unknown }) {
  * the toolkits' conditions (File exists, Window exists, Application is running…) with its own fields, which can be
  * turned round ("is not").
  */
-type ValueCheck = { kind: "value"; left: string; op: string; right: string };
+/**
+ * A value compared. opts are the comparison's options as the runner reads them (G1, AA parity): ignoreCase (Match case
+ * off), ignoreLineBreaks, includeTime false (Compare the date only), trim; kept as they are when not shown.
+ */
+type ValueCheck = { kind: "value"; left: string; op: string; right: string; opts?: Record<string, unknown> };
 type ToolkitCheck = { kind: "toolkit"; condition: string; args: Record<string, unknown>; not: boolean };
 type Group = { kind: "group"; mode: "all" | "any"; items: Node[] };
 type Node = ValueCheck | ToolkitCheck | Group;
-type Model = { kind: "tree"; root: Group } | { kind: "advanced"; text: string };
+/** wait: "keep checking for up to N seconds" around the whole condition (waitSeconds), as text while it is typed. */
+type Model = ({ kind: "tree"; root: Group } | { kind: "advanced"; text: string }) & { wait?: string };
+const OPTION_KEYS = ["ignoreCase", "ignoreLineBreaks", "includeTime", "trim", "matchCase", "dateOnly"];
 
 const NO_RIGHT = new Set(["empty", "notEmpty"]);
 const isObj = (c: unknown): c is Record<string, unknown> => typeof c === "object" && c !== null && !Array.isArray(c);
@@ -67,7 +73,14 @@ const blankValue = (): ValueCheck => ({ kind: "value", left: "", op: "eq", right
 /** A part of a condition as a node; null when it is richer than the builder shows (an expression, a Not around a group). */
 function toNode(c: unknown, depth = 0): Node | null {
   if (!isObj(c) || depth > 8) return null;
-  if (typeof c.op === "string") return { kind: "value", left: showValue(c.left), op: c.op, right: showValue(c.right) };
+  if (typeof c.op === "string") {
+    const opts: Record<string, unknown> = {};
+    for (const k of OPTION_KEYS) if (c[k] !== undefined) opts[k] = c[k];
+    // the ticks' other spelling (from a variable) read as the runner reads it
+    if (typeof opts.matchCase === "boolean" && opts.ignoreCase === undefined) { opts.ignoreCase = !opts.matchCase; delete opts.matchCase; }
+    if (typeof opts.dateOnly === "boolean" && opts.includeTime === undefined) { opts.includeTime = !opts.dateOnly; delete opts.dateOnly; }
+    return { kind: "value", left: showValue(c.left), op: c.op, right: showValue(c.right), ...(Object.keys(opts).length ? { opts } : {}) };
+  }
   if (typeof c.condition === "string") return { kind: "toolkit", condition: c.condition, args: isObj(c.args) ? { ...c.args } : {}, not: false };
   if (isObj(c.not) && typeof c.not.condition === "string") return { kind: "toolkit", condition: c.not.condition, args: isObj(c.not.args) ? { ...c.not.args } : {}, not: true };
   for (const mode of ["all", "any"] as const) {
@@ -82,9 +95,16 @@ function toNode(c: unknown, depth = 0): Node | null {
 
 function toModel(value: unknown): Model {
   if (value === undefined || value === "") return { kind: "tree", root: { kind: "group", mode: "all", items: [blankValue()] } };
+  // "keep checking for up to N seconds" wraps the whole condition: read it off, then the condition itself
+  let wait: string | undefined;
+  if (isObj(value) && value.waitSeconds !== undefined) {
+    wait = showValue(value.waitSeconds);
+    const { waitSeconds: _w, ...rest } = value;
+    value = rest;
+  }
   const n = toNode(value);
-  if (!n) return { kind: "advanced", text: showValue(value) };
-  return { kind: "tree", root: n.kind === "group" ? n : { kind: "group", mode: "all", items: [n] } };
+  if (!n) return { kind: "advanced", text: showValue(value), wait };
+  return { kind: "tree", root: n.kind === "group" ? n : { kind: "group", mode: "all", items: [n] }, wait };
 }
 
 /** The condition the runner reads; empty rows are left out and a group of one is just that one. */
@@ -93,6 +113,7 @@ function toValue(n: Node): unknown {
     if (n.left.trim() === "") return undefined;
     const out: Record<string, unknown> = { op: n.op, left: n.left.trim() };
     if (!NO_RIGHT.has(n.op)) out.right = parseLoose(n.right) ?? "";
+    for (const [k, v] of Object.entries(n.opts ?? {})) if (v !== undefined) out[k] = v;
     return out;
   }
   if (n.kind === "toolkit") {
@@ -105,7 +126,14 @@ function toValue(n: Node): unknown {
   if (!items.length) return undefined;
   return items.length === 1 ? items[0] : { [n.mode]: items };
 }
-const modelValue = (m: Model): unknown => m.kind === "advanced" ? parseLoose(m.text) : toValue(m.root);
+const modelValue = (m: Model): unknown => {
+  const v = m.kind === "advanced" ? parseLoose(m.text) : toValue(m.root);
+  const w = m.wait?.trim();
+  if (!w || v === undefined) return v;
+  const secs = parseLoose(w);
+  // a single comparison or a group is an object: the wait goes beside it; an expression (text) is wrapped
+  return isObj(v) ? { ...v, waitSeconds: secs } : { expr: v, waitSeconds: secs };
+};
 
 /** "What to check": a value, or a toolkit's condition, grouped by toolkit (AA lists them by kind). */
 function whatOptions(packages: PackageManifest[]) {
@@ -237,6 +265,21 @@ export function ConditionEditor({ value, onCommit }: { value: unknown; onCommit:
             options={Object.entries(OPS).map(([op, words]) => ({ value: op, label: words }))} />
           {!NO_RIGHT.has(n.op) && <CommitInput key={label + ":r:" + n.right} label="Compared with" want="Any" initial={n.right} placeholder="1000"
             onCommit={(t) => update(path, (x) => ({ ...(x as ValueCheck), right: t }))} />}
+          {/* G1 (AA parity): how text and dates are compared, as ticks under the check */}
+          <span className="st-cond-ticks" role="group" aria-label={label + " options"}>
+            {([["ignoreCase", "Match case", true], ["ignoreLineBreaks", "Ignore line breaks", false], ["includeTime", "Compare the date only", true]] as const).map(([key, words, inverted]) => {
+              const raw = n.opts?.[key];
+              const ticked = inverted ? (key === "ignoreCase" ? raw !== true : raw === false) : raw === true;
+              const next = (on: boolean) => {
+                const opts = { ...(n.opts ?? {}) };
+                if (key === "ignoreCase") { if (on) delete opts.ignoreCase; else opts.ignoreCase = true; }
+                else if (key === "includeTime") { if (on) opts.includeTime = false; else delete opts.includeTime; }
+                else if (on) opts.ignoreLineBreaks = true; else delete opts.ignoreLineBreaks;
+                update(path, (x) => ({ ...(x as ValueCheck), opts: Object.keys(opts).length ? opts : undefined }));
+              };
+              return <label key={key} className="st-check-line"><input type="checkbox" checked={ticked} onChange={(e) => next(e.target.checked)} />{words}</label>;
+            })}
+          </span>
         </> : <>
           <Select aria-label="Is or is not" value={n.not ? "not" : "is"} onChange={(e) => update(path, (x) => ({ ...(x as ToolkitCheck), not: e.target.value === "not" }))}
             options={[{ value: "is", label: "is true" }, { value: "not", label: "is not true" }]} />
@@ -267,9 +310,15 @@ export function ConditionEditor({ value, onCommit }: { value: unknown; onCommit:
     </div>
   );
 
+  const waitField = <label className="st-cond-wait">Keep checking for up to
+    <CommitInput key={"wait:" + (model.wait ?? "")} label="Keep checking for up to (seconds)" want="Number" initial={model.wait ?? ""} placeholder="0"
+      onCommit={(t) => { const m = latest.current; commit({ ...m, wait: t.trim() || undefined }); }} />
+    seconds <span className="st-muted">(empty: check once; the condition is true as soon as it holds)</span></label>;
+
   return (
     <div className="st-cond">
       {group(model.root, [])}
+      {waitField}
       <p className="st-cond-sentence">{value === undefined ? "No condition yet." : "Reads: " + conditionText(value, packages)}</p>
       <ConditionTest value={value} />
     </div>

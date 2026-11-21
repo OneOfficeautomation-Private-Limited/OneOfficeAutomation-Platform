@@ -1394,7 +1394,7 @@ describe("new Studio", () => {
     expect(within(kind).getAllByRole("radio").map((r) => r.textContent)).toEqual(["N times", "For each", "While"]);
     expect(within(kind).getByRole("radio", { name: "For each" }).getAttribute("aria-checked")).toBe("true");
     expect([...screen.getByLabelText("Loop type").querySelectorAll("option")].map((o) => o.getAttribute("value")))
-      .toEqual(["table_rows", "list", "dictionary", "dictionary_keys", "dictionary_values"]);
+      .toEqual(["table_rows", "list", "dictionary", "dictionary_keys", "dictionary_values", "triggers"]);
     expect(screen.getByLabelText("Start at position")).toBeTruthy();   // shown unless N times or While
     fireEvent.click(within(kind).getByRole("radio", { name: "N times" }));
     expect(await screen.findByLabelText("Number of times *")).toBeTruthy();

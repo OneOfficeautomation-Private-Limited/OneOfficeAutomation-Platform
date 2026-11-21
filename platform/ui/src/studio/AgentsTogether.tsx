@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import type { Dependencies, Dependency, Flow, FlowStep, ModelConnections, PackageManifest, Proposal, StudioApi } from "../api/client";
 import { errorText } from "../api/client";
 import { Button, Dialog, Field, IconTile, Select, TextArea } from "../components";
-import { ON_ERROR, stateLists, type Place } from "./flowEdit";
-import { caseText, conditionText, describeAction, plainValue, startState, stateText, summarize, transitionText } from "./toolkits";
+import { innerLists, ON_ERROR, type Place } from "./flowEdit";
+import { caseText, conditionText, describeAction, plainValue, startState, stateText, summarize, transitionText, handlerText } from "./toolkits";
 import { isInput, isOutput, varRef } from "./variables";
 import { designDocument, designDocx, docFileName, type DocBlock } from "./designDoc";
 
@@ -46,6 +46,7 @@ export function explainSteps(steps: FlowStep[] | undefined, packages: PackageMan
       + (s.out ? ", storing " + Object.values(s.out).map((v) => varRef(v)).join(" and ") : "");
     lines.push(pad + text);
     walk(s.children, depth + 1);
+    (s.handlers ?? []).forEach((h, k) => { lines.push("  ".repeat(depth + 1) + (s.action === "core/loop" ? "For " : "If an interruption shows, ") + handlerText(s, k, packages) + ":"); walk(h.children, depth + 2); });
     for (const b of s.elseIf ?? []) { lines.push("  ".repeat(depth + 1) + "Otherwise, if " + conditionText(b.condition, packages) + ":"); walk(b.children, depth + 2); }
     if (s.action === "core/if" && s.else?.length) { lines.push("  ".repeat(depth + 1) + "Otherwise:"); walk(s.else, depth + 2); }
     for (const c of s.catch ?? []) if (c.children?.length) { lines.push("  ".repeat(depth + 1) + "If an error happens" + (c.as ? " (kept in $" + c.as + ")" : "") + ":"); walk(c.children, depth + 2); }
@@ -170,10 +171,11 @@ export function FlowDiagram({ flow, packages, selected, onSelect, onInsert, onMo
             </div>))}
         </div></div>
     );
-    if (s.children || s.catch || s.finally) return (
+    if (s.children || s.catch || s.finally || s.handlers) return (
       <div key={s.id} className="st-fblock">{box}
         <div className="st-fframe">
-          <div className="st-fseq">{seq(s.children, s.id + ":body")}</div>
+          {(s.children?.length || !s.handlers) && <div className="st-fseq">{seq(s.children, s.id + ":body")}</div>}
+          {(s.handlers ?? []).map((h, k) => branch(handlerText(s, k, packages), h.children, s.id + ":handler" + k))}
           {(s.catch ?? []).map((c, k) => branch(c.codes?.length ? "Catch " + c.codes.join(", ") : "Catch (any error)", c.children, s.id + ":catch" + k))}
           {s.finally && branch("Finally (always)", s.finally, s.id + ":finally")}
         </div></div>
@@ -217,8 +219,7 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
     catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   };
-  const flat = (steps: FlowStep[] = []): FlowStep[] => steps.flatMap((s) => [s, ...flat(s.children), ...flat(s.else),
-    ...(s.cases ?? []).flatMap((c) => flat(c.children)), ...flat(s.default), ...stateLists(s).flatMap((l) => flat(l))]);
+  const flat = (steps: FlowStep[] = []): FlowStep[] => steps.flatMap((s) => [s, ...innerLists(s).flatMap((l) => flat(l))]);
   return (
     <Dialog open onClose={onClose} title="Agent assistant" width={720}
       footer={<><Button kind="secondary" onClick={onClose}>Close</Button><span className="st-bar-fill" />

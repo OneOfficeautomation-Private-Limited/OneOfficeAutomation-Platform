@@ -1,4 +1,4 @@
-import type { ActionManifest, Flow, FlowOnError, FlowState, FlowStep, FlowVariable, PackageManifest, PanelEntry, RetryPolicy } from "../api/client";
+import type { ActionManifest, Flow, FlowOnError, FlowState, FlowStep, FlowVariable, PackageManifest, PanelEntry, RetryPolicy, FlowHandler } from "../api/client";
 
 /**
  * Editing an agent, as pure functions: each takes a flow and returns a changed copy, so undo is keeping the old one.
@@ -16,6 +16,7 @@ type StepHolder = Pick<Flow, "steps" | "onError">;
 export function innerLists(s: FlowStep): FlowStep[][] {
   const out: FlowStep[][] = [];
   if (s.children) out.push(s.children);
+  for (const h of s.handlers ?? []) if (h.children) out.push(h.children);   // as the runner numbers them: right after the block's own steps
   for (const b of s.elseIf ?? []) if (b.children) out.push(b.children);
   if (s.else) out.push(s.else);
   for (const c of s.catch ?? []) if (c.children) out.push(c.children);
@@ -96,7 +97,7 @@ export function findAction(action: string, packages: PackageManifest[]): ActionM
   return packages.find((x) => x.id === p)?.actions.find((a) => a.id === id);
 }
 
-const BLOCKS = new Set(["core/if", "core/loop", "core/try", "core/step", "core/parallel", "core/switch", "core/state_machine"]);
+const BLOCKS = new Set(["core/if", "core/loop", "core/try", "core/step", "core/parallel", "core/switch", "core/state_machine", "core/interrupt_scope"]);
 /** Blocks whose steps are all in named parts (Switch cases, State machine states), not in children. */
 const PARTS_ONLY = new Set(["core/switch", "core/state_machine"]);
 export const isBlock = (action: string) => BLOCKS.has(action);
@@ -120,6 +121,7 @@ export function newStep(action: string, flow: Flow, packages: PackageManifest[])
   if (action === "core/if") { step.children = []; step.else = []; }
   else if (action === "core/try") { step.children = []; step.catch = [{ codes: [], children: [] }]; }   // Finally only when wanted
   else if (action === "core/switch") { step.cases = [{ values: [], children: [] }]; step.default = []; }   // a Switch holds cases, not children
+  else if (action === "core/interrupt_scope") { step.children = []; step.handlers = [{ name: "Pop-up", children: [] }]; }   // the watched steps and a first handler
   else if (action === "core/state_machine")   // a start state that moves on to a final one, ready to rename and fill
     step.states = [{ name: "Start", entry: [], transitions: [{ to: "Done", steps: [] }] }, { name: "Done", final: true, entry: [] }];
   else if (isBlock(action)) step.children = [];
@@ -151,7 +153,7 @@ export type Place = "before" | "after" | "inside";
  * Default; for a State machine a state's entry steps (entry:state) or a transition's steps (trans:state:transition).
  */
 export type Part = "children" | "else" | "finally" | "default" | `elseIf:${number}` | `catch:${number}` | `cases:${number}`
-  | `entry:${number}` | `trans:${number}:${number}`;
+  | `entry:${number}` | `trans:${number}:${number}` | `handlers:${number}`;
 
 /** The list of steps of a block's part, or undefined when the block has no such part. */
 export function partList(step: FlowStep, part: Part = "children"): FlowStep[] | undefined {
@@ -162,6 +164,7 @@ export function partList(step: FlowStep, part: Part = "children"): FlowStep[] | 
   const [kind, k, j] = part.split(":");
   if (kind === "entry") { const st = step.states?.[+k]; return st ? (st.entry ??= []) : undefined; }
   if (kind === "trans") { const t = step.states?.[+k]?.transitions?.[+j]; return t ? (t.steps ??= []) : undefined; }
+  if (kind === "handlers") { const h = step.handlers?.[+k]; return h ? (h.children ??= []) : undefined; }
   const b = kind === "elseIf" ? step.elseIf?.[+k] : kind === "cases" ? step.cases?.[+k] : step.catch?.[+k];
   return b ? (b.children ??= []) : undefined;
 }
@@ -468,7 +471,7 @@ export function pasteSteps(flow: Flow, clip: Clip, spot: Spot): { flow: Flow; id
  * Adds a part to an If (Else if, Else), a Try (Catch, Finally), a Switch (Case, Default) or a State machine (a state);
  * returns the part, so the editor can select it.
  */
-export function addBranch(flow: Flow, id: string, kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default" | "states"): { flow: Flow; part: Part | null } {
+export function addBranch(flow: Flow, id: string, kind: "elseIf" | "else" | "catch" | "finally" | "cases" | "default" | "states" | "handlers"): { flow: Flow; part: Part | null } {
   if (kind === "states") return addState(flow, id);
   const f = copy(flow);
   const s = findStep(f, id)?.step;
@@ -476,6 +479,11 @@ export function addBranch(flow: Flow, id: string, kind: "elseIf" | "else" | "cat
   if (kind === "elseIf") { (s.elseIf ??= []).push({ condition: undefined, children: [] }); return { flow: f, part: `elseIf:${s.elseIf.length - 1}` }; }
   if (kind === "catch") { (s.catch ??= []).push({ codes: [], children: [] }); return { flow: f, part: `catch:${s.catch.length - 1}` }; }
   if (kind === "cases") { (s.cases ??= []).push({ values: [], children: [] }); return { flow: f, part: `cases:${s.cases.length - 1}` }; }
+  if (kind === "handlers") {   // Watch for interruptions: another pop-up to deal with; a trigger loop: another trigger to watch
+    const n = (s.handlers ??= []).length + 1;
+    s.handlers.push(s.action === "core/loop" ? { name: "Trigger " + n, children: [] } : { name: "Pop-up " + n, children: [] });
+    return { flow: f, part: `handlers:${s.handlers.length - 1}` };
+  }
   if (s[kind]) return { flow, part: null };
   s[kind] = [];
   return { flow: f, part: kind };
@@ -493,13 +501,36 @@ export function removeBranch(flow: Flow, id: string, part: Part): Flow {
   if (part.startsWith("trans:")) { const [, k, j] = part.split(":"); return removeTransition(flow, id, +k, +j); }
   if (part === "else" || part === "finally" || part === "default") delete s[part];
   else {
-    const [kind, k] = part.split(":") as ["elseIf" | "catch" | "cases", string];
+    const [kind, k] = part.split(":") as ["elseIf" | "catch" | "cases" | "handlers", string];
     const list = s[kind];
     list?.splice(+k, 1);
     if (list && !list.length) delete s[kind];
   }
   if (s.action === "core/try" && !s.catch?.length && !s.finally) return flow;
   if (s.action === "core/switch" && !s.cases?.length) return flow;
+  if (s.action === "core/interrupt_scope" && !s.handlers?.length) return flow;   // Watch for interruptions keeps at least one handler
+  return f;
+}
+
+/** Moves a handler one place up (-1) or down (+1): handlers are checked from the top. Null at either end. */
+export function moveHandler(flow: Flow, id: string, k: number, by: -1 | 1): { flow: Flow; part: Part | null } {
+  const f = copy(flow);
+  const list = findStep(f, id)?.step.handlers;
+  const to = k + by;
+  if (!list || k < 0 || k >= list.length || to < 0 || to >= list.length) return { flow, part: null };
+  [list[k], list[to]] = [list[to], list[k]];
+  return { flow: f, part: `handlers:${to}` };
+}
+
+/** Changes a handler's settings (name, when, max_times, trigger, args, as, disabled); undefined removes one. */
+export function setHandler(flow: Flow, id: string, k: number, patch: Partial<Omit<FlowHandler, "children">>): Flow {
+  const f = copy(flow);
+  const h = findStep(f, id)?.step.handlers?.[k];
+  if (!h) return flow;
+  for (const [key, v] of Object.entries(patch)) {
+    const empty = v === undefined || v === "" || v === false || (typeof v === "object" && v !== null && !Array.isArray(v) && !Object.keys(v).length);
+    if (empty) delete (h as Record<string, unknown>)[key]; else (h as Record<string, unknown>)[key] = v;
+  }
   return f;
 }
 
@@ -698,7 +729,7 @@ export function setFolded(flow: Flow, ids: string[], folded: boolean): Flow {
 export function blockIds(flow: Flow): string[] { return allSteps(flow).filter((s) => isBlock(s.action)).map((s) => s.id); }
 
 /** The keys of a step that are not its settings: never changed by find and replace. */
-const STRUCTURE = new Set(["id", "action", "children", "elseIf", "else", "catch", "finally", "cases", "default", "states", "disabled", "connection"]);
+const STRUCTURE = new Set(["id", "action", "children", "elseIf", "else", "catch", "finally", "cases", "default", "states", "handlers", "disabled", "connection"]);
 
 /**
  * Find and replace (AA's Ctrl+H) in the steps' settings and names: every text in their settings (args, outputs, notes,
@@ -717,9 +748,10 @@ export function replaceInSteps(flow: Flow, find: string, replace: string, matchC
     const out: FlowStep = { ...st };
     for (const [k, v] of Object.entries(st)) {
       if (k === "children" || k === "else" || k === "finally" || k === "default") (out as Record<string, unknown>)[k] = (v as FlowStep[]).map((c) => step(c, on));
-      else if (k === "elseIf" || k === "catch" || k === "cases") (out as Record<string, unknown>)[k] = (v as { children?: FlowStep[] }[]).map((b) => {
+      else if (k === "elseIf" || k === "catch" || k === "cases" || k === "handlers") (out as Record<string, unknown>)[k] = (v as { children?: FlowStep[] }[]).map((b) => {
         const nb: Record<string, unknown> = { ...b };
-        for (const [bk, bv] of Object.entries(b)) nb[bk] = bk === "children" ? (bv as FlowStep[]).map((c) => step(c, on)) : on && bk !== "codes" ? deep(bv) : bv;
+        for (const [bk, bv] of Object.entries(b)) nb[bk] = bk === "children" ? (bv as FlowStep[]).map((c) => step(c, on))
+          : on && bk !== "codes" && bk !== "trigger" && bk !== "max_times" && bk !== "disabled" ? deep(bv) : bv;
         return nb;
       });
       // a state machine's steps, and its transitions' conditions; state names and targets are structure

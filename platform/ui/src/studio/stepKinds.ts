@@ -174,6 +174,8 @@ export const EACH_KINDS: { value: string; label: string; over: string; as: strin
   { value: "dictionary", label: "Each key and value of a dictionary", over: "Dictionary to go through", as: "Store each key and value in" },
   { value: "dictionary_keys", label: "Each key of a dictionary", over: "Dictionary to go through", as: "Store each key in" },
   { value: "dictionary_values", label: "Each value of a dictionary or record", over: "Dictionary or record to go through", as: "Store each value in" },
+  // G1 (AA parity): several triggers watched at once, each with its own steps (the Parts below the loop)
+  { value: "triggers", label: "Each event of several triggers", over: "", as: "Store each event in" },
 ];
 export const LOOP_LABELS: Record<string, string> = { count: "Number of times", start: "Start counting at", step: "Count in steps of", as: "Store each item in",
   index: "Position (0 = first) in", condition: "Repeat while", check_at_end: "Check at the end (run at least once)", from_index: "Start at position",

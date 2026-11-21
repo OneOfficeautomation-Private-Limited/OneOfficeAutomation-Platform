@@ -133,7 +133,7 @@ export function actionsUsed(steps: FlowStep[] | undefined, out = new Set<string>
   for (const s of steps ?? []) {
     out.add(s.action);
     actionsUsed(s.children, out); actionsUsed(s.else, out); actionsUsed(s.finally, out); actionsUsed(s.default, out);
-    for (const b of [...(s.elseIf ?? []), ...(s.catch ?? []), ...(s.cases ?? [])]) actionsUsed(b.children, out);
+    for (const b of [...(s.elseIf ?? []), ...(s.catch ?? []), ...(s.cases ?? []), ...(s.handlers ?? [])]) actionsUsed(b.children, out);
     for (const l of stateLists(s)) actionsUsed(l, out);
   }
   return out;
@@ -151,10 +151,27 @@ export function allInstalled(steps: FlowStep[], packages: PackageManifest[]): bo
 export type StepRow = { kind: "step"; n: number; depth: number; step: FlowStep; folded: boolean; hidden: number }
   | { kind: "section"; depth: number; label: string; stepId: string; part: Part };
 
+/**
+ * A handler's heading (G1): Watch for interruptions "Pop-up: when Window exists", a trigger loop "Invoices: each event of
+ * Each new file in folder". Packages give the trigger's own name when installed.
+ */
+export function handlerText(step: FlowStep, k: number, packages: PackageManifest[] = []): string {
+  const h = step.handlers?.[k];
+  if (!h) return "Handler";
+  const name = h.name?.trim() ? h.name.trim() + ": " : "";
+  const off = h.disabled ? " (off)" : "";
+  if (step.action === "core/loop") {
+    const [pid, id] = (h.trigger ?? "").split("/");
+    const it = packages.find((p) => p.id === pid)?.iterators?.find((x) => x.id === id);
+    return name + (h.trigger ? "each event of " + (it?.name ?? h.trigger) : "choose a trigger") + off;
+  }
+  return name + (h.when === undefined ? "when… (choose the condition)" : "when " + conditionText(h.when, packages)) + off;
+}
+
 const countSteps = (s: FlowStep): number => innerLists(s).reduce((n, l) => n + l.reduce((m, x) => m + 1 + countSteps(x), 0), 0);
 
 /** Flattens the steps for the numbered view, in the order they run. Line numbers count the steps of folded blocks too. */
-export function stepRows(steps: FlowStep[], folded: Set<string> = new Set(), first = 0): StepRow[] {
+export function stepRows(steps: FlowStep[], folded: Set<string> = new Set(), first = 0, packages: PackageManifest[] = []): StepRow[] {
   const rows: StepRow[] = [];
   let n = first;
   const walk = (list: FlowStep[] | undefined, depth: number) => {
@@ -165,6 +182,7 @@ export function stepRows(steps: FlowStep[], folded: Set<string> = new Set(), fir
       if (fold) { n += hidden; continue; }
       walk(s.children, depth + 1);
       const sec = (label: string, part: Part, inner: FlowStep[] | undefined) => { rows.push({ kind: "section", depth: depth + 1, label, stepId: s.id, part }); walk(inner, depth + 1); };
+      (s.handlers ?? []).forEach((h, k) => sec(handlerText(s, k, packages), `handlers:${k}`, h.children));
       (s.elseIf ?? []).forEach((b, k) => sec("Else if " + conditionText(b.condition), `elseIf:${k}`, b.children));
       if (s.else) sec("Else", "else", s.else);
       (s.catch ?? []).forEach((c, k) => sec(c.codes?.length ? "Catch " + c.codes.join(", ") : "Catch (any error)", `catch:${k}`, c.children));
@@ -189,11 +207,11 @@ export function stepRows(steps: FlowStep[], folded: Set<string> = new Set(), fir
  * The rows of the whole agent: its steps, then its error handler's (On error), numbered on from the last line as the
  * runner numbers them; handlerFrom is where the handler's rows start.
  */
-export function agentRows(flow: Flow, folded: Set<string> = new Set()): { rows: StepRow[]; handlerFrom: number } {
-  const main = stepRows(flow.steps, folded);
+export function agentRows(flow: Flow, folded: Set<string> = new Set(), packages: PackageManifest[] = []): { rows: StepRow[]; handlerFrom: number } {
+  const main = stepRows(flow.steps, folded, 0, packages);
   if (!flow.onError) return { rows: main, handlerFrom: main.length };
   const lines = flow.steps.reduce((n, s) => n + 1 + countSteps(s), 0);
-  return { rows: [...main, ...stepRows(flow.onError.steps ?? [], folded, lines)], handlerFrom: main.length };
+  return { rows: [...main, ...stepRows(flow.onError.steps ?? [], folded, lines, packages)], handlerFrom: main.length };
 }
 
 // Comparisons in words, as Classic Studio wrote them, so a step reads the same as before.
