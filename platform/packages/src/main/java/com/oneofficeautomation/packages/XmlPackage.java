@@ -600,20 +600,7 @@ public final class XmlPackage {
             doc = text.substring(0, m.start()) + "<!DOCTYPE " + root + " SYSTEM \"ooa-dtd\">" + text.substring(m.start());
         }
         try {
-            javax.xml.parsers.DocumentBuilderFactory f = javax.xml.parsers.DocumentBuilderFactory.newInstance();
-            f.setValidating(true);
-            f.setNamespaceAware(true);
-            f.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            f.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            f.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            javax.xml.parsers.DocumentBuilder b = f.newDocumentBuilder();
-            // the only outside DTD ever read is the local file given in dtd_path
-            b.setEntityResolver((publicId, systemId) -> {
-                if (dtd == null) throw new SAXException("the DTD at " + systemId + " is outside the document and is not downloaded; give it in dtd_path");
-                org.xml.sax.InputSource in = new org.xml.sax.InputSource(Files.newBufferedReader(dtd));
-                in.setSystemId(dtd.toUri().toString());
-                return in;
-            });
+            javax.xml.parsers.DocumentBuilder b = XmlSupport.dtdValidator(doc, dtd);   // hardened: no external entities, only the local DTD
             b.setErrorHandler(new org.xml.sax.helpers.DefaultHandler() {
                 @Override public void error(SAXParseException e) { errors.add("line " + e.getLineNumber() + ": " + e.getMessage()); }
                 @Override public void fatalError(SAXParseException e) throws SAXException { errors.add("line " + e.getLineNumber() + ": " + e.getMessage()); throw e; }

@@ -536,6 +536,40 @@ public final class FilePackage {
         } catch (IOException e) { throw io("list", dir, e); }
     }
 
+    /**
+     * G2 (AA parity): AA's "Copy Control Room file" with the repository path known only while the agent runs (from a
+     * variable). One CommandCenter checks the run's user may view the file's folder and records it in the Audit Trail.
+     */
+    @Action(id = "get_from_command_center", name = "Get file from One CommandCenter", category = "Files", timeoutSeconds = 120, capabilities = {"filesystem", "network"},
+            description = "Copy a file kept in One CommandCenter (its Agents page, Files) to the runner, by its path there; the path may come from a variable.",
+            panel = "repository_path, save_to | overwrite")
+    @Output(name = "path", type = OoaType.FILE, description = "Where the file was saved on the runner.")
+    @Output(name = "size", type = OoaType.NUMBER, description = "Size in bytes.")
+    public Map<String, Object> getFromCommandCenter(ActionContext ctx,
+            @Input(name = "repository_path", type = OoaType.STRING, example = "Templates/invoice.xlsx", description = "The file's path in One CommandCenter, e.g. Templates/invoice.xlsx or $template$.") String repoPath,
+            @Input(name = "save_to", type = OoaType.FILE, required = false,
+                    description = "File or folder on the runner; the run's temporary folder when empty (the path is returned).") String saveTo,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false",
+                    description = "Replace a file already there; when off, an existing file stops the step.") boolean overwrite) {
+        if (repoPath == null || repoPath.isBlank()) throw new ActionException("FILE.NO_PATH", "Give the file's path in One CommandCenter", "For example Templates/invoice.xlsx.");
+        @SuppressWarnings("unchecked")
+        java.util.function.Function<Map<String, Object>, Map<String, Object>> cc;
+        try { cc = ctx.service("command_center", java.util.function.Function.class); }
+        catch (OoaException e) {
+            throw new ActionException("FILE.NO_COMMAND_CENTER", "Getting a file from One CommandCenter works when One CommandCenter runs the agent",
+                    "Run the agent from One CommandCenter, or add the file to the agent's files (Details > Files from One CommandCenter).");
+        }
+        String name = repoPath.strip().replace('\\', '/');
+        Path target = ctx.outputPath(saveTo, name.substring(name.lastIndexOf('/') + 1));
+        if (Files.exists(target) && !overwrite)
+            throw new ActionException("FILE.EXISTS", "The file " + target + " is already there", "Turn on overwrite, or save it somewhere else.");
+        Map<String, Object> r = cc.apply(Map.of("call", "repo_file", "args", Map.of("path", name)));
+        byte[] b = java.util.Base64.getDecoder().decode(String.valueOf(r.get("content")));
+        try { Files.write(target, b); }
+        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + target + ": " + e.getMessage(), "Check that the folder exists and may be written."); }
+        return Out.of("path", target.toString(), "size", java.math.BigDecimal.valueOf(b.length));
+    }
+
     @Action(id = "copy", name = "Copy", category = "Files", capabilities = "filesystem",
             description = "Copy a file, every file the name rules choose, or every file of a folder that matches a pattern and optional size and date limits, replacing or keeping existing targets.",
             panel = "source, target, overwrite, [Copy several files by name pattern: pattern, include_subfolders], [Filter by size: min_size_bytes, max_size_bytes], [Filter by date: modified_after, modified_before] | keep_both, parallel")
