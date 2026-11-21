@@ -401,15 +401,12 @@ public final class StudioServer {
             }, "ooa-studio-run-" + id);
             t.setDaemon(true);
             t.start();
-            // the run window on the desktop, on top of the applications the agent works in
-            if (Boolean.TRUE.equals(req.get("run_window")) && lr.debugger == null && RunWindow.available()) {
-                Map<String, String> names = new HashMap<>();
-                for (Map<String, Object> m : registry.allManifests())
-                    if (m.get("actions") instanceof List<?> acts) for (Object a : acts)
-                        if (a instanceof Map<?, ?> am) names.put(m.get("id") + "/" + am.get("id"), String.valueOf(am.get("name")));
-                RunWindow.open(String.valueOf(flow.getOrDefault("name", "Agent")), flow, lr.sink, lr.pause, lr.cancel, () -> lr.result != null,
-                        a -> names.getOrDefault(a, a));
-            }
+            // the run window on the desktop, on top of the applications the agent works in (item 1, 21 Nov 2026): Studio's
+            // Run menu sends run_window as true or {size, minimised}; a debug run shows the dock instead
+            com.oneofficeautomation.runner.RunWindow.Options window = com.oneofficeautomation.runner.RunWindow.Options.from(req.get("run_window"));
+            if (window != null && lr.debugger == null)
+                com.oneofficeautomation.runner.RunWindow.open(String.valueOf(flow.getOrDefault("name", "Agent")), flow, lr.sink, lr.pause, lr.cancel,
+                        () -> lr.result != null, com.oneofficeautomation.runner.RunWindow.names(registry.allManifests()), window);
             Map<String, Object> started = new LinkedHashMap<>();
             started.put("run_id", id);
             if (carried != null) started.put("carried_over", carried);

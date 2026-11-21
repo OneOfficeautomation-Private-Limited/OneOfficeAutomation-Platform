@@ -141,7 +141,10 @@ export type RunState = { run_id: string; state: string; debug?: DebugState; elap
  * How a run starts: debugging (with breakpoints), from a step (start_at) or only one step (only_step); the skipped
  * steps' variables take the values the last run here had at that step, unless carry_over is false (their defaults).
  */
-export type RunOptions = { debug?: boolean; breakpoints?: string[]; stopAtStart?: boolean; start_at?: string; only_step?: string; carry_over?: boolean };
+/** run_window (item 1, 21 Nov 2026): the run window on the desktop for a run that is not debugged; false or absent: none. */
+export type RunWindowSize = "small" | "medium" | "large";
+export type RunOptions = { debug?: boolean; breakpoints?: string[]; stopAtStart?: boolean; start_at?: string; only_step?: string; carry_over?: boolean;
+  run_window?: false | { size: RunWindowSize } };
 export type DebugCommand = "continue" | "stepOver" | "stepInto" | "stepOut";
 
 /** Starts an agent on its own: a file arriving in a folder, a schedule, or a call to a webhook address. */

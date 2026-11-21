@@ -602,9 +602,10 @@ export class CrApi {
     return this.call<{ requests: ProductionRequest[]; approval_on: boolean }>("GET", "repo/production-requests" + (status ? "?status=" + status : ""));
   }
   async decideRequest(id: string, how: "approve" | "reject" | "withdraw", note: string) { await this.call("POST", "repo/production-requests/" + encodeURIComponent(id) + "/" + how, { note }); }
-  startRun(b: { bot_path: string; device_id?: string; pool_id?: string; inputs: Record<string, unknown>; mode?: string; priority?: number; callback_url?: string | null }) { return this.call<{ run_id: string }>("POST", "runs", b); }
+  /** run_window (item 1, 21 Nov 2026): "default" (Settings decide), "hidden", "small", "medium" or "large". */
+  startRun(b: { bot_path: string; device_id?: string; pool_id?: string; inputs: Record<string, unknown>; mode?: string; priority?: number; callback_url?: string | null; run_window?: string }) { return this.call<{ run_id: string }>("POST", "runs", b); }
   /** One run per run-as user, each on that user's default runner, as that user (13 Nov 2026: from the classic console). */
-  startRunsAs(b: { bot_path: string; run_as_users: string[]; inputs: Record<string, unknown>; mode?: string; priority?: number; callback_url?: string | null }) {
+  startRunsAs(b: { bot_path: string; run_as_users: string[]; inputs: Record<string, unknown>; mode?: string; priority?: number; callback_url?: string | null; run_window?: string }) {
     return this.call<{ started: number; runs: { run_as: string; run_id?: string; error?: { message: string } }[] }>("POST", "runs", b);
   }
   /** The person's own API keys (shown once when made), as the classic console's Your API keys. */

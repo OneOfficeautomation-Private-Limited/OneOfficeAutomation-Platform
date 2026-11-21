@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type DebugState, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
+  type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type DebugState, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RepoState, type RunOptions, type RunWindowSize, type StudioInfo, type WorkspaceNode, errorText, runErrorText,
 } from "../api/client";
 import { AgentInputs, Button, Dialog, Field, HelpPanel, HelpProvider, Icon, Menu, Notice, ShortcutsDialog, TextInput, inTextField, is, keyOf, usePersistent, withKey, type MenuItem, type VaultRef, reportMinor, MinorNotices, useFullTextOnHover } from "../components";
 import { Automation, find as findNode, showInList, STATUS as FILE_STATUS } from "./Automation";
@@ -92,6 +92,8 @@ export function App({ api: given }: { api?: StudioApi }) {
   // Theme menu: light or dark only (one density, kept simple); kept in this browser and set on the page root for theme.css
   const [theme, setTheme] = usePersistent<"light" | "dark">("display.theme", "light");
   const [simple, setSimple] = usePersistent("mode.simple", false);   // Simple mode for business users (G47)
+  // the run window on the desktop while an agent runs (item 1, 21 Nov 2026): chosen beside Run, kept for the next runs
+  const [runWindow, setRunWindow] = usePersistent<"hidden" | RunWindowSize>("run.window", "medium");
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   const choice = (key: string, label: string, on: boolean, pick: () => void, description: string, separatorBefore = false): MenuItem =>
     ({ key, label, description: on ? "In use. " + description : description, icon: <span className="st-menu-tick" aria-hidden="true">{on ? "✓" : ""}</span>, separatorBefore, onSelect: pick });
@@ -475,7 +477,8 @@ export function App({ api: given }: { api?: StudioApi }) {
     const tab = tabsRef.current.find((t) => t.path === path);
     if (!tab || tab.kind !== "agent") return;
     try {
-      const id = await api.startRun(tab.flow, inputs, debug ? { debug: true, breakpoints: tab.breakpoints, stopAtStart: !tab.breakpoints.length } : from);
+      const id = await api.startRun(tab.flow, inputs, debug ? { debug: true, breakpoints: tab.breakpoints, stopAtStart: !tab.breakpoints.length }
+        : { ...from, run_window: runWindow === "hidden" ? false : { size: runWindow } });
       patch(path, (t) => ({ ...t, run: { id, debug, state: "running", events: [], elapsed: 0 } }));
       follow(path, id);
     } catch (e) { fail(e); }
@@ -551,7 +554,7 @@ export function App({ api: given }: { api?: StudioApi }) {
             : current ? current.path.split("/").slice(0, -1).map((p, i) => <span key={i}>{p}<span aria-hidden="true"> › </span></span>) : null}
           <span className="st-crumb-current">{current ? current.name : "Agents"}</span>
           {/* item 2 (21 Nov 2026, as AA's editor): rename, describe or move the open item from its name */}
-          {current && <button type="button" className="st-crumb-edit" aria-label={"Rename " + current.name} title="File properties: name, description, folder (F2)"
+          {current && <button type="button" className="st-crumb-edit" aria-label={"Rename " + current.name} title="File properties: name, description, folder"
             onClick={() => setPropsFor(current.path)}><Icon name="textAa" size={13} /></button>}
           {current && repoStates[current.path] && <span className="st-crumb-state" title={FILE_STATUS[repoStates[current.path].status]?.[1]}>{FILE_STATUS[repoStates[current.path].status]?.[0]}</span>}
           {current?.kind === "agent" && (() => {
@@ -573,7 +576,13 @@ export function App({ api: given }: { api?: StudioApi }) {
                 {!agent ? null : running
                   ? <Button kind="danger" icon="close" onClick={stopRun} title={withKey("Stop the run", "run.stop")}>Stop run</Button>
                   : <>
-                      <Button kind="run" icon="play" onClick={() => startRun(false)} title={withKey("Run the agent as it is in the editor, on this computer", "run.run")}>Run</Button>
+                      <span className="st-run-split">
+                        <Button kind="run" icon="play" onClick={() => startRun(false)} title={withKey("Run the agent as it is in the editor, on this computer", "run.run")}>Run</Button>
+                        <Menu label="Run window" title="Run window on the desktop" align="end" items={RUN_WINDOWS.map(([k, label, about]) => ({
+                          key: k, label: (runWindow === k ? "✓ " : "") + label, description: about, onSelect: () => setRunWindow(k) }))}
+                          trigger={<button type="button" className="st-run-more" aria-label={"Run window: " + RUN_WINDOWS.find(([k]) => k === runWindow)?.[1]}
+                            title="Run window: whether a small window shows the run on the desktop, and its size">▾</button>} />
+                      </span>
                       <Button kind="debug" icon="bug" onClick={() => startRun(true)} title={withKey("Run and stop at breakpoints, or at the first step", "run.debug")}>Debug</Button>
                     </>}
                 {agent && !isClone && <Button kind="light" icon="globe" onClick={() => setCheckingIn([current.path])} title="Check the agent in to One CommandCenter agent repository as a new version">Check in</Button>}
@@ -768,6 +777,14 @@ function NewFolderDialog({ parent, onClose, onCreate }: { parent: string | null;
  * and Tables get their own editors and a Credential is chosen from the connected vault (usability round, 14 Nov 2026).
  * Empty means "use the default".
  */
+/** The run window choices beside Run (item 1, design A): its size, or none. */
+const RUN_WINDOWS: ["hidden" | RunWindowSize, string, string][] = [
+  ["hidden", "Hidden", "No window: follow the run in the Run dock"],
+  ["small", "Small", "The agent and a progress bar"],
+  ["medium", "Medium", "Also the line being run and the time"],
+  ["large", "Large", "Also the last lines of the run"],
+];
+
 function RunDialog({ api, name, debug, inputs, credentials, onRun, onClose }:
   { api: StudioApi; name: string; debug: boolean; inputs: Flow["variables"] & object; credentials: () => Promise<VaultRef[]>; onRun: (values: Record<string, unknown>) => void; onClose: () => void }) {
   const [values, setValues] = useState<Record<string, unknown>>({});

@@ -83,6 +83,11 @@ export const SETTING_HELP: Record<string, string> = {
   runs_refuse_offline_runner: "A run asked for a runner that is offline is refused at once with a clear message, instead of waiting until the runner comes back. Runs for a pool still go to any online runner of the pool.",
   trigger_max_failures: "A trigger whose last runs all failed this many times in a row is paused, with the reason shown on Triggers, so a broken agent does not run again and again. 0 never pauses triggers.",
   queue_abandon_hours: "A work item still in progress after this many hours is marked failed as abandoned, so it can be retried, and the queue's figures stay true. 0 leaves items in progress.",
+  run_window_show: "Runners show a small window on their screen while an agent runs: the agent, the line it is on and a progress bar. Headless runs never show it. Switch it off where nobody watches the runner's screen.",
+  run_window_size: "How much the run window shows. Small: the agent and a progress bar. Medium: also the line being run and the time. Large: also the last lines of the run.",
+  run_window_minimised: "The run window starts as a small tab at the edge of the runner's screen; a click on the tab opens it. A failed run always opens it.",
+  run_window_controls: "Pause and Stop on the run window, for the person at the runner. Off: only One CommandCenter can pause or stop the run.",
+  run_window_per_run: "Run now offers the run window for one run: as set here, Hidden, Small, Medium or Large. Off: these settings decide for every run.",
   runner_error_screenshots: "Runners take a picture of the screen when a step fails and its Catch block asks for one. Switch it off where screens show private data; the run log then says no picture was taken.",
   runner_screen_pictures: "Lets administrators ask a runner for a picture of its screen, to see why an agent is stuck. Every picture is recorded in the Audit Trail. Switch it off where screens show private data.",
   // Agents and repository

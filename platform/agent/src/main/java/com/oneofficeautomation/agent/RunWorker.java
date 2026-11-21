@@ -150,7 +150,11 @@ public final class RunWorker {
         };
         PackageRegistry registry = FirstPartyPackages.registry();
         String toolkitProblem = loadCustomToolkits(registry, workspace, (List<Object>) job.getOrDefault("custom_toolkits", List.of()));
-        EventSink sink = e -> send(Map.of("type", "event", "event", e.toMap()));
+        // the run window (item 1, 21 Nov 2026): One CommandCenter puts run_window in the job when the window is to be
+        // shown (Settings > Runs, or the person's choice in Run now); it reads the same events that go to One CommandCenter
+        RunWindow.Options window = RunWindow.available() ? RunWindow.Options.from(job.get("run_window")) : null;
+        EventSink.ListSink windowEvents = window == null ? null : new EventSink.ListSink();
+        EventSink sink = e -> { send(Map.of("type", "event", "event", e.toMap())); if (windowEvents != null) windowEvents.emit(e); };
         String principal = String.valueOf(job.getOrDefault("principal", "agent"));
         Runner[] holder = new Runner[1];
         BotInvoker invoker = (automationId, in2) -> holder[0].run(repo.get(automationId, "production"), in2, new Runner.RunOptions().cancel(cancel).pause(pause));
@@ -177,6 +181,8 @@ public final class RunWorker {
                 .service("knowledge_bases", (java.util.function.Function<Map<String, Object>, Map<String, Object>>) req -> relay("knowledge", Map.of("request", req), "KNOWLEDGE.TIMEOUT", "the knowledge base"))
                 .principal(principal).build();
         RunResult result;
+        AtomicBoolean runEnded = new AtomicBoolean();
+        RunWindow[] shown = new RunWindow[1];
         // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.
         Path aiLog = workspace.resolve("ai-governance.jsonl");
         long aiStart = 0;
@@ -187,6 +193,9 @@ public final class RunWorker {
             // a resumed run (long-running agents, G36): it starts at the step that suspended, with the values saved then
             if (job.get("resume") instanceof Map<?, ?> res)
                 opts.resume(String.valueOf(res.get("step_id")), (Map<String, Object>) res.get("values"), (Map<String, Object>) res.get("answer"));
+            if (window != null)
+                shown[0] = RunWindow.open(String.valueOf(main.getOrDefault("name", job.getOrDefault("bot_path", "Agent"))), main, windowEvents, pause, cancel,
+                        runEnded::get, RunWindow.names(registry.allManifests()), window);
             result = holder[0].run(main, (Map<String, Object>) job.getOrDefault("inputs", Map.of()), opts);
         } catch (OoaException e) {
             result = new RunResult(String.valueOf(job.get("run_id")), String.valueOf(main.get("id")), "failed", Map.of(), e.toMap(), 0, null, 0);
@@ -194,10 +203,12 @@ public final class RunWorker {
             result = new RunResult(String.valueOf(job.get("run_id")), String.valueOf(main.get("id")), "failed", Map.of(),
                     Map.of("code", "AGENT.RUN_CRASHED", "message", String.valueOf(e)), 0, null, 0);
         }
+        runEnded.set(true);
         Map<String, Object> resultMap = new LinkedHashMap<>(result.toMap());
         List<Object> aiCalls = aiCalls(aiLog, aiStart);
         if (!aiCalls.isEmpty()) resultMap.put("ai_calls", aiCalls);
         send(Map.of("type", "result", "result", resultMap));
+        if (shown[0] != null) shown[0].waitUntilClosed(10_000);   // let the window show how the run ended
         System.exit(0);
     }
 

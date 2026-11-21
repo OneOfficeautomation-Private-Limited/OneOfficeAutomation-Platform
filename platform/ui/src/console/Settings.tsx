@@ -125,6 +125,14 @@ const SECTIONS: Section[] = [
     { title: "Screens", settings: [
       { key: "runner_screen_pictures", label: "Pictures of a runner's screen", hint: "Administrators may ask for one; each is recorded in the Audit Trail.", kind: "check" },
       { key: "runner_error_screenshots", label: "Screenshots when a step fails", hint: "Off: Catch blocks that ask for one get none.", kind: "check" }] },
+    // item 1 (21 Nov 2026): the run window on a runner's screen, as OneAgentStudio shows it
+    { title: "Run window", settings: [
+      { key: "run_window_show", label: "Show the run window", hint: "A small window on the runner's screen while an agent runs. Never for headless runs.", kind: "check" },
+      { key: "run_window_size", label: "Size", hint: "Small: the agent and a progress bar. Large: also the last lines of the run.", kind: "select",
+        options: [["0", "Small"], ["1", "Medium"], ["2", "Large"]] },
+      { key: "run_window_minimised", label: "Start minimised", hint: "As a small tab at the screen edge; a click opens it.", kind: "check" },
+      { key: "run_window_controls", label: "Pause and Stop on the window", hint: "Off: only One CommandCenter can pause or stop the run.", kind: "check" },
+      { key: "run_window_per_run", label: "People may choose for one run", hint: "Run now offers Hidden, Small, Medium or Large.", kind: "check" }] },
   ] },
   { id: "agents", title: "Agents and repository", mark: "A", colour: "#2f6fde", about: "Rules for what goes into the agent repository and into production, and its copy in Git.", groups: [
     { title: "Rules", settings: [
@@ -250,7 +258,7 @@ export function Settings({ api, onNotice }: { api: CrApi; onNotice: (t: string) 
   const changedIn = (s: Section) => saved ? settingsOf(s).filter((x) => form[x.key] !== saved[x.key]) : [];
   const save = async (s: Section) => {
     const changes: Record<string, string | number> = {};
-    for (const x of changedIn(s)) changes[x.key] = x.kind === "number" || x.kind === "check" || (x.kind === "select" && x.key === "mfa_required") ? Number(form[x.key] || 0) : form[x.key].trim();
+    for (const x of changedIn(s)) changes[x.key] = x.kind === "number" || x.kind === "check" || (x.kind === "select" && (x.key === "mfa_required" || x.key === "run_window_size")) ? Number(form[x.key] || 0) : form[x.key].trim();
     try { await api.saveSettings(changes); onNotice("Saved " + Object.keys(changes).length + " setting" + (Object.keys(changes).length === 1 ? "" : "s") + " in " + s.title + "."); await load(); }
     catch (e) { setError(message(e)); }
   };

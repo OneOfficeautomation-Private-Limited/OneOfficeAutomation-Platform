@@ -146,6 +146,12 @@ public final class Platform {
         DEFAULTS.put("trigger_max_failures", 0);        // a trigger is switched off after this many failed runs in a row; 0: never
         DEFAULTS.put("queue_abandon_hours", 0);         // a work item in progress longer than this is marked failed (abandoned); 0: never
         DEFAULTS.put("runner_error_screenshots", 1);    // runners take a picture of the screen when a step fails (a Catch block asks)
+        // the run window on a runner's screen while an agent runs (item 1, 21 Nov 2026)
+        DEFAULTS.put("run_window_show", 1);             // shown for runs on a runner with a signed-in desktop (not headless runs)
+        DEFAULTS.put("run_window_size", 1);             // 0 small, 1 medium, 2 large
+        DEFAULTS.put("run_window_minimised", 0);        // starts as the small tab at the screen edge
+        DEFAULTS.put("run_window_controls", 1);         // Pause and Stop on the window
+        DEFAULTS.put("run_window_per_run", 1);          // people may choose for one run in Run now
         // notifications, region, SIEM, promotion and this environment (Settings item 4, batch 3)
         DEFAULTS.put("notify_run_failed", 0);           // e-mail the person who started a run when it fails
         DEFAULTS.put("notify_task_assigned", 0);        // e-mail the people a workflow task is given to
@@ -234,6 +240,11 @@ public final class Platform {
         Map.entry("trigger_max_failures", new long[] { 0, 100 }),
         Map.entry("queue_abandon_hours", new long[] { 0, 720 }),
         Map.entry("runner_error_screenshots", new long[] { 0, 1 }),
+        Map.entry("run_window_show", new long[] { 0, 1 }),
+        Map.entry("run_window_size", new long[] { 0, 2 }),
+        Map.entry("run_window_minimised", new long[] { 0, 1 }),
+        Map.entry("run_window_controls", new long[] { 0, 1 }),
+        Map.entry("run_window_per_run", new long[] { 0, 1 }),
         Map.entry("agents_write_credentials", new long[] { 0, 1 }),
         Map.entry("events_allow_http", new long[] { 0, 1 }),
         Map.entry("events_allow_private", new long[] { 0, 1 }),
