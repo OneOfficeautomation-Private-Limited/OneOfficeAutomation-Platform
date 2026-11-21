@@ -1092,3 +1092,40 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
   border-radius: 4px; background: var(--ui-selected); font-size: 10.5px; }
 .st-right .st-x-word { display: none; }
 .st-right .st-formula-result { font-size: 11.5px; }
+
+/* ---- Yes/No options as tick boxes (Studio defects 21 Nov 2026, design A) ----
+   One row: the box, the label in words, a word tag when a ticked box replaces or adds, (i) and {x}. The colour shows
+   only when ticked: red #b42318 (6.6:1) replaces or removes, green #1e7b34 (5.3:1) adds, the accent otherwise. */
+.st-tick-field { padding: 1px 0; }
+.st-tick-row { display: flex; align-items: center; gap: 8px; min-height: 26px; font-size: 12px; color: var(--ui-text); }
+.st-tick-row .st-tick-label { cursor: pointer; }
+.st-tick { appearance: none; -webkit-appearance: none; margin: 0; flex: none; width: 16px; height: 16px; border: 1px solid var(--ui-field);
+  border-radius: 4px; background: var(--ui-bg); display: inline-grid; place-content: center; cursor: pointer; }
+.st-tick::after { content: ""; width: 8px; height: 4px; border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg) translate(1px, -1px); opacity: 0; }
+.st-tick:checked { background: var(--ui-accent); border-color: var(--ui-accent); }
+.st-tick:checked::after { opacity: 1; }
+.st-tick:focus-visible { box-shadow: var(--ui-focus); outline: none; }
+.st-tick-row.tone-danger .st-tick:checked { background: #b42318; border-color: #b42318; }
+.st-tick-row.tone-add .st-tick:checked { background: #1e7b34; border-color: #1e7b34; }
+.st-tick-tag { font-size: 11px; border-radius: 9px; padding: 0 7px; line-height: 17px; }
+.st-tick-tag.tone-danger { background: #fdecea; color: #8a1c12; }
+.st-tick-tag.tone-add { background: #e6f4ea; color: #14532d; }
+.st-tick-gap { flex: 1; }
+.st-tick-x { flex: none; width: 24px; height: 20px; border: 0; border-radius: 4px; background: var(--ui-selected); color: var(--ui-pill-text);
+  font-weight: 700; font-size: 11px; cursor: pointer; padding: 0; }
+.st-tick-x:focus-visible { box-shadow: var(--ui-focus); outline: none; }
+.st-tick-row .ui-mono, .st-tick-row input[type="text"] { flex: 1; min-width: 0; }
+.st-tick-help { margin: 2px 0 4px 24px; }
+
+/* ---- One file field: exact path, name rules, variable (Studio defects 21 Nov 2026) ---- */
+.st-file-field > .st-seg { margin-bottom: 4px; }
+.st-rules { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.st-rules-row, .st-rules-rule { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.st-rules-lab { flex: none; color: var(--ui-text); }
+.st-rules-grow { flex: 1; min-width: 60px; }
+.st-rules-rule .ui-select, .st-rules-rule select { width: auto; max-width: 160px; }
+.st-rules-x { flex: none; width: 22px; height: 22px; border: 0; background: transparent; color: var(--ui-text-2); font-size: 15px; cursor: pointer; border-radius: 4px; }
+.st-rules-x:hover { background: var(--ui-row-hover); }
+.st-rules-preview { border: 1px solid var(--ui-border); border-radius: 6px; padding: 5px 8px; background: var(--ui-soft); color: var(--ui-text); }
+.st-rules-preview.is-error { border-color: var(--ui-error-line); background: var(--ui-error-bg); color: var(--ui-error-text); }
+.st-link-btn { border: 0; background: transparent; color: var(--ui-accent-text); font-weight: 600; cursor: pointer; padding: 2px 0; font-size: 12px; }

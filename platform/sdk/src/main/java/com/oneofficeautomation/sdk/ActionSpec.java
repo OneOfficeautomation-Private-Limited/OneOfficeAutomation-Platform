@@ -90,7 +90,13 @@ public record ActionSpec(String kind, String id, String name, String description
 
     public record InputSpec(String name, OoaType type, String description, String label, boolean required,
                             Object defaultValue, String pattern, List<String> enumValues, String example,
-                            String visibleWhen, double min, double max, List<String> formerNames, boolean signInToken) {
+                            String visibleWhen, double min, double max, List<String> formerNames, boolean signInToken,
+                            Object newStepDefault, String tone, boolean acceptsCredential) {
+        public InputSpec(String name, OoaType type, String description, String label, boolean required,
+                         Object defaultValue, String pattern, List<String> enumValues, String example,
+                         String visibleWhen, double min, double max, List<String> formerNames, boolean signInToken) {
+            this(name, type, description, label, required, defaultValue, pattern, enumValues, example, visibleWhen, min, max, formerNames, signInToken, null, "", false);
+        }
         public InputSpec(String name, OoaType type, String description, String label, boolean required,
                          Object defaultValue, String pattern, List<String> enumValues, String example,
                          String visibleWhen, double min, double max) {
@@ -160,6 +166,9 @@ public record ActionSpec(String kind, String id, String name, String description
             s.put("x-ooa-label", label.isEmpty() ? FieldLabels.of(name) : label);
             if (formerNames != null && !formerNames.isEmpty()) s.put("x-ooa-former-names", formerNames);
             if (takesSignInToken()) s.put("x-ooa-sign-in-token", true);
+            if (newStepDefault != null && !newStepDefault.equals(defaultValue)) s.put("x-ooa-new-step-default", newStepDefault);
+            if (tone != null && !tone.isEmpty()) s.put("x-ooa-tone", tone);
+            if (acceptsCredential) s.put("x-ooa-accepts-credential", true);
             return s;
         }
     }

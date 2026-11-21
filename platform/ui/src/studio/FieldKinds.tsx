@@ -5,6 +5,7 @@ import { BrowseButton, Button, Dialog, Icon, IconButton, PathRow, Select, TextIn
 import { showValue } from "./flowEdit";
 import { RepoFileBrowser, withRepoFile } from "./RepoFiles";
 import { CommitInput } from "./ValueSources";
+import { FileRuleEditor, isSelection } from "./FileRules";
 import { ListEditor, PairsEditor, useVars } from "./VariablesPanel";
 
 /**
@@ -35,15 +36,52 @@ function VariableBox({ id, name, value, want, placeholder, onCommit, apply }: { 
 
 // ------------------------------------------------------------------ yes / no
 
-/** Yes, No, or a Boolean variable (the reference product offers the same three). */
-export function BoolField({ id, name, value, fallback, onCommit, apply }: FieldProps) {
-  const [mode, setMode] = useState<"true" | "false" | "variable" | "">(value === true ? "true" : value === false ? "false" : value === undefined ? "" : "variable");
-  const pick = (m: typeof mode) => { setMode(m); if (m === "true" || m === "false") onCommit(m === "true"); else if (typeof value === "boolean") onCommit(undefined); };
-  return <div className="st-source">
-    <SourceSwitch label="Yes, no or a variable" value={mode} options={[["true", "Yes"], ["false", "No"], ["variable", "Variable"]]} onChange={pick} />
-    {mode === "variable" && <VariableBox id={id} name={name} value={value} want="Boolean" placeholder="$isReady$" onCommit={onCommit} apply={apply} />}
-    {mode === "" && fallback && <span className="st-muted st-source-note">{fallback}</span>}
+/** Words in an option's name that say it replaces or removes something (a ticked box turns red), or adds something (green). */
+const DANGER_WORDS = /(^|_)(overwrite|replace|replace_existing|delete|remove|force|permanent|permanently|purge|clear|kill|discard|drop|wipe|truncate|expunge|unlink|destroy)(_|$)/;
+const ADD_WORDS = /(^|_)(create|add|insert|append)(_|$)/;
+
+/** How a ticked Yes/No option is coloured: the toolkit's own tone, else from its name. */
+export const toneOf = (name: string, tone?: string): "danger" | "add" | "plain" =>
+  tone === "danger" || tone === "add" || tone === "plain" ? tone : DANGER_WORDS.test(name) ? "danger" : ADD_WORDS.test(name) ? "add" : "plain";
+
+/**
+ * A Yes/No option as one tick box with its label in words (picked design A, 21 Nov 2026): red when ticked if it
+ * replaces or removes something, green if it adds or creates, blue otherwise, with a word tag so colour is never the
+ * only signal. {x} switches it to a Boolean variable and back. Left alone it shows the command's default, unticked or
+ * ticked, without storing anything.
+ */
+export function TickField({ id, name, label, value, defaultValue, tone, info, onCommit, apply }: { id: string; name: string; label: string; value: unknown;
+  defaultValue?: unknown; tone?: string; info?: string; onCommit: (v: unknown) => void; apply: (text: string, flow: Flow) => Flow }) {
+  const literal = value === undefined || typeof value === "boolean";
+  const [asVariable, setAsVariable] = useState(!literal);
+  const [help, setHelp] = useState(false);
+  const checked = typeof value === "boolean" ? value : defaultValue === true;
+  const kind = toneOf(name, tone);
+  const words = label.replace(/ \*$/, "");
+  return <div className="st-tick-field">
+    {asVariable
+      ? <div className="st-tick-row"><label htmlFor={id} className="st-tick-label">{words}</label>
+          <VariableBox id={id} name={name} value={value} want="Boolean" placeholder="$isReady$" onCommit={onCommit} apply={apply} />
+          <button type="button" className="st-tick-x" title="Back to a tick box" aria-label={"Use a tick box for " + words}
+            onClick={() => { setAsVariable(false); if (!literal) onCommit(undefined); }}>&#9745;</button></div>
+      : <div className={"st-tick-row tone-" + kind + (checked ? " is-on" : "")}>
+          <input id={id} type="checkbox" className="st-tick" checked={checked} onChange={(e) => onCommit(e.target.checked)}
+            title={value === undefined ? "Default: " + (defaultValue === true ? "on" : "off") : undefined} />
+          <label htmlFor={id} className="st-tick-label">{words}</label>
+          {checked && kind === "danger" && <span className="st-tick-tag tone-danger">replaces</span>}
+          {checked && kind === "add" && <span className="st-tick-tag tone-add">adds</span>}
+          {info && <button type="button" className="ui-info" aria-label={"About " + words} aria-expanded={help} title={info} onClick={() => setHelp(!help)}>i</button>}
+          <span className="st-tick-gap" />
+          <button type="button" className="st-tick-x" title="Take it from a variable" aria-label={"Take " + words + " from a variable"} onClick={() => setAsVariable(true)}>{"{x}"}</button>
+        </div>}
+    {help && info && !asVariable && <div className="ui-field-hint st-tick-help" role="note">{info}</div>}
   </div>;
+}
+
+/** Yes, No, or a Boolean variable, for places that have no label row of their own (a tick box with the field's name). */
+export function BoolField({ id, name, value, fallback, onCommit, apply }: FieldProps) {
+  const label = name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ");
+  return <TickField id={id} name={name} label={label} value={value} defaultValue={/on|yes|true/i.test(fallback) ? true : undefined} onCommit={onCommit} apply={apply} />;
 }
 
 // ------------------------------------------------------------------ date and time
@@ -93,10 +131,34 @@ export function CollectionField({ id, name, type, value, onCommit, apply }: Fiel
  * 2026): on this computer, or (files) one kept in One CommandCenter (F1, as AA's Control Room file), which is also added
  * to the agent's files, so the runner gets it before the run.
  */
-export function FileField({ id, name, value, fallback, onCommit, apply, folder }: FieldProps & { folder: boolean }) {
+export function FileField({ id, name, value, fallback, onCommit, apply, folder, rules = false }: FieldProps & { folder: boolean; rules?: boolean }) {
   const vars = useVars();
-  const text = typeof value === "string" ? value : value === undefined ? "" : showValue(value);
+  const text = typeof value === "string" ? value : value === undefined || isSelection(value) ? "" : showValue(value);
   const inRepo = !!vars?.flow.files?.includes(text);
+  // one file field everywhere (design picked 21 Nov 2026): an exact path, name rules (a regular expression is one
+  // kind of rule), or a variable; a field of a command that works on many files offers the rules
+  const [mode, setMode] = useState<"path" | "rule" | "variable">(isSelection(value) ? "rule" : isVarText(value) ? "variable" : "path");
+  const choose = (m: typeof mode) => {
+    setMode(m);
+    if (m === "rule" && !isSelection(value)) onCommit({ $files: { folder: text && !isVarText(text) ? text.replace(/[\\/][^\\/]*\.[^\\/]+$/, "") : "", rules: [{ what: "name", op: "starts", value: "" }], all: true } });
+    if (m !== "rule" && isSelection(value)) onCommit(undefined);
+  };
+  if (rules && !folder) return <div className="st-file-field">
+    <SourceSwitch label="Exact path, name rule or a variable" value={mode} options={[["path", "Exact path"], ["rule", "Name rule"], ["variable", "Variable"]]} onChange={choose} />
+    {mode === "rule" && isSelection(value)
+      ? <FileRuleEditor id={id} value={value.$files} onCommit={(s) => onCommit({ $files: s })}
+          browse={(start, pick) => <PathBrowse folder start={start} repo={false} onPick={(p) => pick(p)} />} />
+      : mode === "variable"
+        ? <VariableBox id={id} name={name} value={value} want="File" placeholder="$file$" onCommit={onCommit} apply={apply} />
+        : <PathRow>
+            <CommitInput key={"f" + text} id={id} initial={text} placeholder={fallback || "C:\\Folder\\file.xlsx"} want="File" nameHint={name}
+              onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
+            <PathBrowse folder={false} start={text} onPick={(p, fromRepo) => {
+              if (fromRepo && vars && apply) vars.edit(withRepoFile(apply(p, vars.flow), p)); else onCommit(p);
+            }} />
+          </PathRow>}
+    {inRepo && mode === "path" && <div className="ui-field-hint">A file from One CommandCenter: the runner gets it with the agent.</div>}
+  </div>;
   return <div className="st-file-field">
     <PathRow>
       <CommitInput key={"f" + text} id={id} initial={text} placeholder={fallback || (folder ? "C:\\Folder or $folder$" : "C:\\Folder\\file.xlsx or $file$")} want="File"
@@ -124,7 +186,13 @@ export function PathBrowse({ folder, start, onPick, api, repo = true }:
   { folder: boolean; start: string; onPick: (path: string, fromRepo: boolean) => void; api?: StudioApi; repo?: boolean }) {
   const vars = useVars();
   const [open, setOpen] = useState<"here" | "repo" | null>(null);
-  const sources: BrowseSource[] = [{ key: "here", label: "This computer", description: folder ? "A folder on this computer" : "A file on this computer", onSelect: () => setOpen("here") }];
+  const studio = api ?? vars?.api;
+  // item 4 (21 Nov 2026): Windows' own Open / Select folder dialog; the in-page list only when Windows cannot show it
+  const here = () => {
+    if (!studio?.fsPick) { setOpen("here"); return; }
+    studio.fsPick(folder, start).then((r) => { if (r.path) onPick(r.path, false); }, () => setOpen("here"));
+  };
+  const sources: BrowseSource[] = [{ key: "here", label: "This computer", description: folder ? "A folder on this computer (Windows' dialog)" : "A file on this computer (Windows' dialog)", onSelect: here }];
   if (!folder && repo && vars) sources.push({ key: "repo", label: "One CommandCenter", description: "A file kept there: the runner gets it with the agent", onSelect: () => setOpen("repo") });
   return <>
     <BrowseButton sources={sources} />

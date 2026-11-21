@@ -5,7 +5,7 @@ import { Button, PathRow, Select, TextInput } from "../components";
 import { parseLoose, showValue } from "./flowEdit";
 import { OPS, conditionText } from "./toolkits";
 import { CommitInput } from "./ValueSources";
-import { PathBrowse, WindowField, isFolderField, isWindowTitle } from "./FieldKinds";
+import { PathBrowse, TickField, WindowField, isFolderField, isWindowTitle } from "./FieldKinds";
 import { hasReadState, readState, readStateArgs, READ_STATES, type ReadState } from "./mailFields";
 import { useVars } from "./VariablesPanel";
 
@@ -154,9 +154,8 @@ export function SpecFields({ args, spec, keyPrefix, onChange }: { args: Record<s
             <Select aria-label={label} value={cur === undefined ? "" : String(cur)} onChange={(e) => put(name, e.target.value === "" ? undefined : e.target.value)}
               options={[{ value: "", label: s.default !== undefined ? "Default: " + String(s.default) : "(choose)" }, ...s.enum.map((v) => ({ value: String(v), label: String(v) }))]} /></label>;
         if (s.type === "boolean" || s["x-ooa-type"] === "Boolean")
-          return <label key={name} className="st-cond-field"><span>{label}</span>
-            <Select aria-label={label} value={cur === undefined ? "" : String(cur)} onChange={(e) => put(name, e.target.value === "" ? undefined : e.target.value === "true")}
-              options={[{ value: "", label: s.default !== undefined ? "Default: " + (s.default ? "Yes" : "No") : "(not set)" }, { value: "true", label: "Yes" }, { value: "false", label: "No" }]} /></label>;
+          return <div key={name} className="st-cond-field st-cond-tick"><TickField id={keyPrefix + "-" + name} name={name} label={label} value={cur} defaultValue={s.default}
+            tone={s["x-ooa-tone"]} info={s.description} onCommit={(v) => put(name, v)} apply={(_t, f) => f} /></div>;
         if (isWindowTitle(keyPrefix, name, s) && (s["x-ooa-type"] === "String" || s["x-ooa-type"] === undefined))
           return <div key={name} className="st-cond-field"><span>{label}</span>
             <WindowField id={"cond-" + keyPrefix + "-" + name} name={name} value={cur} fallback={s.default !== undefined ? "Default: " + showValue(s.default) : ""}

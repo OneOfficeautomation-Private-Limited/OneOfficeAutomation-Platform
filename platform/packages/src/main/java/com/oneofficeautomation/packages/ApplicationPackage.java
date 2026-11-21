@@ -37,9 +37,70 @@ public final class ApplicationPackage {
         }
     }
 
+    /**
+     * A program given by its name alone (excel.exe, winword, msedge, chrome) is found as Windows' Run box (Win+R) finds
+     * it (Studio defects 21 Nov 2026, item 8): on the PATH, else in the installed applications' "App Paths" list in the
+     * registry, where Office, Edge and Chrome register themselves without being on the PATH. A path, or a name found
+     * nowhere, is returned as given (the start then fails with the places tried).
+     */
+    static String resolveProgram(String program) {
+        if (program == null || !ProcessRunner.WINDOWS) return program;
+        String p = program.strip();
+        if (p.isEmpty() || p.contains("\\") || p.contains("/") || p.contains(":")) return p;
+        String exe = p.toLowerCase(Locale.ROOT).endsWith(".exe") ? p : p + ".exe";
+        if (onPath(p) || onPath(exe)) return p;
+        for (String key : List.of("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\",
+                "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\",
+                "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\")) {
+            String found = appPath(key + exe);
+            if (found != null && Files.isRegularFile(Path.of(found))) return found;
+        }
+        return p;
+    }
+
+    /** Whether a program name is in a folder of the PATH (with the PATHEXT endings when it has none). */
+    static boolean onPath(String name) {
+        String path = System.getenv("PATH");
+        if (path == null) return false;
+        List<String> exts = name.contains(".") ? List.of("") : List.of((System.getenv().getOrDefault("PATHEXT", ".COM;.EXE;.BAT;.CMD")).split(";"));
+        for (String dir : path.split(java.io.File.pathSeparator)) {
+            if (dir.isBlank()) continue;
+            for (String ext : exts) {
+                try { if (Files.isRegularFile(Path.of(dir.strip().replace("\"", "")).resolve(name + ext))) return true; }
+                catch (RuntimeException badEntry) { /* a malformed PATH entry */ }
+            }
+        }
+        return false;
+    }
+
+    /** The default value of an App Paths registry key (the program's full path), or null. */
+    private static String appPath(String key) {
+        try {
+            Process proc = new ProcessBuilder("reg", "query", key, "/ve").redirectErrorStream(true).start();
+            String out = new String(proc.getInputStream().readAllBytes(), java.nio.charset.Charset.defaultCharset());
+            if (!proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS) || proc.exitValue() != 0) return null;
+            for (String line : out.split("\\R")) {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\s+REG_(?:EXPAND_)?SZ\\s+(.+)$").matcher(line);
+                if (m.find()) {
+                    String v = m.group(1).strip().replace("\"", "");
+                    java.util.regex.Matcher env = java.util.regex.Pattern.compile("%([^%]+)%").matcher(v);
+                    StringBuilder sb = new StringBuilder();
+                    while (env.find()) env.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(System.getenv().getOrDefault(env.group(1), env.group(0))));
+                    env.appendTail(sb);
+                    return sb.toString();
+                }
+            }
+        } catch (IOException e) {
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return null;
+    }
+
     private static List<String> command(String program, List<Object> args) {
         List<String> cmd = new ArrayList<>();
-        cmd.add(program);
+        cmd.add(resolveProgram(program));
         if (args != null) for (Object a : args) cmd.add(Values.text(a));
         return cmd;
     }
@@ -143,7 +204,7 @@ public final class ApplicationPackage {
             applyEnv(pb.environment(), env);
             pb.redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD);
             try { pid = pb.start().pid(); }
-            catch (IOException e) { throw new ActionException("PROCESS.NOT_FOUND", "Cannot start '" + program + "': " + e.getMessage(), "Check the program is installed or give its full path."); }
+            catch (IOException e) { throw new ActionException("PROCESS.NOT_FOUND", "Cannot start '" + program + "': " + e.getMessage(), "Check the program is installed, or give its full path. A name alone is looked up on the PATH and in Windows' list of installed applications (App Paths), as Win+R does."); }
         }
         if (waitSeconds > 0) {
             long end = System.currentTimeMillis() + (long) (Math.min(600, waitSeconds) * 1000);
@@ -188,7 +249,7 @@ public final class ApplicationPackage {
 
     private static long startWithWindowState(ActionContext ctx, String program, List<Object> args, String dir, String state, Map<String, String> extraEnv) {
         Map<String, String> env = new LinkedHashMap<>(extraEnv);
-        env.put("OOA_APP_PROGRAM", program);
+        env.put("OOA_APP_PROGRAM", resolveProgram(program));
         List<Object> a = new ArrayList<>();
         if (args != null) for (Object o : args) a.add(Values.text(o));
         env.put("OOA_APP_ARGS", JsonLite.write(a));
@@ -197,7 +258,7 @@ public final class ApplicationPackage {
         ProcessRunner.Result r = ProcessRunner.run(ctx, ScriptPackage.powershellCommand(START_SCRIPT), null, null, 60, env, java.nio.charset.StandardCharsets.UTF_8);
         String out = r.stdout().strip();
         if (r.exitCode() != 0 || !out.matches("\\d+"))
-            throw new ActionException("PROCESS.NOT_FOUND", "Cannot start '" + program + "': " + tail(r.stderr() + out), "Check the program is installed or give its full path.");
+            throw new ActionException("PROCESS.NOT_FOUND", "Cannot start '" + program + "': " + tail(r.stderr() + out), "Check the program is installed, or give its full path. A name alone is looked up on the PATH and in Windows' list of installed applications (App Paths), as Win+R does.");
         return Long.parseLong(out);
     }
 
@@ -301,7 +362,7 @@ public final class ApplicationPackage {
         applyEnv(pb.environment(), env(environment));
         Process p;
         try { p = pb.start(); }
-        catch (IOException e) { throw new ActionException("PROCESS.NOT_FOUND", "Cannot start '" + prog + "': " + e.getMessage(), "Check the program is installed or give its full path."); }
+        catch (IOException e) { throw new ActionException("PROCESS.NOT_FOUND", "Cannot start '" + prog + "': " + e.getMessage(), "Check the program is installed, or give its full path. A name alone is looked up on the PATH and in Windows' list of installed applications (App Paths), as Win+R does."); }
         CommandSession s = new CommandSession(prog, p, cs);
         if (ctx.sessions().get(name) instanceof AutoCloseable old) {
             ctx.warn("Command session '" + name + "' was already open; it is closed and replaced");

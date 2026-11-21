@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { actionOutputs, type FieldSpec, type Flow, type FlowStep, type PackageManifest } from "../api/client";
 import { Button, Field, Select } from "../components";
 import { ConditionEditor, SpecFields } from "./ConditionEditor";
@@ -15,7 +15,7 @@ import {
 } from "./stepKinds";
 import { AssignmentsEditor, AssignValue, CommitInput, FORMULA_HELP, FormulaValue, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
-import { BoolField, CollectionField, CredentialField, DateField, FileField, isFolderField, MODEL_STEPS, ModelConnectionField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
+import { BoolField, CollectionField, TickField, CredentialField, DateField, FileField, isFolderField, MODEL_STEPS, ModelConnectionField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
 import { pickerFor } from "./Pickers";
 import { hasReadState, readState, readStateArgs, READ_STATES, type ReadState } from "./mailFields";
 
@@ -371,9 +371,20 @@ function ThrowCode({ value, onCommit }: { value: string; onCommit: (v: string | 
   </>}</Field>;
 }
 
+/**
+ * File fields that pick files that already exist (a source, the file to read or open) offer name rules; fields that
+ * name where something is written (target, output, save as, log) take a path only.
+ */
+const choosesExistingFiles = (name: string) =>
+  !/(^|_)(target|destination|dest|output|out|to|save|save_as|saveas|log|log_file|new|working|start_in|work|temp|key_file|certificate|keystore|truststore)(_|$)/.test(name);
+
 const isNumber = (spec?: FieldSpec) => spec?.["x-ooa-type"] === "Number" || spec?.type === "number";
 /** A Number field as typed: a number, a variable, or anything else as a calculation ({expr}), so "$n - 1" needs no JSON. */
 function parseValue(text: string, spec?: FieldSpec): unknown {
+  // as AA: what is typed into a Text or File field is text, so 123 stays "123" (it was saved as a number, and the
+  // check then said the field takes text only); only empty means "not set"
+  const t = spec?.["x-ooa-type"];
+  if ((t === "String" || t === "File") && !isNumber(spec)) return text === "" ? undefined : text;
   const v = parseLoose(text);
   if (!isNumber(spec) || typeof v !== "string" || /^\$[A-Za-z_][\w.]*$/.test(v.trim())) return v;
   return { expr: v.trim().replace(/^=\s*/, "") };
@@ -384,6 +395,11 @@ function InputField({ action, name, label, spec, required, value, onCommit, appl
   { action: string; name: string; label: string; spec: FieldSpec; required: boolean; value: unknown; onCommit: (v: unknown) => void; apply: (text: string, flow: Flow) => Flow }) {
   const fallback = spec.default !== undefined ? "Default: " + showValue(spec.default) : required ? "" : "Not set";
   const info = helpText(spec, required) || undefined;
+  const tickId = useId();
+  // a Yes/No option is one tick box with its label in words (design A, 21 Nov 2026), not a label and a Yes/No switch
+  if (spec.type === "boolean" && !spec.enum?.length)
+    return <TickField id={tickId} name={name} label={label + (required ? " *" : "")} value={value} defaultValue={spec.default} tone={spec["x-ooa-tone"]}
+      info={info} onCommit={onCommit} apply={apply} />;
   return (
     <Field label={(name.endsWith("_bytes") ? label.replace(/ \(bytes\)$/, "") : label) + (required ? " *" : "")} layout="beside" info={info}>{(id) => {
       if (spec.enum?.length) {
@@ -408,7 +424,7 @@ function InputField({ action, name, label, spec, required, value, onCommit, appl
       if (name === "alternatives" && action.startsWith("ooa.window/") && ooaType === "Dictionary") return <WindowAlternativesField {...kind} />;
       if (ooaType === "List" || ooaType === "Dictionary" || ooaType === "Table") return <CollectionField {...kind} type={ooaType} />;
       if (ooaType === "Credential") return <CredentialField {...kind} />;
-      if (ooaType === "File") return <FileField {...kind} folder={isFolderField(action, name)} />;
+      if (ooaType === "File") return <FileField {...kind} folder={isFolderField(action, name)} rules={choosesExistingFiles(name)} />;
       if (isWindowTitle(action, name, spec) && (ooaType === "String" || ooaType === undefined)) return <WindowField {...kind} />;
       if (name === "connection" && MODEL_STEPS.test(action) && (ooaType === "String" || ooaType === undefined)) return <ModelConnectionField {...kind} />;
       const text = isNumber(spec) ? showNumber(value) : showValue(value);

@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Flow, FlowStep, PackageManifest, StudioApi } from "../api/client";
 import { StepForm } from "./StepForm";
+import { toneOf } from "./FieldKinds";
 import { VarsContext, type VarsCtx } from "./VariablesPanel";
 
 afterEach(() => cleanup());
@@ -85,21 +86,29 @@ describe("typing $ in a field (item 2)", () => {
 });
 
 describe("fields by kind (items 3 to 9)", () => {
-  it("yes/no takes Yes, No or a variable (item 3)", () => {
+  it("yes/no is one tick box, or a variable through {x} (design A, 21 Nov 2026)", () => {
     const { onArg } = setup();
-    const choice = screen.getByRole("radiogroup", { name: "Yes, no or a variable" });
-    fireEvent.click(within(choice).getByRole("radio", { name: "Yes" }));
+    const tick = screen.getByRole("checkbox", { name: "Flag" });
+    fireEvent.click(tick);
     expect(onArg).toHaveBeenCalledWith("flag", true);
-    fireEvent.click(within(choice).getByRole("radio", { name: "Variable" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take Flag from a variable" }));
     const box = screen.getByLabelText("Flag");
     fireEvent.change(box, { target: { value: "$ready" } }); fireEvent.blur(box);
     expect(onArg).toHaveBeenLastCalledWith("flag", "$ready");
   });
 
-  it("a yes/no field holding a variable shows it, not a blank choice", () => {
+  it("a yes/no field holding a variable shows the variable, with a way back to the tick box", () => {
     setup({ flag: "$ready" });
-    expect(within(screen.getByRole("radiogroup", { name: "Yes, no or a variable" })).getByRole("radio", { name: "Variable" }).getAttribute("aria-checked")).toBe("true");
     expect((screen.getByLabelText("Flag") as HTMLInputElement).value).toBe("$ready");
+    expect(screen.getByRole("button", { name: "Use a tick box for Flag" })).toBeTruthy();
+  });
+
+  it("a ticked option that replaces or removes shows red with a word tag; one that adds, green", () => {
+    expect(toneOf("overwrite")).toBe("danger");
+    expect(toneOf("delete_source")).toBe("danger");
+    expect(toneOf("create_folders")).toBe("add");
+    expect(toneOf("include_subfolders")).toBe("plain");
+    expect(toneOf("overwrite", "plain")).toBe("plain");
   });
 
   it("a date comes from a calendar (item 7)", () => {

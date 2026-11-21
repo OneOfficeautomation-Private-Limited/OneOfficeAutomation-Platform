@@ -477,6 +477,18 @@ public final class FlowValidator {
                 p.add(sid, path, "Input '" + in.name() + "' needs a Credential (a vault reference or a Credential variable), got " + Values.typeName(v), in.description());
             return;
         }
+        // a Text input that also takes a vault reference (a host, a user name, a connection string): the runner reads it
+        if (in.acceptsCredential() && v instanceof Map<?, ?> cm && cm.containsKey("$credential")) {
+            if (cm.size() != 1 || !(cm.get("$credential") instanceof String ref) || !ref.strip().matches("[^/\\s][^/]*/[^/]+/[^/]*[^/\\s]"))
+                p.add(sid, path, "Input '" + in.name() + "': the vault reference must be {\"$credential\": \"locker/credential/attribute\"}", in.description());
+            return;
+        }
+        // a File input given as name rules ({"$files": ...}): checked here (folder, rule kinds, a valid regular expression)
+        if (in.type() == OoaType.FILE && com.oneofficeautomation.sdk.FileSelection.isSelection(v)) {
+            try { com.oneofficeautomation.sdk.FileSelection.parse(v); }
+            catch (OoaException e) { p.add(sid, path, "Input '" + in.name() + "': " + e.getMessage(), e.suggestedFix()); }
+            return;
+        }
         if (toolkit && containsVaultReference(v, 0))
             p.add(sid, path, "Input '" + in.name() + "' is not a Credential field: a vault reference here would be sent as plain text",
                     "Put the secret in the command's Credential field (for example password, bearer_token or access_token).");
@@ -485,7 +497,8 @@ public final class FlowValidator {
         catch (OoaException e) { return; }
         if (dynamic || v == null) return;
         boolean ok = switch (in.type()) {
-            case STRING, FILE -> v instanceof String;
+            // as AA: whatever is typed into a text field is text, so 123 or true written there is shown as "123" / "true"
+            case STRING, FILE -> v instanceof String || v instanceof BigDecimal || v instanceof Boolean;
             case NUMBER -> v instanceof BigDecimal;
             case BOOLEAN -> v instanceof Boolean;
             case LIST -> v instanceof List;

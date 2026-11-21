@@ -35,6 +35,12 @@ export type FieldSpec = {
   "x-ooa-visible-when"?: Record<string, unknown[]>;
   /** Names the input had before it was renamed; Studio moves a value under one to the current name. */
   "x-ooa-former-names"?: string[];
+  /** The value a new step gets (AA's safer default); saved steps keep "default". */
+  "x-ooa-new-step-default"?: unknown;
+  /** How a ticked Yes/No looks: danger (replaces or removes), add (creates or adds) or plain. */
+  "x-ooa-tone"?: "danger" | "add" | "plain";
+  /** A Text field that may also take a vault reference. */
+  "x-ooa-accepts-credential"?: boolean;
 };
 /** A command panel's entry: a field, a choice of options each showing its own fields, or a tick box that shows its fields. */
 export type PanelEntry = string | { choice: string; options: { label: string; fields: string[] }[] } | { tick: string; fields: string[] };
@@ -276,6 +282,10 @@ export class StudioApi {
   /** Windows open on this computer now, for the window editor. */
   /** This computer's folders for Browse…: a folder's contents, or the places to start from when path is empty. */
   fsList(path: string) { return this.call<FsListing>("GET", "fs/list?path=" + encodeURIComponent(path)); }
+  /** Windows' own Open / Select folder dialog on this computer (item 4); fails when Studio is used from elsewhere. */
+  fsPick(folder: boolean, start: string) { return this.call<{ path?: string; cancelled?: boolean }>("POST", "fs/pick", { folder, start }); }
+  /** The files a File field's name rules match now (the preview under the rules). */
+  fsMatch(selection: unknown) { return this.call<{ count: number; files: string[]; described: string }>("POST", "fs/match", selection); }
   /** The vault credentials of the connected One CommandCenter the person may use (none when not connected). */
   crCredentials() { return this.call<{ connected: boolean; credentials: VaultCredentialRef[] }>("GET", "cr/credentials"); }
   async windows() { return (await this.call<{ windows?: OpenWindow[] }>("GET", "windows")).windows ?? []; }

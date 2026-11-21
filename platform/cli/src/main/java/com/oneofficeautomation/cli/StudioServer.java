@@ -499,6 +499,26 @@ public final class StudioServer {
             listWindows(ex);
         } else if (method.equals("GET") && route.equals("fs/list")) {
             sendJson(ex, 200, listFolder(query(ex).getOrDefault("path", "")));
+        } else if (method.equals("POST") && route.equals("fs/pick")) {
+            // Browse… opens Windows' own Open / Select folder dialog on this computer (item 4); only for a browser on
+            // this same computer, never for a request from elsewhere (it would pop up on the server's desktop)
+            Map<String, Object> b = body(ex) instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+            if (!ex.getRemoteAddress().getAddress().isLoopbackAddress() || !NativeFileDialog.available())
+                throw new OoaException("STUDIO.NO_NATIVE_DIALOG", "Windows' file dialog is not available here", "Choose from the list instead (Studio is used from another computer, or not on Windows).");
+            boolean folder = Boolean.TRUE.equals(b.get("folder"));
+            String picked;
+            try { picked = NativeFileDialog.pick(folder, String.valueOf(b.getOrDefault("start", "")), folder ? "Choose a folder" : "Choose a file"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("STUDIO.NO_NATIVE_DIALOG", "The file dialog was interrupted", "Try Browse… again, or choose from the list."); }
+            catch (IllegalStateException e) { throw new OoaException("STUDIO.NO_NATIVE_DIALOG", e.getMessage(), "Choose from the list instead."); }
+            sendJson(ex, 200, picked == null ? Map.of("cancelled", true) : Map.of("path", picked));
+        } else if (method.equals("POST") && route.equals("fs/match")) {
+            // the files a File field's name rules match now, for the preview under the rules
+            Object b = body(ex);
+            com.oneofficeautomation.sdk.FileSelection sel = com.oneofficeautomation.sdk.FileSelection.parse(Map.of(com.oneofficeautomation.sdk.FileSelection.KEY, b));
+            List<Path> found = sel.resolve(f -> { Path p = Path.of(f); return p.isAbsolute() ? p : ws.root.resolve(p); });
+            List<String> names = new ArrayList<>();
+            for (Path p : found.subList(0, Math.min(50, found.size()))) names.add(p.getFileName().toString());
+            sendJson(ex, 200, Map.of("count", found.size(), "files", names, "described", sel.describe()));
         } else if (method.equals("GET") && route.equals("search")) {
             sendJson(ex, 200, Map.of("results", search(query(ex).getOrDefault("q", ""))));
         } else if (route.equals("clipboard") && (method.equals("GET") || method.equals("PUT"))) {
