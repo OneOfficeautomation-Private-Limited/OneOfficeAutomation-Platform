@@ -188,7 +188,7 @@ public final class JavaAppsPackage {
     @SuppressWarnings("unchecked")
     @Action(id = "object_action", name = "Java object action", category = "Java applications", timeoutSeconds = 600, capabilities = "desktop",
             description = "Act on a control of a Java application: press it (its action), type text into it, read its text, give it the focus, or read its properties. Find it by name and role, or by path.",
-            panel = "window_title, (Find the control by: Name and role = name, role, index / Path = path), action, value | process, timeout_seconds")
+            panel = "window_title, (Find the control by: Name and role = name, role, index / Path = path), action, value, row, column, click_kind | process, timeout_seconds")
     @Output(name = "result", description = "The text read (get_text), the properties (get_properties), or true.")
     @Output(name = "object", type = OoaType.DICTIONARY, description = "The control acted on: path, name, role, text and the rest.")
     public Map<String, Object> objectAction(ActionContext ctx,
@@ -197,11 +197,21 @@ public final class JavaAppsPackage {
             @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
             @Input(name = "index", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Which match to use when several do, 0 for the first.") int index,
             @Input(name = "path", type = OoaType.STRING, required = false, example = "0.0.1.2", description = "The control's path from Find Java objects, instead of name and role.") String path,
-            @Input(name = "action", type = OoaType.STRING, required = false, defaultValue = "\"do_action\"", enumValues = {"do_action", "set_text", "get_text", "focus", "get_properties"},
-                    description = "do_action presses a button, toggles a box or opens a menu; set_text replaces the text of a field.") String action,
-            @Input(name = "value", type = OoaType.STRING, required = false, description = "The text to type (set_text), or the name of the action to do when the control has several.") String value,
+            @Input(name = "action", type = OoaType.STRING, required = false, defaultValue = "\"do_action\"", enumValues = {"do_action", "set_text", "get_text", "focus", "get_properties",
+                    "click", "get_status", "check", "uncheck", "toggle", "select", "select_item", "get_selected", "get_selected_index", "get_total_items", "get_list_items",
+                    "get_table", "get_total_rows", "get_total_columns", "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell", "expand", "collapse",
+                    "select_path", "set_position", "scroll", "get_children_values"},
+                    description = "do_action presses a button, toggles a box or opens a menu; set_text replaces the text of a field; G4 adds clicks, states, selections, tables and cells, "
+                            + "trees and menus by path (File > Save), sliders and scrolling, as for other desktop applications.") String action,
+            @Input(name = "value", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "The text to type (set_text, set_cell_text; a password may come from the vault), the item, path, position, text to find or scroll direction (up, down, left, right); "
+                            + "or the name of the action to do when the control has several.") String value,
             @Input(name = "process", type = OoaType.STRING, required = false, description = D_PROCESS) String process,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0, description = "How long to wait for the control, in seconds.") double timeout) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0, description = "How long to wait for the control, in seconds.") double timeout,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Table cells: the row, 1 for the first; select_item: the item's position from 1; scroll: how many times (G4).") Integer row,
+            @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Table cells: the column, 1 for the first (G4).") Integer column,
+            @Input(name = "click_kind", type = OoaType.STRING, required = false, defaultValue = "\"left\"", enumValues = {"left", "right", "double", "page", "line"},
+                    description = "click and click_cell: left, right or double; scroll: a line or a page at a time (G4).") String clickKind) {
         String act = action == null || action.isBlank() ? "do_action" : action;
         Map<String, Object> target;
         Conn conn;
@@ -217,12 +227,80 @@ public final class JavaAppsPackage {
             target = (Map<String, Object>) found.get(index);
             conn = CONNECTED.get(String.valueOf(target.get("pid")));
         }
+        if (act.equals("get_cell_index_by_text") && (value == null || value.isBlank()))
+            throw new ActionException(P + ".BAD_INPUT", "Give the text of the cell to find in value", "Fill in value.");
         Object result = act.equals("get_properties") ? target
-            : request(conn, "act", title == null ? "" : title, String.valueOf(target.get("path")), act, value == null ? "" : value);
+            : request(conn, "act", title == null ? "" : title, String.valueOf(target.get("path")), act, value == null ? "" : value,
+                row == null ? "" : String.valueOf(row), column == null ? "" : String.valueOf(column), clickKind == null ? "left" : clickKind);
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("result", result);
+        out.put("result", plain(act, result));
         out.put("object", target);
         return out;
+    }
+
+    /** The action before G4's control actions. */
+    public Map<String, Object> objectAction(ActionContext ctx, String title, String name, String role, int index, String path, String action, String value, String process, double timeout) {
+        return objectAction(ctx, title, name, role, index, path, action, value, process, timeout, null, null, "left");
+    }
+
+    /** Numbers as numbers, a table as a table, "true" as true. */
+    @SuppressWarnings("unchecked")
+    static Object plain(String action, Object r) {
+        if (r instanceof Number n) return new BigDecimal(n.toString());
+        if ("true".equals(r)) return true;
+        if (r instanceof String s && s.matches("-?\\d+") && Set.of("get_selected_index", "get_total_items", "get_total_rows", "get_total_columns", "set_position").contains(action)) return new BigDecimal(s);
+        if (action.equals("get_table") && r instanceof Map<?, ?> m) return com.oneofficeautomation.runner.Values.table((List<String>) (List<?>) m.get("columns"), (List<Object>) (List<?>) m.get("rows"));
+        if (r instanceof Map<?, ?> m && m.containsKey("row")) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            ((Map<String, Object>) m).forEach((k, v) -> out.put(k, v instanceof Number n ? new BigDecimal(n.toString()) : v));
+            return out;
+        }
+        return r;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Action(id = "pick_object", name = "Pick Java object", category = "Java applications", timeoutSeconds = 900, capabilities = "desktop",
+            description = "Point at a control of a Java application and press Ctrl+Shift+C to capture it: its window, path, name and role, ready for Java object action (G4).",
+            panel = "timeout_seconds | process")
+    @Output(name = "object", type = OoaType.DICTIONARY, description = "The control: window, path, name, role, text and the rest.")
+    public Map<String, Object> pickObject(ActionContext ctx,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, max = 900, description = "How long to wait for Ctrl+Shift+C.") double timeout,
+            @Input(name = "process", type = OoaType.STRING, required = false, description = D_PROCESS) String process) {
+        long end = System.currentTimeMillis() + (long) (timeout * 1000);
+        ctx.info("Point at the control in the Java application and press Ctrl+Shift+C");
+        while (System.currentTimeMillis() < end) {
+            ctx.checkCancelled();
+            if (pressed(0x11) && pressed(0x10) && pressed('C')) {
+                java.awt.Point at = java.awt.MouseInfo.getPointerInfo().getLocation();
+                Map<String, Object> found = objectAt(process, at.x, at.y);
+                if (found != null) return Map.of("object", found);
+                ctx.warn("No control of a Java application is under the mouse at " + at.x + ", " + at.y);
+                try { Thread.sleep(600); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+            }
+            try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
+        throw new ActionException(P + ".PICK_TIMEOUT", "No control was picked within " + (long) timeout + " s", "Press Ctrl+Shift+C while pointing at the control.", true);
+    }
+
+    static boolean pressed(int vk) { return (com.sun.jna.platform.win32.User32.INSTANCE.GetAsyncKeyState(vk) & 0x8000) != 0; }
+
+    /** The control of a Java application under a screen point, with its window, path and properties; null when none. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> objectAt(String process, int x, int y) {
+        for (VirtualMachineDescriptor d : candidates(process)) {
+            try {
+                Conn c = connect(d);
+                Object r = request(c, "at", String.valueOf(x), String.valueOf(y));
+                if (r instanceof Map<?, ?> m) {
+                    Map<String, Object> out = new LinkedHashMap<>((Map<String, Object>) m);
+                    out.put("technology", "java");
+                    out.put("pid", c.pid());
+                    out.put("process", c.name());
+                    return out;
+                }
+            } catch (ActionException ignored) { /* not reachable */ }
+        }
+        return null;
     }
 
     static ActionException notFound(String title, String name, String role) {
