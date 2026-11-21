@@ -367,4 +367,112 @@ public final class DotNetPackage {
         try { return Path.of(c.getProtectionDomain().getCodeSource().getLocation().toURI()).toString(); }
         catch (Exception e) { throw new ActionException("JAVA.SETUP", "Cannot find the runner's own classes for the Java call: " + e.getMessage(), "Reinstall the runner; its program files are incomplete."); }
     }
+
+    // ------------------------------------------------------------------------------------------------ G4: .NET assembly sessions
+
+    private static final String D_ASM_SESSION = "Name of the .NET session, from Open assembly.";
+    private static final String D_TYPES = "The type of each argument, in order: auto, text, int, long, double, decimal, bool, byte, datetime, bytes (base64), text_list, number_list, list or dictionary.";
+
+    static ScriptSession assemblySession(ActionContext ctx, String name) {
+        Object s = ctx.sessions().get(name == null || name.isBlank() ? "dotnet" : name.strip());
+        if (s instanceof ScriptSession ss && ss.language.equals("dotnet")) return ss;
+        throw new ActionException("DOTNET.NO_SESSION", "No .NET session named '" + (name == null || name.isBlank() ? "dotnet" : name.strip()) + "' is open", "Add Open assembly before this step.");
+    }
+
+    private static Map<String, Object> answer(Map<String, Object> m) {
+        if (!Boolean.TRUE.equals(m.get("ok")))
+            throw new ActionException("DOTNET.FAILED", ".NET reported " + m.get("type") + ": " + m.get("message"), "Check the type, method and arguments; Read assembly lists them.");
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("result", Values.toJsonable(m.get("result")));
+        out.put("output", String.valueOf(m.getOrDefault("output", "")).stripTrailing());
+        return out;
+    }
+
+    @Action(id = "open_assembly", name = "Open assembly", category = ".NET sessions", timeoutSeconds = 120,
+            description = "Load a .NET assembly (DLL) into a session kept for the steps after it, so objects it creates keep their state (G4, Windows).",
+            panel = "path, session | share")
+    @Output(name = "assembly", type = OoaType.STRING, description = "The assembly's full name.")
+    public Map<String, Object> openAssembly(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "The .dll file.") String path,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"dotnet\"", description = "Session name the later steps use.") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session.") boolean share) {
+        Path dll = ctx.resolvePath(path);
+        if (!Files.isRegularFile(dll)) throw new ActionException("FILE.NOT_FOUND", "Assembly not found: " + dll, "Check the path.");
+        ScriptSession s = ScriptSession.start(ctx, "dotnet", null, null);
+        Map<String, Object> r;
+        try { r = answer(s.send(ctx, JsonLite.write(Map.of("op", "load", "path", dll.toAbsolutePath().toString())), 120)); }
+        catch (RuntimeException e) { s.close(); throw e; }
+        String name = session == null || session.isBlank() ? "dotnet" : session.strip();
+        Object old = ctx.sessions().put(name, s);
+        if (old instanceof AutoCloseable c && old != s) try { c.close(); } catch (Exception ignored) { }
+        if (share) ctx.shareSession(name);
+        return Map.of("assembly", String.valueOf(r.get("result")));
+    }
+
+    @Action(id = "create_object", name = "Create object", category = ".NET sessions", timeoutSeconds = 600,
+            description = "Create an object of a type of the open assembly and keep it in the session by a name, for Call method (G4).",
+            panel = "session, type, object_name, arguments | argument_types, named_arguments")
+    public Map<String, Object> createObject(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"dotnet\"", description = D_ASM_SESSION) String session,
+            @Input(name = "type", type = OoaType.STRING, example = "Pricing.Calculator", description = "Full type name, with its namespace.") String type,
+            @Input(name = "object_name", type = OoaType.STRING, required = false, defaultValue = "\"object\"", description = "Name the object is kept by.") String objectName,
+            @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Constructor arguments in order.") List<Object> args,
+            @Input(name = "argument_types", type = OoaType.LIST, required = false, description = D_TYPES) List<Object> types,
+            @Input(name = "named_arguments", type = OoaType.DICTIONARY, required = false, description = "Arguments by their parameter names, after the ones in order.") Map<String, Object> named) {
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("op", "new"); req.put("type", required(type, "type")); req.put("name", objectName == null || objectName.isBlank() ? "object" : objectName.strip());
+        req.put("args", Values.toJsonable(args == null ? List.of() : args)); req.put("types", Values.toJsonable(types == null ? List.of() : types));
+        req.put("named", Values.toJsonable(named == null ? Map.of() : named));
+        answer(assemblySession(ctx, session).send(ctx, JsonLite.write(req), 600));
+        return Map.of();
+    }
+
+    @Action(id = "call_method", name = "Call method in session", category = ".NET sessions", timeoutSeconds = 3600,
+            description = "Call a static method of a type, or a method of an object created in the session, with typed and named arguments (G4).",
+            panel = "session, (Call on: A static method of a type = type / A method of a session object = object_name), method, arguments | argument_types, named_arguments, timeout_seconds")
+    @Output(name = "result", description = "What the method returned.")
+    @Output(name = "output", type = OoaType.STRING, description = "Anything it wrote to the console.")
+    public Map<String, Object> callMethod(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"dotnet\"", description = D_ASM_SESSION) String session,
+            @Input(name = "type", type = OoaType.STRING, required = false, description = "Full type name for a static method.") String type,
+            @Input(name = "object_name", type = OoaType.STRING, required = false, description = "An object made with Create object.") String objectName,
+            @Input(name = "method", type = OoaType.STRING, example = "Price", description = "Method name.") String method,
+            @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments in order.") List<Object> args,
+            @Input(name = "argument_types", type = OoaType.LIST, required = false, description = D_TYPES) List<Object> types,
+            @Input(name = "named_arguments", type = OoaType.DICTIONARY, required = false, description = "Arguments by their parameter names, after the ones in order.") Map<String, Object> named,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time; the session is closed when it runs out.") double timeout) {
+        boolean onObject = objectName != null && !objectName.isBlank();
+        if (!onObject && (type == null || type.isBlank())) throw new ActionException("DOTNET.BAD_INPUT", "Give the type (for a static method) or the object's name", "Fill in type or object_name.");
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("op", "call"); req.put("method", required(method, "method"));
+        if (onObject) req.put("object", objectName.strip()); else req.put("type", type.strip());
+        req.put("args", Values.toJsonable(args == null ? List.of() : args)); req.put("types", Values.toJsonable(types == null ? List.of() : types));
+        req.put("named", Values.toJsonable(named == null ? Map.of() : named));
+        return answer(assemblySession(ctx, session).send(ctx, JsonLite.write(req), timeout));
+    }
+
+    @Action(id = "read_assembly", name = "Read assembly", category = ".NET sessions", idempotent = true, timeoutSeconds = 120,
+            description = "List the public types of a .NET assembly with their methods and parameters (G4).", panel = "path")
+    @Output(name = "types", type = OoaType.LIST, description = "Each type: type (full name) and methods (name, static, returns, parameters with name, type, optional).")
+    public Map<String, Object> readAssembly(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "The .dll file.") String path) {
+        Path dll = ctx.resolvePath(path);
+        if (!Files.isRegularFile(dll)) throw new ActionException("FILE.NOT_FOUND", "Assembly not found: " + dll, "Check the path.");
+        try (ScriptSession s = ScriptSession.start(ctx, "dotnet", null, null)) {
+            Object r = answer(s.send(ctx, JsonLite.write(Map.of("op", "describe", "path", dll.toAbsolutePath().toString())), 120)).get("result");
+            return Map.of("types", r instanceof List<?> l ? new ArrayList<>(l) : r == null ? List.of() : List.of(r));
+        }
+    }
+
+    @Action(id = "close_assembly", name = "Close assembly", category = ".NET sessions", description = "End a .NET session (G4); sessions also end with the run.", panel = "session")
+    public Map<String, Object> closeAssembly(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"dotnet\"", description = D_ASM_SESSION) String session) {
+        Object s = ctx.sessions().remove(session == null || session.isBlank() ? "dotnet" : session.strip());
+        if (s instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
+        return Map.of();
+    }
+
+    @Condition(id = "assembly_session_open", name = ".NET session is open", description = "True when the .NET session is open (G4).")
+    public boolean assemblySessionOpen(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"dotnet\"", description = D_ASM_SESSION) String session) {
+        return ctx.sessions().get(session == null || session.isBlank() ? "dotnet" : session.strip()) instanceof ScriptSession s && s.language.equals("dotnet") && s.process.isAlive();
+    }
 }

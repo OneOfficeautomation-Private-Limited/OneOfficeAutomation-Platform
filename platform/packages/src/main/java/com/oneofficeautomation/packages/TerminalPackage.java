@@ -89,40 +89,58 @@ public final class TerminalPackage {
     private static final String D_SESSION = "Session name.";
     private static final String D_WAIT = "Seconds to wait for the host to unlock the keyboard after the key.";
 
-    private static final String VT = "terminal_type=vt-ssh", TN3270 = "terminal_type!=vt-ssh";
+    private static final String VT = "terminal_type=vt-ssh|vt-telnet", TN3270 = "terminal_type!=vt-ssh|vt-telnet";
 
     @Action(id = "connect", name = "Connect", category = "Terminal", timeoutSeconds = 120, capabilities = "network", description = "Connect to a TN3270 or TN5250 host, or sign in to a VT100/ANSI host over SSH, and wait for the first screen. 3270 needs the free wc3270 engine installed on the runner; 5250 and SSH need nothing.",
             panel = "host, port, terminal_type, tls, model, code_page, user, password, [Sign in with a key file: key_file, key_passphrase], [Ask for a specific device name: lu_name], [Wait for text on the first screen: wait_for_text], session"
-                    + " | connect_timeout_seconds, wait_for_input_field, host_key_fingerprint, emulation, screen_rows, screen_columns")
+                    + " | connect_timeout_seconds, wait_for_input_field, host_key_fingerprint, emulation, screen_rows, screen_columns, encoding, auto_wrap, device_attributes")
     public Map<String, Object> connect(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, description = "Host name or address.") String host,
+            @Input(name = "host", type = OoaType.STRING, acceptsCredential = true, description = "Host name or address; it may come from the vault (G4).") String host,
             @Input(name = "port", type = OoaType.NUMBER, required = false, min = 1, max = 65535, description = "Port; 23 for 3270 and 5250 (992 is common with TLS) and 22 for SSH when empty.") Integer port,
             @Input(name = "tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = TN3270, description = "Use a TLS-encrypted connection.") boolean tls,
-            @Input(name = "model", type = OoaType.STRING, required = false, defaultValue = "\"3279-2\"", enumValues = {"3279-2", "3279-3", "3279-4", "3279-5", "3278-2", "3278-3", "3278-4", "3278-5", "3179-2", "3477-FC"}, visibleWhen = TN3270,
-                    description = "Screen model. 3270: 2 = 24x80, 3 = 32x80, 4 = 43x80, 5 = 27x132; 3278 is monochrome. 5250: 3179-2 = 24x80, 3477-FC = 27x132 (a 3270 model 5 also means 27x132).") String model,
+            @Input(name = "model", type = OoaType.STRING, required = false, defaultValue = "\"3279-2\"", enumValues = {"3279-2", "3279-3", "3279-4", "3279-5", "3278-2", "3278-3", "3278-4", "3278-5",
+                    "3279-2-E", "3279-3-E", "3279-4-E", "3279-5-E", "3278-2-E", "3278-3-E", "3278-4-E", "3278-5-E",
+                    "3179-2", "3180-2", "3196-A1", "3477-FC", "3477-FG", "3486-BA", "3487-HA", "3487-HC", "5251-11", "5291-1", "5292-2"}, visibleWhen = TN3270,
+                    description = "Screen model. 3270: 2 = 24x80, 3 = 32x80, 4 = 43x80, 5 = 27x132; 3278 is monochrome; -E adds the extended attributes (colour, highlighting). "
+                            + "5250: 3477-FC and 3477-FG are 27x132, the others 24x80 (a 3270 model 5 also means 27x132).") String model,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
-            @Input(name = "terminal_type", type = OoaType.STRING, required = false, defaultValue = "\"tn3270e\"", enumValues = {"tn3270e", "tn3270", "tn5250", "vt-ssh"},
-                    description = "tn3270e (extended 3270, the usual mainframe choice), plain tn3270 for hosts that refuse the extensions, tn5250 for IBM i (AS/400) hosts, or vt-ssh for a VT100/ANSI host reached over SSH.") String terminalType,
+            @Input(name = "terminal_type", type = OoaType.STRING, required = false, defaultValue = "\"tn3270e\"", enumValues = {"tn3270e", "tn3270", "tn5250", "vt-ssh", "vt-telnet"},
+                    description = "tn3270e (extended 3270, the usual mainframe choice), plain tn3270 for hosts that refuse the extensions, tn5250 for IBM i (AS/400) hosts, vt-ssh for a VT100/ANSI host reached over SSH, or vt-telnet for one reached over Telnet (unencrypted) (G4).") String terminalType,
             @Input(name = "connect_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds to wait for the connection and the first screen.") int connectTimeout,
             @Input(name = "lu_name", type = OoaType.STRING, required = false, visibleWhen = TN3270, description = "Device name to request from the host (3270 logical unit, or 5250 display device); any free one when empty.") String luName,
             @Input(name = "code_page", type = OoaType.STRING, required = false, example = "cp037", visibleWhen = TN3270, description = "Host code page, e.g. cp037 (US), cp273 (German), cp500; the engine default (5250: cp037) when empty.") String codePage,
             @Input(name = "wait_for_input_field", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Wait until the first screen has a field to type into (on SSH: until the host stops sending); turn off for hosts that show a read-only banner first.") boolean waitForInput,
             @Input(name = "wait_for_text", type = OoaType.STRING, required = false, example = "USERID", description = "Text the first screen must show (e.g. a logon prompt) before the agent continues; no check when empty.") String waitText,
-            @Input(name = "user", type = OoaType.STRING, required = false, visibleWhen = VT, description = "SSH user name.") String user,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, visibleWhen = VT, description = "SSH password from the vault; leave empty when signing in with a key file.") Object password,
+            @Input(name = "user", type = OoaType.STRING, required = false, acceptsCredential = true, visibleWhen = VT, description = "SSH user name; over Telnet, typed at the login prompt (empty: sign in with Type text steps). It may come from the vault.") String user,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, visibleWhen = VT, description = "Password from the vault; over SSH leave it empty when signing in with a key file.") Object password,
             @Input(name = "key_file", type = OoaType.FILE, required = false, visibleWhen = VT, description = "Private key file for SSH sign-in (instead of, or as well as, a password).") String keyFile,
             @Input(name = "key_passphrase", type = OoaType.CREDENTIAL, required = false, visibleWhen = VT, description = "Passphrase of the key file, when it has one.") Object keyPassphrase,
             @Input(name = "host_key_fingerprint", type = OoaType.STRING, required = false, example = "SHA256:...", visibleWhen = VT, description = "Expected SSH host fingerprint; the connection stops when the host shows a different one. Strongly recommended.") String fingerprint,
             @Input(name = "emulation", type = OoaType.STRING, required = false, defaultValue = "\"vt100\"", enumValues = {"vt100", "vt220", "xterm", "ansi"}, visibleWhen = VT, description = "Terminal kind reported to the SSH host; it decides which control codes the host sends.") String emulation,
             @Input(name = "screen_rows", type = OoaType.NUMBER, required = false, defaultValue = "24", min = 5, max = 255, visibleWhen = VT, description = "Screen height in rows for SSH hosts.") int screenRows,
-            @Input(name = "screen_columns", type = OoaType.NUMBER, required = false, defaultValue = "80", min = 20, max = 255, visibleWhen = VT, description = "Screen width in columns for SSH hosts.") int screenCols) {
+            @Input(name = "screen_columns", type = OoaType.NUMBER, required = false, defaultValue = "80", min = 20, max = 255, visibleWhen = VT, description = "Screen width in columns for SSH hosts.") int screenCols,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", example = "windows-1252", visibleWhen = VT,
+                    description = "VT hosts: how characters are sent: utf-8, ansi (windows-1252), or a double-byte set such as Shift_JIS, GBK or EUC-KR (G4).") String encoding,
+            @Input(name = "auto_wrap", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = VT,
+                    description = "VT hosts: text reaching the right edge goes on at the next line; off keeps writing in the last column (G4).") boolean autoWrap,
+            @Input(name = "device_attributes", type = OoaType.STRING, required = false, example = "?62;1;6c", visibleWhen = VT,
+                    description = "VT hosts: the answer to the host's 'what terminal are you' question, after ESC [ (e.g. ?62;1;6c for a VT220); the VT100 answer when empty (G4).") String deviceAttributes) {
         if (host == null || !host.matches("^[A-Za-z0-9.-]{1,253}$")) throw new ActionException("TERMINAL.BAD_HOST", "Invalid host '" + host + "'", "Give a host name or IP address (letters, digits, . - and :).");
         String type = terminalType == null || terminalType.isBlank() ? "tn3270e" : terminalType.trim().toLowerCase(Locale.ROOT);
-        if (!List.of("tn3270e", "tn3270", "tn5250", "vt-ssh").contains(type))
+        if (!List.of("tn3270e", "tn3270", "tn5250", "vt-ssh", "vt-telnet").contains(type))
             throw new ActionException("TERMINAL.UNSUPPORTED_TYPE", "Terminal type '" + terminalType + "' is not supported", "Use tn3270e or tn3270 for IBM 3270 hosts, tn5250 for IBM i hosts, or vt-ssh for VT100/ANSI hosts over SSH.");
         int p = port == null ? (type.equals("vt-ssh") ? 22 : 23) : port;
         if (p < 1 || p > 65535) throw new ActionException("TERMINAL.BAD_PORT", "Invalid port " + p, "Use 23 for telnet, 992 for TLS or 22 for SSH.");
-        if (type.equals("vt-ssh")) return connectVt(ctx, host, p, session, connectTimeout, waitForInput, waitText, user, password, keyFile, keyPassphrase, fingerprint, emulation, screenRows, screenCols);
+        if (type.equals("vt-ssh") || type.equals("vt-telnet")) {
+            String da = null;
+            if (deviceAttributes != null && !deviceAttributes.isBlank()) {
+                da = deviceAttributes.strip();
+                if (!da.matches("^[?>]?[0-9;]*c$")) throw new ActionException("TERMINAL.BAD_DEVICE_ATTRIBUTES", "device_attributes must look like ?62;1;6c", "Give the part after ESC [, ending in c.");
+                da = "\033[" + da;
+            }
+            return connectVt(ctx, host, p, session, connectTimeout, waitForInput, waitText, user, password, keyFile, keyPassphrase, fingerprint, emulation, screenRows, screenCols,
+                    type.equals("vt-telnet"), vtCharset(encoding), autoWrap, da);
+        }
         if (luName != null && !luName.isBlank() && !luName.matches("^[A-Za-z0-9#@$._-]{1,16}$")) throw new ActionException("TERMINAL.BAD_LU", "Invalid LU name '" + luName + "'", "Give the LU name as the host administrator gave it (letters and digits).");
         if (codePage != null && !codePage.isBlank() && !codePage.matches("^[A-Za-z0-9_-]{1,32}$")) throw new ActionException("TERMINAL.BAD_CODE_PAGE", "Invalid code page '" + codePage + "'", "Example: cp037.");
         int wait = Math.max(1, connectTimeout <= 0 ? 30 : connectTimeout);
@@ -156,6 +174,21 @@ public final class TerminalPackage {
         return connect(ctx, host, port, tls, model, session, "tn3270e", 30, null, null, true, null);
     }
 
+    /** Earlier signature, kept for callers written before the G4 options (Telnet, encoding, auto-wrap, device attributes). */
+    public Map<String, Object> connect(ActionContext ctx, String host, Integer port, boolean tls, String model, String session, String terminalType, int connectTimeout,
+                                       String luName, String codePage, boolean waitForInput, String waitText, String user, Object password, String keyFile, Object keyPassphrase,
+                                       String fingerprint, String emulation, int screenRows, int screenCols) {
+        return connect(ctx, host, port, tls, model, session, terminalType, connectTimeout, luName, codePage, waitForInput, waitText, user, password, keyFile, keyPassphrase,
+                fingerprint, emulation, screenRows, screenCols, "utf-8", true, null);
+    }
+
+    static java.nio.charset.Charset vtCharset(String encoding) {
+        String e = encoding == null || encoding.isBlank() ? "utf-8" : encoding.strip();
+        if (e.equalsIgnoreCase("ansi")) e = "windows-1252";
+        try { return java.nio.charset.Charset.forName(e); }
+        catch (RuntimeException x) { throw new ActionException("TERMINAL.BAD_ENCODING", "Unknown encoding " + encoding, "Use utf-8, ansi, or a name such as Shift_JIS, GBK or EUC-KR."); }
+    }
+
     /** Earlier signature, kept for callers written before SSH (VT) hosts. */
     public Map<String, Object> connect(ActionContext ctx, String host, int port, boolean tls, String model, String session, String terminalType,
                                        int connectTimeout, String luName, String codePage, boolean waitForInput, String waitText) {
@@ -164,7 +197,17 @@ public final class TerminalPackage {
     }
 
     private Map<String, Object> connectVt(ActionContext ctx, String host, int port, String session, int connectTimeout, boolean waitForInput, String waitText,
-                                          String user, Object password, String keyFile, Object keyPassphrase, String fingerprint, String emulation, int screenRows, int screenCols) {
+                                          String user, Object password, String keyFile, Object keyPassphrase, String fingerprint, String emulation, int screenRows, int screenCols,
+                                          boolean telnet, java.nio.charset.Charset charset, boolean autoWrap, String deviceAttributes) {
+        if (telnet) {
+            if (screenRows < 5 || screenRows > 255 || screenCols < 20 || screenCols > 255)
+                throw new ActionException("TERMINAL.BAD_SCREEN_SIZE", "Screen size " + screenRows + " x " + screenCols + " is out of range", "Use 5-255 rows and 20-255 columns; 24 x 80 suits most hosts.");
+            int wait = Math.max(1, connectTimeout <= 0 ? 30 : connectTimeout);
+            String pw = password instanceof SecureString ss ? ss.reveal() : password == null ? null : com.oneofficeautomation.runner.Values.text(password);
+            Session t = VtSshSession.openTelnet(host, port, user == null || user.isBlank() ? null : user.strip(), pw == null || pw.isEmpty() ? null : pw,
+                    VtSshSession.termName(emulation), screenRows, screenCols, (int) Math.min(600_000L, wait * 1000L), charset, ctx::warn, autoWrap, deviceAttributes);
+            return started(ctx, t, session, wait, waitForInput ? "InputField" : null, waitText);
+        }
         if (user == null || user.isBlank()) throw new ActionException("TERMINAL.NO_USER", "SSH hosts need a user name", "Fill in user.");
         boolean hasKey = keyFile != null && !keyFile.isBlank();
         String pw = password instanceof SecureString ss ? ss.reveal() : password == null ? null : com.oneofficeautomation.runner.Values.text(password);
@@ -174,7 +217,7 @@ public final class TerminalPackage {
         int wait = Math.max(1, connectTimeout <= 0 ? 30 : connectTimeout);
         String kp = keyPassphrase instanceof SecureString ks ? ks.reveal() : null;
         Session t = VtSshSession.open(host, port, user.strip(), pw == null || pw.isEmpty() ? null : pw, hasKey ? ctx.resolvePath(keyFile) : null, kp, fingerprint,
-                VtSshSession.termName(emulation), screenRows, screenCols, (int) Math.min(600_000L, wait * 1000L), ctx::warn);
+                VtSshSession.termName(emulation), screenRows, screenCols, (int) Math.min(600_000L, wait * 1000L), ctx::warn, charset, autoWrap, deviceAttributes);
         return started(ctx, t, session, wait, waitForInput ? "InputField" : null, waitText);
     }
 
@@ -199,7 +242,7 @@ public final class TerminalPackage {
     }
 
     @Action(id = "send_text", name = "Type text", category = "Terminal", timeoutSeconds = 120, description = "Type text at a row and column, or at the cursor; Credentials are typed without being logged.",
-            panel = "session, text, [Press a key after typing: press_key], delay_after_ms, [Wait for text afterwards: wait_for_text] | row, column, clear_field, timeout_seconds")
+            panel = "session, text, [Press a key after typing: press_key], delay_after_ms, [Wait for text afterwards: wait_for_text] | row, column, clear_field, timeout_seconds, delay_before_ms")
     public Map<String, Object> sendText(ActionContext ctx,
             @Input(name = "text", description = "Text, or a Credential variable for passwords.") Object text,
             @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row (1-based); the cursor position when empty. On VT (SSH) hosts the cursor is moved with arrow keys, which suits full-screen programs.") Integer row,
@@ -209,8 +252,10 @@ public final class TerminalPackage {
             @Input(name = "press_key", type = OoaType.STRING, required = false, example = "Enter", description = "Key to press after typing, e.g. Enter or PF8; none when empty.") String pressKey,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = D_WAIT) int timeout,
             @Input(name = "delay_after_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Extra pause after typing (and the key), in milliseconds.") int delay,
-            @Input(name = "wait_for_text", type = OoaType.STRING, required = false, description = "Text that must appear on the screen afterwards (waits up to timeout_seconds); no check when empty.") String waitText) {
+            @Input(name = "wait_for_text", type = OoaType.STRING, required = false, description = "Text that must appear on the screen afterwards (waits up to timeout_seconds); no check when empty.") String waitText,
+            @Input(name = "delay_before_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 600000, description = "Pause before typing, e.g. for a slow host (G4).") int delayBefore) {
         Session t = s(ctx, session);
+        if (delayBefore > 0) HttpJson.pause(ctx, Math.min(600_000, delayBefore));
         if (row != null && col != null) {
             if (row < 1 || col < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row and column start at 1", "Give row and column numbers from 1 (the top-left corner is row 1, column 1).");
             t.cmd("MoveCursor(" + (row - 1) + "," + (col - 1) + ")");
@@ -226,6 +271,10 @@ public final class TerminalPackage {
     /** Earlier signature, kept for callers written before press_key and timeout_seconds. */
     public Map<String, Object> sendText(ActionContext ctx, Object text, Integer row, Integer col, boolean clear, String session) {
         return sendText(ctx, text, row, col, clear, session, null, 30, 0, null);
+    }
+
+    public Map<String, Object> sendText(ActionContext ctx, Object text, Integer row, Integer col, boolean clear, String session, String pressKey, int timeout, int delay, String waitText) {
+        return sendText(ctx, text, row, col, clear, session, pressKey, timeout, delay, waitText, 0);
     }
 
     @Action(id = "send_key", name = "Press key", category = "Terminal", timeoutSeconds = 120, description = "Press Enter, Tab, Clear, a PF or PA key, and wait for the host to answer.",
@@ -273,23 +322,57 @@ public final class TerminalPackage {
     /** Earlier signature, kept for callers written before the row range options. */
     public Map<String, Object> getScreen(ActionContext ctx, String session) { return getScreen(ctx, session, false, 1, 0); }
 
-    @Action(id = "get_text", name = "Get text at position", category = "Terminal", idempotent = true, description = "Read text from a row and column for a given length.",
-            panel = "session, row, column, length | trim")
-    @Output(name = "text", type = OoaType.STRING, description = "Text (trimmed unless trim is off).")
+    @Action(id = "get_text", name = "Get text at position", category = "Terminal", idempotent = true,
+            description = "Read text from a row and column for a given length, or the last line with text, a rectangle of the screen, or (VT hosts) everything that scrolled past.",
+            panel = "session, what, row, column, length, height, width | trim")
+    @Output(name = "text", type = OoaType.STRING, description = "Text (trimmed unless trim is off); a rectangle or the scroll-back one line per row.")
     public Map<String, Object> getText(ActionContext ctx,
-            @Input(name = "row", type = OoaType.NUMBER, description = "Row (1-based).") int row,
-            @Input(name = "column", type = OoaType.NUMBER, description = "Column (1-based).") int col,
-            @Input(name = "length", type = OoaType.NUMBER, description = "Number of characters.") int len,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, defaultValue = "1", visibleWhen = "what=position|rectangle", description = "Row (1-based).") int row,
+            @Input(name = "column", type = OoaType.NUMBER, required = false, defaultValue = "1", visibleWhen = "what=position|rectangle", description = "Column (1-based).") int col,
+            @Input(name = "length", type = OoaType.NUMBER, required = false, defaultValue = "80", visibleWhen = "what=position", description = "Number of characters.") int len,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
-            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove leading and trailing spaces.") boolean trim) {
-        if (row < 1 || col < 1 || len < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row, column and length start at 1", "Give row, column and length from 1.");
-        List<String> d = s(ctx, session).cmd("Ascii(" + (row - 1) + "," + (col - 1) + "," + len + ")");
-        String v = String.join("", d);
-        return Map.of("text", trim ? v.strip() : v);
+            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove leading and trailing spaces.") boolean trim,
+            @Input(name = "what", type = OoaType.STRING, required = false, defaultValue = "\"position\"", enumValues = {"position", "rectangle", "last_line", "scroll_back"},
+                    description = "What to read (G4): from a position, a rectangle (row, column, height, width), the last line with text, or on VT hosts all lines that scrolled off the top and the screen.") String what,
+            @Input(name = "height", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, visibleWhen = "what=rectangle", description = "Rectangle: how many rows (G4).") int height,
+            @Input(name = "width", type = OoaType.NUMBER, required = false, defaultValue = "80", min = 1, visibleWhen = "what=rectangle", description = "Rectangle: how many columns (G4).") int width) {
+        Session t = s(ctx, session);
+        String w = what == null || what.isBlank() ? "position" : what.strip();
+        switch (w) {
+            case "last_line" -> {
+                List<String> all = t.cmd("Ascii()");
+                for (int i = all.size() - 1; i >= 0; i--) if (!all.get(i).isBlank()) return Map.of("text", trim ? all.get(i).strip() : all.get(i));
+                return Map.of("text", "");
+            }
+            case "scroll_back" -> {
+                if (!t.isVt()) throw new ActionException("TERMINAL.NOT_ON_3270", "Only VT hosts keep lines that scrolled past", "Read the screen with Get screen text.");
+                List<String> all = t.cmd("History()");
+                List<String> out = new ArrayList<>();
+                for (String l : all) out.add(trim ? l.stripTrailing() : l);
+                return Map.of("text", String.join("\n", out).stripTrailing());
+            }
+            case "rectangle" -> {
+                if (row < 1 || col < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row and column start at 1", "Give row and column from 1.");
+                List<String> all = t.cmd("Ascii()");
+                List<String> out = new ArrayList<>();
+                for (int r = row - 1; r < Math.min(all.size(), row - 1 + Math.max(1, height)); r++) {
+                    String l = all.get(r);
+                    String part = col - 1 >= l.length() ? "" : l.substring(col - 1, Math.min(l.length(), col - 1 + Math.max(1, width)));
+                    out.add(trim ? part.strip() : part);
+                }
+                return Map.of("text", String.join("\n", out));
+            }
+            default -> {
+                if (row < 1 || col < 1 || len < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row, column and length start at 1", "Give row, column and length from 1.");
+                String v = String.join("", t.cmd("Ascii(" + (row - 1) + "," + (col - 1) + "," + len + ")"));
+                return Map.of("text", trim ? v.strip() : v);
+            }
+        }
     }
 
-    /** Earlier signature, kept for callers written before the trim option. */
+    /** Earlier signatures, kept for callers written before the trim option and G4's reads. */
     public Map<String, Object> getText(ActionContext ctx, int row, int col, int len, String session) { return getText(ctx, row, col, len, session, true); }
+    public Map<String, Object> getText(ActionContext ctx, int row, int col, int len, String session, boolean trim) { return getText(ctx, row, col, len, session, trim, "position", 1, 80); }
 
     @Action(id = "wait_for_text", name = "Wait for text", category = "Terminal", timeoutSeconds = 600, description = "Wait until text appears (or disappears) on the screen or at a position.",
             panel = "session, text, wait_until_gone, timeout_seconds | [Look at one position only: row, column], case_sensitive, fail_on_timeout, poll_interval_ms")
@@ -800,19 +883,21 @@ public final class TerminalPackage {
         return Map.of();
     }
 
-    @Action(id = "show_terminal", name = "Show terminal", category = "Terminal", description = "Ask for a visible terminal window; the scripting engine has no window, so this only records a note in the log.",
+    @Action(id = "show_terminal", name = "Show terminal", category = "Terminal",
+            description = "Open a window that follows the session's screen while the agent works, for a person watching (G4); on a runner without a screen it only notes that in the log.",
             panel = "session")
+    @Output(name = "shown", type = OoaType.BOOLEAN, description = "True when the window is showing.")
     public Map<String, Object> showTerminal(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
-        s(ctx, session);
-        ctx.info("The terminal runs without a window; use Get screen text to see what the host shows.");
-        return Map.of();
+        Session t = s(ctx, session);
+        boolean shown = TerminalViewer.show(t, "Terminal: " + session + (ctx.agentName().isBlank() ? "" : " - " + ctx.agentName()));
+        if (!shown) ctx.info("This runner has no screen to show the terminal on; use Get screen text to see what the host shows.");
+        return Map.of("shown", shown);
     }
 
-    @Action(id = "hide_terminal", name = "Hide terminal", category = "Terminal", description = "Hide the terminal window; the scripting engine is always hidden, so nothing changes.",
+    @Action(id = "hide_terminal", name = "Hide terminal", category = "Terminal", description = "Close the window Show terminal opened (G4); the session goes on.",
             panel = "session")
     public Map<String, Object> hideTerminal(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
-        s(ctx, session);
-        ctx.info("The terminal already runs without a window.");
+        TerminalViewer.hide(s(ctx, session));
         return Map.of();
     }
 

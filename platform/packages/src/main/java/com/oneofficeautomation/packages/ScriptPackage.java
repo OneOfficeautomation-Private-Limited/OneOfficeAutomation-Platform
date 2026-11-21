@@ -62,6 +62,7 @@ public final class ScriptPackage {
                     Path dir = workingFolder == null || workingFolder.isBlank() ? ctx.workDir() : ctx.resolvePath(workingFolder);
                     ProcessRunner.Result r = ProcessRunner.run(ctx, cmd, dir, input, timeout, env.isEmpty() ? null : env, StandardCharsets.UTF_8);
                     if (storeAlias(r)) { last = new ActionException("PROCESS.NOT_FOUND", interp + " is only the Microsoft Store shortcut, not an installed Python", "Install Python from python.org (or turn off the Microsoft Store shortcut in App execution aliases), then try again."); continue; }
+                    ctx.sessions().put(LAST_OK, r.exitCode() == 0);   // G4: the "script succeeded" condition
                     if (fail && r.exitCode() != 0)
                         throw new ActionException("SCRIPT.FAILED", "Script exited with code " + r.exitCode() + ": " + ApplicationPackage.tail(r.stderr().isBlank() ? r.stdout() : r.stderr()),
                                 "Read the error output, fix the script, or set fail_on_error to false.");
@@ -547,5 +548,126 @@ public final class ScriptPackage {
         res.put("output", before);
         res.put("error", "");
         return res;
+    }
+
+    // ------------------------------------------------------------------------------------------------ G4: script sessions
+
+    static final String LAST_OK = "ooa.script.last_ok";
+    private static final String D_SESSION = "Name of the script session, from Open script session.";
+
+    static ScriptSession scriptSession(ActionContext ctx, String name) {
+        Object s = ctx.sessions().get(name == null || name.isBlank() ? "script" : name.strip());
+        if (s instanceof ScriptSession ss) return ss;
+        throw new ActionException("SCRIPT.NO_SESSION", "No script session named '" + (name == null || name.isBlank() ? "script" : name.strip()) + "' is open", "Add Open script session before this step.");
+    }
+
+    private static Map<String, Object> sessionResult(ActionContext ctx, Map<String, Object> m, boolean fail, String language) {
+        boolean ok = Boolean.TRUE.equals(m.get("ok"));
+        ctx.sessions().put(LAST_OK, ok);
+        Map<String, Object> out = new LinkedHashMap<>();
+        String msg = ok ? "" : m.get("type") + ": " + m.get("message");
+        if (!ok && fail) throw new ActionException("SCRIPT.FAILED", language + " reported " + msg, "Fix the code or its arguments, or turn off fail_on_error.", false,
+                m.get("trace") == null ? null : Map.of("trace", String.valueOf(m.get("trace"))));
+        out.put("result", ok ? Values.toJsonable(m.get("result")) : null);
+        out.put("output", String.valueOf(m.getOrDefault("output", "")).stripTrailing());
+        out.put("error", msg);
+        return out;
+    }
+
+    @Action(id = "open_session", name = "Open script session", category = "Script sessions", timeoutSeconds = 120,
+            description = "Start Python, JavaScript (Node.js) or VBScript and keep it running for the steps after it: what one step defines is there for the next (G4).",
+            panel = "language, session, [Load a file first: file] | interpreter, environment, share")
+    public Map<String, Object> openSession(ActionContext ctx,
+            @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"python\"", enumValues = {"python", "javascript", "vbscript"}, description = "The scripting language.") String language,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"script\"", description = "Session name the later steps use.") String session,
+            @Input(name = "file", type = OoaType.FILE, required = false, description = "A script file to run first, e.g. one that defines functions.") String file,
+            @Input(name = "interpreter", type = OoaType.STRING, required = false, description = "The program to use (python, node or cscript); found on the PATH when empty.") String interpreter,
+            @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables.") Map<String, Object> environment,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session.") boolean share) {
+        String name = session == null || session.isBlank() ? "script" : session.strip();
+        ScriptSession s = ScriptSession.start(ctx, language, interpreter, environment);
+        Object old = ctx.sessions().put(name, s);
+        if (old instanceof AutoCloseable c && old != s) try { c.close(); } catch (Exception ignored) { }
+        if (share) ctx.shareSession(name);
+        if (file != null && !file.isBlank()) runInSession(ctx, name, null, file, 300, true, "exec");
+        return Map.of();
+    }
+
+    @Action(id = "run_in_session", name = "Run code in session", category = "Script sessions", timeoutSeconds = 3600,
+            description = "Run code, or a file, in an open script session; the value of a last expression (Python, JavaScript) or of the code (VBScript Eval, when run_as is eval) comes back (G4).",
+            panel = "session, (Code: Type it here = script / Run a file = file), run_as | timeout_seconds, fail_on_error")
+    @Output(name = "result", description = "The value of the last expression, when there is one.")
+    @Output(name = "output", type = OoaType.STRING, description = "Text the code printed.")
+    @Output(name = "error", type = OoaType.STRING, description = "The error when fail_on_error is off; empty on success.")
+    public Map<String, Object> runInSession(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"script\"", description = D_SESSION) String session,
+            @Input(name = "script", type = OoaType.STRING, required = false, description = "Code to run.") String script,
+            @Input(name = "file", type = OoaType.FILE, required = false, description = "Or a script file to run in the session.") String file,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time; the session is closed when it runs out.") double timeout,
+            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Stop the step when the code raises an error.") boolean fail,
+            @Input(name = "run_as", type = OoaType.STRING, required = false, defaultValue = "\"exec\"", enumValues = {"exec", "eval"},
+                    description = "VBScript only: exec runs statements; eval works out an expression and returns its value.") String runAs) {
+        ScriptSession s = scriptSession(ctx, session);
+        String code = script;
+        if (file != null && !file.isBlank()) {
+            Path p = ctx.resolvePath(file);
+            if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Script not found: " + p, "Check the path.");
+            if (!s.language.equals("vbscript"))
+                return sessionResult(ctx, s.send(ctx, JsonLite.write(Map.of("op", "file", "path", p.toAbsolutePath().toString())), timeout), fail, s.language);
+            try { code = Files.readString(p, StandardCharsets.ISO_8859_1); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check the file."); }
+        }
+        if (code == null || code.isBlank()) throw new ActionException("SCRIPT.NO_SCRIPT", "Give the code or a script file", "Fill in script or file.");
+        String req = s.language.equals("vbscript")
+                ? ("eval".equals(runAs) ? "eval" : "exec") + "\n" + code.replace("\r\n", "\n").replace("\n" + ScriptSession.END, "\n") + "\n" + ScriptSession.END
+                : JsonLite.write(Map.of("op", "exec", "code", code));
+        return sessionResult(ctx, s.send(ctx, req, timeout), fail, s.language);
+    }
+
+    @Action(id = "call_in_session", name = "Call function in session", category = "Script sessions", timeoutSeconds = 3600,
+            description = "Call a function defined in an open script session with arguments, and return what it returns (G4).",
+            panel = "session, function, arguments, keyword_arguments | timeout_seconds, fail_on_error")
+    @Output(name = "result", description = "Value the function returned.")
+    @Output(name = "output", type = OoaType.STRING, description = "Text the function printed.")
+    @Output(name = "error", type = OoaType.STRING, description = "The error when fail_on_error is off; empty on success.")
+    public Map<String, Object> callInSession(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"script\"", description = D_SESSION) String session,
+            @Input(name = "function", type = OoaType.STRING, example = "total", description = "Function name; dots for a function of an object or module.") String function,
+            @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments in order.") List<Object> args,
+            @Input(name = "keyword_arguments", type = OoaType.DICTIONARY, required = false, description = "Python only: named arguments.") Map<String, Object> kwargs,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time; the session is closed when it runs out.") double timeout,
+            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Stop the step when the function raises an error.") boolean fail) {
+        ScriptSession s = scriptSession(ctx, session);
+        if (function == null || !function.matches("^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$"))
+            throw new ActionException("SCRIPT.BAD_FUNCTION", "Invalid function name '" + function + "'", "Give a plain name such as total or tools.total.");
+        if (s.language.equals("vbscript")) {
+            StringJoiner j = new StringJoiner(", ", function + "(", ")");
+            if (args != null) for (Object a : args) j.add(ScriptSession.vbsLiteral(Values.toJsonable(a)));
+            return sessionResult(ctx, s.send(ctx, "eval\n" + j + "\n" + ScriptSession.END, timeout), fail, s.language);
+        }
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("op", "call"); req.put("function", function);
+        req.put("args", Values.toJsonable(args == null ? List.of() : args));
+        req.put("kwargs", Values.toJsonable(kwargs == null ? Map.of() : kwargs));
+        return sessionResult(ctx, s.send(ctx, JsonLite.write(req), timeout), fail, s.language);
+    }
+
+    @Action(id = "close_session", name = "Close script session", category = "Script sessions",
+            description = "End a script session and its program (G4); sessions also end with the run.", panel = "session")
+    public Map<String, Object> closeSession(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"script\"", description = D_SESSION) String session) {
+        Object s = ctx.sessions().remove(session == null || session.isBlank() ? "script" : session.strip());
+        if (s instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
+        return Map.of();
+    }
+
+    @Condition(id = "session_open", name = "Script session is open", description = "True when the script session is open and its program still runs (G4).")
+    public boolean sessionOpen(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"script\"", description = D_SESSION) String session) {
+        return ctx.sessions().get(session == null || session.isBlank() ? "script" : session.strip()) instanceof ScriptSession s && s.process.isAlive();
+    }
+
+    @Condition(id = "script_succeeded", name = "Script succeeded", description = "True when the last script step succeeded: in this session, or (session empty) the last script step of the run (G4).")
+    public boolean scriptSucceeded(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, description = "A script session; the last script step of the run when empty.") String session) {
+        if (session != null && !session.isBlank()) return scriptSession(ctx, session).lastOk;
+        return !Boolean.FALSE.equals(ctx.sessions().get(LAST_OK));
     }
 }

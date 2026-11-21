@@ -365,7 +365,8 @@ class EnterpriseGapsTest {
         t.clearScreen(ctx, true, "terminal");
         t.showTerminal(ctx, "terminal");
         t.hideTerminal(ctx, "terminal");
-        assertEquals(List.of("MoveCursor(1,3)", "EraseInput", "Clear", "Wait(30,InputField)"), eng.commands);
+        // G4: Show terminal opens a window that reads the screen (Ascii()) while it is open
+        assertEquals(List.of("MoveCursor(1,3)", "EraseInput", "Clear", "Wait(30,InputField)"), eng.commands.stream().filter(x -> !x.equals("Ascii()")).toList());
 
         Map<String, Object> maps = t.setKeyMapping(ctx, Map.of("Submit", "Enter", "Exit", "pf3"), "terminal");
         assertEquals(Map.of("EXIT", "pf3", "SUBMIT", "Enter"), maps.get("mappings"));

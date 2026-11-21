@@ -1989,10 +1989,10 @@ public final class BrowserPackage {
             @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Table cell actions: the column, 1 for the first.") Integer column,
             @Input(name = "run_in_background", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Leave the browser window where it is: the tab is not brought to the front and clicks are sent to the page (not with the mouse), so other work on the screen can go on.") boolean runInBackground,
-            @Input(name = "find_text", type = OoaType.STRING, required = false, visibleWhen = "action=click_cell_by_text,set_cell_by_text",
+            @Input(name = "find_text", type = OoaType.STRING, required = false, visibleWhen = "action=click_cell_by_text|set_cell_by_text",
                     description = "click_cell_by_text and set_cell_by_text: the text of the cell to find (an exact match first, else the first cell containing it) (G4).") String findText,
             @Input(name = "click_kind", type = OoaType.STRING, required = false, defaultValue = "\"click\"", enumValues = {"click", "double_click", "right_click"},
-                    visibleWhen = "action=click_cell,click_cell_by_text", description = "How a table cell is clicked (G4).") String clickKind,
+                    visibleWhen = "action=click_cell|click_cell_by_text", description = "How a table cell is clicked (G4).") String clickKind,
             @Input(name = "index_from_one", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true",
                     description = "select_by_index counts from 1 for the first item, as Get selected index does; off counts from 0 as older steps did (G4).") boolean indexFromOne) {
         if ("continue".equals(ifNotFound)) {

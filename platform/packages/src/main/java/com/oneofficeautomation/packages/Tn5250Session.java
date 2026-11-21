@@ -76,7 +76,7 @@ final class Tn5250Session extends TerminalPackage.Session {
         this.socket = socket; this.termType = termType; this.deviceName = deviceName;
         this.fromHost = new BufferedInputStream(socket.getInputStream());
         this.toHost = new BufferedOutputStream(socket.getOutputStream());
-        wide = termType.equals("IBM-3477-FC");
+        wide = termType.equals("IBM-3477-FC") || termType.equals("IBM-3477-FG");
         Arrays.fill(fromChar, (short) -1);
         var dec = cs.newDecoder().onMalformedInput(CodingErrorAction.REPLACE).onUnmappableCharacter(CodingErrorAction.REPLACE).replaceWith(" ");
         for (int b = 0; b < 256; b++) {
@@ -128,6 +128,8 @@ final class Tn5250Session extends TerminalPackage.Session {
         String m = model == null ? "" : model.trim().toUpperCase(Locale.ROOT);
         if (m.isEmpty() || m.equals("3179-2") || m.matches("327[89]-[234]")) return "IBM-3179-2";
         if (m.equals("3477-FC") || m.matches("327[89]-5")) return "IBM-3477-FC";
+        // G4 (AA parity): the other 5250 displays; 3477-FG is 27 x 132, the rest 24 x 80
+        if (List.of("3180-2", "3196-A1", "3477-FG", "3486-BA", "3487-HA", "3487-HC", "5251-11", "5291-1", "5292-2").contains(m)) return "IBM-" + m;
         throw new ActionException("TERMINAL.BAD_MODEL", "Model '" + model + "' is not a 5250 display", "Use 3179-2 (24 x 80) or 3477-FC (27 x 132).");
     }
 

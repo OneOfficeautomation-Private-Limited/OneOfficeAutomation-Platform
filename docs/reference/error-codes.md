@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1675 codes in 152 areas.
+1685 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -792,8 +792,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
+| `DOTNET.BAD_INPUT` | Give the type (for a static method) or the object's name | Fill in type or object_name. | packages |
+| `DOTNET.FAILED` | .NET reported …type…: …message… | Check the type, method and arguments; Read assembly lists them. | packages |
 | `DOTNET.MISSING` | Fill in … | Fill in the field the message names. | packages |
 | `DOTNET.NO_CODE` | Type the C# code<br>Type the VB.NET code | Fill in code. | packages |
+| `DOTNET.NO_SESSION` | No .NET session named '…dotnet…' is open | Add Open assembly before this step. | packages |
 
 ## EC2
 
@@ -1712,7 +1715,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `RUN.CANCELLED` | Run thread interrupted<br>Interrupted<br>The wait was stopped | The run was stopped before this step finished. Run the agent again when it should go on.<br>Start the import again.<br>Nothing to fix: someone stopped the run in One CommandCenter. | cli, control-room, packages, packages-browser, packages-windows, runner, sdk, toolkits/ai, toolkits/cloud-data, toolkits/microsoft |
+| `RUN.CANCELLED` | Run thread interrupted<br>Interrupted<br>The wait was stopped | The run was stopped before this step finished. Run the agent again when it should go on.<br>Start the import again.<br>The run was stopped. | cli, control-room, packages, packages-browser, packages-windows, runner, sdk, toolkits/ai, toolkits/cloud-data, toolkits/microsoft |
 | `RUN.INPUT_INVALID` | Input '…' must be one of … | Give one of the values the message lists. | runner |
 | `RUN.INPUT_MISSING` | Required input '…' has no value | …description…description…Provide a …type… value for '…'. | runner |
 | `RUN.INPUT_UNKNOWN` | Unknown input(s): …, … | Only variables with direction 'input' can be supplied. | runner |
@@ -1836,11 +1839,15 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SCRIPT.BAD_ARGUMENT` | At most 64 arguments can be passed to a VBScript function<br>VBScript function arguments cannot contain line breaks | Pass at most 64 arguments; put more in a file or a list the function reads.<br>Pass multi-line text through a file instead. | packages |
 | `SCRIPT.BAD_FUNCTION` | Invalid function name '…' | Give a plain Python name such as calculate_total.<br>Give a plain JavaScript name such as calculateTotal.<br>Give a plain VBScript name such as FormatInvoice. | packages |
 | `SCRIPT.BAD_INTERPRETER` | Invalid interpreter '…' | Give the program name or full path, e.g. C:/Python312/python.exe. | packages |
-| `SCRIPT.BAD_RESULT` | The function result could not be read as JSON | Return numbers, text, lists or dictionaries. | packages |
+| `SCRIPT.BAD_LANGUAGE` | Unknown language … | Use python, javascript or vbscript. | packages |
+| `SCRIPT.BAD_RESULT` | The function result could not be read as JSON<br>The … session sent an answer that could not be read | Return numbers, text, lists or dictionaries. | packages |
 | `SCRIPT.FAILED` | Script exited with code …: …<br>… did not return a result (exit code …exit_code…): …error_output…<br>VBScript did not return a result (exit code …exit_code…): …error_output… | Read the error output, fix the script, or set fail_on_error to false.<br>Check the file runs on its own.<br>Check the file runs on its own with cscript. | packages |
-| `SCRIPT.INTERPRETER_NOT_FOUND` | Python is not installed on this runner (tried …, …)<br>…Python is not installed on this runner…Microsoft Store… (python only opens the Microsoft Store)……None of … is installed on this runner | Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter.<br>…Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter, e.g. C:/Python312/python.exe.…Install the interpreter on the runner or add it to the PATH. | packages |
-| `SCRIPT.NO_SCRIPT` | Give the script text or a script file | Fill in 'script' or 'file'. | packages |
+| `SCRIPT.INTERPRETER_NOT_FOUND` | Python is not installed on this runner (tried …, …)<br>…Python is not installed on this runner…Microsoft Store… (python only opens the Microsoft Store)……None of … is installed on this runner<br>Could not start … or ……: … | Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter.<br>…Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter, e.g. C:/Python312/python.exe.…Install the interpreter on the runner or add it to the PATH.<br>Install it on the runner, or give its program in interpreter. | packages |
+| `SCRIPT.NO_SCRIPT` | Give the script text or a script file<br>Give the code or a script file | Fill in 'script' or 'file'.<br>Fill in script or file. | packages |
+| `SCRIPT.NO_SESSION` | No script session named '…script…' is open | Add Open script session before this step. | packages |
 | `SCRIPT.NO_SOURCE` | Give the … file or type the script | Fill in file or script. | packages |
+| `SCRIPT.SESSION_ENDED` | The … session has ended<br>The … session has ended: …<br>The … session ended: … | Open the session again.<br>Open the session again; the code may have called exit. | packages |
+| `SCRIPT.TIMEOUT` | The … code did not finish within … s; the session was closed | Raise timeout_seconds, or check the code for a loop that never ends. | packages |
 | `SCRIPT.VBSCRIPT_ERROR` | … | Fix the VBScript function or its arguments. | packages |
 
 ## SERVICE
@@ -2138,7 +2145,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TERMINAL.BAD_CODE_PAGE` | Invalid code page '…'<br>Code page '…' is not available | Example: cp037.<br>Use a single-byte EBCDIC code page such as cp037, cp273, cp277, cp280, cp285, cp297 or cp500. | packages |
 | `TERMINAL.BAD_CONDITION` | Unknown condition '…' | Use input_field, unlock, screen_change, screen_blank, cursor_at, cursor_leaves or seconds. | packages |
 | `TERMINAL.BAD_DELAY` | The delay must be between 0 and 600000 ms | Set the delay between 0 and 600,000 ms. | packages |
+| `TERMINAL.BAD_DEVICE_ATTRIBUTES` | device_attributes must look like ?62;1;6c | Give the part after ESC [, ending in c. | packages |
 | `TERMINAL.BAD_EMULATION` | Unknown emulation '…' | Use vt100, vt220, xterm or ansi. | packages |
+| `TERMINAL.BAD_ENCODING` | Unknown encoding … | Use utf-8, ansi, or a name such as Shift_JIS, GBK or EUC-KR. | packages |
 | `TERMINAL.BAD_HOST` | Invalid host '…' | Give a host name or IP address (letters, digits, . - and :). | packages |
 | `TERMINAL.BAD_KEY` | Unknown key '…'<br>Cannot read the escape sequence '…' | …Use Enter, Tab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Escape, Ctrl+C, Alt+X, PF1-PF20, SEQ:\e[24~ for any escape sequence, or a name set with Set key mapping.…Use Enter, Tab, Clear, PF1-PF24 or PA1-PA3, or a name set with Set key mapping.<br>Write Escape as \e or ^[, bytes as \x1b, control keys as ^C, e.g. SEQ:\e[24~.<br>… Or a name set with Set key mapping. | packages |
 | `TERMINAL.BAD_KEY_FILE` | The key file could not be read: … | Use an OpenSSH or PEM private key, and give key_passphrase when the key is protected. | packages |
@@ -2146,7 +2155,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TERMINAL.BAD_MODEL` | Model '…' is not a 5250 display | Use 3179-2 (24 x 80) or 3477-FC (27 x 132). | packages |
 | `TERMINAL.BAD_PATTERN` | Invalid prompt pattern: … | Use a regular expression such as [$#>]\s*$. | packages |
 | `TERMINAL.BAD_PORT` | Invalid port … | Use 23 for telnet, 992 for TLS or 22 for SSH. | packages |
-| `TERMINAL.BAD_POSITION` | Row and column start at 1<br>Row, column and length start at 1<br>Give both row and column, starting at 1 | Give row and column numbers from 1 (the top-left corner is row 1, column 1).<br>Give row, column and length from 1.<br>Fill in both row and column, from 1. | packages |
+| `TERMINAL.BAD_POSITION` | Row and column start at 1<br>Row, column and length start at 1<br>Give both row and column, starting at 1 | Give row and column numbers from 1 (the top-left corner is row 1, column 1).<br>Give row and column from 1.<br>Give row, column and length from 1. | packages |
 | `TERMINAL.BAD_REPEAT` | Repeat must be between 1 and 200 | Set Repeat between 1 and 200. | packages |
 | `TERMINAL.BAD_SCREEN_SIZE` | Screen size … x … is out of range | Use 5-255 rows and 20-255 columns; 24 x 80 suits most hosts. | packages |
 | `TERMINAL.BAD_TIMEOUT` | The timeout must be between 1 and 3600 seconds | Set the timeout between 1 and 3600 seconds. | packages |
@@ -2162,11 +2171,12 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TERMINAL.KEY_NOT_ON_5250` | … is not a 5250 key<br>The key '…' does not exist on 5250 displays | … | packages |
 | `TERMINAL.KEY_NOT_ON_VT` | The key '…' exists only on 3270 terminals | On VT hosts use Enter, Tab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Escape, Ctrl+C, Alt+X, PF1-PF20 or SEQ:\e[24~ for any escape sequence. | packages |
 | `TERMINAL.NOT_INSTALLED` | The x3270 terminal engine is not installed | Install wc3270 (Windows) or s3270, or set OOA_S3270 to its path. | packages |
+| `TERMINAL.NOT_ON_3270` | Only VT hosts keep lines that scrolled past | Read the screen with Get screen text. | packages |
 | `TERMINAL.NOT_ON_VT` | … is a 3270 command; VT hosts have no such key | Use keys a VT host understands: Enter, Tab, BackTab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Insert, Escape, Ctrl+C, PF1-PF20. | packages |
 | `TERMINAL.NO_CURSOR` | The engine did not report a cursor position: … … | Check the session is connected. | packages |
 | `TERMINAL.NO_FIELDS` | The screen has no fields | Wait for a formatted screen before reading fields. | packages |
 | `TERMINAL.NO_POSITION` | Give the row and column for …<br>Give a row and column, or a label | Rows and columns start at 1. | packages |
-| `TERMINAL.NO_PROMPT` | No prompt matching … within … s; the cursor line shows '…' | Check the command finished, or change the prompt pattern. | packages |
+| `TERMINAL.NO_PROMPT` | No prompt matching … within … s; the cursor line shows '…'<br>The host did not ask for the …password…password…user name… in time | Check the command finished, or change the prompt pattern.<br>Leave user empty and sign in with Type text steps, or check the host. | packages |
 | `TERMINAL.NO_SIGN_IN` | Give a password or a key file to sign in to … | Fill in password (a Credential) or key_file. | packages |
 | `TERMINAL.NO_USER` | SSH hosts need a user name | Fill in user. | packages |
 | `TERMINAL.PROTECTED_FIELD` | The field at row …, column … cannot be typed into | Pick an input field; Get all fields shows which are protected. | packages |
