@@ -109,7 +109,7 @@ public final class PdfPackage {
             @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7",
                     description = "Exact pages to read, e.g. 1,3,5-7, in that order; overrides from_page and to_page.") String pages,
             @Input(name = "output_file", type = OoaType.FILE, required = false, description = "Also write the text to this .txt file (UTF-8).") String outputFile,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace output_file when it already exists; false stops with PDF.EXISTS.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace output_file when it already exists; false stops with PDF.EXISTS.") boolean overwrite) {
         try (PDDocument d = load(ctx, path, password)) {
             PDFTextStripper s = new PDFTextStripper();
             s.setSortByPosition(!"plain".equalsIgnoreCase(mode));
@@ -162,6 +162,72 @@ public final class PdfPackage {
         } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
     }
 
+    /**
+     * G2 (AA parity, large item): AA's "Extract field": many named areas of a PDF read at once into a Dictionary (an
+     * invoice number box, a date, a total). Each area is {page, x, y, width, height} in points from the page's top-left
+     * corner, as Extract text from area measures them; the Studio area picker writes them.
+     */
+    @Action(id = "extract_fields", name = "Extract fields by area", category = "Text", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
+            description = "Read the text of several named areas of a PDF at once, e.g. invoice number, date and total, into a Dictionary.",
+            panel = "path, [The file has a password: password], fields | trim, all_pages")
+    @Output(name = "values", type = OoaType.DICTIONARY, description = "Each area's name and the text found in it (empty when nothing is there).")
+    @Output(name = "empty", type = OoaType.LIST, description = "Names of the areas where no text was found.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> extractFields(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
+            @Input(name = "fields", type = OoaType.DICTIONARY, example = "{\"invoice_no\": {\"page\": 1, \"x\": 400, \"y\": 90, \"width\": 150, \"height\": 20}}",
+                    description = "Area name to {page, x, y, width, height}: points (72 per inch) from the top-left corner of the page; page 1 when left out.") Map<String, Object> fields,
+            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove spaces and line breaks around each value.") boolean trim,
+            @Input(name = "all_pages", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Read each area on every page and give a List of values per name (for a form repeated page after page).") boolean allPages,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+        if (fields == null || fields.isEmpty()) throw new ActionException("PDF.NO_FIELDS", "Give at least one named area", "Mark the areas with the area picker, or type {name: {page, x, y, width, height}}.");
+        Map<String, double[]> areas = new LinkedHashMap<>();
+        Map<String, Integer> pages = new LinkedHashMap<>();
+        for (var e : fields.entrySet()) {
+            if (!(e.getValue() instanceof Map<?, ?> m)) throw new ActionException("PDF.BAD_AREA", "Area '" + e.getKey() + "' must be {page, x, y, width, height}", "Give the area as a Dictionary.");
+            double[] r = new double[4];
+            String[] keys = {"x", "y", "width", "height"};
+            for (int i = 0; i < 4; i++) {
+                Object v = m.get(keys[i]);
+                if (v == null) throw new ActionException("PDF.BAD_AREA", "Area '" + e.getKey() + "' has no " + keys[i], "Give x, y, width and height in points.");
+                r[i] = com.oneofficeautomation.runner.Values.toNumber(v).doubleValue();
+            }
+            if (r[2] <= 0 || r[3] <= 0) throw new ActionException("PDF.BAD_AREA", "Area '" + e.getKey() + "' needs a width and height above 0", "Measure the area in points.");
+            areas.put(e.getKey(), r);
+            pages.put(e.getKey(), m.get("page") == null ? 1 : com.oneofficeautomation.runner.Values.toNumber(m.get("page")).intValue());
+        }
+        try (PDDocument d = load(ctx, path, password)) {
+            int count = d.getNumberOfPages();
+            Map<String, Object> values = new LinkedHashMap<>();
+            List<Object> empty = new ArrayList<>();
+            for (var e : areas.entrySet()) {
+                String name = e.getKey();
+                List<Integer> on = new ArrayList<>();
+                if (allPages) for (int p = 1; p <= count; p++) on.add(p);
+                else {
+                    int p = pages.get(name);
+                    if (p < 1 || p > count) throw new ActionException("PDF.BAD_PAGES", "Area '" + name + "' is on page " + p + ", which the document does not have", "The document has " + count + " pages.");
+                    on.add(p);
+                }
+                List<Object> found = new ArrayList<>();
+                for (int p : on) {
+                    org.apache.pdfbox.text.PDFTextStripperByArea st = new org.apache.pdfbox.text.PDFTextStripperByArea();
+                    st.setSortByPosition(true);
+                    double[] r = e.getValue();
+                    st.addRegion("area", new java.awt.geom.Rectangle2D.Double(r[0], r[1], r[2], r[3]));
+                    st.extractRegions(d.getPage(p - 1));
+                    String t = st.getTextForRegion("area");
+                    found.add(trim ? t.strip() : t);
+                }
+                Object v = allPages ? found : found.get(0);
+                if (found.stream().allMatch(x -> String.valueOf(x).isBlank())) empty.add(name);
+                values.put(name, v);
+            }
+            return Map.of("values", values, "empty", empty);
+        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
+    }
+
     @Action(id = "page_count", name = "Get page count", category = "Document", idempotent = true, capabilities = "filesystem", description = "Return the number of pages.",
             panel = "path, [The file has a password: password]")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of pages.")
@@ -201,7 +267,7 @@ public final class PdfPackage {
     public Map<String, Object> merge(ActionContext ctx,
             @Input(name = "files", type = OoaType.LIST, required = false, visibleWhen = "folder=", description = "PDF paths in the order to merge.") List<Object> files,
             @Input(name = "target", type = OoaType.FILE, description = "Merged PDF to create.") String target,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace the target when it already exists; false stops with PDF.EXISTS.") boolean overwrite,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace the target when it already exists; false stops with PDF.EXISTS.") boolean overwrite,
             @Input(name = "pages", type = OoaType.LIST, required = false,
                     description = "Pages to take from each file, in the same order as files, e.g. [\"1-3\", \"\", \"5,2\"]; an empty entry takes every page.") List<Object> pages,
             @Input(name = "passwords", type = OoaType.LIST, required = false,
@@ -251,7 +317,7 @@ public final class PdfPackage {
                             + "blank_page starts a new file after each blank page (blank pages are left out); bookmarks starts a new file at each bookmark down to bookmark_level.") String mode,
             @Input(name = "pages", type = OoaType.STRING, required = false, example = "1-3,4,5-9", description = "Page ranges for modes ranges and selected_pages.") String pages,
             @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each part's file name, followed by _part1, _part2 and so on; the source file name when empty.") String prefix,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace parts that already exist; false stops with PDF.EXISTS.") boolean overwrite,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace parts that already exist; false stops with PDF.EXISTS.") boolean overwrite,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
             @Input(name = "bookmark_level", type = OoaType.NUMBER, required = false, defaultValue = "1",
                     description = "For mode bookmarks: the deepest bookmark level that starts a new file (1 = top-level bookmarks only, 2 = also their sub-bookmarks).") int bookmarkLevel) {
@@ -393,6 +459,12 @@ public final class PdfPackage {
             if (d.isEncrypted()) d.setAllSecurityToBeRemoved(true);
             PDAcroForm form = d.getDocumentCatalog().getAcroForm();
             if (form == null) throw new ActionException("PDF.NO_FORM", "This PDF has no form fields", "Use a PDF with form fields, or write the text onto the page instead.");
+            // G2 (AA parity): XFA forms. A dynamic one (XFA only) cannot be filled; one with both XFA and normal fields is
+            // filled through the normal fields and its XFA copy dropped, so every viewer shows the new values
+            if (form.xfaIsDynamic())
+                throw new ActionException("PDF.XFA_DYNAMIC", "This is a dynamic XFA form (Adobe LiveCycle), whose fields only Adobe Reader can fill",
+                        "Ask for the form as a normal PDF form, or fill it in Adobe Reader with keyboard steps.");
+            if (form.hasXFA()) { form.setXFA(null); ctx.info("The form also had an XFA copy of its fields; it was removed so viewers show the values filled in"); }
             int n = 0;
             List<String> missing = new ArrayList<>();
             for (var e : values.entrySet()) {
@@ -446,18 +518,19 @@ public final class PdfPackage {
     public Map<String, Object> encrypt(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Encrypted PDF to create.") String target,
-            @Input(name = "user_password", type = OoaType.CREDENTIAL, description = "Password needed to open the PDF.") SecureString user,
-            @Input(name = "owner_password", type = OoaType.CREDENTIAL, description = "Password needed to change permissions.") SecureString owner,
-            @Input(name = "allow_printing", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow printing.") boolean print,
-            @Input(name = "allow_copy", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow copying text and images.") boolean copy,
-            @Input(name = "allow_modify", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow changing the content.") boolean modify,
-            @Input(name = "allow_annotations", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow adding comments and annotations.") boolean annotate,
-            @Input(name = "allow_fill_forms", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow filling in form fields.") boolean fillForms,
-            @Input(name = "allow_assembly", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow inserting, rotating and deleting pages.") boolean assemble,
-            @Input(name = "allow_accessibility", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow screen readers to extract the text.") boolean accessibility,
+            @Input(name = "user_password", type = OoaType.CREDENTIAL, required = false, description = "Password needed to open the PDF; anyone may open it when empty.") SecureString user,
+            @Input(name = "owner_password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Password needed to change permissions; a random one nobody knows when empty, so the permissions hold.") SecureString owner,
+            @Input(name = "allow_printing", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Allow printing.") boolean print,
+            @Input(name = "allow_copy", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Allow copying text and images.") boolean copy,
+            @Input(name = "allow_modify", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Allow changing the content.") boolean modify,
+            @Input(name = "allow_annotations", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Allow adding comments and annotations.") boolean annotate,
+            @Input(name = "allow_fill_forms", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Allow filling in form fields.") boolean fillForms,
+            @Input(name = "allow_assembly", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Allow inserting, rotating and deleting pages.") boolean assemble,
+            @Input(name = "allow_accessibility", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Allow screen readers to extract the text.") boolean accessibility,
             @Input(name = "key_length", type = OoaType.NUMBER, required = false, defaultValue = "256", enumValues = {"128", "256"},
                     description = "AES key length in bits: 256 (recommended) or 128 for older readers.") int keyLength,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace the target when it already exists; false stops with PDF.EXISTS.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace the target when it already exists; false stops with PDF.EXISTS.") boolean overwrite) {
         if (keyLength != 128 && keyLength != 256) throw new ActionException("PDF.BAD_KEY_LENGTH", "Key length must be 128 or 256, not " + keyLength, "Use 256, or 128 for older readers.");
         try (PDDocument d = load(ctx, path, null)) {
             AccessPermission ap = new AccessPermission();
@@ -469,7 +542,11 @@ public final class PdfPackage {
             ap.setCanFillInForm(fillForms);
             ap.setCanAssembleDocument(assemble);
             ap.setCanExtractForAccessibility(accessibility);
-            StandardProtectionPolicy spp = new StandardProtectionPolicy(owner.reveal(), user.reveal(), ap);
+            // G2 (AA parity): either password may be left out, not both
+            if ((user == null || user.reveal().isEmpty()) && (owner == null || owner.reveal().isEmpty()))
+                throw new ActionException("PDF.NO_PASSWORD", "Give an opening password, a permissions password, or both", "Fill in user_password or owner_password from the vault.");
+            String ownerPw = owner == null || owner.reveal().isEmpty() ? java.util.HexFormat.of().formatHex(new java.security.SecureRandom().generateSeed(24)) : owner.reveal();
+            StandardProtectionPolicy spp = new StandardProtectionPolicy(ownerPw, user == null ? "" : user.reveal(), ap);
             spp.setEncryptionKeyLength(keyLength);
             spp.setPreferAES(true);
             d.protect(spp);
@@ -486,7 +563,7 @@ public final class PdfPackage {
             @Input(name = "path", type = OoaType.FILE, description = "Protected PDF.") String path,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "Password from the vault.") SecureString password,
             @Input(name = "target", type = OoaType.FILE, description = "Unprotected PDF to create.") String target,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace the target when it already exists; false stops with PDF.EXISTS.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace the target when it already exists; false stops with PDF.EXISTS.") boolean overwrite) {
         try (PDDocument d = load(ctx, path, password)) {
             d.setAllSecurityToBeRemoved(true);
             save(ctx, d, target, overwrite);

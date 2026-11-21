@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1682 codes in 152 areas.
+1685 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -1515,7 +1515,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `PDF.BAD_AREA` | Width and height must be greater than 0 | Measure the area in points from the top-left corner of the page. | packages-pdf |
+| `PDF.BAD_AREA` | Width and height must be greater than 0<br>Area '…' must be {page, x, y, width, height}<br>Area '…' has no … | Measure the area in points from the top-left corner of the page.<br>Give the area as a Dictionary.<br>Give x, y, width and height in points. | packages-pdf |
 | `PDF.BAD_BOOKMARK_LEVEL` | bookmark_level must be 1 or more, not … | Use 1 for top-level bookmarks, 2 to include their sub-bookmarks. | packages-pdf |
 | `PDF.BAD_COLOR` | Colour must be color, gray or black_white | Use color, gray or black_white. | packages-pdf |
 | `PDF.BAD_FORMAT` | Unsupported image format '…' | Use png, jpg, bmp, gif or tiff. | packages-pdf |
@@ -1534,13 +1534,16 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `PDF.NEED_FILES` | Give at least two PDFs to merge | Fill in files, or a folder with two or more PDFs. | packages-pdf |
 | `PDF.NO_BOOKMARKS` | The PDF has no bookmarks pointing to pages | Use another split mode, or add bookmarks to the PDF. | packages-pdf |
 | `PDF.NO_FIELD` | Fields not found: … | Use Read form fields without field names to see the exact names.<br>Use Read form fields to see the exact field names. | packages-pdf |
+| `PDF.NO_FIELDS` | Give at least one named area | Mark the areas with the area picker, or type {name: {page, x, y, width, height}}. | packages-pdf |
 | `PDF.NO_FORM` | This PDF has no form fields | Use a PDF with form fields, or write the text onto the page instead. | packages-pdf |
 | `PDF.NO_PAGE` | There is no page … (the file has …) | Use a page from 1 to …. | packages-pdf |
 | `PDF.NO_PAGES` | Every page of the PDF is blank | Check the file, or use another split mode. | packages-pdf |
+| `PDF.NO_PASSWORD` | Give an opening password, a permissions password, or both | Fill in user_password or owner_password from the vault. | packages-pdf |
 | `PDF.PASSWORD_REQUIRED` | The PDF is password-protected or the password is wrong | Provide the password from the vault. | packages-pdf |
 | `PDF.RENDER_FAILED` | … | Check that the file is a PDF that is not damaged or password-protected. | packages-pdf |
 | `PDF.SPLIT_FAILED` | … | Check that the file is a PDF that is not damaged or password-protected. | packages-pdf |
 | `PDF.TEXT_FAILED` | … | Check that the file is a PDF that is not damaged or password-protected. | packages-pdf |
+| `PDF.XFA_DYNAMIC` | This is a dynamic XFA form (Adobe LiveCycle), whose fields only Adobe Reader can fill | Ask for the form as a normal PDF form, or fill it in Adobe Reader with keyboard steps. | packages-pdf |
 
 ## PGP
 
