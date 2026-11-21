@@ -552,7 +552,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
   const [where, setWhere] = useState("");
   const [people, setPeople] = useState<{ username: string; device_id?: string | null; device_name?: string | null }[] | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
-  const [opts, setOpts] = useState({ more: false, mode: "unattended", priority: "0", callback: "" });
+  const [opts, setOpts] = useState({ more: false, mode: "unattended", priority: "0", callback: "", window: "default" });
   const [vars, setVars] = useState<FlowVariable[]>([]);
   const [files, setFiles] = useState<string[]>([]);   // pickers (14 Nov 2026): the agent's files, for Browse… on File inputs
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -568,7 +568,7 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
   }, [api, a.path]);
   const run = () => {
     const inputs = values;
-    const more = { mode: opts.mode, priority: Number(opts.priority), callback_url: opts.callback.trim() || null };
+    const more = { mode: opts.mode, priority: Number(opts.priority), callback_url: opts.callback.trim() || null, ...(opts.window !== "default" ? { run_window: opts.window } : {}) };
     if (where === "users") {
       if (!picked.length) { setError("Tick at least one run-as user."); return; }
       api.startRunsAs({ bot_path: a.path, run_as_users: picked, inputs, ...more }).then((r) => {
@@ -598,9 +598,12 @@ function RunAgent({ api, a, onClose, onDone }: { api: CrApi; a: RepoAgent; onClo
       </fieldset>}
       <AgentInputs inputs={vars} value={values} onChange={setValues} credentials={vault} onJsonError={setBad} browse={agentFilesBrowse(files)} />
       <details className="cc-run-more" open={opts.more} onToggle={(e) => setOpts({ ...opts, more: (e.target as HTMLDetailsElement).open })}>
-        <summary>Run mode, priority and result callback (optional)</summary>
+        <summary>Run mode, run window, priority and result callback (optional)</summary>
         <Field label="Run mode">{(id) => <Select id={id} value={opts.mode} onChange={(e) => setOpts({ ...opts, mode: e.target.value })}
           options={[{ value: "unattended", label: "Unattended (nobody at the runner)" }, { value: "attended", label: "Attended (someone is at the runner)" }, { value: "headless", label: "Headless (no desktop)" }]} />}</Field>
+        {opts.mode !== "headless" && <Field label="Run window" hint="The small window on the runner's screen while the agent runs. Used when Settings let people choose (Runners > Run window).">{(id) =>
+          <Select id={id} value={opts.window} onChange={(e) => setOpts({ ...opts, window: e.target.value })}
+            options={[{ value: "default", label: "As in Settings" }, { value: "hidden", label: "Hidden" }, { value: "small", label: "Small" }, { value: "medium", label: "Medium" }, { value: "large", label: "Large" }]} />}</Field>}
         <Field label="Priority on the runner">{(id) => <Select id={id} value={opts.priority} onChange={(e) => setOpts({ ...opts, priority: e.target.value })}
           options={[{ value: "-5", label: "Low" }, { value: "0", label: "Normal" }, { value: "5", label: "High" }, { value: "9", label: "Urgent" }]} />}</Field>
         <Field label="Callback URL" hint="Gets the result as JSON when the run ends.">{(id) => <TextInput id={id} type="url" value={opts.callback} placeholder="https://example.com/hooks/agent-finished"

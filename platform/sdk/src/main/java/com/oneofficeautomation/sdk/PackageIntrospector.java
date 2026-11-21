@@ -60,8 +60,14 @@ public final class PackageIntrospector {
             if (in == null) throw new OoaException("PKG.ERROR", "Parameter " + i + " of '" + id + "' has no @Input", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
             if (in.description().isBlank()) throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' has no description", "Fix the toolkit's code as the message says (this is for toolkit developers), then build it again.");
             Object def = in.defaultValue().isEmpty() ? null : JsonLite.parse(in.defaultValue());
+            Object newDef = in.newStepDefault().isEmpty() ? null : JsonLite.parse(in.newStepDefault());
+            if (!in.tone().isEmpty() && !List.of("danger", "add", "plain").contains(in.tone()))
+                throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' has tone '" + in.tone() + "'", "Use danger, add or plain (or leave it empty).");
+            if (in.acceptsCredential() && in.type() != OoaType.STRING && in.type() != OoaType.FILE)
+                throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' accepts a credential but is not Text", "Only Text inputs may also take a vault reference; use a Credential input otherwise.");
             inputs.add(new ActionSpec.InputSpec(in.name(), in.type(), in.description(), in.label(), in.required(), def,
-                    in.pattern(), List.of(in.enumValues()), in.example(), in.visibleWhen(), in.min(), in.max(), List.of(in.formerNames()), in.signInToken()));
+                    in.pattern(), List.of(in.enumValues()), in.example(), in.visibleWhen(), in.min(), in.max(), List.of(in.formerNames()), in.signInToken(),
+                    newDef, in.tone(), in.acceptsCredential()));
         }
         for (ActionSpec.InputSpec in : inputs)
             for (String other : in.visibleRule().keySet())

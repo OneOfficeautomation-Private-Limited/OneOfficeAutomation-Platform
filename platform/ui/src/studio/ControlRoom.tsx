@@ -117,6 +117,10 @@ export function CopyToPrivate({ api, path, onClose, onCopied }: { api: StudioApi
   );
 }
 
+/** The Public tab's view, kept while the page is away (an agent is open), per Studio connection. */
+const publicViews = new WeakMap<object, { folder: string; expanded: string[] }>();
+const publicViewOf = (api: object) => { let v = publicViews.get(api); if (!v) { v = { folder: "", expanded: [""] }; publicViews.set(api, v); } return v; };
+
 export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOpenLocal, request, onRequestDone, onNotice, onError }:
   { api: StudioApi; status: CrStatus; home: string; onStatus: (s: CrStatus) => void; onCheckOut: (repoPath: string, local?: string, mine?: boolean, version?: number) => Promise<void>;
     onOpenLocal: (local: string, note: string) => Promise<void>; request?: RepoRequest | null; onRequestDone?: () => void;
@@ -130,8 +134,16 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onOp
   const [copying, setCopying] = useState<string | null>(null);   // Copy to Private: the repository path
   const [tick, setTick] = useState(0);
   const reload = () => setTick((t) => t + 1);
-  const [folder, setFolder] = useState("");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set([""]));
+  // item 13: the open folder and open tree folders outlive the page while an agent is open
+  const publicListView = publicViewOf(api);
+  const [folder, setFolderState] = useState(publicListView.folder);
+  const [expanded, setExpandedState] = useState<Set<string>>(() => new Set(publicListView.expanded));
+  const setFolder = (f: string) => { publicListView.folder = f; setFolderState(f); };
+  const setExpanded = (e: Set<string> | ((cur: Set<string>) => Set<string>)) => setExpandedState((cur) => {
+    const next = typeof e === "function" ? e(cur) : e;
+    publicListView.expanded = [...next];
+    return next;
+  });
   const [foldersHidden, setFoldersHidden] = usePersistent("panel.public.folders.hidden", false);
   const [foldersWidth, setFoldersWidth] = usePanelSize("public.folders");
   const foldersPanel = useRef<HTMLElement | null>(null);

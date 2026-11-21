@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Mouse and keyboard actions can first bring a chosen window to the front, and mouse coordinates can be measured from
  * that window's top-left corner; both need the Window toolkit (Windows runners).
  */
-@OoaPackage(id = "ooa.desktop", name = "Mouse, keyboard and screen", version = "1.1.0",
+@OoaPackage(id = "ooa.desktop", name = "Mouse and keyboard", version = "1.1.0",
         description = "Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop.")
 public final class DesktopPackage {
     private static final Map<String, Integer> KEYS = new HashMap<>();
@@ -939,7 +939,7 @@ public final class DesktopPackage {
         return Out.of("x", BigDecimal.valueOf(p.x), "y", BigDecimal.valueOf(p.y));
     }
 
-    @Action(id = "set_key_state", name = "Set Caps Lock, Num Lock or Scroll Lock", category = "Keyboard", capabilities = "desktop",
+    @Action(id = "set_key_state", name = "Set lock keys", category = "Keyboard", capabilities = "desktop",
             description = "Turn Caps Lock, Num Lock or Scroll Lock on or off, so text typed later comes out as expected.",
             panel = "key, state")
     @Output(name = "was_on", type = OoaType.BOOLEAN, description = "Whether the key was on before.")

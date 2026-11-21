@@ -32,7 +32,7 @@ public final class Microsoft365Package {
         return out;
     }
 
-    @Action(id = "send_mail", name = "Send email (Outlook)", category = "Mail", timeoutSeconds = 120, capabilities = "network",
+    @Action(id = "send_mail", name = "Send email", category = "Mail", timeoutSeconds = 120, capabilities = "network",
             description = "Send an email from a Microsoft 365 mailbox with optional CC, BCC and attachments (up to 3 MB each).",
             panel = "access_token, from, to, cc, bcc, subject, attachments, body, html | importance, reply_to, save_to_sent_items, read_receipt, mailbox, base_url")
     public Map<String, Object> sendMail(ActionContext ctx,
@@ -76,7 +76,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "list_mail", name = "Find emails (Outlook)", category = "Mail", idempotent = true, capabilities = "network",
+    @Action(id = "list_mail", name = "Find emails", category = "Mail", idempotent = true, capabilities = "network",
             description = "List emails in a mail folder, newest first, optionally only unread or matching sender/subject text.",
             panel = "access_token, folder, unread_only, read_only, subject_contains, from_contains, since, before | has_attachments_only, oldest_first, max_results, mailbox, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, from, subject, received, unread, has_attachments.")
@@ -141,7 +141,7 @@ public final class Microsoft365Package {
                 row -> (Map<String, Object>) getMail(ctx, token, String.valueOf(row.get("id")), false, false, mailbox, base).get("email"));
     }
 
-    @Action(id = "get_mail", name = "Read email (Outlook)", category = "Mail", capabilities = "network", description = "Read one email's details and body; optionally mark it read.",
+    @Action(id = "get_mail", name = "Read email", category = "Mail", capabilities = "network", description = "Read one email's details and body; optionally mark it read.",
             panel = "access_token, id, mark_read, body_as_text | mailbox, base_url")
     @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> getMail(ActionContext ctx,
@@ -189,7 +189,7 @@ public final class Microsoft365Package {
         return Map.of("email", MailRecord.withCommonKeys(e));
     }
 
-    @Action(id = "save_mail_attachments", name = "Save email attachments (Outlook)", category = "Mail", capabilities = {"network", "filesystem"},
+    @Action(id = "save_mail_attachments", name = "Save attachments", category = "Mail", capabilities = {"network", "filesystem"},
             description = "Save an email's file attachments to a folder, optionally only names matching a pattern such as *.pdf.",
             panel = "access_token, id, target_folder, overwrite | name_pattern, include_inline, mailbox, base_url")
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
@@ -227,7 +227,7 @@ public final class Microsoft365Package {
         return saved;
     }
 
-    @Action(id = "save_all_mail_attachments", name = "Save attachments of all matching emails (Outlook)", category = "Mail", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+    @Action(id = "save_all_mail_attachments", name = "Save all attachments", category = "Mail", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Save the attachments of every email in a folder that matches the filters, optionally marking those emails as read.",
             panel = "access_token, unread_only, read_only, folder, subject_contains, from_contains, since, before, target_folder, overwrite | name_pattern, mark_read, max_results, mailbox, base_url")
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
@@ -260,7 +260,7 @@ public final class Microsoft365Package {
         return Map.of("files", saved, "email_count", num(found.size()));
     }
 
-    @Action(id = "move_mail", name = "Move email (Outlook)", category = "Mail", capabilities = "network", description = "Move an email to another folder (id or well-known name such as archive).",
+    @Action(id = "move_mail", name = "Move email", category = "Mail", capabilities = "network", description = "Move an email to another folder (id or well-known name such as archive).",
             panel = "access_token, id, to_folder | mailbox, base_url")
     @Output(name = "new_id", type = OoaType.STRING, description = "The email's id in the destination folder.")
     public Map<String, Object> moveMail(ActionContext ctx,
@@ -528,7 +528,7 @@ public final class Microsoft365Package {
         return (int) Math.max(CHUNK_UNIT, b / CHUNK_UNIT * CHUNK_UNIT);
     }
 
-    @Action(id = "upload_file", name = "Upload file (OneDrive/SharePoint)", category = "Files", timeoutSeconds = 7200, capabilities = {"network", "filesystem"},
+    @Action(id = "upload_file", name = "Upload file", category = "Files", timeoutSeconds = 7200, capabilities = {"network", "filesystem"},
             description = "Upload a local file of any size to a OneDrive or SharePoint folder path; creates or replaces it. Files over 4 MB go through a resumable upload session in chunks.",
             panel = "access_token, local_path, remote_path, if_exists | chunk_size_mb, drive, base_url")
     @Output(name = "item_id", type = OoaType.STRING, description = "Drive item id.")
@@ -639,7 +639,7 @@ public final class Microsoft365Package {
         try { return Long.parseLong(range.split("-", 2)[0].trim()); } catch (RuntimeException e) { return fallback; }
     }
 
-    @Action(id = "download_file", name = "Download file (OneDrive/SharePoint)", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+    @Action(id = "download_file", name = "Download file", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Download a file from a OneDrive or SharePoint path to a local file.",
             panel = "access_token, remote_path, local_path, overwrite | drive, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
@@ -657,7 +657,7 @@ public final class Microsoft365Package {
         return Map.of("path", p.toString());
     }
 
-    @Action(id = "list_files", name = "List files (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network", description = "List the files and folders in a drive folder.",
+    @Action(id = "list_files", name = "List files", category = "Files", idempotent = true, capabilities = "network", description = "List the files and folders in a drive folder.",
             panel = "access_token, folder | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, type, size, modified, web_url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
@@ -807,7 +807,7 @@ public final class Microsoft365Package {
         return excelRead(ctx, token, remote, sheet, range, drive, base, true, "value");
     }
 
-    @Action(id = "excel_read_range", name = "Read Excel range (OneDrive/SharePoint)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_read_range", name = "Read range", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Read a range, or all cells in use, from an Excel workbook stored in OneDrive or SharePoint, without downloading it.",
             panel = "access_token, remote_path, sheet, (Cells: All cells in use = / A range = range), header, read_as | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Range values; the first row gives the column names when header is on, else Column1, Column2 ...")
@@ -837,7 +837,7 @@ public final class Microsoft365Package {
         return Map.of("table", Values.table(cols, new ArrayList<>(grid)));
     }
 
-    @Action(id = "excel_write_range", name = "Write Excel range (OneDrive/SharePoint)", category = "Excel online", capabilities = "network",
+    @Action(id = "excel_write_range", name = "Write range", category = "Excel online", capabilities = "network",
             description = "Write a table into an Excel workbook in OneDrive or SharePoint, starting at a cell (column names first).",
             panel = "access_token, remote_path, sheet, start_cell, table | drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "The range that was written.")
@@ -864,7 +864,7 @@ public final class Microsoft365Package {
         return Map.of("address", address);
     }
 
-    @Action(id = "excel_copy_range", name = "Copy Excel range (OneDrive/SharePoint)", category = "Excel online", capabilities = "network",
+    @Action(id = "excel_copy_range", name = "Copy range", category = "Excel online", capabilities = "network",
             description = "Copy a cell or range to another place in the same workbook, as values or with formulas, and optionally with number formats.",
             panel = "access_token, remote_path, sheet, range, destination, [To another sheet: destination_sheet] | copy, include_number_formats, drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "The range that was written, e.g. H2:K10.")
@@ -1071,7 +1071,7 @@ public final class Microsoft365Package {
         HttpJson.req(P, "POST", mbRoot + "/messages/" + HttpJson.enc(draft) + "/send").bearer(token).send(ctx);
     }
 
-    @Action(id = "mark_mail", name = "Change email status (Outlook)", category = "Mail", idempotent = true, capabilities = "network",
+    @Action(id = "mark_mail", name = "Change status", category = "Mail", idempotent = true, capabilities = "network",
             description = "Mark an email as read or unread, or set, clear or complete its follow-up flag.",
             panel = "access_token, id, status | mailbox, base_url")
     public Map<String, Object> markMail(ActionContext ctx,
@@ -1092,7 +1092,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "delete_mail", name = "Delete email (Outlook)", category = "Mail", capabilities = "network",
+    @Action(id = "delete_mail", name = "Delete email", category = "Mail", capabilities = "network",
             description = "Delete an email by moving it to Deleted Items, or remove it permanently.",
             panel = "access_token, id | permanent, mailbox, base_url")
     public Map<String, Object> deleteMail(ActionContext ctx,
@@ -1111,7 +1111,7 @@ public final class Microsoft365Package {
         else HttpJson.req(P, "POST", url + "/move").bearer(token).json(Map.of("destinationId", "deleteditems")).send(ctx);
     }
 
-    @Action(id = "delete_all_mail", name = "Delete all emails (Outlook)", category = "Mail", timeoutSeconds = 600, capabilities = "network",
+    @Action(id = "delete_all_mail", name = "Delete all emails", category = "Mail", timeoutSeconds = 600, capabilities = "network",
             description = "Delete every email in a folder that matches the optional filters, to Deleted Items or permanently.",
             panel = "access_token, folder, unread_only, read_only, subject_contains, from_contains, since, before | permanent, max_results, mailbox, base_url")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails deleted.")
@@ -1134,7 +1134,7 @@ public final class Microsoft365Package {
         return Map.of("count", num(found.size()));
     }
 
-    @Action(id = "move_all_mail", name = "Move all emails (Outlook)", category = "Mail", timeoutSeconds = 600, capabilities = "network",
+    @Action(id = "move_all_mail", name = "Move all emails", category = "Mail", timeoutSeconds = 600, capabilities = "network",
             description = "Move every email in a folder that matches the optional filters to another folder.",
             panel = "access_token, to_folder, unread_only, read_only, folder, subject_contains, from_contains, since, before | max_results, mailbox, base_url")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails moved.")
@@ -1159,7 +1159,7 @@ public final class Microsoft365Package {
         return Map.of("count", num(found.size()));
     }
 
-    @Action(id = "forward_mail", name = "Forward email (Outlook)", category = "Mail", capabilities = "network",
+    @Action(id = "forward_mail", name = "Forward email", category = "Mail", capabilities = "network",
             description = "Forward an email to new recipients with an optional note above the original message.",
             panel = "access_token, id, from, to, cc, bcc, attachments, comment | importance, mailbox, base_url")
     public Map<String, Object> forwardMail(ActionContext ctx,
@@ -1184,7 +1184,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "reply_mail", name = "Reply to email (Outlook)", category = "Mail", capabilities = "network",
+    @Action(id = "reply_mail", name = "Reply to email", category = "Mail", capabilities = "network",
             description = "Reply to the sender of an email, or to everyone on it, with a note above the original message.",
             panel = "access_token, id, reply_all, from, cc, bcc, attachments, comment | exclude_sender, importance, mailbox, base_url")
     public Map<String, Object> replyMail(ActionContext ctx,
@@ -1221,7 +1221,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "reply_all_mail", name = "Reply all to email (Outlook)", category = "Mail", capabilities = "network",
+    @Action(id = "reply_all_mail", name = "Reply all to email", category = "Mail", capabilities = "network",
             description = "Reply to the sender and every other recipient of an email with a note above the original message.",
             panel = "access_token, id, from, cc, bcc, exclude_sender, attachments, comment | importance, mailbox, base_url")
     public Map<String, Object> replyAllMail(ActionContext ctx,
@@ -1239,7 +1239,7 @@ public final class Microsoft365Package {
         return replyMail(ctx, token, id, comment, true, cc, bcc, attachments, sendAs, importance, excludeSender, mailbox, base);
     }
 
-    @Action(id = "mail_folder_exists", name = "Check mail folder exists (Outlook)", category = "Mail", idempotent = true, capabilities = "network",
+    @Action(id = "mail_folder_exists", name = "Folder exists", category = "Mail", idempotent = true, capabilities = "network",
             description = "Check whether a mail folder exists, by top-level display name or by a path such as Inbox/Invoices, and return its id.",
             panel = "access_token, name | mailbox, base_url")
     @Output(name = "exists", type = OoaType.BOOLEAN, description = "True when the folder exists.")
@@ -1258,7 +1258,7 @@ public final class Microsoft365Package {
         return Map.of("exists", !found.isEmpty(), "folder_id", found.isEmpty() ? "" : s(found.get(0).get("id")));
     }
 
-    @Action(id = "save_mail_as_eml", name = "Save email as EML (Outlook)", category = "Mail", capabilities = {"network", "filesystem"},
+    @Action(id = "save_mail_as_eml", name = "Save email as EML", category = "Mail", capabilities = {"network", "filesystem"},
             description = "Save a complete email, including attachments, as a standard .eml file.",
             panel = "access_token, id, local_path, overwrite | mailbox, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
@@ -1281,7 +1281,7 @@ public final class Microsoft365Package {
         return Map.of("path", p.toString());
     }
 
-    @Action(id = "save_mail_as_msg", name = "Save email as MSG (Outlook)", category = "Mail", capabilities = {"network", "filesystem"}, timeoutSeconds = 600,
+    @Action(id = "save_mail_as_msg", name = "Save email as MSG", category = "Mail", capabilities = {"network", "filesystem"}, timeoutSeconds = 600,
             description = "Save an email, with its recipients, HTML body and attachments, as an Outlook .msg file that opens in Outlook.",
             panel = "access_token, id, local_path, overwrite | mailbox, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
@@ -1377,7 +1377,7 @@ public final class Microsoft365Package {
         return e;
     }
 
-    @Action(id = "copy_item", name = "Copy file or folder (OneDrive/SharePoint)", category = "Files", timeoutSeconds = 600, capabilities = "network",
+    @Action(id = "copy_item", name = "Copy file or folder", category = "Files", timeoutSeconds = 600, capabilities = "network",
             description = "Copy a file or folder into another folder, optionally under a new name, and wait for the copy to finish.",
             panel = "access_token, item, to_folder, if_exists | new_name, to_drive, wait_seconds, drive, base_url")
     @Output(name = "item_id", type = OoaType.STRING, description = "Id of the copy, once it has finished.")
@@ -1415,7 +1415,7 @@ public final class Microsoft365Package {
         }
     }
 
-    @Action(id = "move_item", name = "Move file or folder (OneDrive/SharePoint)", category = "Files", capabilities = "network",
+    @Action(id = "move_item", name = "Move file or folder", category = "Files", capabilities = "network",
             description = "Move a file or folder into another folder in the same drive, optionally renaming it.",
             panel = "access_token, item, to_folder, if_exists | new_name, drive, base_url")
     @Output(name = "item_id", type = OoaType.STRING, description = "Item id.")
@@ -1440,7 +1440,7 @@ public final class Microsoft365Package {
         return renameItem(ctx, token, ref, newName, drive, base, null);
     }
 
-    @Action(id = "rename_item", name = "Rename file or folder (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network",
+    @Action(id = "rename_item", name = "Rename file or folder", category = "Files", idempotent = true, capabilities = "network",
             description = "Give a file or folder a new name in the same folder.",
             panel = "access_token, item, new_name | if_exists, drive, base_url")
     @Output(name = "item_id", type = OoaType.STRING, description = "Item id.")
@@ -1456,7 +1456,7 @@ public final class Microsoft365Package {
         return Out.of("item_id", r.get("id"), "web_url", r.get("webUrl"));
     }
 
-    @Action(id = "delete_item", name = "Delete file or folder (OneDrive/SharePoint)", category = "Files", capabilities = "network",
+    @Action(id = "delete_item", name = "Delete file or folder", category = "Files", capabilities = "network",
             description = "Delete a file or folder; it goes to the drive's recycle bin unless deleted permanently.",
             panel = "access_token, item | permanent, drive, base_url")
     public Map<String, Object> deleteItem(ActionContext ctx,
@@ -1471,7 +1471,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "create_folder", name = "Create folder (OneDrive/SharePoint)", category = "Files", capabilities = "network",
+    @Action(id = "create_folder", name = "Create folder", category = "Files", capabilities = "network",
             description = "Create a folder inside a drive folder.",
             panel = "access_token, parent_folder, name | if_exists, drive, base_url")
     @Output(name = "item_id", type = OoaType.STRING, description = "Folder id.")
@@ -1491,7 +1491,7 @@ public final class Microsoft365Package {
         return Out.of("item_id", r.get("id"), "web_url", r.get("webUrl"));
     }
 
-    @Action(id = "find_items", name = "Find files (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network",
+    @Action(id = "find_items", name = "Find files", category = "Files", idempotent = true, capabilities = "network",
             description = "Search a drive for files and folders whose name or content matches the text.",
             panel = "access_token, text, item_type, [Search one folder only: in_folder] | exact_name, max_results, drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, type, size, modified, web_url.")
@@ -1521,7 +1521,7 @@ public final class Microsoft365Package {
         return Map.of("table", Values.table(List.of("id", "name", "type", "size", "modified", "web_url"), rows), "count", num(rows.size()));
     }
 
-    @Action(id = "get_item_info", name = "Get file information (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network",
+    @Action(id = "get_item_info", name = "Get file info", category = "Files", idempotent = true, capabilities = "network",
             description = "Read a file's or folder's id, size, dates, last editor, parent path and link.",
             panel = "access_token, item | drive, base_url")
     @Output(name = "info", type = OoaType.DICTIONARY, description = "id, name, type, size, created, modified, modified_by, parent_path, web_url.")
@@ -1543,7 +1543,7 @@ public final class Microsoft365Package {
         return out;
     }
 
-    @Action(id = "list_permissions", name = "List file permissions (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network",
+    @Action(id = "list_permissions", name = "List permissions", category = "Files", idempotent = true, capabilities = "network",
             description = "List who can open or edit a file or folder, including sharing links.",
             panel = "access_token, item | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, roles, granted_to, link_type, link_scope, link_url.")
@@ -1563,7 +1563,7 @@ public final class Microsoft365Package {
         return Map.of("table", Values.table(List.of("id", "roles", "granted_to", "link_type", "link_scope", "link_url"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "check_permissions", name = "Check file permission (OneDrive/SharePoint)", category = "Files", idempotent = true, capabilities = "network",
+    @Action(id = "check_permissions", name = "Check permission", category = "Files", idempotent = true, capabilities = "network",
             description = "Check whether a person has been given direct access to a file or folder and with which roles.",
             panel = "access_token, item, email | drive, base_url")
     @Output(name = "has_access", type = OoaType.BOOLEAN, description = "True when the person has a direct permission.")
@@ -1581,7 +1581,7 @@ public final class Microsoft365Package {
         return Map.of("has_access", found, "roles", new ArrayList<>(roles));
     }
 
-    @Action(id = "share_item", name = "Share file or folder (OneDrive/SharePoint)", category = "Files", capabilities = "network",
+    @Action(id = "share_item", name = "Share file or folder", category = "Files", capabilities = "network",
             description = "Give people read or edit access to a file or folder, optionally emailing them an invitation.",
             panel = "access_token, item, recipients, role, send_invitation, [Add a note to the invitation: message] | require_sign_in, drive, base_url")
     @Output(name = "permission_ids", type = OoaType.LIST, description = "Ids of the new permissions.")
@@ -1609,7 +1609,7 @@ public final class Microsoft365Package {
         return Map.of("permission_ids", ids);
     }
 
-    @Action(id = "create_sharing_link", name = "Create sharing link (OneDrive/SharePoint)", category = "Files", capabilities = "network",
+    @Action(id = "create_sharing_link", name = "Create sharing link", category = "Files", capabilities = "network",
             description = "Create a link that opens a file or folder for viewing or editing, for anyone or only people in the organisation.",
             panel = "access_token, item, type, scope, [Link expires: expires] | drive, base_url")
     @Output(name = "link", type = OoaType.STRING, description = "The sharing link.")
@@ -1634,7 +1634,7 @@ public final class Microsoft365Package {
         return exportPdf(ctx, token, ref, local, drive, base, true);
     }
 
-    @Action(id = "export_to_pdf", name = "Export file to PDF (OneDrive/SharePoint)", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+    @Action(id = "export_to_pdf", name = "Export to PDF", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Convert a Word, Excel, PowerPoint or other supported file in the drive to PDF and save it locally.",
             panel = "access_token, item, local_path, overwrite | drive, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved PDF path.")
@@ -1651,7 +1651,7 @@ public final class Microsoft365Package {
         return Map.of("path", p.toString());
     }
 
-    @Action(id = "restore_version", name = "Restore file version (OneDrive/SharePoint)", category = "Files", capabilities = "network",
+    @Action(id = "restore_version", name = "Restore version", category = "Files", capabilities = "network",
             description = "Make an earlier version of a file the current one; by default the version before the current one.",
             panel = "access_token, item, (Version: The previous version = / A specific version = version_id) | drive, base_url")
     @Output(name = "restored_version", type = OoaType.STRING, description = "Id of the version that was restored.")
@@ -1762,7 +1762,7 @@ public final class Microsoft365Package {
         return r.isEmpty() || list(r.get(0)).isEmpty() ? null : list(r.get(0)).get(0);
     }
 
-    @Action(id = "excel_get_worksheets", name = "Get worksheets (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_get_worksheets", name = "Get worksheets", category = "Excel online", idempotent = true, capabilities = "network",
             description = "List the worksheets of a workbook in OneDrive or SharePoint, in tab order.",
             panel = "access_token, remote_path | drive, base_url")
     @Output(name = "sheets", type = OoaType.LIST, description = "Worksheet names.")
@@ -1779,7 +1779,7 @@ public final class Microsoft365Package {
         return Map.of("sheets", names, "table", Values.table(List.of("id", "name", "position", "visibility"), rows));
     }
 
-    @Action(id = "excel_add_worksheet", name = "Add worksheet (Excel online)", category = "Excel online", capabilities = "network",
+    @Action(id = "excel_add_worksheet", name = "Add worksheet", category = "Excel online", capabilities = "network",
             description = "Add a worksheet to a workbook in OneDrive or SharePoint.",
             panel = "access_token, remote_path, name | drive, base_url")
     @Output(name = "sheet_name", type = OoaType.STRING, description = "Name of the new worksheet.")
@@ -1812,7 +1812,7 @@ public final class Microsoft365Package {
         return excelDeleteSheet(ctx, token, remote, sheet, drive, base, null);
     }
 
-    @Action(id = "excel_delete_worksheet", name = "Delete worksheet (Excel online)", category = "Excel online", capabilities = "network",
+    @Action(id = "excel_delete_worksheet", name = "Delete worksheet", category = "Excel online", capabilities = "network",
             description = "Delete a worksheet and everything on it from a workbook in OneDrive or SharePoint.",
             panel = "access_token, remote_path, (Sheet by: Name = sheet / Position = sheet_position) | drive, base_url")
     public Map<String, Object> excelDeleteSheet(ActionContext ctx,
@@ -1831,7 +1831,7 @@ public final class Microsoft365Package {
         return excelRenameSheet(ctx, token, remote, sheet, newName, drive, base, null);
     }
 
-    @Action(id = "excel_rename_worksheet", name = "Rename worksheet (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_rename_worksheet", name = "Rename worksheet", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Give a worksheet in a OneDrive or SharePoint workbook a new name.",
             panel = "access_token, remote_path, (Sheet by: Name = sheet / Position = sheet_position), new_name | drive, base_url")
     public Map<String, Object> excelRenameSheet(ActionContext ctx,
@@ -1847,7 +1847,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "excel_get_range", name = "Get range values (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_get_range", name = "Get range values", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Read the cell values of a range as a list of rows, without treating the first row as headers.",
             panel = "access_token, remote_path, sheet, range | drive, base_url")
     @Output(name = "values", type = OoaType.LIST, description = "List of rows, each a list of cell values.")
@@ -1865,7 +1865,7 @@ public final class Microsoft365Package {
         return Map.of("values", v, "row_count", num(v.size()), "column_count", num(v.isEmpty() ? 0 : v.get(0).size()));
     }
 
-    @Action(id = "excel_set_range", name = "Set range values (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_set_range", name = "Set range values", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Write a list of rows into a sheet; a single cell address is grown to fit the values.",
             panel = "access_token, remote_path, sheet, range, values | drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "The range that was written.")
@@ -1883,7 +1883,7 @@ public final class Microsoft365Package {
         return Map.of("address", address);
     }
 
-    @Action(id = "excel_get_cell", name = "Get cell (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_get_cell", name = "Get cell", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Read one cell's value and the text Excel shows for it.",
             panel = "access_token, remote_path, sheet, cell | drive, base_url")
     @Output(name = "value", description = "Cell value (number, text or boolean).")
@@ -1900,7 +1900,7 @@ public final class Microsoft365Package {
         return Out.of("value", first(r.get("values")), "text", s(first(r.get("text"))));
     }
 
-    @Action(id = "excel_set_cell", name = "Set cell (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_set_cell", name = "Set cell", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Write one value into a cell.",
             panel = "access_token, remote_path, sheet, cell, value | drive, base_url")
     public Map<String, Object> excelSetCell(ActionContext ctx,
@@ -1917,7 +1917,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "excel_set_formula", name = "Set formula (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_set_formula", name = "Set formula", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Put a formula into a cell and return the value Excel calculates.",
             panel = "access_token, remote_path, sheet, cell, formula | drive, base_url")
     @Output(name = "value", description = "Calculated value of the formula.")
@@ -1936,7 +1936,7 @@ public final class Microsoft365Package {
         return Out.of("value", first(r.get("values")));
     }
 
-    @Action(id = "excel_read_formula", name = "Read formula (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_read_formula", name = "Read formula", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Read the formula in a cell together with its current value.",
             panel = "access_token, remote_path, sheet, cell | drive, base_url")
     @Output(name = "formula", type = OoaType.STRING, description = "Formula, or the plain value when the cell has none.")
@@ -1953,7 +1953,7 @@ public final class Microsoft365Package {
         return Out.of("formula", s(first(r.get("formulas"))), "value", first(r.get("values")));
     }
 
-    @Action(id = "excel_clear_range", name = "Clear range (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_clear_range", name = "Clear range", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Clear the values, the formatting, or both from a range without shifting other cells.",
             panel = "access_token, remote_path, sheet, range, clear | drive, base_url")
     public Map<String, Object> excelClear(ActionContext ctx,
@@ -1987,7 +1987,7 @@ public final class Microsoft365Package {
         return r;
     }
 
-    @Action(id = "excel_delete_range", name = "Delete range (Excel online)", category = "Excel online", capabilities = "network",
+    @Action(id = "excel_delete_range", name = "Delete range", category = "Excel online", capabilities = "network",
             description = "Delete the cells of a range and close the gap by moving cells up or left, or delete the whole rows or columns the range covers.",
             panel = "access_token, remote_path, sheet, range, shift | drive, base_url")
     public Map<String, Object> excelDeleteRange(ActionContext ctx,
@@ -2003,7 +2003,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "excel_insert_range", name = "Insert range (Excel online)", category = "Excel online", capabilities = "network",
+    @Action(id = "excel_insert_range", name = "Insert range", category = "Excel online", capabilities = "network",
             description = "Insert empty cells at a range, pushing the existing cells down or right, or insert whole rows or columns where the range is.",
             panel = "access_token, remote_path, sheet, range, shift | drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "Address of the inserted cells.")
@@ -2020,7 +2020,7 @@ public final class Microsoft365Package {
         return Map.of("address", s(r.get("address")));
     }
 
-    @Action(id = "excel_autofit_columns", name = "Autofit columns (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_autofit_columns", name = "Autofit columns", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Resize the columns of a range so their contents fit.",
             panel = "access_token, remote_path, sheet, range | drive, base_url")
     public Map<String, Object> excelAutofitColumns(ActionContext ctx,
@@ -2034,7 +2034,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "excel_autofit_rows", name = "Autofit rows (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_autofit_rows", name = "Autofit rows", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Resize the rows of a range so their contents fit.",
             panel = "access_token, remote_path, sheet, range | drive, base_url")
     public Map<String, Object> excelAutofitRows(ActionContext ctx,
@@ -2048,7 +2048,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "excel_format_range", name = "Format range (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_format_range", name = "Format range", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Set fill, font, alignment, wrapping, size, borders, merging and number format of a range; empty settings are left as they are.",
             panel = "access_token, remote_path, sheet, range, fill_color, font_color, bold, number_format | italic, underline, strikethrough, font_name, font_size, horizontal_alignment, vertical_alignment, wrap_text, column_width, row_height, border_style, border_color, merge, drive, base_url")
     public Map<String, Object> excelFormat(ActionContext ctx,
@@ -2118,7 +2118,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "excel_hide_worksheet", name = "Hide worksheet (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_hide_worksheet", name = "Hide worksheet", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Hide a worksheet tab without deleting it; very hidden sheets can only be shown again by an agent or code.",
             panel = "access_token, remote_path, sheet | very_hidden, drive, base_url")
     public Map<String, Object> excelHideSheet(ActionContext ctx,
@@ -2131,7 +2131,7 @@ public final class Microsoft365Package {
         return visibility(ctx, token, remote, sheet, very ? "VeryHidden" : "Hidden", drive, base);
     }
 
-    @Action(id = "excel_show_worksheet", name = "Show worksheet (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_show_worksheet", name = "Show worksheet", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Make a hidden worksheet tab visible again.",
             panel = "access_token, remote_path, sheet | drive, base_url")
     public Map<String, Object> excelShowSheet(ActionContext ctx,
@@ -2147,7 +2147,7 @@ public final class Microsoft365Package {
         return excelCopySheet(ctx, token, remote, sheet, target, newName, drive, base, "none");
     }
 
-    @Action(id = "excel_copy_worksheet", name = "Copy worksheet (Excel online)", category = "Excel online", capabilities = "network", timeoutSeconds = 1800,
+    @Action(id = "excel_copy_worksheet", name = "Copy worksheet", category = "Excel online", capabilities = "network", timeoutSeconds = 1800,
             description = "Copy a worksheet's cells (values, formulas and number formats) into a new worksheet, in the same workbook or another one, with its column widths, row heights, fonts, fill colours and alignment.",
             panel = "access_token, remote_path, sheet, [Into another workbook: target_remote_path], new_name | copy_formats, drive, base_url")
     @Output(name = "sheet_name", type = OoaType.STRING, description = "Name of the new worksheet.")
@@ -2334,7 +2334,7 @@ public final class Microsoft365Package {
         return excelFind(ctx, token, remote, sheet, text, range, matchCase, whole, drive, base, "rows");
     }
 
-    @Action(id = "excel_find", name = "Find in sheet (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_find", name = "Find in sheet", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Search the used cells of a sheet, or a range, for text and return the addresses of the matching cells.",
             panel = "access_token, remote_path, sheet, [Search only a range: range], text, search_by, match_case, whole_cell | drive, base_url")
     @Output(name = "cells", type = OoaType.LIST, description = "Addresses of the matches, e.g. B7, in search order.")
@@ -2372,7 +2372,7 @@ public final class Microsoft365Package {
         return Map.of("cells", found, "count", num(found.size()));
     }
 
-    @Action(id = "excel_get_cell_format", name = "Read cell format (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_get_cell_format", name = "Read cell format", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Read one cell's fill colour, font (name, size, colour, bold, italic, underline), alignment, wrapping and number format.",
             panel = "access_token, remote_path, sheet, cell | drive, base_url")
     @Output(name = "format", type = OoaType.DICTIONARY, description = "fill_color, font_name, font_size, font_color, bold, italic, underline, horizontal_alignment, vertical_alignment, wrap_text, number_format.")
@@ -2404,7 +2404,7 @@ public final class Microsoft365Package {
         return Map.of("format", e);
     }
 
-    @Action(id = "excel_rename_table", name = "Rename table (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_rename_table", name = "Rename table", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Give an Excel table a new name.",
             panel = "access_token, remote_path, table, new_name | drive, base_url")
     public Map<String, Object> excelRenameTable(ActionContext ctx,
@@ -2418,7 +2418,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "excel_create_workbook", name = "Create workbook (Excel online)", category = "Excel online", capabilities = "network",
+    @Action(id = "excel_create_workbook", name = "Create workbook", category = "Excel online", capabilities = "network",
             description = "Create a new, empty Excel workbook in OneDrive or SharePoint, optionally with named sheets.",
             panel = "access_token, remote_path | sheet_names, if_exists, drive, base_url")
     @Output(name = "item_id", type = OoaType.STRING, description = "Drive item id of the workbook.")
@@ -2477,7 +2477,7 @@ public final class Microsoft365Package {
         return cells.isEmpty() || (r.get("rowCount") instanceof Number n && n.intValue() == 0) ? null : cells;
     }
 
-    @Action(id = "excel_find_next_empty_cell", name = "Find next empty cell (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_find_next_empty_cell", name = "Find next empty cell", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Find the first empty cell after the last value in a column (going down) or in a row (going right), e.g. where to append the next record.",
             panel = "access_token, remote_path, sheet, direction, column, row | drive, base_url")
     @Output(name = "cell", type = OoaType.STRING, description = "Address of the empty cell, e.g. A43.")
@@ -2509,7 +2509,7 @@ public final class Microsoft365Package {
         return Map.of("cell", col + next, "row", num(next), "column", col);
     }
 
-    @Action(id = "excel_used_range", name = "Get used range (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_used_range", name = "Get used range", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Find the block of cells on a sheet that holds values, with its last row and column.",
             panel = "access_token, remote_path, sheet | drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "Used range, e.g. A1:F42; empty for an empty sheet.")
@@ -2529,7 +2529,7 @@ public final class Microsoft365Package {
         return Map.of("address", a, "row_count", num(b[1][1] - b[0][1] + 1), "column_count", num(b[1][0] - b[0][0] + 1), "last_row", num(b[1][1]), "last_column", colName(b[1][0]));
     }
 
-    @Action(id = "excel_read_row", name = "Read row (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_read_row", name = "Read row", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Read one sheet row from column A to the last used column.",
             panel = "access_token, remote_path, sheet, row | drive, base_url")
     @Output(name = "values", type = OoaType.LIST, description = "Cell values; the first item is column A.")
@@ -2549,7 +2549,7 @@ public final class Microsoft365Package {
         return Map.of("values", v.isEmpty() ? List.of() : v.get(0));
     }
 
-    @Action(id = "excel_read_column", name = "Read column (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_read_column", name = "Read column", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Read one sheet column from row 1 to the last used row.",
             panel = "access_token, remote_path, sheet, column | drive, base_url")
     @Output(name = "values", type = OoaType.LIST, description = "Cell values; the first item is row 1.")
@@ -2571,7 +2571,7 @@ public final class Microsoft365Package {
         return Map.of("values", out);
     }
 
-    @Action(id = "excel_column_name", name = "Get column name (Excel online)", category = "Excel online", idempotent = true,
+    @Action(id = "excel_column_name", name = "Get column name", category = "Excel online", idempotent = true,
             description = "Split a cell address such as AB7 into its column letters, column number and row number; nothing is read from the workbook.",
             panel = "cell")
     @Output(name = "column_name", type = OoaType.STRING, description = "Column letters, e.g. AB.")
@@ -2584,7 +2584,7 @@ public final class Microsoft365Package {
         return Map.of("column_name", colName(c[0]), "column", num(c[0]), "row", num(c[1]));
     }
 
-    @Action(id = "excel_list_tables", name = "List tables (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_list_tables", name = "List tables", category = "Excel online", idempotent = true, capabilities = "network",
             description = "List the Excel tables in a workbook, or on one worksheet.",
             panel = "access_token, remote_path, [Only one worksheet: sheet] | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, style, show_headers.")
@@ -2602,7 +2602,7 @@ public final class Microsoft365Package {
         return Map.of("table", Values.table(List.of("id", "name", "style", "show_headers"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "excel_create_table", name = "Create table (Excel online)", category = "Excel online", capabilities = "network",
+    @Action(id = "excel_create_table", name = "Create table", category = "Excel online", capabilities = "network",
             description = "Turn a range into an Excel table, optionally naming it.",
             panel = "access_token, remote_path, sheet, name, range, has_headers | drive, base_url")
     @Output(name = "table_id", type = OoaType.STRING, description = "Table id.")
@@ -2627,7 +2627,7 @@ public final class Microsoft365Package {
         return Out.of("table_id", t.get("id"), "table_name", tableName);
     }
 
-    @Action(id = "excel_add_table_rows", name = "Add table rows (Excel online)", category = "Excel online", capabilities = "network",
+    @Action(id = "excel_add_table_rows", name = "Add table rows", category = "Excel online", capabilities = "network",
             description = "Append rows to the end of an Excel table.",
             panel = "access_token, remote_path, table, rows | drive, base_url")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows added.")
@@ -2650,7 +2650,7 @@ public final class Microsoft365Package {
         return excelGetTableRows(ctx, token, remote, table, drive, base, null);
     }
 
-    @Action(id = "excel_get_table_rows", name = "Get table rows (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_get_table_rows", name = "Get table rows", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Read all rows of an Excel table, or one row by its position, as a Data Table, using the table's header names as columns.",
             panel = "access_token, remote_path, table, [Only one row: row_index] | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "The table's rows.")
@@ -2677,7 +2677,7 @@ public final class Microsoft365Package {
         return Map.of("table", Values.table(cols, rows), "count", num(rows.size()));
     }
 
-    @Action(id = "excel_delete_table", name = "Delete table (Excel online)", category = "Excel online", capabilities = "network",
+    @Action(id = "excel_delete_table", name = "Delete table", category = "Excel online", capabilities = "network",
             description = "Delete an Excel table together with its data.",
             panel = "access_token, remote_path, table | drive, base_url")
     public Map<String, Object> excelDeleteTable(ActionContext ctx,
@@ -2690,7 +2690,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "excel_write_data_table", name = "Write Data Table (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+    @Action(id = "excel_write_data_table", name = "Write Data Table", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Write a Data Table to a sheet starting at a cell, with or without its column names.",
             panel = "access_token, remote_path, table, sheet, start_cell | include_headers, drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "The range that was written.")
@@ -2860,7 +2860,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "respond_to_event", name = "Respond to meeting invitation", category = "Calendar", capabilities = "network",
+    @Action(id = "respond_to_event", name = "Respond to invitation", category = "Calendar", capabilities = "network",
             description = "Accept, tentatively accept or decline a meeting invitation, with an optional note to the organiser.",
             panel = "access_token, event_id, response, [Add a note: comment] | send_response, mailbox, base_url")
     public Map<String, Object> respondEvent(ActionContext ctx,
@@ -3036,7 +3036,7 @@ public final class Microsoft365Package {
         throw new ActionException(P + ".NOT_FOUND", "No " + what + " named '" + name + "'", names.isEmpty() ? "Check the name and the account's access." : "Available: " + String.join(", ", names) + ".");
     }
 
-    @Action(id = "list_teams", name = "List teams (Teams)", category = "Teams", idempotent = true, capabilities = "network",
+    @Action(id = "list_teams", name = "List teams", category = "Teams", idempotent = true, capabilities = "network",
             description = "List the Microsoft Teams teams the user belongs to.",
             panel = "access_token, user | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description.")
@@ -3050,7 +3050,7 @@ public final class Microsoft365Package {
         return Map.of("table", Values.table(List.of("id", "name", "description"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "get_team_by_name", name = "Get team by name (Teams)", category = "Teams", idempotent = true, capabilities = "network",
+    @Action(id = "get_team_by_name", name = "Get team by name", category = "Teams", idempotent = true, capabilities = "network",
             description = "Find the id of a team the user belongs to from its display name.",
             panel = "access_token, name | user, base_url")
     @Output(name = "team_id", type = OoaType.STRING, description = "Team id.")
@@ -3062,7 +3062,7 @@ public final class Microsoft365Package {
         return Map.of("team_id", s(byName(joinedTeams(ctx, token, base, user), name, "team").get("id")));
     }
 
-    @Action(id = "list_channels", name = "List channels (Teams)", category = "Teams", idempotent = true, capabilities = "network",
+    @Action(id = "list_channels", name = "List channels", category = "Teams", idempotent = true, capabilities = "network",
             description = "List the channels of a team.",
             panel = "access_token, team_id | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description, membership_type.")
@@ -3081,7 +3081,7 @@ public final class Microsoft365Package {
         return channelByName(ctx, token, team, name, base, null);
     }
 
-    @Action(id = "get_channel_by_name", name = "Get channel by name (Teams)", category = "Teams", idempotent = true, capabilities = "network",
+    @Action(id = "get_channel_by_name", name = "Get channel by name", category = "Teams", idempotent = true, capabilities = "network",
             description = "Find the id of a team's channel from its display name.",
             panel = "access_token, (Team: By id = team_id / By name = team_name), name | base_url")
     @Output(name = "channel_id", type = OoaType.STRING, description = "Channel id.")
@@ -3097,7 +3097,7 @@ public final class Microsoft365Package {
         return Map.of("channel_id", s(byName(channels(ctx, token, base, t), name, "channel").get("id")));
     }
 
-    @Action(id = "get_team_details", name = "Get team details (Teams)", category = "Teams", idempotent = true, capabilities = "network",
+    @Action(id = "get_team_details", name = "Get team details", category = "Teams", idempotent = true, capabilities = "network",
             description = "Read a team's name, description, visibility, archive state and link.",
             panel = "access_token, team_id | base_url")
     @Output(name = "team", type = OoaType.DICTIONARY, description = "id, name, description, visibility, archived, web_url.")
@@ -3116,7 +3116,7 @@ public final class Microsoft365Package {
         return Map.of("team", e);
     }
 
-    @Action(id = "get_channel_details", name = "Get channel details (Teams)", category = "Teams", idempotent = true, capabilities = "network",
+    @Action(id = "get_channel_details", name = "Get channel details", category = "Teams", idempotent = true, capabilities = "network",
             description = "Read a channel's name, description, membership type, email address, creation date and link.",
             panel = "access_token, team_id, channel_id | base_url")
     @Output(name = "channel", type = OoaType.DICTIONARY, description = "id, name, description, membership_type, email, created, web_url.")
@@ -3167,7 +3167,7 @@ public final class Microsoft365Package {
         return sendChatMessage(ctx, token, chat, message, html, importance, base, to, null);
     }
 
-    @Action(id = "send_chat_message", name = "Send chat message (Teams)", category = "Teams", capabilities = "network",
+    @Action(id = "send_chat_message", name = "Send chat message", category = "Teams", capabilities = "network",
             description = "Send a message into an existing Teams chat, or straight to one person, starting a one-on-one chat with them when needed.",
             panel = "access_token, (Send to: A chat = chat_id / A person = to), message, mentions | html, importance, base_url")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message id.")
@@ -3190,7 +3190,7 @@ public final class Microsoft365Package {
         return Out.of("message_id", r.get("id"), "chat_id", id);
     }
 
-    @Action(id = "create_chat", name = "Create one-on-one chat (Teams)", category = "Teams", capabilities = "network",
+    @Action(id = "create_chat", name = "Create chat", category = "Teams", capabilities = "network",
             description = "Start, or reuse, a one-on-one Teams chat between the signed-in user and another person.",
             panel = "access_token, user | base_url")
     @Output(name = "chat_id", type = OoaType.STRING, description = "Chat id for Send chat message.")
@@ -3349,7 +3349,7 @@ public final class Microsoft365Package {
         return unescapeHtml(t).replace("&#39;", "'").strip();
     }
 
-    @Action(id = "create_channel", name = "Create channel (Teams)", category = "Teams", capabilities = "network",
+    @Action(id = "create_channel", name = "Create channel", category = "Teams", capabilities = "network",
             description = "Add a standard channel, visible to every member, to a team.",
             panel = "access_token, team_id, name, description | base_url")
     @Output(name = "channel_id", type = OoaType.STRING, description = "Id of the new channel.")
@@ -3372,7 +3372,7 @@ public final class Microsoft365Package {
         return Out.of("channel_id", r.get("id"), "web_url", r.get("webUrl"));
     }
 
-    @Action(id = "get_channel_messages", name = "Get channel messages (Teams)", category = "Teams", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+    @Action(id = "get_channel_messages", name = "Get channel messages", category = "Teams", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Read the posts of a Teams channel, newest first, optionally only those since a date.",
             panel = "access_token, team_id, channel_id, since | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, created, from, subject, text, body, content_type, reply_to_id, web_url.")
@@ -3412,7 +3412,7 @@ public final class Microsoft365Package {
                 "count", num(rows.size()));
     }
 
-    @Action(id = "reply_to_message", name = "Reply to channel message (Teams)", category = "Teams", capabilities = "network",
+    @Action(id = "reply_to_message", name = "Reply in channel", category = "Teams", capabilities = "network",
             description = "Post a reply in the thread of a Teams channel message.",
             panel = "access_token, team_id, channel_id, message_id, message | html, base_url")
     @Output(name = "reply_id", type = OoaType.STRING, description = "Id of the reply.")
@@ -3449,7 +3449,7 @@ public final class Microsoft365Package {
         return e != null && !e.isBlank() ? e : s(r.map().get("@odata.etag"));
     }
 
-    @Action(id = "list_plans", name = "List plans (Planner)", category = "Planner", idempotent = true, capabilities = "network",
+    @Action(id = "list_plans", name = "List plans", category = "Planner", idempotent = true, capabilities = "network",
             description = "List the Planner plans of a Microsoft 365 group (the group behind a team).",
             panel = "access_token, group_id | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, title, created, group_id.")
@@ -3466,7 +3466,7 @@ public final class Microsoft365Package {
         return Map.of("table", Values.table(List.of("id", "title", "created", "group_id"), rows), "count", num(rows.size()));
     }
 
-    @Action(id = "list_tasks", name = "List tasks (Planner)", category = "Planner", idempotent = true, capabilities = "network",
+    @Action(id = "list_tasks", name = "List tasks", category = "Planner", idempotent = true, capabilities = "network",
             description = "List the tasks of a Planner plan, optionally only those in one bucket or assigned to one person.",
             panel = "access_token, plan_id, bucket_id, assigned_to | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, title, bucket_id, percent_complete, due, start, created, completed, assigned_to, priority.")
@@ -3491,7 +3491,7 @@ public final class Microsoft365Package {
                 "count", num(rows.size()));
     }
 
-    @Action(id = "create_task", name = "Create task (Planner)", category = "Planner", capabilities = "network",
+    @Action(id = "create_task", name = "Create task", category = "Planner", capabilities = "network",
             description = "Add a task to a Planner plan, optionally in a bucket, with a due date and people assigned.",
             panel = "access_token, plan_id, bucket_id, title, due_date, assigned_to | base_url")
     @Output(name = "task_id", type = OoaType.STRING, description = "Id of the new task.")
@@ -3516,7 +3516,7 @@ public final class Microsoft365Package {
         return Out.of("task_id", r.get("id"));
     }
 
-    @Action(id = "update_task", name = "Update task (Planner)", category = "Planner", idempotent = true, capabilities = "network",
+    @Action(id = "update_task", name = "Update task", category = "Planner", idempotent = true, capabilities = "network",
             description = "Change a Planner task's title, progress or due date; fields left empty keep their values.",
             panel = "access_token, task_id, title, percent_complete, due_date | base_url")
     public Map<String, Object> updateTask(ActionContext ctx,
@@ -3584,7 +3584,7 @@ public final class Microsoft365Package {
         return s(found.get(0).get("id"));
     }
 
-    @Action(id = "entra_find_users", name = "Find users (Entra ID)", category = "Users and groups", idempotent = true, capabilities = "network",
+    @Action(id = "entra_find_users", name = "Find users", category = "Users and groups", idempotent = true, capabilities = "network",
             description = "List Entra ID users whose sign-in name or display name starts with a text, optionally in a department, enabled only, with their last sign-in.",
             panel = "access_token, starts_with, department, enabled_only | include_sign_in, filter, max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, user_principal_name, email, department, job_title, enabled, last_sign_in.")
@@ -3611,7 +3611,7 @@ public final class Microsoft365Package {
         return Out.of("table", Values.table(USER_COLS, rows), "count", num(rows.size()));
     }
 
-    @Action(id = "entra_get_user", name = "Get user (Entra ID)", category = "Users and groups", idempotent = true, capabilities = "network",
+    @Action(id = "entra_get_user", name = "Get user", category = "Users and groups", idempotent = true, capabilities = "network",
             description = "Read one Entra ID user: name, sign-in name, department, whether the account is enabled, the manager and (optionally) the last sign-in.",
             panel = "access_token, user | include_sign_in, base_url")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "id, name, user_principal_name, email, department, job_title, enabled, last_sign_in, manager, on_premises_dn.")
@@ -3634,7 +3634,7 @@ public final class Microsoft365Package {
         return Out.of("user", o, "enabled", Boolean.TRUE.equals(u.get("accountEnabled")));
     }
 
-    @Action(id = "entra_create_user", name = "Create user (Entra ID)", category = "Users and groups", capabilities = "network",
+    @Action(id = "entra_create_user", name = "Create user", category = "Users and groups", capabilities = "network",
             description = "Create an Entra ID user with a first password from the vault; it is asked to change it at the first sign-in unless told otherwise.",
             panel = "access_token, display_name, user_principal_name, password, account_enabled | mail_nickname, department, job_title, force_password_change, fields, base_url")
     @Output(name = "user_id", type = OoaType.STRING, description = "The new user's object id.")
@@ -3666,7 +3666,7 @@ public final class Microsoft365Package {
         return Out.of("user_id", r.get("id"));
     }
 
-    @Action(id = "entra_update_user", name = "Update user (Entra ID)", category = "Users and groups", capabilities = "network",
+    @Action(id = "entra_update_user", name = "Update user", category = "Users and groups", capabilities = "network",
             description = "Enable or disable an Entra ID account, or change its department, job title or other properties; empty fields stay as they are.",
             panel = "access_token, user, account | department, job_title, fields, base_url")
     public Map<String, Object> entraUpdateUser(ActionContext ctx,
@@ -3688,7 +3688,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "entra_delete_user", name = "Delete user (Entra ID)", category = "Users and groups", capabilities = "network",
+    @Action(id = "entra_delete_user", name = "Delete user", category = "Users and groups", capabilities = "network",
             description = "Delete an Entra ID user; it stays restorable from Deleted users for 30 days.",
             panel = "access_token, user | base_url")
     public Map<String, Object> entraDeleteUser(ActionContext ctx,
@@ -3699,7 +3699,7 @@ public final class Microsoft365Package {
         return Map.of();
     }
 
-    @Action(id = "entra_user_groups", name = "Groups of a user (Entra ID)", category = "Users and groups", idempotent = true, capabilities = "network",
+    @Action(id = "entra_user_groups", name = "Groups of a user", category = "Users and groups", idempotent = true, capabilities = "network",
             description = "List the groups a user belongs to: directly, or also through groups inside groups (nested).",
             panel = "access_token, user, nested | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, mail, security.")
@@ -3720,7 +3720,7 @@ public final class Microsoft365Package {
         return Out.of("table", Values.table(List.of("id", "name", "mail", "security"), rows), "names", names, "count", num(rows.size()));
     }
 
-    @Action(id = "entra_group_members", name = "Members of a group (Entra ID)", category = "Users and groups", idempotent = true, capabilities = "network",
+    @Action(id = "entra_group_members", name = "Group members", category = "Users and groups", idempotent = true, capabilities = "network",
             description = "List a group's members (users, groups, devices): directly, or also the members of groups inside it (nested).",
             panel = "access_token, group, nested | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, type, name, user_principal_name.")
@@ -3739,7 +3739,7 @@ public final class Microsoft365Package {
         return Out.of("table", Values.table(List.of("id", "type", "name", "user_principal_name"), rows), "count", num(rows.size()));
     }
 
-    @Action(id = "entra_add_group_member", name = "Add to group (Entra ID)", category = "Users and groups", capabilities = "network", idempotent = true,
+    @Action(id = "entra_add_group_member", name = "Add to group", category = "Users and groups", capabilities = "network", idempotent = true,
             description = "Make a user (or a group) a member of a group; nothing changes when it already is one.",
             panel = "access_token, group, member | base_url")
     @Output(name = "added", type = OoaType.BOOLEAN, description = "True when it was added; false when it was a member already.")
@@ -3759,7 +3759,7 @@ public final class Microsoft365Package {
         }
     }
 
-    @Action(id = "entra_remove_group_member", name = "Remove from group (Entra ID)", category = "Users and groups", capabilities = "network", idempotent = true,
+    @Action(id = "entra_remove_group_member", name = "Remove from group", category = "Users and groups", capabilities = "network", idempotent = true,
             description = "Take a user (or a group) out of a group; nothing changes when it is not a member.",
             panel = "access_token, group, member | base_url")
     @Output(name = "removed", type = OoaType.BOOLEAN, description = "True when it was removed; false when it was not a member.")
@@ -3778,7 +3778,7 @@ public final class Microsoft365Package {
         }
     }
 
-    @Action(id = "entra_find_groups", name = "Find groups (Entra ID)", category = "Users and groups", idempotent = true, capabilities = "network",
+    @Action(id = "entra_find_groups", name = "Find groups", category = "Users and groups", idempotent = true, capabilities = "network",
             description = "List Entra ID groups whose display name starts with a text, optionally security groups only.",
             panel = "access_token, starts_with, security_only | filter, max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, mail, security, description.")
@@ -3802,7 +3802,7 @@ public final class Microsoft365Package {
         return Out.of("table", Values.table(List.of("id", "name", "mail", "security", "description"), rows), "count", num(rows.size()));
     }
 
-    @Action(id = "entra_sign_out_everywhere", name = "Sign user out everywhere (Entra ID)", category = "Users and groups", capabilities = "network", idempotent = true,
+    @Action(id = "entra_sign_out_everywhere", name = "Sign out everywhere", category = "Users and groups", capabilities = "network", idempotent = true,
             description = "End every sign-in session of a user (e.g. when access is removed); apps ask the user to sign in again.",
             panel = "access_token, user | base_url")
     public Map<String, Object> entraSignOutEverywhere(ActionContext ctx,

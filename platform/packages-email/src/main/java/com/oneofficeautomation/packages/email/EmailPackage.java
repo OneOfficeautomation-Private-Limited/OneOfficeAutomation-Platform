@@ -464,7 +464,7 @@ public final class EmailPackage {
         return saved;
     }
 
-    @Action(id = "save_all_attachments", name = "Save attachments of all matching emails", category = "Mailbox", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+    @Action(id = "save_all_attachments", name = "Save all attachments", category = "Mailbox", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Save the attachments of every email in a folder that matches the filters, optionally marking those emails as read.",
             panel = "unread_only, mark_read, folder, target_folder, overwrite | name_pattern, from_contains, subject_contains, since, before, session")
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")

@@ -2722,7 +2722,7 @@ public final class BrowserPackage {
     static final List<String> TECHNICAL = List.of("dom_xpath", "css", "xpath", "path", "parent", "tag_index", "source_index", "child_count",
             "left", "top", "width", "height", "visible", "enabled", "checked", "selected", "in_frame", "frame_url", "inner_html", "outer_html");
 
-    @Action(id = "test_object", name = "Test captured object (design time)", category = "Capture", timeoutSeconds = 300, capabilities = "browser",
+    @Action(id = "test_object", name = "Test capture", category = "Capture", timeoutSeconds = 300, capabilities = "browser",
             description = "Open a page, find every element that matches a captured object, outline them for a few seconds and report how many match. Used by OneAgentStudio's Test button.",
             panel = "url, object, browser | wait_seconds, show_seconds")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many elements match.")

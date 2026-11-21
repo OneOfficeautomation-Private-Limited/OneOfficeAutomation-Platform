@@ -414,10 +414,10 @@ public final class RunWaits {
             if (("input".equals(v.get("direction")) || "in_out".equals(v.get("direction"))) && !"Credential".equals(v.get("type")) && saved.containsKey(n) && saved.get(n) != null) inputs.put(n, saved.get(n));
         }
         String id = id("run");
-        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, priority, callback_url, run_as, run_mode, queue_item_id) "
-                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, priority, callback_url, run_as, run_mode, queue_item_id, run_window) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             id, path, run.get("version"), deviceId, "queued", JsonLite.write(inputs), requestedBy, run.get("source"), now(), false, false, run.get("priority"),
-            run.get("callback_url"), run.get("run_as"), run.get("run_mode"), run.get("queue_item_id"));
+            run.get("callback_url"), run.get("run_as"), run.get("run_mode"), run.get("queue_item_id"), run.get("run_window"));
         cr.wake(deviceId, false);
         return id;
     }

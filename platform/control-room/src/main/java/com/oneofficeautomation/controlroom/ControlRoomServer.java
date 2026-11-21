@@ -1007,7 +1007,7 @@ public final class ControlRoomServer {
                     if (b.get("run_as_users") instanceof List || b.get("device_ids") instanceof List) { sendJson(ex, 200, cr.deploy(u, b, ip)); return; }
                     sendJson(ex, 200, cr.startRun(u.username(), u.role(), (String) b.get("bot_path"), (String) b.get("device_id"), (String) b.get("pool_id"),
                             (Map<String, Object>) b.getOrDefault("inputs", Map.of()), b.get("source") instanceof String src && src.equals("api") ? "api" : "manual", ip,
-                            b.get("priority") instanceof Number pr ? pr.intValue() : 0, (String) b.get("callback_url"), (String) b.get("run_as"), (String) b.get("mode")));
+                            b.get("priority") instanceof Number pr ? pr.intValue() : 0, (String) b.get("callback_url"), (String) b.get("run_as"), (String) b.get("mode"), b.get("run_window")));
                 } else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.run(u, seg[1], Long.parseLong(q.getOrDefault("after", "0"))));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("rerun")) sendJson(ex, 200, cr.rerun(u, seg[1], ip));
                 else if (m.equals("POST") && seg.length == 3) { cr.control(u, seg[1], seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }

@@ -677,7 +677,7 @@ public final class WindowPackage {
         return new String(buf, 0, Math.max(0, Math.min(n, buf.length)));
     }
 
-    @Action(id = "type_in_background", name = "Type into window in background", category = "Keyboard", capabilities = "desktop", timeoutSeconds = 600,
+    @Action(id = "type_in_background", name = "Type in background", category = "Keyboard", capabilities = "desktop", timeoutSeconds = 600,
             description = "Type text and keys such as {ENTER} or {TAB} into a window without bringing it to the front or using the keyboard, so it works while the window is behind others or minimised and the person keeps working.",
             panel = "title, text, (Into: Its focused control = / A control of a class = control_class, control_index), method | delay_ms, alternatives, timeout_seconds, process_id")
     @Output(name = "control_class", type = OoaType.STRING, description = "Class of the control typed into, e.g. Edit.")

@@ -116,7 +116,7 @@ export function PickElementDialog({ api, technology, onPick, onClose }:
     .filter((e) => !q.trim() || (r.name + " " + e.element + " " + e.description).toLowerCase().includes(q.trim().toLowerCase()))
     .map((e) => ({ repo: r, el: e }))), [cat, q, technology]);
   return (
-    <Dialog open onClose={onClose} title="Use an element from a repository" width={680}
+    <Dialog open onClose={onClose} title="Use an element from a repository" width={760} height={520} resizable
       footer={<><Button kind="secondary" onClick={onClose}>Cancel</Button><span className="st-bar-fill" />
         <Button kind="primary" disabled={!chosen} onClick={() => chosen && onPick(chosen)}>Use this element</Button></>}>
       <TextInput type="search" aria-label="Find an element" placeholder="Find an element" value={q} onChange={(e) => setQ(e.target.value)} />

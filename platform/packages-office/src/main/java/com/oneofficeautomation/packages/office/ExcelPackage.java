@@ -34,7 +34,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /** Read and write .xlsx workbooks without Microsoft Office (Apache POI), the equivalent of AA's Excel basic package. */
-@OoaPackage(id = "ooa.excel", name = "Excel (no Office needed)", version = "1.0.0",
+@OoaPackage(id = "ooa.excel", name = "Excel", version = "1.0.0",
         description = "Read and write .xlsx workbooks without Microsoft Office installed.")
 public final class ExcelPackage {
     private static final String CELL = "^[A-Za-z]{1,3}[1-9][0-9]*$";

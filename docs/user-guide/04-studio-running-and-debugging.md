@@ -89,8 +89,20 @@ The floating **Run window** stays on top of the canvas:
 After the run it stays with the result (**Finished**, **Failed** or **Stopped**, and the error) until you click **Close**
 (✕) or start the next run.
 
-On Windows, a small run window also appears on the desktop, on top of the applications your agent brings to the front,
-so you can watch the agent while it works in other programs. It is not shown for debug runs.
+On Windows, a small **run window** also appears on the desktop, at the bottom right, on top of the applications your
+agent brings to the front, so you can watch the agent while it works in other programs. It never takes the keyboard
+from them. It is not shown for debug runs.
+
+- Choose it with the small arrow (▾) on the right of **Run**: **Hidden**, **Small** (the agent and a progress bar),
+  **Medium** (also the line being run and the time) or **Large** (also the last lines of the run). Your choice is kept
+  for the next runs.
+- **Pause**/**Resume** and **Stop** work as in the Run dock. **–** minimises it to a small tab at the screen edge
+  (the agent, its state and the lines done); click the tab to open it again.
+- When the run ends it says **Finished**, **Failed** or **Stopped**. A failed run gets a red edge, shows the error, and
+  opens again if it was minimised. The window closes a few seconds later.
+
+Runs that One CommandCenter starts on a runner show the same window on the runner's screen, as its administrator sets
+it (see the Administrators guide, Settings > Runners > Run window).
 
 ## 4. Pause, resume and stop
 

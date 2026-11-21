@@ -51,7 +51,7 @@ export type RepoHooks = { states: Record<string, RepoState>; onCheckIn: (paths: 
   onRevert: (local: string) => void };
 /** What can be checked in: agents, workflows and forms. */
 const CHECKS_IN = ["bot", "process", "form"];
-const STATUS: Record<RepoState["status"], [string, string]> = {
+export const STATUS: Record<RepoState["status"], [string, string]> = {
   new: ["New", "Not in the repository yet: Check in puts it there, in the same folder."],
   linked: ["In the repository", "A copy of an agent in the repository. Sign in to One CommandCenter to see whether it is checked out."],
   checked_out: ["Checked out", "Checked out to you, unchanged since."],
@@ -67,14 +67,46 @@ const COLUMNS: Column[] = [{ key: "type", label: "Type" }, { key: "status", labe
 const FROM_REPO = ["status", "version", "label", "analysis", "by"];
 const CLASS: Record<string, string> = { type: "st-col-type", changed: "st-col-changed" };
 const KINDS: [string, string][] = [["", "Type: Any"], ["folder", "Folders"], ["bot", "Agents"], ["process", "Workflows"], ["form", "Forms"], ["document", "Document types"], ["skill", "Prompt Skills"], ["script", "Scripts"], ["file", "Other files"]];
+/** The Agents list's view, kept while the page is away (an agent is open) so closing the agent comes back to it. */
+type ListView = { folder: string; expanded: string[]; selected: string[]; kind: string };
+const listViews = new WeakMap<object, ListView>();
+/** The view of one Studio (one connection to its server). */
+export function listViewOf(api: object): ListView {
+  let v = listViews.get(api);
+  if (!v) { v = { folder: "", expanded: [""], selected: [], kind: "" }; listViews.set(api, v); }
+  return v;
+}
+
+/**
+ * Closing an item (or "Show in the Agents list") comes back to its folder: the folder open, every folder above it
+ * opened in the tree, the item selected (item 13).
+ */
+export function showInList(api: object, path: string) {
+  const v = listViewOf(api);
+  const parts = path.split("/").filter(Boolean);
+  const above = parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join("/"));
+  v.folder = parts.slice(0, -1).join("/");
+  v.expanded = [...new Set(["", ...v.expanded, ...above])];
+  v.selected = [path];
+}
+
 export function Automation({ api, view, tree, search = "", blueprints = [], publicView, repo, onRepoLink, onOpen, onCreated, onNewFolder, onDelete, onMoved, onChanged, onNotice, onError }:
   { api: StudioApi; view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; publicView?: ReactNode; repo?: RepoHooks;
     onRepoLink?: (r: RepoRequest) => void; onOpen: (n: WorkspaceNode) => void;
     onDelete: (nodes: WorkspaceNode[]) => void; onCreated: (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => Promise<void>;
     onNewFolder: (parent: string) => void; onMoved: (from: string, to: string) => void; onChanged: () => Promise<unknown>;
     onNotice: (text: string) => void; onError: (e: unknown) => void }) {
-  const [folder, setFolder] = useState("");
-  const [expanded, setExpanded] = useState(() => new Set([""]));
+  // item 13 (21 Nov 2026): the open folder, the open folders in the tree, the selection and the Type filter outlive the
+  // page while agents are open, and closing an agent comes back to its folder with it selected
+  const listView = listViewOf(api);
+  const [folder, setFolderState] = useState(listView.folder);
+  const [expanded, setExpandedState] = useState(() => new Set(listView.expanded));
+  const setFolder = (f: string) => { listView.folder = f; setFolderState(f); };
+  const setExpanded = (e: Set<string> | ((cur: Set<string>) => Set<string>)) => setExpandedState((cur) => {
+    const next = typeof e === "function" ? e(cur) : e;
+    listView.expanded = [...next];
+    return next;
+  });
   const [creating, setCreating] = useState<ItemType | null>(null);
   const [createIn, setCreateIn] = useState("");   // the folder a new item goes in: the open folder, or one chosen in the dialog
   const [foldersHidden, setFoldersHidden] = usePersistent("panel.folders.hidden", false);
@@ -82,7 +114,12 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const [choosingCols, setChoosingCols] = useState(false);
   const [foldersWidth, setFoldersWidth] = usePanelSize("folders");
   const foldersPanel = useRef<HTMLElement | null>(null);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelectedState] = useState<string[]>(listView.selected);
+  const setSelected = (sel: string[] | ((cur: string[]) => string[])) => setSelectedState((cur) => {
+    const next = typeof sel === "function" ? sel(cur) : sel;
+    listView.selected = next;
+    return next;
+  });
   const [anchor, setAnchor] = useState<string | null>(null);
   const [clip, setClip] = useState<{ paths: string[]; cut: boolean } | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -91,7 +128,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const uploadInput = useRef<HTMLInputElement | null>(null);
   const uploadTo = useRef("");
   const [found, setFound] = useState<{ path: string; matches: string[] }[]>([]);
-  const [kind, setKind] = useState("");   // Type filter
+  const [kind, setKindState] = useState(listView.kind);   // Type filter
+  const setKind = (k: string) => { listView.kind = k; setKindState(k); };
   const [place, setPlace] = usePersistent<"private" | "public">("automation.place", "private");
   // the console's Automation page opens this page on its Private tab (../studio/#private; #private/new: Create > Agent), as AA's one Automation page
   // #public/checkout/<agent path>, #public/clone/<path> and #public/copy/<path>: the console agent page's Edit, Clone and Copy to Private
@@ -125,7 +163,9 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const paths = listed.map((r) => r.node.path);
   const chosen = paths.filter((p) => selected.includes(p));
   const chosenNodes = chosen.map((p) => find(tree, p)!).filter(Boolean);
-  useEffect(() => { setSelected([]); setAnchor(null); }, [folder, q, kind]);
+  // a new folder, search or filter clears the selection, but not when the page comes back (the closed agent stays selected)
+  const firstView = useRef(true);
+  useEffect(() => { if (firstView.current) { firstView.current = false; return; } setSelected([]); setAnchor(null); }, [folder, q, kind]);   // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = (id: string) => setExpanded((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const openFolder = (path: string) => { setFolder(path); setExpanded((s) => { const n = new Set(s); let p = path; while (p) { n.add(p); p = parentOf(p); } n.add(""); return n; }); };
   const open = (n: WorkspaceNode) => { if (n.type === "folder") openFolder(n.path); else if (OPENS.includes(n.type)) onOpen(n); };

@@ -110,6 +110,8 @@ export function newStep(action: string, flow: Flow, packages: PackageManifest[])
   for (const [name, prop] of Object.entries(props)) {
     if (action === "core/loop" && name === "iterator") args.iterator = "list";
     else if ((spec?.inputs?.required ?? []).includes(name) && prop.examples?.length) args[name] = prop.examples[0];
+    // a safer default for new steps only (overwrite off, as AA): written into the step, so saved agents keep theirs
+    else if (prop["x-ooa-new-step-default"] !== undefined) args[name] = prop["x-ooa-new-step-default"];
   }
   if (action === "core/throw" && args.code === undefined) args.code = "BUSINESS.ERROR";   // a business error unless another code is chosen
   // a new date step works in the runner's own time zone, as AA's dates (command review D1); older steps keep UTC

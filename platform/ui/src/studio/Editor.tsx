@@ -37,7 +37,7 @@ const openUrl = (flow: Flow): string | undefined => {
 import { VariableChooser } from "./ValueSources";
 import { agentRows, describeAction, startState, stepRows, summarize, toolkitMark, type StepRow } from "./toolkits";
 import { AA_NAMES } from "./aaNames";
-import { FORMER_NAMES } from "./formerNames";
+import { FORMER_NAMES, FORMER_TOOLKIT_NAMES } from "./formerNames";
 import { MailSwitchDialog } from "./MailSwitchDialog";
 import { HelpLinks } from "../shell/HelpLinks";
 import { commandKey } from "../shell/helpCatalogue";
@@ -95,14 +95,44 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
     return () => window.removeEventListener(ADD_STEP_EVENT, open);
   }, [setHidden]);
   const total = packages.reduce((n, p) => n + p.actions.length, 0);
-  // Enter in the search adds the best match: same name, then a name starting with the words, then the first found
-  const best = () => {
-    const all = list.flatMap(({ p, actions }) => actions.map((a) => ({ id: p.id + "/" + a.id, name: a.name.toLowerCase() })));
-    return (all.find((a) => a.name === q) ?? all.find((a) => a.name.startsWith(q)) ?? all[0])?.id;
-  };
-  // a search also finds an action by its AA command name ("Open program/file", "Simulate keystrokes")
-  const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || !!aaMatch(p.id + "/" + a.id, q) || !!formerMatch(p.id + "/" + a.id, q)) : p.actions }))
+  // a search also finds an action by its AA command name ("Open program/file") or a name it had before; the match is
+  // not written under the name (Studio defects 21 Nov 2026, item 5: one line per command), only in its tooltip
+  const toolkitHit = (p: PackageManifest) => p.name.toLowerCase().includes(q) || !!FORMER_TOOLKIT_NAMES[p.id]?.some((n) => n.toLowerCase().includes(q));
+  const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || toolkitHit(p) || !!aaMatch(p.id + "/" + a.id, q) || !!formerMatch(p.id + "/" + a.id, q)) : p.actions }))
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
+  // the results in the order shown, for the arrow keys in the search (AA's Quick add: Down, Up, Enter)
+  const results = q ? list.flatMap(({ p, actions }) => actions.map((a) => ({ id: p.id + "/" + a.id, name: a.name }))) : [];
+  const [hi, setHi] = useState(0);
+  useEffect(() => setHi(0), [q]);
+  // Enter adds the highlighted result; with no arrow used, the best match: same name, then a name starting with the words
+  const best = () => {
+    if (hi > 0 && results[hi]) return results[hi].id;
+    const lower = results.map((r) => ({ ...r, l: r.name.toLowerCase() }));
+    return (lower.find((a) => a.l === q) ?? lower.find((a) => a.l.startsWith(q)) ?? lower[0])?.id;
+  };
+  // item 6: with the toolkit list focused, a letter moves to the next toolkit starting with it (never to commands);
+  // letters typed quickly one after another make a longer start (C, S: CSV/TXT)
+  const typed = useRef<{ text: string; at: number }>({ text: "", at: 0 });
+  const jump = (e: KeyboardEvent<HTMLUListElement>) => {
+    if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || !/[\p{L}\p{N}]/u.test(e.key)) return;
+    if ((e.target as HTMLElement).closest("input, textarea, select")) return;
+    const now = Date.now();
+    const text = (now - typed.current.at < 700 ? typed.current.text : "") + e.key.toLowerCase();
+    typed.current = { text, at: now };
+    const groups = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("button.st-group[data-name]")];
+    if (!groups.length) return;
+    const cur = groups.findIndex((b) => b === document.activeElement || !!b.parentElement?.contains(document.activeElement));
+    const from = cur + (text.length > 1 ? 0 : 1);
+    const order = [...groups.slice(Math.max(0, from)), ...groups.slice(0, Math.max(0, from))];
+    const next = order.find((b) => (b.dataset.name ?? "").toLowerCase().startsWith(text));
+    if (next) { e.preventDefault(); next.focus(); next.scrollIntoView?.({ block: "nearest" }); }
+  };
+  /** Big toolkits (Microsoft 365, Google Workspace) list their commands under small headings by category. */
+  const byCategory = (p: PackageManifest, actions: PackageManifest["actions"]): [string, PackageManifest["actions"]][] => {
+    const cats = [...new Set(actions.map((a) => a.category || ""))];
+    if (p.actions.length < 25 || cats.length < 2 || q) return [["", actions]];
+    return cats.map((c) => [c, actions.filter((a) => (a.category || "") === c)]);
+  };
   return (
     <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions"
       actions={<HelpButton topic={ACTIONS_HELP} />}
@@ -114,10 +144,15 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
         <button type="button" role="radio" aria-checked={!simple} onClick={() => onSimple(false)} title="Every action of every toolkit">All</button>
       </div>}
       <div className="st-panel-search"><TextInput aria-label="Search actions" placeholder={`Search ${total.toLocaleString()} actions`} value={query} onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && q) { e.preventDefault(); const b = best(); if (b) onAdd(b); } }} /></div>
-      <p className="st-panel-hint">{simple ? "Everyday actions. Click one to add it after the selected step, or drag it to where it goes. All shows every action."
-        : "Click an action to add it after the selected step, or drag it to where it goes. Enter adds the best match."}</p>
-      <ul className="st-groups">
+        title="Type an action or toolkit name. Down and Up move through the results, Enter adds the highlighted one, Esc clears."
+        aria-activedescendant={q && results[hi] ? "st-result-" + hi : undefined}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(results.length - 1, h + 1)); }
+          else if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(0, h - 1)); }
+          else if (e.key === "Escape" && query) { e.preventDefault(); setQuery(""); }
+          else if (e.key === "Enter" && q) { e.preventDefault(); const b = best(); if (b) onAdd(b); }
+        }} /></div>
+      <ul className="st-groups" onKeyDown={jump} aria-label="Toolkits: type a letter to jump to a toolkit">
         {onTrigger && (() => {
           // as AA's editor, the triggers that start the agent sit beside its actions
           type Item = [kind: string, label: string, where: "studio" | "server"];
@@ -127,7 +162,7 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
           if (!kinds.length) return null;
           const isOpen = open === "triggers" || (!!q && list.length <= 3);
           return <li>
-            <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : "triggers")}>
+            <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} data-name="Triggers" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : "triggers")}>
               <IconTile name="bolt" color="#b45309" size={18} /><span className="st-group-name">Triggers</span><span className="st-count">{kinds.reduce((n, [, ks]) => n + ks.length, 0)}</span>
             </button>
             {isOpen && <ul className="st-group-actions">{kinds.map(([g, ks]) => <li key={g}>
@@ -142,23 +177,30 @@ export function ActionsPanel({ packages: all, onAdd, onTrigger, simple = false, 
           const m = toolkitMark(p.id);
           return (
             <li key={p.id}>
-              <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : p.id)}>
+              <button type="button" className={`st-group${isOpen ? " is-open" : ""}`} data-name={p.name} aria-expanded={isOpen} title={p.description}
+                onClick={() => setOpen(isOpen ? null : p.id)}
+                onKeyDown={(e) => { if (e.key === "ArrowRight" && !isOpen) { e.preventDefault(); setOpen(p.id); } else if (e.key === "ArrowLeft" && isOpen) { e.preventDefault(); setOpen(null); } }}>
                 <IconTile name={m.icon} color={m.color} size={18} /><span className="st-group-name">{p.name}</span><span className="st-count">{actions.length}</span>
               </button>
-              {isOpen && <ul className="st-group-actions" style={{ "--kit": m.color } as CSSProperties}>{actions.map((a) => (
-                <li key={a.id} className="st-action-row"><button type="button" className="st-action" title={a.description} draggable
-                  onMouseEnter={() => setAbout(a.description ? { name: a.name, text: a.description } : null)} onFocus={() => setAbout(a.description ? { name: a.name, text: a.description } : null)}
-                  onDragStart={(e) => { e.dataTransfer.setData(ACTION_DRAG, p.id + "/" + a.id); e.dataTransfer.effectAllowed = "copy"; }}
-                  onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}
-                  {(() => { const own = a.name.toLowerCase().includes(q); const aa = !own ? aaMatch(p.id + "/" + a.id, q) : undefined; const was = !own && !aa ? formerMatch(p.id + "/" + a.id, q) : undefined;
-                    return aa ? <span className="st-alt-name">Also called: {aa}</span> : was ? <span className="st-alt-name">Formerly: {was}</span> : null; })()}</button>
-                </li>
-              ))}</ul>}
+              {isOpen && <ul className="st-group-actions" style={{ "--kit": m.color } as CSSProperties}>{byCategory(p, actions).flatMap(([cat, acts]) => [
+                ...(cat ? [<li key={"cat-" + cat} className="st-action-cat" aria-hidden="true">{cat}</li>] : []),
+                ...acts.map((a) => {
+                  const addr = p.id + "/" + a.id;
+                  const idx = results.findIndex((r) => r.id === addr);
+                  const own = a.name.toLowerCase().includes(q);
+                  const alias = q && !own ? aaMatch(addr, q) ?? formerMatch(addr, q) : undefined;
+                  return <li key={a.id} className="st-action-row"><button type="button" id={idx >= 0 ? "st-result-" + idx : undefined}
+                    className={"st-action" + (q && idx === hi ? " is-hi" : "")} title={(alias ? "Found by: " + alias + ". " : "") + (a.description ?? "")} draggable
+                    onMouseEnter={() => setAbout(a.description ? { name: a.name, text: a.description } : null)} onFocus={() => setAbout(a.description ? { name: a.name, text: a.description } : null)}
+                    onDragStart={(e) => { e.dataTransfer.setData(ACTION_DRAG, addr); e.dataTransfer.effectAllowed = "copy"; }}
+                    onClick={() => onAdd(addr)}>{a.name}</button>
+                  </li>;
+                })])}</ul>}
             </li>
           );
         })}
       </ul>
-      {about && <p className="st-actions-about" role="status"><strong>{about.name}</strong> {about.text}</p>}
+      {about && <p className="st-actions-about" role="status" title={about.text}><strong>{about.name}</strong> {about.text}</p>}
     </SidePanel>
     {!hidden && <Splitter label="Resize the actions panel" axis="x" grow={1} value={width} min={200} max={520}
       measure={() => panel.current?.getBoundingClientRect().width ?? 272} onChange={setWidth} />}</>
@@ -599,7 +641,7 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
       { key: "breakpoint", label: breakpoints.includes(step.id) ? "Remove breakpoint" : "Breakpoint", separatorBefore: true, shortcut: keyOf("run.breakpoint"), onSelect: () => chosen.forEach(onToggleBreakpoint) },
     );
     if (step.action === "core/run_bot" && step.args?.automation && chosen.length === 1)
-      items.push({ key: "child", label: "Open the agent it runs", description: agentName(step.args.automation), separatorBefore: true, onSelect: () => onOpenChild(step.id) });
+      items.push({ key: "child", label: "Open the agent it runs in a new tab", description: agentName(step.args.automation), separatorBefore: true, onSelect: () => onOpenChild(step.id) });
     const target = step.action === "core/run_subflow" ? String(step.args?.subflow ?? "") : "";
     if (target && whole.subflows?.some((s) => s.name === target) && chosen.length === 1)
       items.push({ key: "subflow", label: "Open the subflow it runs", description: target, separatorBefore: true, onSelect: () => { setShown(target); onSelect([]); } });
@@ -664,6 +706,9 @@ export function AgentView({ api, path, flow: whole, list: shown = null, onList: 
           {isSel && chosen.length === 1 && !running && !inHandler(flow, r.step.id) &&
             <button type="button" className="st-run-here" onClick={() => onRunFrom(r.step.id, false, false, undefined)}
               title="Run the agent from this step: earlier steps are skipped and their values come from the last run"><Icon name="play" size={12} />Run from here</button>}
+          {/* item 12: a Run agent step opens the agent it runs in a new tab, from the step itself */}
+          {r.step.action === "core/run_bot" && typeof r.step.args?.automation === "string" && !String(r.step.args.automation).startsWith("$") && r.step.args.automation !== flow.id &&
+            <button type="button" className="st-run-here" onClick={() => onOpenChild(r.step.id)} title="Open the agent this step runs in a new tab"><Icon name="expand" size={12} />Open in new tab</button>}
           <button type="button" className="st-add-here" aria-label={"Add a step after line " + r.n} title="Add a step after this one: pick it in Actions"
             onClick={() => { selectOne(r.step.id); window.dispatchEvent(new Event(ADD_STEP_EVENT)); }}><Icon name="plus" size={12} stroke={2.6} /><span>Add step</span></button>
           {hasParts && <button type="button" className="ui-icon-btn" aria-label={(r.folded ? "Unfold line " : "Fold line ") + r.n} title={r.folded ? "Unfold" : "Fold"}

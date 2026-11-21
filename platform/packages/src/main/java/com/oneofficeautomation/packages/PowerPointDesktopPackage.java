@@ -16,7 +16,7 @@ import java.util.*;
  * already has it open the scripts work in that instance: they close only the presentation they opened, and quit
  * PowerPoint only when it showed no window before (a hidden instance left by an earlier step is quit too).
  */
-@OoaPackage(id = "ooa.powerpoint_desktop", name = "PowerPoint (desktop, needs PowerPoint)", version = "1.0.0",
+@OoaPackage(id = "ooa.powerpoint_desktop", name = "PowerPoint desktop", version = "1.0.0",
         description = "Insert videos and files, paste the clipboard and run macros using the installed Microsoft PowerPoint.")
 public final class PowerPointDesktopPackage {
 

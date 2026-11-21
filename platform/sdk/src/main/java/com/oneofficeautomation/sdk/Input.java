@@ -35,4 +35,20 @@ public @interface Input {
      * (the runner fills it when the step leaves it empty). access_token and bearer_token are such inputs anyway.
      */
     boolean signInToken() default false;
+    /**
+     * The value OneAgentStudio writes into a step when it is added (a JSON literal), when it differs from
+     * {@link #defaultValue()}. Steps saved before keep running with defaultValue, so changing to a safer default (for
+     * example overwrite off, as AA has it) never changes what an existing agent does. Empty = the same as defaultValue.
+     */
+    String newStepDefault() default "";
+    /**
+     * How a ticked Yes/No option is coloured in OneAgentStudio: "danger" (it replaces, removes or deletes something),
+     * "add" (it creates or adds something) or "plain". Empty = worked out from the input's name.
+     */
+    String tone() default "";
+    /**
+     * A Text input that may also take a vault reference ({"$credential": "locker/credential/attribute"}): the runner
+     * reads the secret just before the step runs and masks it in logs (a host name, a user name, a connection string).
+     */
+    boolean acceptsCredential() default false;
 }

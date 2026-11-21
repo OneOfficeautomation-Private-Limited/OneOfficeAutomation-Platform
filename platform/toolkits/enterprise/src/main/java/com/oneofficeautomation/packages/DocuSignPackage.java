@@ -125,7 +125,7 @@ public final class DocuSignPackage {
 
     // ----- envelopes -----
 
-    @Action(id = "create_envelope", name = "Create envelope from documents", category = "Envelopes", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+    @Action(id = "create_envelope", name = "Create envelope", category = "Envelopes", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Prepare an envelope from local files and signers, then send it now or keep it as a draft.",
             panel = "access_token, account_id, base_url, email_subject, signers, documents, send_now | email_message, copy_to, sign_here_text")
     @Output(name = "envelope_id", type = OoaType.STRING, description = "Id of the new envelope.")
@@ -170,7 +170,7 @@ public final class DocuSignPackage {
         return Out.of("envelope_id", r.get("envelopeId"), "status", r.get("status"));
     }
 
-    @Action(id = "create_envelope_from_template", name = "Create envelope from template", category = "Envelopes", capabilities = "network",
+    @Action(id = "create_envelope_from_template", name = "Envelope from template", category = "Envelopes", capabilities = "network",
             description = "Start an envelope from a saved template by filling each template role with a person.",
             panel = "access_token, account_id, base_url, email_subject, template_id, roles, send_now | field_values")
     @Output(name = "envelope_id", type = OoaType.STRING, description = "Id of the new envelope.")

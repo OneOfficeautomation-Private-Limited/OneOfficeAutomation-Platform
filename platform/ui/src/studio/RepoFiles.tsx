@@ -32,7 +32,7 @@ export function RepoFileBrowser({ onPick, onClose }: { onPick: (path: string) =>
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const shown = useMemo(() => (files ?? []).filter((f) => !q.trim() || f.path.toLowerCase().includes(q.trim().toLowerCase())), [files, q]);
   return (
-    <Dialog open title="Choose a file kept in One CommandCenter" width={640} onClose={onClose} footer={<Button kind="plain" onClick={onClose}>Cancel</Button>}>
+    <Dialog open title="Choose a file kept in One CommandCenter" width={720} height={480} resizable onClose={onClose} footer={<Button kind="plain" onClick={onClose}>Cancel</Button>}>
       <p className="st-muted">The agent takes the file with it: the runner gets it at the same path before the run.</p>
       {error && <p className="st-alert" role="alert">{error}</p>}
       <TextInput aria-label="Search the files" type="search" placeholder="Search by name or folder" value={q} onChange={(e) => setQ(e.target.value)} />

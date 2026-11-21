@@ -481,7 +481,7 @@ public final class DesktopUiPackage {
         return Map.of("objects", list, "count", BigDecimal.valueOf(list.size()));
     }
 
-    @Action(id = "get_object_properties", name = "Get desktop object properties", category = "Capture", idempotent = true, capabilities = "desktop",
+    @Action(id = "get_object_properties", name = "Get object properties", category = "Capture", idempotent = true, capabilities = "desktop",
             description = "Find a captured control and return all its current UI Automation properties and states.",
             panel = "object | timeout_seconds")
     @Output(name = "properties", type = OoaType.DICTIONARY, description = "Current properties: the recorded ones plus states such as IsReadOnly, ToggleState, IsSelected, ExpandCollapseState and SupportedPatterns.")

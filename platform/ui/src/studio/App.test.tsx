@@ -193,7 +193,7 @@ function fakeServer() {
     try { return new Response(JSON.stringify(handler(init.body ? JSON.parse(init.body as string) : undefined)), { status: 200 }); }
     catch (e: any) { if (e?.api) return new Response(JSON.stringify({ error: e.api }), { status: 400 }); throw e; }
   }) as unknown as typeof fetch;
-  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems, connections: () => connections, setWindows: (w: unknown[]) => { windows = w; }, setEdited: (e: boolean) => { edited = e; } };
+  return { api: new StudioApi("/api/", f), routes, created, runs, triggers: () => triggers, savedItems, connections: () => connections, setWindows: (w: unknown[]) => { windows = w; }, setEdited: (e: boolean) => { edited = e; } };
 }
 
 describe("new Studio", () => {
@@ -918,6 +918,27 @@ describe("new Studio", () => {
     await act(async () => { fireEvent.keyDown(window, { key: "F5" }); });   // F5 continues while the run waits at a step
     expect(runs[1]).toEqual({ command: "continue" });
     expect(await screen.findByText("Run finished", {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it("debugging into an agent it runs opens that agent in its own tab, at its line (item 12)", async () => {
+    const { api, routes } = fakeServer();
+    let polls = 0;
+    routes["GET runs/run_0123456789abcdef"] = () => {
+      polls++;
+      if (polls < 4) return { run_id: "x", state: "debugging", elapsed_ms: 10, events: [],
+        debug: { stepId: "loop", action: "core/loop", reason: "step", automation: "lookup_order", depth: 1, variables: {} } };
+      return { run_id: "x", state: "success", elapsed_ms: 20, events: [], result: { status: "success", outputs: {}, error: null } };
+    };
+    render(<App api={api} />);
+    await openIntake();
+    fireEvent.keyDown(window, { key: "F5" });
+    const dialog = await screen.findByRole("dialog", { name: "Debug Invoice intake" });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Debug" })); });
+    // the agent it runs opened in a new tab and came forward
+    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open items" })).getAllByRole("tab")).toHaveLength(2), { timeout: 4000 });
+    const tabs = within(screen.getByRole("tablist", { name: "Open items" })).getAllByRole("tab");
+    expect(tabs[1].getAttribute("aria-selected")).toBe("true");
+    expect(await screen.findByText("Stopped at a step", {}, { timeout: 3000 })).toBeTruthy();
   });
 
   it("has AA's editor keys: fold with [ and ], every breakpoint off with Shift+F9, find with Ctrl+Shift+F, Enter to the settings", async () => {

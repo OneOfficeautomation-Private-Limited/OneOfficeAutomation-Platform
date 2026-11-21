@@ -12,7 +12,7 @@ import java.nio.file.*;
 import java.util.*;
 
 /** Read, create and edit Word .docx documents without Microsoft Word (Apache POI). */
-@OoaPackage(id = "ooa.word", name = "Word (no Office needed)", version = "1.0.0",
+@OoaPackage(id = "ooa.word", name = "Word", version = "1.0.0",
         description = "Open or create .docx documents, read text and tables, replace text, add paragraphs and tables, save.")
 public final class WordPackage {
 

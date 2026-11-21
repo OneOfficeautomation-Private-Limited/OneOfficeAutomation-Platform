@@ -31,7 +31,7 @@ import java.util.*;
  * same Find emails columns and the same email record. Email ids are EWS item ids (text), which change when an email is
  * moved; Move email returns the new one.
  */
-@OoaPackage(id = "ooa.exchange", name = "Exchange on-premises (EWS)", version = "1.0.0",
+@OoaPackage(id = "ooa.exchange", name = "Exchange (EWS)", version = "1.0.0",
         description = "Read, send, reply to, move, mark and delete emails in an on-premises Exchange Server 2013-2019 or SE mailbox through Exchange Web Services (EWS). "
                 + "For Exchange Online (Microsoft 365) use the Microsoft 365 toolkit, as Microsoft is retiring EWS there.")
 public final class ExchangePackage {

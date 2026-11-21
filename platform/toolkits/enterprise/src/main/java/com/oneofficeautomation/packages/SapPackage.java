@@ -741,7 +741,7 @@ public final class SapPackage {
             WScript.StdOut.WriteLine "{}"
             """;
 
-    @Action(id = "press_toolbar_button", name = "Press grid or tree toolbar button", category = "Tables", timeoutSeconds = 120, capabilities = "desktop",
+    @Action(id = "press_toolbar_button", name = "Press toolbar button", category = "Tables", timeoutSeconds = 120, capabilities = "desktop",
             description = "Press a button in the toolbar of an ALV grid or tree (e.g. &MB_EXPORT), optionally choosing an entry of its drop-down menu.",
             panel = "id, button_id, [Then choose a drop-down entry: menu_item] | connection, session")
     public Map<String, Object> pressToolbarButton(ActionContext ctx,

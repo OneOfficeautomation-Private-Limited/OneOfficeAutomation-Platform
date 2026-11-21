@@ -84,6 +84,63 @@ public final class ActionContext {
         return kind.cast(o);
     }
 
+    private Map<String, List<Path>> selectedFiles = Map.of();
+
+    /** Set by the runner: the files each File input chose by name rules ({@link FileSelection}). */
+    public ActionContext withSelectedFiles(Map<String, List<Path>> files) {
+        this.selectedFiles = files == null ? Map.of() : Map.copyOf(files);
+        return this;
+    }
+
+    /**
+     * Every file a File input chose by name rules, sorted by path; null when the input was an exact path or a variable.
+     * Commands that work on many files (copy, move, delete, zip, print, upload) use this; the input's own value is then
+     * the first match.
+     */
+    public List<Path> selectedFiles(String input) { return selectedFiles.get(input); }
+
+    /**
+     * Where a step saves a file: the path given; inside it when it is a folder (or ends with / or \), under
+     * {@code fileName}; or, when no path is given, in this run's temporary folder, so a later step can use the path the
+     * step returns (as AA's file variables, without choosing a folder). The parent folder is created.
+     */
+    public Path outputPath(String given, String fileName) {
+        String safe = fileName == null || fileName.isBlank() ? "file" : fileName.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").strip();
+        Path target;
+        if (given == null || given.isBlank()) target = workDir.resolve(".ooa-temp").resolve(runId.replaceAll("[^A-Za-z0-9_.-]", "_")).resolve(safe);
+        else {
+            Path p = resolvePath(given.strip());
+            target = given.endsWith("/") || given.endsWith("\\") || java.nio.file.Files.isDirectory(p) ? p.resolve(safe) : p;
+        }
+        try { if (target.getParent() != null) java.nio.file.Files.createDirectories(target.getParent()); }
+        catch (java.io.IOException e) { throw new ActionException("FILE.IO", "Cannot create the folder for " + target + ": " + e.getMessage(), "Check the runner may write there, or leave the path empty to use a temporary file."); }
+        return target;
+    }
+
+    /**
+     * The item of the innermost loop around this step (an email of "Each email", a row, a file), or null outside a
+     * loop. Commands that act on "the current item" (reply to, move, save) use it when their id field is left empty.
+     */
+    public Object loopItem() {
+        Object s = services == null ? null : services.get(LOOP_ITEM_SERVICE);
+        return s instanceof Supplier<?> sup ? sup.get() : null;
+    }
+
+    /** Key in the sessions map holding the names of sessions that agents this one runs may use (never a session name). */
+    public static final String SHARED_SESSIONS = "\u0000shared";
+
+    /**
+     * Lets agents that this agent runs (Run agent) use the named session, as AA's global sessions: they find it under
+     * the same name and leave it open when they end. Without it a child only gets sessions with "same session" on.
+     */
+    @SuppressWarnings("unchecked")
+    public void shareSession(String name) {
+        ((java.util.Set<String>) sessions.computeIfAbsent(SHARED_SESSIONS, k -> java.util.concurrent.ConcurrentHashMap.newKeySet())).add(name);
+    }
+
+    /** The service key under which the runner offers the current loop item. */
+    public static final String LOOP_ITEM_SERVICE = "loop.item";
+
     public void checkCancelled() {
         if (cancelled.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from One CommandCenter", "The run was stopped before this step finished. Run the agent again when it should go on.");
     }

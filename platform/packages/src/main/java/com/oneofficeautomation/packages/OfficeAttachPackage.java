@@ -16,7 +16,7 @@ import java.util.*;
  * person can keep working in the same window. File names and values are passed as script arguments or a temporary JSON
  * file, never pasted into script code.
  */
-@OoaPackage(id = "ooa.office_attach", name = "Open Excel and Word files (needs Office)", version = "1.0.0",
+@OoaPackage(id = "ooa.office_attach", name = "Open Office files", version = "1.0.0",
         description = "Read, write and save an Excel workbook or Word document that is already open on the desktop, in the same window.")
 public final class OfficeAttachPackage {
 
@@ -138,7 +138,7 @@ public final class OfficeAttachPackage {
         return Map.of("workbooks", j instanceof List<?> l ? l : j == null ? List.of() : List.of(j));
     }
 
-    @Action(id = "excel_read_range", name = "Read range from open workbook", category = "Excel", idempotent = true, capabilities = "desktop",
+    @Action(id = "excel_read_range", name = "Read range", category = "Excel", idempotent = true, capabilities = "desktop",
             description = "Read a range, or the used area, of a sheet in a workbook that is open in Excel, including values not yet saved, as a Data Table.",
             panel = "workbook, sheet, range, header | timeout_seconds")
     @Output(name = "table", type = OoaType.TABLE, description = "The cells; columns named from the first row when header is on.")
@@ -275,7 +275,7 @@ public final class OfficeAttachPackage {
         return Map.of("text", t == null ? "" : String.valueOf(t).replace("\r\n", "\n").replace('\r', '\n').replace("\u0007", ""));
     }
 
-    @Action(id = "word_replace_text", name = "Replace text in open document", category = "Word", capabilities = "desktop",
+    @Action(id = "word_replace_text", name = "Replace text", category = "Word", capabilities = "desktop",
             description = "Replace every occurrence of a text in a document that is open in Word, e.g. a {{name}} placeholder; the person sees it change. Saving is a separate step.",
             panel = "document, find, replace_with | match_case, whole_word, timeout_seconds")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of occurrences replaced.")

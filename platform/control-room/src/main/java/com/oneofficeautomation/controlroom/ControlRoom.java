@@ -1528,7 +1528,36 @@ public final class ControlRoom {
      */
     public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
                                         int priority, String callbackUrl, String runAs, String mode) {
-        return startRun(requestedBy, role, path, deviceId, poolId, inputs, source, ip, priority, callbackUrl, runAs, mode, null);
+        return startRun(requestedBy, role, path, deviceId, poolId, inputs, source, ip, priority, callbackUrl, runAs, mode, (String) null);
+    }
+
+    /** As above, with the run window the person chose in Run now ("hidden", "small", "medium", "large"; null: Settings). */
+    public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
+                                        int priority, String callbackUrl, String runAs, String mode, Object runWindow) {
+        return startRun(requestedBy, role, path, deviceId, poolId, inputs, source, ip, priority, callbackUrl, runAs, mode, null, runWindowChoice(runWindow));
+    }
+
+    /** The run window choices of Run now; anything else (or "default") leaves it to Settings. */
+    static final Set<String> RUN_WINDOWS = Set.of("hidden", "small", "medium", "large");
+    static String runWindowChoice(Object v) {
+        String s = v == null ? "" : String.valueOf(v).trim().toLowerCase(java.util.Locale.ROOT);
+        if (s.isEmpty() || s.equals("default")) return null;
+        if (!RUN_WINDOWS.contains(s)) throw new OoaException("CR.BAD_INPUT", "The run window is default, hidden, small, medium or large");
+        return s;
+    }
+
+    /**
+     * The run window a runner shows for a run (item 1, 21 Nov 2026): null when none (headless runs, Settings say hidden,
+     * or the person chose hidden where Settings let them choose); else its size, whether it starts minimised and whether
+     * Pause and Stop are on it.
+     */
+    Map<String, Object> runWindowForJob(String mode, Object chosen) {
+        if ("headless".equals(mode)) return null;
+        String choice = platform.intSetting("run_window_per_run") == 1 && chosen != null ? String.valueOf(chosen) : null;
+        if ("hidden".equals(choice)) return null;
+        if (choice == null && platform.intSetting("run_window_show") == 0) return null;
+        String size = choice != null ? choice : switch (platform.intSetting("run_window_size")) { case 0 -> "small"; case 2 -> "large"; default -> "medium"; };
+        return Map.of("size", size, "minimised", platform.intSetting("run_window_minimised") == 1, "controls", platform.intSetting("run_window_controls") == 1);
     }
 
     /**
@@ -1538,6 +1567,12 @@ public final class ControlRoom {
     @SuppressWarnings("unchecked")
     public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
                                         int priority, String callbackUrl, String runAs, String mode, String queueItemId) {
+        return startRun(requestedBy, role, path, deviceId, poolId, inputs, source, ip, priority, callbackUrl, runAs, mode, queueItemId, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
+                                         int priority, String callbackUrl, String runAs, String mode, String queueItemId, String runWindow) {
         if (rolesOf(requestedBy, role).stream().noneMatch(r -> allowed(r, "runs.start"))) throw denied("start runs");
         if (path == null || !path.endsWith(".flow.json")) throw new OoaException("CR.NOT_AN_AGENT", path + " is not an agent", "Start workflows from Workflow; forms run inside workflows.");
         folders.require(requestedBy, role, path, "run", "run agents");
@@ -1598,10 +1633,10 @@ public final class ControlRoom {
         }
         String runId = id("run");
         String asUser = runAs == null || runAs.isBlank() ? null : runAs;
-        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, priority, callback_url, run_as, run_mode, queue_item_id) "
-                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, priority, callback_url, run_as, run_mode, queue_item_id, run_window) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 runId, path, c.get("version"), deviceId, "queued", JsonLite.write(clean), requestedBy, source, now(), false, false, priority,
-                callbackUrl == null || callbackUrl.isBlank() ? null : callbackUrl, asUser, runMode.equals("unattended") && asUser == null ? null : runMode, queueItemId);
+                callbackUrl == null || callbackUrl.isBlank() ? null : callbackUrl, asUser, runMode.equals("unattended") && asUser == null ? null : runMode, queueItemId, runWindow);
         Map<String, Object> details = new LinkedHashMap<>(Map.of("bot", path, "version", c.get("version"), "device", deviceId, "source", source, "mode", runMode));
         if (asUser != null) details.put("run_as", asUser);
         audit.record(requestedBy, "run.start", "run", runId, details, "ok", ip);
@@ -1627,11 +1662,11 @@ public final class ControlRoom {
         List<Object> runs = new ArrayList<>();
         int started = 0;
         for (Object u : b.get("run_as_users") instanceof List<?> l ? l : List.of()) {
-            try { runs.add(startRun(by.username(), by.role(), path, null, null, inputs, source, ip, priority, callback, String.valueOf(u), mode)); started++; }
+            try { runs.add(startRun(by.username(), by.role(), path, null, null, inputs, source, ip, priority, callback, String.valueOf(u), mode, b.get("run_window"))); started++; }
             catch (OoaException e) { runs.add(Map.of("run_as", String.valueOf(u), "error", e.toMap())); }
         }
         for (Object d : b.get("device_ids") instanceof List<?> l ? l : List.of()) {
-            try { runs.add(startRun(by.username(), by.role(), path, String.valueOf(d), null, inputs, source, ip, priority, callback, null, mode)); started++; }
+            try { runs.add(startRun(by.username(), by.role(), path, String.valueOf(d), null, inputs, source, ip, priority, callback, null, mode, b.get("run_window"))); started++; }
             catch (OoaException e) { runs.add(Map.of("device_id", String.valueOf(d), "error", e.toMap())); }
         }
         if (runs.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Give run_as_users or device_ids");
@@ -1894,6 +1929,8 @@ public final class ControlRoom {
             }
             if (guardrails != null) job.put("guardrails", guardrails);
             if (platform.intSetting("runner_error_screenshots") == 0) job.put("error_screenshots", false);   // Settings: no pictures of the screen
+            Map<String, Object> window = runWindowForJob(String.valueOf(job.get("mode")), run.get("run_window"));   // the run window on the runner's screen
+            if (window != null) job.put("run_window", window);
             if (!custom.isEmpty()) job.put("custom_toolkits", custom);
             Map<String, Object> resume = runWaits.forJob((String) run.get("id"));   // a resumed run (G36): where it starts, with what
             if (resume != null) job.put("resume", resume);

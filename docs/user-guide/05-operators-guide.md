@@ -147,8 +147,9 @@ in their row's **⋯** menu (or **Run** on the agent's page); a live workflow's 
 4. Press **Run**. A message says "Started <agent> (run <id>): follow it in Agent Activity."
 
 To run it for several people, choose **Run-as users (each on their default runner)** in **Run on** and tick them: each
-gets their own run on their default runner, acting as them, with their own vault values. **Run mode, priority and
-result callback** sets the run mode (below), a **Priority on the runner** (Low, Normal, High, Urgent) and a
+gets their own run on their default runner, acting as them, with their own vault values. **Run mode, run window,
+priority and result callback** sets the run mode (below), the **Run window** on the runner's screen for this run
+(As in Settings, Hidden, Small, Medium or Large; used when Settings let people choose, and never for headless runs), a **Priority on the runner** (Low, Normal, High, Urgent) and a
 **Callback URL** that receives the result as JSON when the run ends.
 
 **Run modes in practice:**

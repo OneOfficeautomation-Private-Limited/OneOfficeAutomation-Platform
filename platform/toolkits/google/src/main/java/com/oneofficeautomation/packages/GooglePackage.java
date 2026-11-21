@@ -299,7 +299,7 @@ public final class GooglePackage {
         };
     }
 
-    @Action(id = "gmail_send", name = "Send email (Gmail)", category = "Gmail", capabilities = "network",
+    @Action(id = "gmail_send", name = "Send email", category = "Gmail", capabilities = "network",
             description = "Send a plain-text or HTML email from Gmail with optional CC, BCC, attachments, reply-to and send-as alias.",
             panel = "access_token, to, cc, bcc, subject, attachments, html, body | from, reply_to, base_url")
     @Output(name = "message_id", type = OoaType.STRING, description = "Gmail message id.")
@@ -1875,7 +1875,7 @@ public final class GooglePackage {
 
     // ------------------------------------------------------------------ Gmail actions
 
-    @Action(id = "gmail_list_messages", name = "Find emails (Gmail)", category = "Gmail", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+    @Action(id = "gmail_list_messages", name = "Find emails", category = "Gmail", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Find Gmail messages with a Gmail search such as from:billing@acme.com is:unread and return them as a table.",
             panel = "access_token, status, label, subject_contains, from_contains, since, before, has_attachments_only | query, max_results, include_spam_trash, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, thread_id, from, to, subject, date, snippet, unread, labels, received (date and time, UTC).")
@@ -1925,7 +1925,7 @@ public final class GooglePackage {
         return MailRecord.each(MailRecord.rows(table), withBody, row -> (Map<String, Object>) gmailGet(ctx, token, String.valueOf(row.get("id")), false, ep).get("email"));
     }
 
-    @Action(id = "gmail_get_message", name = "Read email (Gmail)", category = "Gmail", idempotent = true, capabilities = "network",
+    @Action(id = "gmail_get_message", name = "Read email", category = "Gmail", idempotent = true, capabilities = "network",
             description = "Read one Gmail message: headers, text and HTML body, labels and attachment names.",
             panel = "access_token, message_id, mark_read | base_url")
     @Output(name = "email", type = OoaType.DICTIONARY, description = "id, thread_id, from, to, cc, subject, date, message_id, text, html, attachments, labels. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
@@ -1959,7 +1959,7 @@ public final class GooglePackage {
         return Map.of("email", MailRecord.withCommonKeys(e));
     }
 
-    @Action(id = "gmail_mark_message", name = "Change email status (Gmail)", category = "Gmail", idempotent = true, capabilities = "network",
+    @Action(id = "gmail_mark_message", name = "Change email status", category = "Gmail", idempotent = true, capabilities = "network",
             description = "Mark a Gmail message as read, unread, starred, not starred, important or not important.",
             panel = "access_token, message_id, status | base_url")
     public Map<String, Object> gmailMark(ActionContext ctx,
@@ -1980,7 +1980,7 @@ public final class GooglePackage {
         return Map.of();
     }
 
-    @Action(id = "gmail_move_message", name = "Move email (Gmail)", category = "Gmail", idempotent = true, capabilities = "network",
+    @Action(id = "gmail_move_message", name = "Move email", category = "Gmail", idempotent = true, capabilities = "network",
             description = "Move a Gmail message between labels, e.g. add Processed and remove INBOX.",
             panel = "access_token, message_id, remove_labels, add_labels, keep_other_labels | base_url")
     @Output(name = "labels", type = OoaType.LIST, description = "Label ids the message has afterwards.")
@@ -2000,7 +2000,7 @@ public final class GooglePackage {
 
     private static final Set<String> STATUS_LABELS = Set.of("UNREAD", "STARRED", "IMPORTANT", "SENT", "DRAFT");
 
-    @Action(id = "gmail_move_all", name = "Move all emails (Gmail)", category = "Gmail", timeoutSeconds = 600, capabilities = "network",
+    @Action(id = "gmail_move_all", name = "Move all emails", category = "Gmail", timeoutSeconds = 600, capabilities = "network",
             description = "Add and remove labels on every Gmail message that matches a search or the filters, e.g. move them from INBOX to Processed.",
             panel = "access_token, remove_labels, add_labels, status, label, subject_contains, from_contains, since, before | query, max_messages, base_url")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages changed.")
@@ -2032,7 +2032,7 @@ public final class GooglePackage {
         return Map.of("count", num(ids.size()));
     }
 
-    @Action(id = "gmail_label_exists", name = "Check label exists (Gmail)", category = "Gmail", idempotent = true, capabilities = "network",
+    @Action(id = "gmail_label_exists", name = "Check label exists", category = "Gmail", idempotent = true, capabilities = "network",
             description = "Check whether a Gmail label exists, by name (not case-sensitive) or id, and return its id.",
             panel = "access_token, label | base_url")
     @Output(name = "exists", type = OoaType.BOOLEAN, description = "True when the label exists.")
@@ -2048,7 +2048,7 @@ public final class GooglePackage {
         return Map.of("exists", false, "label_id", "");
     }
 
-    @Action(id = "gmail_delete_message", name = "Delete email (Gmail)", category = "Gmail", capabilities = "network",
+    @Action(id = "gmail_delete_message", name = "Delete email", category = "Gmail", capabilities = "network",
             description = "Move a Gmail message to the trash, or delete it permanently.",
             panel = "access_token, message_id | permanent, base_url")
     public Map<String, Object> gmailDelete(ActionContext ctx,
@@ -2061,7 +2061,7 @@ public final class GooglePackage {
         return Map.of();
     }
 
-    @Action(id = "gmail_delete_all", name = "Delete all emails (Gmail)", category = "Gmail", timeoutSeconds = 600, capabilities = "network",
+    @Action(id = "gmail_delete_all", name = "Delete all emails", category = "Gmail", timeoutSeconds = 600, capabilities = "network",
             description = "Trash, or permanently delete, every Gmail message that matches a search.",
             panel = "access_token, status, label, subject_contains, from_contains, since, before | query, permanent, max_messages, base_url")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages deleted.")
@@ -2087,7 +2087,7 @@ public final class GooglePackage {
         return Map.of("count", num(ids.size()));
     }
 
-    @Action(id = "gmail_forward_message", name = "Forward email (Gmail)", category = "Gmail", capabilities = "network",
+    @Action(id = "gmail_forward_message", name = "Forward email", category = "Gmail", capabilities = "network",
             description = "Forward a Gmail message with a note, either inline with its attachments or as an attached .eml file.",
             panel = "access_token, message_id, to, cc, bcc, attachments, [Add a note above the message: note, html] | as_attachment, include_attachments, base_url")
     @Output(name = "message_id", type = OoaType.STRING, description = "Gmail id of the sent message.")
@@ -2182,7 +2182,7 @@ public final class GooglePackage {
         return Out.of("message_id", r.get("id"), "thread_id", r.get("threadId"));
     }
 
-    @Action(id = "gmail_reply_message", name = "Reply to email (Gmail)", category = "Gmail", capabilities = "network",
+    @Action(id = "gmail_reply_message", name = "Reply to email", category = "Gmail", capabilities = "network",
             description = "Reply to the sender of a Gmail message in the same conversation thread.",
             panel = "access_token, message_id, cc, bcc, attachments, body, html | include_original, base_url")
     @Output(name = "message_id", type = OoaType.STRING, description = "Gmail id of the reply.")
@@ -2200,7 +2200,7 @@ public final class GooglePackage {
         return gmailReplyImpl(ctx, token, id, body, html, false, include, attachments, cc, bcc, false, null, ep);
     }
 
-    @Action(id = "gmail_reply_all", name = "Reply all to email (Gmail)", category = "Gmail", capabilities = "network",
+    @Action(id = "gmail_reply_all", name = "Reply all to email", category = "Gmail", capabilities = "network",
             description = "Reply to the sender and every other recipient of a Gmail message in the same thread.",
             panel = "access_token, message_id, cc, bcc, exclude_sender, subject, attachments, body, html | include_original, base_url")
     @Output(name = "message_id", type = OoaType.STRING, description = "Gmail id of the reply.")
@@ -2220,7 +2220,7 @@ public final class GooglePackage {
         return gmailReplyImpl(ctx, token, id, body, html, true, include, attachments, cc, bcc, excludeSender, newSubject, ep);
     }
 
-    @Action(id = "gmail_save_attachments", name = "Save email attachments (Gmail)", category = "Gmail", capabilities = {"network", "filesystem"},
+    @Action(id = "gmail_save_attachments", name = "Save attachments", category = "Gmail", capabilities = {"network", "filesystem"},
             description = "Save a Gmail message's attachments to a folder, optionally only names matching a pattern such as *.pdf.",
             panel = "access_token, message_id, target_folder, overwrite | name_pattern, base_url")
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
@@ -2257,7 +2257,7 @@ public final class GooglePackage {
         return saved;
     }
 
-    @Action(id = "gmail_save_all_attachments", name = "Save attachments of all matching emails (Gmail)", category = "Gmail", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+    @Action(id = "gmail_save_all_attachments", name = "Save all attachments", category = "Gmail", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Save the attachments of every Gmail message that matches a search or the filters, optionally marking them as read.",
             panel = "access_token, status, label, subject_contains, from_contains, since, before, target_folder, overwrite | name_pattern, query, mark_read, max_messages, base_url")
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
@@ -2287,7 +2287,7 @@ public final class GooglePackage {
         return Map.of("files", saved, "message_count", num(ids.size()));
     }
 
-    @Action(id = "gmail_save_message_as_eml", name = "Save email as EML (Gmail)", category = "Gmail", capabilities = {"network", "filesystem"},
+    @Action(id = "gmail_save_message_as_eml", name = "Save email as EML", category = "Gmail", capabilities = {"network", "filesystem"},
             description = "Save a complete Gmail message, with attachments, as an .eml file that mail programs can open.",
             panel = "access_token, message_id, local_path, overwrite | base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")

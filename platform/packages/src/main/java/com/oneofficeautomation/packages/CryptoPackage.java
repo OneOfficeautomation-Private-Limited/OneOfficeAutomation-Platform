@@ -15,7 +15,7 @@ import java.nio.file.*;
 import java.security.*;
 import java.util.*;
 
-@OoaPackage(id = "ooa.crypto", name = "Hash, encryption and encoding", version = "1.0.0", description = "Hashes, HMAC signatures, AES-256 encryption of text and files, and Base64 encoding.")
+@OoaPackage(id = "ooa.crypto", name = "Hash and encrypt", version = "1.0.0", description = "Hashes, HMAC signatures, AES-256 encryption of text and files, and Base64 encoding.")
 public final class CryptoPackage {
 
     private static String algo(String a) {

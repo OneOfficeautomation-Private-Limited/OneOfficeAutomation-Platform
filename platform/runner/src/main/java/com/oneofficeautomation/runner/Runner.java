@@ -274,6 +274,8 @@ public final class Runner {
         final Map<String, Object> requires;
         Map<String, Object> sessions = new ConcurrentHashMap<>();
         boolean borrowedSessions;
+        /** Sessions a parent lent to this child run (shared sessions): used here, never closed here. */
+        final Set<String> lent = new HashSet<>();
         final List<String> secrets = new CopyOnWriteArrayList<>();
         final List<SecureString> secureValues = new CopyOnWriteArrayList<>();
         final AtomicLong seq = new AtomicLong();
@@ -651,7 +653,8 @@ public final class Runner {
         }
 
         void closeSessions() {
-            for (Object s : sessions.values()) if (s instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
+            for (Map.Entry<String, Object> e : sessions.entrySet())
+                if (!lent.contains(e.getKey()) && e.getValue() instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
             sessions.clear();
         }
 
@@ -1160,10 +1163,7 @@ public final class Runner {
             if (c instanceof String s) return Expressions.truthy(Expressions.evaluate(s, this::lookup));
             if (c instanceof Map<?, ?> raw) {
                 Map<String, Object> m = (Map<String, Object>) raw;
-                if (m.get("all") instanceof List<?> l) { for (Object x : l) if (!condition(x, stepId)) return false; return true; }
-                if (m.get("any") instanceof List<?> l) { for (Object x : l) if (condition(x, stepId)) return true; return false; }
-                if (m.containsKey("not")) return !condition(m.get("not"), stepId);
-                if (m.containsKey("expr")) return Expressions.truthy(Expressions.evaluate(String.valueOf(m.get("expr")), this::lookup));
+                // "keep checking for up to N seconds" first, so it also wraps a Not or a group (wait until a file is gone)
                 if (m.containsKey("waitSeconds")) {
                     double wait = Values.toNumber(resolve(m.get("waitSeconds"))).doubleValue();
                     double poll = m.containsKey("pollSeconds") ? Values.toNumber(resolve(m.get("pollSeconds"))).doubleValue() : 0.5;
@@ -1176,6 +1176,10 @@ public final class Runner {
                         sleep(Math.max(0.01, poll));
                     }
                 }
+                if (m.get("all") instanceof List<?> l) { for (Object x : l) if (!condition(x, stepId)) return false; return true; }
+                if (m.get("any") instanceof List<?> l) { for (Object x : l) if (condition(x, stepId)) return true; return false; }
+                if (m.containsKey("not")) return !condition(m.get("not"), stepId);
+                if (m.containsKey("expr")) return Expressions.truthy(Expressions.evaluate(String.valueOf(m.get("expr")), this::lookup));
                 if (m.containsKey("op")) {
                     Map<String, Object> opts = new HashMap<>();
                     for (String k : List.of("ignoreCase", "trim", "includeTime", "ignoreLineBreaks")) if (m.containsKey(k)) opts.put(k, resolve(m.get(k)));
@@ -1307,9 +1311,11 @@ public final class Runner {
                             scope.set(var, row.get(e.getKey()));
                         }
                     i++;
+                    loopItems.push(cur[0] == null ? NO_ITEM : cur[0]);
                     try { execSteps(list(step, "children"), false); }
                     catch (ContinueSignal c) { if (c.label != null && !c.label.equals(label)) throw c; }
                     catch (BreakSignal b) { if (b.label != null && !b.label.equals(label)) throw b; break; }
+                    finally { loopItems.poll(); }
                 }
             } finally {
                 if (release != null) try { release.close(); } catch (Exception ignored) { }
@@ -1533,6 +1539,11 @@ public final class Runner {
                 child.parentStep = String.valueOf(step.get("id"));
                 child.maxJumps = maxJumps;
                 if (same) { child.sessions = sessions; child.borrowedSessions = true; }
+                else if (sessions.get(ActionContext.SHARED_SESSIONS) instanceof Set<?> shared) {
+                    // sessions opened with "agents this one runs may use it": lent to the child, which leaves them open
+                    for (Object n : shared) if (n instanceof String name && sessions.get(name) != null) { child.sessions.put(name, sessions.get(name)); child.lent.add(name); }
+                    child.sessions.put(ActionContext.SHARED_SESSIONS, shared);
+                }
                 RunResult res = child.executeAsChild(childInputs, deadlineNanos, secrets);
                 runs++;
                 stepsExecuted.addAndGet(res.stepsExecuted());
@@ -1602,6 +1613,10 @@ public final class Runner {
         /** Platform services plus this run's read-only variable view. */
         private Map<String, Object> stepServices;
 
+        /** Items of the loops around the running step, innermost first (offered to commands as the current item). */
+        final Deque<Object> loopItems = new java.util.concurrent.ConcurrentLinkedDeque<>();
+        static final Object NO_ITEM = new Object();
+
         Map<String, Object> stepServices() {
             if (stepServices == null) {
                 Map<String, Object> m = new HashMap<>(services);
@@ -1612,6 +1627,8 @@ public final class Runner {
                 m.putIfAbsent(RunSuspension.SERVICE, suspension());
                 // coded agents (G70): a toolkit command the code calls runs as part of the calling step
                 m.putIfAbsent("action_invoker", (java.util.function.Function<Map<String, Object>, Object>) this::invokeForCode);
+                // the item of the innermost loop around the step: "the current email" for steps that leave their id empty
+                m.putIfAbsent(ActionContext.LOOP_ITEM_SERVICE, (java.util.function.Supplier<Object>) () -> { Object o = loopItems.peek(); return o == NO_ITEM ? null : o; });
                 stepServices = java.util.Collections.unmodifiableMap(m);
             }
             return stepServices;
@@ -1697,9 +1714,22 @@ public final class Runner {
                     (lvl, msg) -> emit("log", stepId, logData(lvl, msg)));
         }
 
+        /** Key under which prepareArgs hands the files chosen by name rules to invoke (never an input name). */
+        static final String SELECTED_FILES = "\u0000selectedFiles";
+
+        /** The folder of a name-rule selection, relative to the work folder and confined to it like any path. */
+        Path ruleFolder(String folder) {
+            Path p = Path.of(folder);
+            Path r = p.isAbsolute() ? p : workDir.resolve(p);
+            if (Boolean.TRUE.equals(services.get("confine_paths")) && !r.toAbsolutePath().normalize().startsWith(workDir.toAbsolutePath().normalize()))
+                throw new ActionException("FILE.OUTSIDE_WORKSPACE", "This run may only use files in its own workspace, not " + folder, "Use a folder relative to the workspace.");
+            return r;
+        }
+
         Map<String, Object> prepareArgs(ActionSpec spec, Map<String, Object> raw) {
             raw = spec.currentArgs(raw);
             Map<String, Object> out = new LinkedHashMap<>();
+            Map<String, List<Path>> selected = new LinkedHashMap<>();
             for (ActionSpec.InputSpec in : spec.inputs()) {
                 Object v = raw == null ? null : raw.get(in.name());
                 // A required Text that the step fills from a value which turns out missing (a null field, an empty cell) is
@@ -1707,9 +1737,24 @@ public final class Runner {
                 if (v == null && in.type() == OoaType.STRING && in.required() && in.defaultValue() == null && raw != null && raw.containsKey(in.name()))
                     v = "";
                 if (in.type() == OoaType.CREDENTIAL) v = credentialArg(in.name(), v);
+                else if (in.acceptsCredential() && v instanceof Map<?, ?> cm && cm.containsKey("$credential")) {
+                    // a Text input that may come from the vault (host, user, connection string): read just in time, masked
+                    Object sec = credentialArg(in.name(), v);
+                    v = sec instanceof SecureString ss ? ss.reveal() : sec;
+                }
                 else if (v != null) refuseVaultReference(in.name(), v, 0);
                 // an element of a shared object repository (G42) is read from its file just before the step runs
                 if ("object".equals(in.name()) && ObjectRepositories.isReference(v)) v = ObjectRepositories.resolve(workDir, v);
+                // a File input given as name rules ({"$files": ...}): every match goes to the command, the first is its value
+                if (in.type() == OoaType.FILE && com.oneofficeautomation.sdk.FileSelection.isSelection(v)) {
+                    com.oneofficeautomation.sdk.FileSelection sel = com.oneofficeautomation.sdk.FileSelection.parse(v);
+                    List<Path> found = sel.resolve(this::ruleFolder);
+                    selected.put(in.name(), found);
+                    if (found.isEmpty() && in.required())
+                        throw new ActionException("FILE.NO_MATCH", "No file matches: " + sel.describe(),
+                                "Check the folder and the rules (the field's Name rule mode), or wait for the file first with Wait for file.");
+                    v = found.isEmpty() ? null : found.get(0).toString();
+                }
                 if (v != null) {
                     if (in.type() == OoaType.FILE && v instanceof com.oneofficeautomation.sdk.ImageValue img && PICTURE_INPUTS.contains(in.name())) v = pictureFile(img);
                     if (in.type() != OoaType.ANY && in.type() != OoaType.CREDENTIAL && !(v instanceof SecureString)) {
@@ -1731,6 +1776,7 @@ public final class Runner {
                             + (raw != null && raw.containsKey(in.name()) ? ": what it refers to is empty or missing" : ""), in.description());
                 }
             }
+            if (!selected.isEmpty()) out.put(SELECTED_FILES, selected);
             return out;
         }
 
@@ -1777,6 +1823,7 @@ public final class Runner {
         Object invoke(PackageRegistry.LoadedPackage pkg, ActionSpec spec, Map<String, Object> args, ActionContext ctx) {
             Parameter[] ps = spec.method().getParameters();
             Object[] call = new Object[ps.length];
+            if (args.get(SELECTED_FILES) instanceof Map<?, ?> sel) ctx.withSelectedFiles((Map<String, List<Path>>) sel);
             call[0] = ctx;
             for (int i = 1; i < ps.length; i++) {
                 ActionSpec.InputSpec in = spec.inputs().get(i - 1);

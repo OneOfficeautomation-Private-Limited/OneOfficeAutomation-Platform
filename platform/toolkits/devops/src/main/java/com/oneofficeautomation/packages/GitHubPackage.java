@@ -216,7 +216,7 @@ public final class GitHubPackage {
         return Map.of();
     }
 
-    @Action(id = "add_issue_comment", name = "Comment on issue or pull request", category = "Issues", capabilities = "network",
+    @Action(id = "add_issue_comment", name = "Add comment", category = "Issues", capabilities = "network",
             description = "Add a comment to an issue or a pull request conversation.",
             panel = "token, owner, repo, number, text | base_url")
     @Output(name = "comment_id", type = OoaType.NUMBER, description = "Id of the new comment.")

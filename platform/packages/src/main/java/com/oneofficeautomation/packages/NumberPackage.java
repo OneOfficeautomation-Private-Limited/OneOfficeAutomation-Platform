@@ -269,7 +269,7 @@ public final class NumberPackage {
         return Out.of("result", times.multiply(step).setScale(Math.max(0, step.stripTrailingZeros().scale()), RoundingMode.UNNECESSARY));
     }
 
-    @Action(id = "format_as", name = "Format as currency, percent or unit", category = "Number", idempotent = true,
+    @Action(id = "format_as", name = "Format as currency or unit", category = "Number", idempotent = true,
             description = "Write a number as money (1,234.50 EUR in the locale's way), as a percentage (15%) or with a unit (12.5 kg).",
             panel = "value, style, currency, unit, locale | decimals, fraction, unit_before")
     @Output(name = "text", type = OoaType.STRING, description = "The formatted text.")
