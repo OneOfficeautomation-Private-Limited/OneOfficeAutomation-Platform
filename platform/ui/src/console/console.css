@@ -256,16 +256,25 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
  * --ui-divider is the light line between rows.
  */
 :root:not([data-theme="dark"]) .cc-app {
-  --ui-text: #14233d;
-  --ui-text-2: #2e4366;
-  --ui-text-3: #3f5478;
-  --ui-border: #7f95bb;
-  --ui-line: #9fb3d3;
-  --ui-divider: #c5d3e8;
-  --ui-col-line: #c5d3e8;
-  --ui-soft: #edf2fa;
-  --ui-row-hover: #eef3fb;
-  --ui-heading: #0b1a33;
+  /* F1 final (chosen on the canvas, 22 Nov 2026): white pages, near-black text, brand blue #08507c for links and the
+     main button, brand purple #7148c9 for the selected tab, an ink top bar and dark table headers. */
+  --ui-font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --ui-text: #0a0a0a;          /* 19.8:1 on white */
+  --ui-text-2: #262626;        /* 15.1:1 */
+  --ui-text-3: #3d3d3d;        /* 10.9:1 */
+  --ui-border: #8a93a2;        /* 3.1:1: panels, dialogs, tab rows */
+  --ui-line: #5c6575;          /* 5.9:1: under page titles and table headers */
+  --ui-divider: #b4bcc8;       /* row lines */
+  --ui-col-line: #b4bcc8;      /* column lines */
+  --ui-field: #5c6575;         /* field borders, 5.9:1 */
+  --ui-soft: #f1f3f7;          /* striped rows, code boxes */
+  --ui-tint: #f1f3f7;
+  --ui-row-hover: #e9eef6;
+  --ui-selected: #e6eef6;
+  --ui-pill-text: #08507c;     /* 7.3:1 on the selected colour */
+  --ui-accent: #08507c;        /* white on it 8.6:1 */
+  --ui-accent-text: #08507c;   /* 8.6:1 on white */
+  --ui-heading: #0a0a0a;
 }
 /* The dark menu's section lines and guide line, lifted the same way (2.2:1 and 2.8:1 on the menu, were 1.5 and 1.8). */
 .st-app.cc-app {
@@ -323,7 +332,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-list-panel { background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); min-width: 0; overflow: hidden; }
 .cc-list-bulk { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; background: var(--ui-selected); border-bottom: 1px solid var(--ui-border); flex-wrap: wrap; }
 .cc-list-bulk strong { color: var(--ui-pill-text); }
-.cc-list-bulk .ui-btn { height: 26px; }
+.cc-list-bulk .ui-btn { height: var(--ui-h); }
 .cc-list-scroll { overflow-x: auto; }
 .cc-list-table { width: 100%; border-collapse: collapse; }
 .cc-list-table th { text-align: left; font-size: 12.5px; font-weight: 600; padding: 0 12px; height: 30px; background: var(--ui-tint); border-bottom: 1px solid var(--ui-line, var(--ui-divider)); line-height: 1.2; }
@@ -337,7 +346,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-list-menu { width: 34px; text-align: right; padding-right: 8px !important; }
 .cc-list-pager { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border-top: 1px solid var(--ui-line, var(--ui-divider)); font-size: 12.5px; color: var(--ui-text-2); }
 .cc-list-rows { display: inline-flex; align-items: center; gap: 6px; }
-.cc-list-rows select { height: 26px; border-radius: var(--ui-radius); border: 1px solid var(--ui-field); background: var(--ui-bg); color: var(--ui-text); font: inherit; }
+.cc-list-rows select { height: var(--ui-h); border-radius: var(--ui-radius); border: 1px solid var(--ui-field); background: var(--ui-bg); color: var(--ui-text); font: inherit; }
 .cc-list-hint { margin: 0; color: var(--ui-text-2); }
 .cc-none { color: var(--ui-text-3); }
 .cc-pill { display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
@@ -363,7 +372,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-mx-strip { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 6px 12px; background: var(--ui-tint); border: 1px solid var(--ui-line, var(--ui-divider)); border-radius: var(--ui-radius); font-size: 13px; }
 .cc-mx-safe { color: var(--ui-ok-text); font-weight: 600; }
 .cc-mx-risky { color: var(--ui-error-text); font-weight: 600; }
-.cc-mx-find .ui-input { width: 220px; height: 28px; }
+.cc-mx-find .ui-input { width: 220px; height: var(--ui-h); }
 .cc-mx { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; border: 1px solid var(--ui-border); }
 .cc-mx-area { width: 200px; }
 .cc-mx-all { width: 110px; }
@@ -393,7 +402,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 /* Teams, Credential vault and Licenses in the list pattern (31 Oct 2026): page tabs under the title, a tick-box chip,
    each person's own value as set or missing, rule names in a code chip, panels as on Overview */
 .cc-list-tabs { height: 36px; padding: 0; }
-.cc-chip-check { display: inline-flex; align-items: center; gap: 6px; height: 30px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--ui-field); border-radius: var(--ui-radius);
+.cc-chip-check { display: inline-flex; align-items: center; gap: 6px; height: var(--ui-h); box-sizing: border-box; padding: 0 10px; border: 1px solid var(--ui-field); border-radius: var(--ui-radius);
   background: var(--ui-bg); color: var(--ui-text); font-size: 13px; white-space: nowrap; cursor: pointer; }
 .cc-chip-check input { margin: 0; accent-color: var(--ui-accent); }
 .cc-chip-check.is-on { border-color: var(--ui-accent); background: var(--ui-selected); color: var(--ui-pill-text); font-weight: 600; }
@@ -405,7 +414,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
   font: 12px var(--ui-mono); color: var(--ui-text); }
 .cc-list-sub { font-size: 12.5px; color: var(--ui-text-2); white-space: normal; }
 .cc-list-form td { height: 40px; }
-.cc-list-form .ui-input { height: 28px; max-width: 280px; }
+.cc-list-form .ui-input { height: var(--ui-h); max-width: 280px; }
 .cc-lic-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .cc-lic-body p { margin: 0; }
 .ov-panel .cc-install { margin: 0; padding: 10px 12px; max-width: none; }
@@ -439,7 +448,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
 .cc-au-panel-head { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
 .cc-au-panel-head h2 { margin: 0; font-size: 14px; font-weight: 600; }
 .cc-au-panel-head .cc-au-ic { margin-right: 0; }
-.cc-au-panel-head .ui-btn { height: 28px; padding: 0 8px; }
+.cc-au-panel-head .ui-btn { height: var(--ui-h); padding: 0 8px; }
 .cc-au-panel-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 14px; }
 .cc-au-sec { margin: 0 0 6px; font-size: 12.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: var(--ui-heading, var(--ui-text)); }
 .cc-au-kv { width: 100%; border-collapse: collapse; font-size: 12.5px; border: 1px solid var(--ui-divider); }
@@ -552,7 +561,7 @@ button.cc-link { padding: 0; border: 0; background: none; font: inherit; color: 
   box-shadow: -10px 0 28px rgba(11, 26, 51, .16); display: flex; flex-direction: column; }
 .cc-run-head { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--ui-line, var(--ui-divider)); flex-wrap: wrap; }
 .cc-run-head h2 { margin: 0; font-size: 14px; font-weight: 600; }
-.cc-run-head .ui-btn { height: 28px; padding: 0 8px; }
+.cc-run-head .ui-btn { height: var(--ui-h); padding: 0 8px; }
 .cc-run-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; }
 .cc-run-panel .cc-errbox { background: var(--ui-error-bg); color: var(--ui-text); border-color: var(--ui-error-text); display: flex; flex-direction: column; gap: 6px; }
 .cc-run-code { color: var(--ui-error-text); font: 600 12.5px var(--ui-mono); }
@@ -633,7 +642,7 @@ span.cc-tree-chev { cursor: default; }
 .cc-agent-steps { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
 .cc-agent-code { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--ui-border); }
 .cc-agent-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cc-agent-tools .cc-list-search .ui-input { width: 220px; height: 28px; }
+.cc-agent-tools .cc-list-search .ui-input { width: 220px; height: var(--ui-h); }
 .cc-agent-side { min-width: 0; background: var(--ui-tint); }
 .cc-agent-pad { padding: 12px; display: flex; flex-direction: column; gap: 10px; margin: 0; }
 .cc-agent-tab { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -686,7 +695,7 @@ table.cc-cols-fixed { table-layout: fixed; }
 table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow: ellipsis; }
 .cc-col-pop { position: fixed; z-index: 60; width: 260px; max-height: 330px; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--ui-bg);
   border: 1px solid var(--ui-border); border-radius: 6px; box-shadow: 0 10px 28px rgba(11, 26, 51, .2); font-size: 13px; color: var(--ui-text); }
-.cc-col-pop .ui-input { height: 28px; }
+.cc-col-pop .ui-input { height: var(--ui-h); }
 .cc-col-pop label { display: flex; align-items: center; gap: 6px; min-height: 24px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-col-pop input[type="checkbox"] { accent-color: var(--ui-accent); margin: 0; flex: none; }
 .cc-col-pop-all { font-weight: 600; border-bottom: 1px solid var(--ui-divider); padding-bottom: 4px; }
@@ -694,7 +703,7 @@ table.cc-cols-fixed th, table.cc-cols-fixed td { overflow: hidden; text-overflow
 .cc-col-pop-list label[hidden] { display: none; }
 .cc-col-pop-n { margin-left: auto; color: var(--ui-text-3); font-size: 12px; }
 .cc-col-pop-foot { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--ui-divider); padding-top: 6px; }
-.cc-col-pop-foot .ui-btn { height: 28px; }
+.cc-col-pop-foot .ui-btn { height: var(--ui-h); }
 /* Agent Templates laid out exactly as Automation (review round 2, 31 Oct 2026): only its row icon differs */
 .cc-aico.is-template { background: #0e7490; }
 /* Agent APIs laid out as Automation (review round 2, 31 Oct 2026): the address to copy in its row */
@@ -776,20 +785,20 @@ a.ov-tab { text-decoration: none; }
    Since Console A (improvement list 12 Nov 2026, item 1: dense like AA): 13 px text (12.5 px for hints and secondary
    lines), 14 px icons in buttons and 16 px in icon buttons, 28 px buttons and fields, 30 px table rows, 32 px tabs, one
    tab style, an 18 px page title. */
-.cc-app { --ui-size: 13px; --ui-h: 28px; --ui-row: 30px; }
+.cc-app { --ui-size: 13px; --ui-h: 30px; --ui-bar-h: 30px; --ui-row: 30px; }   /* polish 22 Nov: one control height, 30 px */
 .cc-app .cc-main { font-size: 13px; }
 .cc-app .cc-main h1 { font-size: 18px; font-weight: 700; }
 .cc-app .cc-main h2 { font-size: 15px; }
-.cc-app .cc-main .ui-btn, .cc-app .cc-main .ui-input, .cc-app .cc-main select, .cc-app .cc-main .ui-search-select-field { height: 28px; font-size: 13px; }
+.cc-app .cc-main .ui-btn, .cc-app .cc-main .ui-input, .cc-app .cc-main select, .cc-app .cc-main .ui-search-select-field { height: var(--ui-h); font-size: 13px; }
 .cc-app .cc-main textarea.ui-input, .cc-app .cc-main .ui-textarea { height: auto; }
 .cc-app .cc-main .ui-btn > svg { width: 14px; height: 14px; }
-.cc-app .cc-main .ui-icon-btn { width: 28px; height: 28px; }
+.cc-app .cc-main .ui-icon-btn { width: var(--ui-h); height: var(--ui-h); }
 .cc-app .cc-main .ui-icon-btn > svg { width: 16px; height: 16px; }
 .cc-app .cc-main svg[width="11"]:not(.ui-tile svg), .cc-app .cc-main svg[width="12"]:not(.ui-tile svg),
 .cc-app .cc-main svg[width="13"]:not(.ui-tile svg), .cc-app .cc-main svg[width="14"]:not(.ui-tile svg) { width: 14px; height: 14px; }
 .cc-app .cc-main table th { height: 30px; font-size: 12.5px; }
 .cc-app .cc-main table tbody td { height: 30px; font-size: 12.5px; }
-.cc-app .cc-main [role="tab"], .cc-app .cc-main .st-page-tab, .cc-app .cc-main .ov-tab, .cc-app .cc-group-tab { height: 32px; font-size: 13px; }
+.cc-app .cc-main [role="tab"], .cc-app .cc-main .st-page-tab, .cc-app .cc-main .ov-tab, .cc-app .cc-group-tab { height: var(--ui-h); font-size: 13px; }
 .cc-app .cc-main .ov-tab[aria-selected="true"], .cc-app .cc-main .st-page-tab[aria-selected="true"] { font-weight: 600; box-shadow: inset 0 -3px 0 var(--ui-accent); }
 .cc-app .cc-main .st-muted, .cc-app .cc-main .cc-list-count, .cc-app .cc-main .ui-field-hint { font-size: 12.5px; }
 
@@ -933,3 +942,69 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
   background: var(--ui-selected); color: var(--ui-pill-text); font-size: 12.5px; }
 .cc-col-filtered-clear { height: 24px; padding: 0 8px; border: 1px solid var(--ui-accent); border-radius: var(--ui-radius); background: var(--ui-bg);
   color: var(--ui-accent-text); font: inherit; cursor: pointer; }
+
+/* ======================================================================================================================
+ * F1 final (22 Nov 2026), chosen on the "Console colour options" canvas: white pages, darker and heavier text, an ink top
+ * bar with a brand-blue line, dark table headers with column and row lines everywhere, and a left menu whose section
+ * headings stand apart from their pages. Light theme only; the dark theme keeps its own colours.
+ * ==================================================================================================================== */
+:root:not([data-theme="dark"]) .cc-app { --ui-size: 14px; --ui-frame: #1c2840; font-family: var(--ui-font); }
+/* Text a step larger and heavier than before (F1): body 14 px medium, tables 13.5 px, page titles 22 px */
+:root:not([data-theme="dark"]) .cc-app .cc-main { font-size: 14px; }
+:root:not([data-theme="dark"]) .cc-app .cc-main h1 { font-size: 22px; }
+:root:not([data-theme="dark"]) .cc-app .cc-main h2 { font-size: 16px; }
+:root:not([data-theme="dark"]) .cc-app .cc-main .ui-btn, :root:not([data-theme="dark"]) .cc-app .cc-main .ui-input,
+:root:not([data-theme="dark"]) .cc-app .cc-main select, :root:not([data-theme="dark"]) .cc-app .cc-main .ui-search-select-field { font-size: 13.5px; }
+:root:not([data-theme="dark"]) .cc-app .cc-main table th { height: 34px; font-size: 13px; }
+:root:not([data-theme="dark"]) .cc-app .cc-main table tbody td { height: 32px; font-size: 13.5px; }
+:root:not([data-theme="dark"]) .cc-app .cc-main [role="tab"], :root:not([data-theme="dark"]) .cc-app .cc-main .st-page-tab,
+:root:not([data-theme="dark"]) .cc-app .cc-main .ov-tab, :root:not([data-theme="dark"]) .cc-app .cc-group-tab { font-size: 13.5px; }
+:root:not([data-theme="dark"]) .cc-app .cc-main .st-muted, :root:not([data-theme="dark"]) .cc-app .cc-main .cc-list-count,
+:root:not([data-theme="dark"]) .cc-app .cc-main .ui-field-hint { font-size: 13px; color: var(--ui-text-2); }
+:root:not([data-theme="dark"]) .cc-app .cc-main { background: #ffffff; font-weight: 500; }
+:root:not([data-theme="dark"]) .cc-app .st-top { border-bottom: 3px solid #0b6ba3; }
+:root:not([data-theme="dark"]) .cc-app .ui-btn-primary:hover:not(:disabled) { background: #063a5a; }
+:root:not([data-theme="dark"]) .cc-app .cc-main a:not(.ui-btn) { color: var(--ui-accent-text); }
+:root:not([data-theme="dark"]) .cc-app .cc-main td a:not(.ui-btn), :root:not([data-theme="dark"]) .cc-app .cc-main td .cc-link { font-weight: 600; }
+:root:not([data-theme="dark"]) .cc-app .cc-main h1 { font-weight: 700; }
+
+/* Selected tab: a purple underline, the brand's second colour */
+:root:not([data-theme="dark"]) .cc-app .cc-main .ov-tab[aria-selected="true"],
+:root:not([data-theme="dark"]) .cc-app .cc-main .st-page-tab[aria-selected="true"],
+:root:not([data-theme="dark"]) .cc-app .cc-main [role="tab"][aria-selected="true"] { box-shadow: inset 0 -3px 0 #7148c9; border-bottom-color: #7148c9; font-weight: 700; color: var(--ui-text); }
+
+/* Tables on every page: a dark header with white bold text, lines between columns and rows, light stripes, an outline */
+:root:not([data-theme="dark"]) .cc-app .cc-main table { border-collapse: collapse; }
+:root:not([data-theme="dark"]) .cc-app .cc-main thead th,
+:root:not([data-theme="dark"]) .cc-app .cc-list-table th,
+:root:not([data-theme="dark"]) .cc-app .ov-t th,
+:root:not([data-theme="dark"]) .cc-app .st-table.cc-table th { background: #1c2840; color: #ffffff; font-weight: 700; border-bottom: 0; }
+:root:not([data-theme="dark"]) .cc-app .cc-main thead th + th,
+:root:not([data-theme="dark"]) .cc-app .cc-list-table th + th,
+:root:not([data-theme="dark"]) .cc-app .ov-t th + th { border-left: 1px solid #4a5874; }
+:root:not([data-theme="dark"]) .cc-app .cc-main thead th button,
+:root:not([data-theme="dark"]) .cc-app .cc-main thead th a,
+:root:not([data-theme="dark"]) .cc-app .cc-main thead th svg { color: #ffffff; }
+:root:not([data-theme="dark"]) .cc-app .cc-main tbody td { border-bottom: 1px solid var(--ui-divider); }
+:root:not([data-theme="dark"]) .cc-app .cc-main tbody td + td,
+:root:not([data-theme="dark"]) .cc-app .cc-main tbody th + td { border-left: 1px solid var(--ui-col-line); }
+:root:not([data-theme="dark"]) .cc-app .cc-main tbody tr:nth-child(even) > td { background: var(--ui-soft); }
+:root:not([data-theme="dark"]) .cc-app .cc-main tbody tr:hover > td { background: var(--ui-row-hover); }
+:root:not([data-theme="dark"]) .cc-app .cc-main table:not(.cc-bare) { outline: 1px solid var(--ui-border); outline-offset: -1px; }
+
+/* Sections inside a page: a clear outline and a line under each section title */
+:root:not([data-theme="dark"]) .cc-app .cc-card,
+:root:not([data-theme="dark"]) .cc-app .cc-main .st-panel,
+:root:not([data-theme="dark"]) .cc-app .cc-main fieldset { border-color: var(--ui-border); }
+:root:not([data-theme="dark"]) .cc-app .cc-main h2,
+:root:not([data-theme="dark"]) .cc-app .cc-main .cc-card > h3:first-child { padding-bottom: 6px; border-bottom: 1px solid var(--ui-line); }
+
+/* Left menu, kept as it is, with section headings set apart from their pages (an idea from AA's menu): headings in
+   bold white capitals on their band with the section's coloured icon; pages indented, lighter and medium weight. */
+.cc-app button.st-menu-group-head { height: 32px; color: #ffffff; background: #212a3a; font-size: 11.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; border-radius: 5px; margin-top: 4px; }   /* 14.4:1 */
+.cc-app button.st-menu-group-head .ui-tile { display: inline-flex; }
+.cc-app .st-menu-group-head .st-menu-caret { color: #9aa6b8; }
+.cc-app .st-menu-entry { color: #c8d1de; font-weight: 500; }   /* 11.1:1 */
+.cc-app .st-menu-entry:hover { color: #ffffff; }
+.cc-app .st-menu-entry.is-current { color: #ffffff; font-weight: 700; }
+
