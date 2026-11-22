@@ -7,6 +7,7 @@ Toolkit `ooa.jira`, version 1.0.0. Create, read and search Jira issues, add comm
 ## Contents
 
 - **Issues**: Add comment, Attach file, Create issue, Delete issue, Get issue, Search issues (JQL), Move issue (transition), Update issue
+- **Connection**: Connect, Disconnect
 - **Projects**: Create project, Delete project, Get projects, Update project
 - **Comments**: Delete comment, Get comments, Update comment
 
@@ -214,6 +215,44 @@ Change fields of an issue, such as summary, priority, labels or assignee.
 | Notify users | `notify_users` | Yes/No | No | Yes | More options | Send the usual change notifications to watchers. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
+
+## Connection
+
+### Connect
+
+`ooa.jira/connect` (action)
+
+Sign in once with a saved connection: the later Jira steps of this agent use it unless they choose another.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connection | `connection` | Text | Yes |  | Main | Saved connection (under Connections) that the later steps of this toolkit use when they choose none of their own. |
+| Session | `session` | Text | No |  | More options | A name for this sign-in; the toolkit's own when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it too. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `connection` | Text | The saved connection the later steps use. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.jira/disconnect` (action)
+
+Forget the connection Connect chose; later Jira steps then use their own.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The sign-in's name; every one of this toolkit when empty. |
+
+*Time limit 60 s.*
 
 ## Projects
 

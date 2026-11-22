@@ -9,6 +9,7 @@ Toolkit `ooa.azure_devops`, version 1.0.0. Work with Azure DevOps: work items an
 - **Repos**: Comment on pull request, Complete pull request, Create pull request, Get pull request, List pull requests, List repositories
 - **Test plans**: Add test cases to suite, Complete test run, Create test case, Create test plan, Create test run, Create test suite, Delete test plan, Delete test suite, Get test plan details, Get test run details, Get test suite, List test cases, List test plans, List test points, List test runs, List test suites, Remove test cases from suite, Edit test plan, Update test point, Update test results, Edit test suite
 - **Work items**: Add work item comment, Attach file to work item, Create work item, Delete work item, Get work item, List work item comments, Query work items (WIQL), Update work item
+- **Connection**: Connect, Disconnect
 - **Pipelines**: Create pipeline, Delete pipeline, Get pipeline details, Get pipeline run, List pipeline runs, List pipelines, Run pipeline, Edit pipeline
 - **Builds**: Get build, List builds, Queue build
 - **Projects**: Get project, List projects
@@ -891,6 +892,44 @@ Change fields of a work item, such as its state or assignee. Only the inputs you
 | `rev` | Number | New revision number. |
 
 *Time limit 60 s; needs: network.*
+
+## Connection
+
+### Connect
+
+`ooa.azure_devops/connect` (action)
+
+Sign in once with a saved connection: the later Azure DevOps steps of this agent use it unless they choose another.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connection | `connection` | Text | Yes |  | Main | Saved connection (under Connections) that the later steps of this toolkit use when they choose none of their own. |
+| Session | `session` | Text | No |  | More options | A name for this sign-in; the toolkit's own when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it too. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `connection` | Text | The saved connection the later steps use. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.azure_devops/disconnect` (action)
+
+Forget the connection Connect chose; later Azure DevOps steps then use their own.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The sign-in's name; every one of this toolkit when empty. |
+
+*Time limit 60 s.*
 
 ## Pipelines
 

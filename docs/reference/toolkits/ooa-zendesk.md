@@ -7,6 +7,7 @@ Toolkit `ooa.zendesk`, version 1.0.0. Handle Zendesk Support tickets, comments, 
 ## Contents
 
 - **Tickets**: Add comment, Add tags, Create ticket, Delete ticket, Get ticket, List comments, List ticket fields, List tickets, Search tickets, Update ticket
+- **Connection**: Connect, Disconnect
 - **Organizations**: Create organization, Get organization, List organizations, Update organization
 - **Users**: Create user, Find users, Get user, Update user
 - **Attachments**: Download attachment, Upload attachment
@@ -275,6 +276,44 @@ Change a ticket's status, priority, assignee, group, tags or custom fields. Only
 | Tags | `tags` | List | No |  | More options | Replace all tags with these. To add tags without removing others use Add tags. |
 
 *Time limit 60 s; needs: network.*
+
+## Connection
+
+### Connect
+
+`ooa.zendesk/connect` (action)
+
+Sign in once with a saved connection: the later Zendesk steps of this agent use it unless they choose another.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connection | `connection` | Text | Yes |  | Main | Saved connection (under Connections) that the later steps of this toolkit use when they choose none of their own. |
+| Session | `session` | Text | No |  | More options | A name for this sign-in; the toolkit's own when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it too. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `connection` | Text | The saved connection the later steps use. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.zendesk/disconnect` (action)
+
+Forget the connection Connect chose; later Zendesk steps then use their own.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The sign-in's name; every one of this toolkit when empty. |
+
+*Time limit 60 s.*
 
 ## Organizations
 

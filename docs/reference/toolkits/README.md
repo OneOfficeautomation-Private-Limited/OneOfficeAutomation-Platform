@@ -16,14 +16,14 @@ values and `$variable` references; Credential fields take a credential from the 
 | [AI Agents](ooa-ai_agent.md) | `ooa.ai_agent` | 1 | 0 | 0 | Run an AI agent that works toward a goal using your agents as tools, with approvals and limits. |
 | [AI screen (vision)](ooa-ai_screen.md) | `ooa.ai_screen` | 4 | 0 | 0 | Find and click controls on the screen from a plain description, with a vision model. |
 | [Application](ooa-application.md) | `ooa.application` | 9 | 1 | 0 | Open files, start, run and stop programs on the runner. |
-| [Asana](ooa-asana.md) | `ooa.asana` | 41 | 0 | 0 | Manage Asana work: workspaces, projects, sections, tasks and subtasks, followers, comments, attachments, tags and users. |
+| [Asana](ooa-asana.md) | `ooa.asana` | 43 | 0 | 0 | Manage Asana work: workspaces, projects, sections, tasks and subtasks, followers, comments, attachments, tags and users. |
 | [AWS AI services](ooa-aws_ai.md) | `ooa.aws_ai` | 11 | 0 | 0 | Read sentiment, entities, language and personal data in text with Amazon Comprehend, text, forms and tables from scans with Amazon Textract, and labels and text in pictures with Amazon Rekognition. |
 | [AWS EC2](ooa-aws_ec2.md) | `ooa.aws_ec2` | 19 | 0 | 0 | Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, switch detailed monitoring on or off, and snapshot, create, attach and detach their EBS volumes. |
 | [Azure AI services](ooa-azure_ai.md) | `ooa.azure_ai` | 8 | 0 | 0 | Read sentiment, entities and personal data in text with Azure AI Language, text, fields and tables from documents with Document Intelligence, and tags, captions and text in pictures with Image Analysis. |
-| [Azure DevOps](ooa-azure_devops.md) | `ooa.azure_devops` | 50 | 1 | 0 | Work with Azure DevOps: work items and WIQL queries, comments and attachments, Git repositories and pull requests, pipelines, builds and sprints. Works with the cloud service and Azure DevOps Server. |
+| [Azure DevOps](ooa-azure_devops.md) | `ooa.azure_devops` | 52 | 1 | 0 | Work with Azure DevOps: work items and WIQL queries, comments and attachments, Git repositories and pull requests, pipelines, builds and sprints. Works with the cloud service and Azure DevOps Server. |
 | [Azure VMs](ooa-azure_vm.md) | `ooa.azure_vm` | 8 | 0 | 0 | List Azure virtual machines, read their power state, start, stop (deallocate or power off) and restart them, and snapshot their disks. |
 | [Boolean](ooa-boolean.md) | `ooa.boolean` | 8 | 2 | 0 | Set, combine, check, convert and invert Yes/No (true/false) values. |
-| [Box](ooa-box.md) | `ooa.box` | 17 | 0 | 0 | Work with Box folders and files: upload, download, copy, move, search, share links and invite collaborators. |
+| [Box](ooa-box.md) | `ooa.box` | 19 | 0 | 0 | Work with Box folders and files: upload, download, copy, move, search, share links and invite collaborators. |
 | [Browser](ooa-browser.md) | `ooa.browser` | 28 | 4 | 1 | Open web pages, click, type, select, read text and tables, run JavaScript, download files and take screenshots. |
 | [Business rules](ooa-rules.md) | `ooa.rules` | 1 | 0 | 0 | Decide with a decision table kept as a CSV file (or a table): conditions in in: columns, results in out: columns. |
 | [Coded agents](ooa-coded.md) | `ooa.coded` | 1 | 0 | 0 | Run an agent written in Python (main(inputs, ooa)) that calls toolkit commands through the run. |
@@ -44,7 +44,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [DLL](ooa-dll.md) | `ooa.dll` | 3 | 0 | 0 | Call a function in a trusted native library (DLL) with numbers and text, and get its return value. |
 | [Document Automation](ooa-documents.md) | `ooa.documents` | 7 | 0 | 0 | Send documents (PDF, PNG, JPG, TIFF) to a Document Automation process, then pick up what it read: fields, tables and confidence, once read or reviewed. |
 | [Document processing](ooa-idp.md) | `ooa.idp` | 4 | 0 | 0 | Classify documents by type, extract fields by rules, and extract with AI that learns from validated examples. |
-| [DocuSign](ooa-docusign.md) | `ooa.docusign` | 20 | 0 | 0 | Send documents for e-signature, track and manage envelopes and recipients, use templates and download signed documents. |
+| [DocuSign](ooa-docusign.md) | `ooa.docusign` | 22 | 0 | 0 | Send documents for e-signature, track and manage envelopes and recipients, use templates and download signed documents. |
 | [Email](ooa-email.md) | `ooa.email` | 19 | 0 | 1 | Send emails with attachments, read and search mailboxes, save attachments, move, mark and delete emails. |
 | [Environment locks](ooa-locks.md) | `ooa.locks` | 3 | 1 | 0 | Named locks that one agent run holds at a time, so two runners never use the same single-user system together. |
 | [Excel](ooa-excel.md) | `ooa.excel` | 76 | 0 | 1 | Read and write .xlsx workbooks without Microsoft Office installed. |
@@ -55,16 +55,16 @@ values and `$variable` references; Credential fields take a credential from the 
 | [FTP / SFTP](ooa-file_transfer.md) | `ooa.file_transfer` | 17 | 0 | 0 | Connect to FTP, FTPS or SFTP servers to list, upload, download, rename and delete files. |
 | [Fuzzy Match](ooa-fuzzy.md) | `ooa.fuzzy` | 3 | 1 | 0 | Score how alike two texts are, pick the closest candidate from a list and join tables on near-matching values. |
 | [Generative AI](ooa-genai.md) | `ooa.genai` | 16 | 0 | 0 | Prompt large language models (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Vertex AI, self-hosted) to answer, read pictures, draw pictures and analyse text. |
-| [GitHub](ooa-github.md) | `ooa.github` | 21 | 1 | 0 | Work with GitHub repositories: issues, pull requests, branches, files, releases and Actions workflows. Works with github.com and GitHub Enterprise Server. |
+| [GitHub](ooa-github.md) | `ooa.github` | 23 | 1 | 0 | Work with GitHub repositories: issues, pull requests, branches, files, releases and Actions workflows. Works with github.com and GitHub Enterprise Server. |
 | [Google Cloud AI](ooa-google_ai.md) | `ooa.google_ai` | 7 | 0 | 0 | Read sentiment and entities in text with Cloud Natural Language, labels and text in pictures with Cloud Vision, and text, entities, form fields and tables from documents with Document AI. |
-| [Google Workspace](ooa-google.md) | `ooa.google` | 75 | 1 | 1 | Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail. |
+| [Google Workspace](ooa-google.md) | `ooa.google` | 77 | 1 | 1 | Read and write Google Sheets, upload and download Drive files, manage Calendar events and send Gmail. |
 | [Hash and encrypt](ooa-crypto.md) | `ooa.crypto` | 14 | 0 | 0 | Hashes, HMAC signatures, AES-256 encryption of text and files, and Base64 encoding. |
 | [Image recognition](ooa-image.md) | `ooa.image` | 6 | 2 | 0 | Find, wait for and click images on the screen or inside image files. |
 | [Insights](ooa-insights.md) | `ooa.insights` | 4 | 0 | 0 | Record business values and timed transactions from agents for dashboards and ROI reports, and read them back. |
 | [Interactive forms](ooa-forms.md) | `ooa.forms` | 20 | 0 | 0 | Show a form to the person at the runner, react to its buttons and changes, and read or change its fields while it is open. |
 | [Interrupt handlers](ooa-interrupts.md) | `ooa.interrupts` | 5 | 0 | 0 | Rules that deal with unexpected windows and pop-ups during UI automation, checked before each UI action. |
 | [Java apps](ooa-java_apps.md) | `ooa.java_apps` | 4 | 0 | 0 | Find and work with the controls of desktop applications written in Java (Swing and AWT): read and type text, press buttons, read labels and tables. |
-| [Jira](ooa-jira.md) | `ooa.jira` | 15 | 0 | 0 | Create, read and search Jira issues, add comments, move issues through the workflow and attach files. |
+| [Jira](ooa-jira.md) | `ooa.jira` | 17 | 0 | 0 | Create, read and search Jira issues, add comments, move issues through the workflow and attach files. |
 | [Jobs and alerts](ooa-jobs.md) | `ooa.jobs` | 4 | 0 | 0 | See and stop other agent runs, and raise alerts to people, from an agent run by One CommandCenter. |
 | [JSON](ooa-json.md) | `ooa.json` | 14 | 0 | 0 | Parse, query and write JSON documents. |
 | [Kafka](ooa-kafka.md) | `ooa.kafka` | 8 | 0 | 0 | Send messages to Kafka topics, read messages, and create or inspect topics through a Kafka REST Proxy. |
@@ -97,7 +97,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Scripts](ooa-script.md) | `ooa.script` | 11 | 3 | 0 | Run PowerShell, Python, JavaScript and VBScript with arguments and captured output. |
 | [ServiceNow](ooa-servicenow.md) | `ooa.servicenow` | 14 | 0 | 0 | Query, create and update ServiceNow records (incidents, requests, any table), add comments and attachments. |
 | [Shared Global values](ooa-global_values.md) | `ooa.global_values` | 3 | 1 | 0 | Read and change shared values that many agents use, such as folders, thresholds or URLs. |
-| [Slack](ooa-slack.md) | `ooa.slack` | 13 | 0 | 2 | Post messages to Slack channels and users. |
+| [Slack](ooa-slack.md) | `ooa.slack` | 15 | 0 | 2 | Post messages to Slack channels and users. |
 | [Snowflake](ooa-snowflake.md) | `ooa.snowflake` | 17 | 0 | 0 | Run SQL in Snowflake, read results into data tables, browse databases, schemas and tables, and load rows. |
 | [SOAP Web Service](ooa-soap.md) | `ooa.soap` | 2 | 0 | 0 | Read a service's WSDL, call SOAP 1.1/1.2 web services and read the response as a dictionary. |
 | [String](ooa-string.md) | `ooa.string` | 29 | 7 | 0 | Text manipulation: extract, replace, split, join, clean, mask, fill templates, encode and change case. |
@@ -111,6 +111,6 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Work queues](ooa-workload.md) | `ooa.workload` | 16 | 1 | 1 | Add work items to a queue, take the next item, and mark items completed, failed or deferred with retries. |
 | [Workday](ooa-workday.md) | `ooa.workday` | 8 | 0 | 0 | Search and read Workday workers and call Workday REST endpoints or RaaS reports. |
 | [XML](ooa-xml.md) | `ooa.xml` | 11 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
-| [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
+| [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 25 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 102 toolkits, 1421 actions, 68 conditions and 31 loop types.
+In all: 102 toolkits, 1439 actions, 68 conditions and 31 loop types.

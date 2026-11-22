@@ -7,6 +7,7 @@ Toolkit `ooa.docusign`, version 1.0.0. Send documents for e-signature, track and
 ## Contents
 
 - **Recipients**: Add recipients, List recipients, Update recipient
+- **Connection**: Connect, Disconnect
 - **Envelopes**: Create envelope, Envelope from template, Get envelope status, List envelopes, Resend envelope, Send draft envelope, Void envelope
 - **Embedded signing**: Get embedded signing link
 - **Documents**: Download combined PDF, Download document, Download signed ZIP, List envelope documents
@@ -85,6 +86,44 @@ Correct a recipient's name or email address, for example after a typo, and optio
 | Resend | `resend` | Yes/No | No | Yes | More options | Send the signing request again to the corrected address. |
 
 *Time limit 60 s; needs: network.*
+
+## Connection
+
+### Connect
+
+`ooa.docusign/connect` (action)
+
+Sign in once with a saved connection: the later DocuSign steps of this agent use it unless they choose another.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connection | `connection` | Text | Yes |  | Main | Saved connection (under Connections) that the later steps of this toolkit use when they choose none of their own. |
+| Session | `session` | Text | No |  | More options | A name for this sign-in; the toolkit's own when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it too. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `connection` | Text | The saved connection the later steps use. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.docusign/disconnect` (action)
+
+Forget the connection Connect chose; later DocuSign steps then use their own.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The sign-in's name; every one of this toolkit when empty. |
+
+*Time limit 60 s.*
 
 ## Envelopes
 

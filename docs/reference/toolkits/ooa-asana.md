@@ -9,6 +9,7 @@ Toolkit `ooa.asana`, version 1.0.0. Manage Asana work: workspaces, projects, sec
 - **Comments**: Add comment, Delete comment, Get comment, List comments, Update comment
 - **Tasks**: Add followers, Add task to project, Move task to section, Create task, Delete task, Duplicate task, Get task, List tasks, Remove followers, Search tasks, Update task
 - **Tags**: Add tag to task, Create tag, List tags, Remove tag from task
+- **Connection**: Connect, Disconnect
 - **Projects**: Create project, Create section, Delete project, Get project, List projects, List sections, Update project
 - **Subtasks**: Create subtask, List subtasks
 - **Teams**: Create team, Get team, List teams, List teams of user, Update team
@@ -454,6 +455,44 @@ Take a tag off a task.
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 *Time limit 60 s; needs: network.*
+
+## Connection
+
+### Connect
+
+`ooa.asana/connect` (action)
+
+Sign in once with a saved connection: the later Asana steps of this agent use it unless they choose another.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connection | `connection` | Text | Yes |  | Main | Saved connection (under Connections) that the later steps of this toolkit use when they choose none of their own. |
+| Session | `session` | Text | No |  | More options | A name for this sign-in; the toolkit's own when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it too. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `connection` | Text | The saved connection the later steps use. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.asana/disconnect` (action)
+
+Forget the connection Connect chose; later Asana steps then use their own.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The sign-in's name; every one of this toolkit when empty. |
+
+*Time limit 60 s.*
 
 ## Projects
 

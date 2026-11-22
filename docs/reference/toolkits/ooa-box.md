@@ -7,6 +7,7 @@ Toolkit `ooa.box`, version 1.0.0. Work with Box folders and files: upload, downl
 ## Contents
 
 - **Sharing**: Invite collaborator, Create shared link, List collaborators, Remove collaborator, Remove shared link
+- **Connection**: Connect, Disconnect
 - **Files**: Copy file, Delete file, Download file, Get file info, Move file, Rename file, Upload file
 - **Folders**: Create folder, Delete folder, Get folder info, List folder items
 - **Search**: Search
@@ -128,6 +129,44 @@ Turn off the shared link of a file or folder.
 | Endpoint address | `base_url` | Text | No | `https://api.box.com` | More options | Box API address. Leave the default unless your administrator gives you another. |
 
 *Time limit 60 s; needs: network.*
+
+## Connection
+
+### Connect
+
+`ooa.box/connect` (action)
+
+Sign in once with a saved connection: the later Box steps of this agent use it unless they choose another.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connection | `connection` | Text | Yes |  | Main | Saved connection (under Connections) that the later steps of this toolkit use when they choose none of their own. |
+| Session | `session` | Text | No |  | More options | A name for this sign-in; the toolkit's own when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it too. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `connection` | Text | The saved connection the later steps use. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.box/disconnect` (action)
+
+Forget the connection Connect chose; later Box steps then use their own.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The sign-in's name; every one of this toolkit when empty. |
+
+*Time limit 60 s.*
 
 ## Files
 

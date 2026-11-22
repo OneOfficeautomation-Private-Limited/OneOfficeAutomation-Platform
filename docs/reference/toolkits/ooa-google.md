@@ -7,6 +7,7 @@ Toolkit `ooa.google`, version 1.0.0. Read and write Google Sheets, upload and do
 ## Contents
 
 - **Calendar**: Create Google Calendar event, Delete Google Calendar event, List Google Calendar events, Update Google Calendar event
+- **Connection**: Connect, Disconnect
 - **Docs**: Add text to Google Doc, Create Google Doc, Read Google Doc text, Replace text in Google Doc
 - **Drive**: Check Drive permission, Copy Drive file, Copy Drive folder, Create Drive folder, Share Drive item, Delete Drive item, Remove Drive permission, Download from Drive, Export Google file, Find Drive items, Get Drive item info, List Drive files, List Drive permissions, Move Drive item, Rename Drive item, Change Drive permission, Upload to Drive
 - **Gmail**: Delete all emails, Delete email, Forward email, Read email, Check label exists, Find emails, Change email status, Move all emails, Move email, Reply all to email, Reply to email, Save all attachments, Save attachments, Save email as EML, Send email
@@ -135,6 +136,44 @@ Change the title, time, description, location or attendees of an event; empty in
 | `link` | Text | Link to the event. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
+
+## Connection
+
+### Connect
+
+`ooa.google/connect` (action)
+
+Sign in once with a saved connection: the later Google Workspace steps of this agent use it unless they choose another.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connection | `connection` | Text | Yes |  | Main | Saved connection (under Connections) that the later steps of this toolkit use when they choose none of their own. |
+| Session | `session` | Text | No |  | More options | A name for this sign-in; the toolkit's own when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it too. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `connection` | Text | The saved connection the later steps use. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.google/disconnect` (action)
+
+Forget the connection Connect chose; later Google Workspace steps then use their own.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The sign-in's name; every one of this toolkit when empty. |
+
+*Time limit 60 s.*
 
 ## Docs
 

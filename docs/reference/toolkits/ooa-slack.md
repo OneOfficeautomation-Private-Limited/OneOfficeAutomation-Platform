@@ -6,11 +6,50 @@ Toolkit `ooa.slack`, version 1.0.0. Post messages to Slack channels and users.
 
 ## Contents
 
+- **Connection**: Connect, Disconnect
 - **Channels**: Get channel details, Get channel id by name, Get conversation history, List channels, List a person's conversations, Open conversation with members
 - **Users**: Get user details
 - **Workspace**: Get workspace details, Get workspace id by name
 - **Messages**: Post message, Send direct message, Update message, Upload file
 - **Loop types**: Each Slack channel, Each Slack message
+
+## Connection
+
+### Connect
+
+`ooa.slack/connect` (action)
+
+Sign in once with a saved connection: the later Slack steps of this agent use it unless they choose another.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connection | `connection` | Text | Yes |  | Main | Saved connection (under Connections) that the later steps of this toolkit use when they choose none of their own. |
+| Session | `session` | Text | No |  | More options | A name for this sign-in; the toolkit's own when empty. |
+| Share | `share` | Yes/No | No | No | More options | Agents this one runs may use it too. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `connection` | Text | The saved connection the later steps use. |
+
+*Time limit 60 s.*
+
+### Disconnect
+
+`ooa.slack/disconnect` (action)
+
+Forget the connection Connect chose; later Slack steps then use their own.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Session | `session` | Text | No |  | Main | The sign-in's name; every one of this toolkit when empty. |
+
+*Time limit 60 s.*
 
 ## Channels
 
