@@ -260,7 +260,7 @@ public final class GitHubPackage {
 
     @Action(id = "list_pull_requests", name = "List pull requests", category = "Pull requests", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "List pull requests, filtered by state and target branch.",
-            panel = "token, owner, repo, state, target_branch | max_results, base_url")
+            panel = "token, owner, repo, state, target_branch, source_branch | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: number, title, state, draft, author, head, base, updated_at, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of pull requests returned.")
     public Map<String, Object> listPullRequests(ActionContext ctx,
@@ -270,11 +270,18 @@ public final class GitHubPackage {
             @Input(name = "repo", type = OoaType.STRING, description = D_REPO) String repo,
             @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"open\"", enumValues = {"open", "closed", "all"}, description = "open, closed or all.") String state,
             @Input(name = "target_branch", type = OoaType.STRING, required = false, example = "main", description = "Only pull requests that merge into this branch.") String target,
-            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = D_MAX) int max) {
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = D_MAX) int max,
+            @Input(name = "source_branch", type = OoaType.STRING, required = false, example = "feature/invoices",
+                    description = "Only pull requests from this branch; owner:branch for a fork (G5).") String source) {
         Map<String, Object> q = new LinkedHashMap<>();
         q.put("state", state);
         q.put("base", target);
+        if (source != null && !source.isBlank()) q.put("head", source.contains(":") ? source.strip() : owner + ":" + source.strip());
         return result(pages(ctx, base, repo(owner, repo) + "/pulls?" + HttpJson.query(q), token, max, null, null), PR_COLS);
+    }
+
+    public Map<String, Object> listPullRequests(ActionContext ctx, String base, Object token, String owner, String repo, String state, String target, int max) {
+        return listPullRequests(ctx, base, token, owner, repo, state, target, max, null);
     }
 
     @Action(id = "get_pull_request", name = "Get pull request", category = "Pull requests", idempotent = true, capabilities = "network",

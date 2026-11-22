@@ -640,14 +640,14 @@ public final class ZendeskPackage {
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "attachment_id", type = OoaType.NUMBER, description = "Attachment id, from List comments.") long attachmentId,
-            @Input(name = "folder", type = OoaType.FILE, required = false, defaultValue = "\".\"", description = "Folder to save into.") String folder,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file of the same name; otherwise a number is added.") boolean overwrite) {
+            @Input(name = "folder", type = OoaType.FILE, required = false, defaultValue = "\".\"", newStepDefault = "\"\"", description = "Folder to save into; the run's temporary folder when empty (G5).") String folder,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace a file of the same name; otherwise a number is added.") boolean overwrite) {
         Map<String, Object> a = call(ctx, "GET", api(site) + "/attachments/" + attachmentId, email, apiToken, oauth, null);
         Object url = HttpJson.path(a, "attachment.content_url");
         if (url == null) throw new ActionException(P + ".NOT_FOUND", "Attachment " + attachmentId + " has no file", "Check the id with List comments.");
         // the file is served from the same Zendesk account, so the agent's sign-in is sent along
         byte[] data = req("GET", Values.text(url), email, apiToken, oauth).binaryResponse().timeout(600).send(ctx).bytes();
-        Path dir = ctx.resolvePath(folder == null || folder.isBlank() ? "." : folder);
+        Path dir = folder == null || folder.isBlank() ? ctx.outputPath(null, "x").getParent() : ctx.resolvePath(folder);
         String name = HttpJson.safeName(Values.text(Optional.ofNullable(HttpJson.path(a, "attachment.file_name")).orElse("attachment-" + attachmentId)));
         Path out = dir.resolve(name);
         for (int i = 2; !overwrite && Files.exists(out); i++) out = dir.resolve(name.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1"));
@@ -684,14 +684,24 @@ public final class ZendeskPackage {
 
     @Action(id = "list_ticket_fields", name = "List ticket fields", category = "Tickets", idempotent = true, capabilities = "network",
             description = "List ticket fields with their ids, to fill custom_fields in Create ticket and Update ticket.",
-            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token)")
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), field_type")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, title, type, active, required.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of fields.")
     public Map<String, Object> listTicketFields(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth) {
-        return result(pages(ctx, site, "/ticket_fields", "ticket_fields", 5000, email, apiToken, oauth, true), "id", "title", "type", "active", "required");
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, signInToken = true, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "field_type", type = OoaType.STRING, required = false, example = "tagger",
+                    description = "Only fields of this type, e.g. text, textarea, checkbox, date, integer, decimal, regexp, tagger (drop-down), multiselect (G5).") String fieldType) {
+        Map<String, Object> all = result(pages(ctx, site, "/ticket_fields", "ticket_fields", 5000, email, apiToken, oauth, true), "id", "title", "type", "active", "required");
+        if (fieldType == null || fieldType.isBlank()) return all;
+        @SuppressWarnings("unchecked") Map<String, Object> t = (Map<String, Object>) all.get("table");
+        List<Object> keep = new ArrayList<>();
+        for (Object r : (List<?>) t.get("rows")) if (r instanceof List<?> row && fieldType.strip().equalsIgnoreCase(String.valueOf(row.get(2)))) keep.add(r);
+        @SuppressWarnings("unchecked") List<String> cols = (List<String>) t.get("columns");
+        return Map.of("table", Values.table(cols, keep), "count", java.math.BigDecimal.valueOf(keep.size()));
     }
+
+    public Map<String, Object> listTicketFields(ActionContext ctx, String site, String email, Object apiToken, Object oauth) { return listTicketFields(ctx, site, email, apiToken, oauth, null); }
 }

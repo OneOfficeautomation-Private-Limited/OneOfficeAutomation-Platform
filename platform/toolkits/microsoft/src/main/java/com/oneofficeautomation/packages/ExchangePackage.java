@@ -65,6 +65,9 @@ public final class ExchangePackage {
         /** One per session, so Java keeps the NTLM sign-in of a kept-alive connection instead of starting again each call. */
         final Authenticator authenticator;
         final Map<String, String> folderIds = new HashMap<>();
+        /** G4/G5 (AA parity): the server version asked for, and an OAuth access token instead of a password. */
+        String version = "Exchange2013";
+        SecureString token;
 
         ExchangeSession(String url, String user, SecureString password, String signIn, String mailbox, boolean impersonate, boolean insecure, int timeoutSeconds) {
             this.url = url; this.user = user; this.password = password; this.signIn = signIn; this.mailbox = mailbox;
@@ -89,14 +92,16 @@ public final class ExchangePackage {
 
     @Action(id = "connect", name = "Connect to Exchange mailbox", category = "Mailbox", capabilities = "network",
             description = "Sign in to an on-premises Exchange Server mailbox through Exchange Web Services (EWS) as a named session; checks the sign-in by opening the inbox. For Exchange Online (Microsoft 365) use the Microsoft 365 toolkit instead: Microsoft is retiring EWS there.",
-            panel = "ews_url, user, password, sign_in, [Open another person's or a shared mailbox: mailbox, impersonate] | timeout_seconds, insecure_tls, session")
+            panel = "ews_url, sign_in, user, domain, password, access_token, [Open another person's or a shared mailbox: mailbox, impersonate] | version, timeout_seconds, insecure_tls, session")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "ews_url", type = OoaType.STRING, label = "Exchange web services address (URL)", example = "https://mail.example.com/EWS/Exchange.asmx",
                     description = "Address of the Exchange server's web services, usually https://<mail server>/EWS/Exchange.asmx.") String url,
-            @Input(name = "user", type = OoaType.STRING, example = "ACME\\svc-mailbot", description = "User that signs in: DOMAIN\\user or user@domain.") String user,
-            @Input(name = "password", type = OoaType.CREDENTIAL, description = "The user's password from the vault (a Credential).") Object password,
-            @Input(name = "sign_in", type = OoaType.STRING, required = false, defaultValue = "\"ntlm\"", enumValues = {"ntlm", "basic"},
-                    description = "ntlm: Windows sign-in, which Exchange accepts by default; basic: user name and password in each request, only over https and where the server allows it.") String signIn,
+            @Input(name = "user", type = OoaType.STRING, required = false, acceptsCredential = true, example = "ACME\\svc-mailbot", visibleWhen = "sign_in!=oauth",
+                    description = "User that signs in: DOMAIN\\user or user@domain (or the user alone with domain).") String user,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "sign_in!=oauth", description = "The user's password from the vault (a Credential).") Object password,
+            @Input(name = "sign_in", type = OoaType.STRING, required = false, defaultValue = "\"ntlm\"", enumValues = {"ntlm", "basic", "oauth"},
+                    description = "ntlm: Windows sign-in, which Exchange accepts by default; basic: user name and password in each request, only over https and where the server allows it; "
+                            + "oauth: an access token from a saved sign-in connection or the vault (hybrid modern authentication) (G5).") String signIn,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, example = "invoices@acme.com",
                     description = "Work in this mailbox instead of the user's own, e.g. a shared mailbox; the user needs full access to it, or the impersonation role with impersonate.") String mailbox,
             @Input(name = "impersonate", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "mailbox!=",
@@ -104,8 +109,20 @@ public final class ExchangePackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, max = 600, description = "How long to wait for each answer from the server.") int timeout,
             @Input(name = "insecure_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Accept any server certificate (self-signed or expired); for test systems only.") boolean insecure,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = "Session name.") String session,
+            @Input(name = "domain", type = OoaType.STRING, required = false, example = "ACME", visibleWhen = "sign_in!=oauth", description = "Windows domain, when user has none (G5).") String domain,
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"Exchange2013\"",
+                    enumValues = {"Exchange2010_SP2", "Exchange2013", "Exchange2013_SP1", "Exchange2016", "Exchange2019"}, description = "The Exchange version the requests are written for (G5).") String version,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, signInToken = true, visibleWhen = "sign_in=oauth",
+                    description = "OAuth access token for the Exchange server, from a saved sign-in connection or the vault (G5).") Object accessToken) {
         String u = url == null ? "" : url.strip();
+        boolean oauth = "oauth".equalsIgnoreCase(signIn == null ? "" : signIn.strip());
+        if (oauth) {
+            if (!(accessToken instanceof SecureString t)) throw new ActionException(P + ".NO_SECRET", "OAuth sign-in needs an access token from the vault or a saved sign-in connection", "Give access_token.");
+            user = user == null || user.isBlank() ? "oauth" : user;
+            password = t;
+        }
+        if (domain != null && !domain.isBlank() && user != null && !user.contains("\\") && !user.contains("@")) user = domain.strip() + "\\" + user.strip();
         try {
             URI uri = new URI(u);
             if (uri.getHost() == null || !("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))) throw new URISyntaxException(u, "no host");
@@ -117,13 +134,15 @@ public final class ExchangePackage {
             throw new ActionException(P + ".NO_SECRET", "Input 'password' must come from the vault (a Credential), so nothing was sent",
                     "Give a vault reference {\"$credential\": \"locker/credential/attribute\"} or a Credential variable.");
         String mode = signIn == null || signIn.isBlank() ? "ntlm" : signIn.strip().toLowerCase(Locale.ROOT);
-        if (!mode.equals("ntlm") && !mode.equals("basic")) throw new ActionException(P + ".BAD_INPUT", "Unknown sign_in '" + signIn + "'", "Use ntlm or basic.");
+        if (!mode.equals("ntlm") && !mode.equals("basic") && !mode.equals("oauth")) throw new ActionException(P + ".BAD_INPUT", "Unknown sign_in '" + signIn + "'", "Use ntlm, basic or oauth.");
         if (impersonate && (mailbox == null || mailbox.isBlank()))
             throw new ActionException(P + ".BAD_INPUT", "impersonate needs the mailbox to act as", "Fill in mailbox, or clear impersonate.");
         if (insecure) ctx.warn("Server certificates are not checked for this Exchange session; use this only with test systems.");
         if (mode.equals("basic") && u.toLowerCase(Locale.ROOT).startsWith("http:"))
             ctx.warn("Basic sign-in over http sends the password readable on the network; use an https address.");
         ExchangeSession s = new ExchangeSession(u, user.strip(), pw, mode, mailbox == null || mailbox.isBlank() ? null : mailbox.strip(), impersonate, insecure, Math.max(1, timeout));
+        if (version != null && !version.isBlank()) s.version = version.strip();
+        if (oauth) s.token = pw;
         // opening the inbox proves the address, the sign-in and the access to the mailbox in one call
         call(ctx, s, "GetFolder", "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape><m:FolderIds>" + s.distinguished("inbox") + "</m:FolderIds></m:GetFolder>");
         ctx.sessions().put(session == null || session.isBlank() ? "exchange" : session, s);
@@ -131,6 +150,112 @@ public final class ExchangePackage {
     }
 
     private static ExchangeSession es(ActionContext ctx, String name) { return ctx.sessionOrOnly(name, "exchange", ExchangeSession.class); }
+
+    /** Connect before G5 (domain, version, OAuth). */
+    public Map<String, Object> connect(ActionContext ctx, String url, String user, Object password, String signIn, String mailbox, boolean impersonate, int timeout, boolean insecure, String session) {
+        return connect(ctx, url, user, password, signIn, mailbox, impersonate, timeout, insecure, session, null, "Exchange2013", null);
+    }
+
+    @Action(id = "test_connection", name = "Test Exchange connection", category = "Mailbox", capabilities = "network",
+            description = "Check an Exchange address and sign-in without keeping a session: ok and what went wrong (G5).",
+            panel = "ews_url, sign_in, user, domain, password, access_token | version, insecure_tls")
+    @Output(name = "ok", type = OoaType.BOOLEAN, description = "True when the sign-in worked and the inbox opened.")
+    @Output(name = "message", type = OoaType.STRING, description = "What went wrong, or empty.")
+    public Map<String, Object> testConnection(ActionContext ctx,
+            @Input(name = "ews_url", type = OoaType.STRING, example = "https://mail.example.com/EWS/Exchange.asmx", description = "Address of the Exchange server's web services.") String url,
+            @Input(name = "user", type = OoaType.STRING, required = false, acceptsCredential = true, visibleWhen = "sign_in!=oauth", description = "User that signs in.") String user,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "sign_in!=oauth", description = "The user's password from the vault.") Object password,
+            @Input(name = "sign_in", type = OoaType.STRING, required = false, defaultValue = "\"ntlm\"", enumValues = {"ntlm", "basic", "oauth"}, description = "How to sign in.") String signIn,
+            @Input(name = "domain", type = OoaType.STRING, required = false, visibleWhen = "sign_in!=oauth", description = "Windows domain, when user has none.") String domain,
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"Exchange2013\"",
+                    enumValues = {"Exchange2010_SP2", "Exchange2013", "Exchange2013_SP1", "Exchange2016", "Exchange2019"}, description = "The Exchange version.") String version,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, signInToken = true, visibleWhen = "sign_in=oauth", description = "OAuth access token.") Object accessToken,
+            @Input(name = "insecure_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Accept any server certificate; for test systems only.") boolean insecure) {
+        String name = "ooa.exchange.test." + System.nanoTime();
+        try {
+            connect(ctx, url, user, password, signIn, null, false, 30, insecure, name, domain, version, accessToken);
+            return Map.of("ok", true, "message", "");
+        } catch (ActionException e) {
+            return Map.of("ok", false, "message", e.code() + ": " + e.getMessage());
+        } finally { ctx.sessions().remove(name); }
+    }
+
+    @Condition(id = "folder_exists", name = "Exchange folder exists", description = "True when the mailbox has the folder, e.g. Inbox/Invoices (G5).")
+    public boolean folderExists(ActionContext ctx,
+            @Input(name = "folder", type = OoaType.STRING, example = "Inbox/Invoices", description = D_FOLDER) String folder,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session) {
+        try { folderElement(ctx, es(ctx, session), folder, false); return true; }
+        catch (ActionException e) { if ((P + ".NO_FOLDER").equals(e.code())) return false; throw e; }
+    }
+
+    private static List<Map<String, Object>> pick(ActionContext ctx, ExchangeSession s, String folder, String status, String from, String subject,
+                                                  LocalDateTime since, LocalDateTime before, int max) {
+        String st = status == null ? "any" : status.strip().toLowerCase(Locale.ROOT);
+        return find(ctx, s, folder, st.equals("unread"), st.equals("read"), from, subject, since, before, false, false, max);
+    }
+
+    @Action(id = "delete_all", name = "Delete all emails", category = "Mailbox", timeoutSeconds = 1800, capabilities = "network",
+            description = "Delete every email of a folder that the filters find (G5).", panel = "folder, status, from_contains, subject_contains, since, before | permanent, max_results, session")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many emails were deleted.")
+    public Map<String, Object> deleteAll(ActionContext ctx,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = D_FOLDER) String folder,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Which emails: any, only unread or only read.") String status,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text; separate several with ; to match any of them.") String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 1, max = 10000, description = "At most this many emails.") int max,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session,
+            @Input(name = "permanent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove them instead of moving them to Deleted Items.") boolean permanent) {
+        ExchangeSession s = es(ctx, session);
+        int n = 0;
+        for (Map<String, Object> e : pick(ctx, s, folder, status, from, subject, since, before, max)) { delete(ctx, String.valueOf(e.get("id")), permanent, session); n++; }
+        return Map.of("count", BigDecimal.valueOf(n));
+    }
+
+    @Action(id = "move_all", name = "Move all emails", category = "Mailbox", timeoutSeconds = 1800, capabilities = "network",
+            description = "Move every email of a folder that the filters find to another folder (G5).", panel = "folder, status, from_contains, subject_contains, since, before, to_folder | create_folder, max_results, session")
+    @Output(name = "new_ids", type = OoaType.LIST, description = "The moved emails' new ids.")
+    public Map<String, Object> moveAll(ActionContext ctx,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = D_FOLDER) String folder,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Which emails: any, only unread or only read.") String status,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text; separate several with ; to match any of them.") String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 1, max = 10000, description = "At most this many emails.") int max,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session,
+            @Input(name = "to_folder", type = OoaType.STRING, description = "Destination: a well-known name, a path such as Inbox/Processed, or a folder id.") String to,
+            @Input(name = "create_folder", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the destination when it does not exist.") boolean create) {
+        ExchangeSession s = es(ctx, session);
+        String target = folderElement(ctx, s, to, create);
+        List<Object> ids = new ArrayList<>();
+        for (Map<String, Object> e : pick(ctx, s, folder, status, from, subject, since, before, max)) ids.add(moveTo(ctx, s, String.valueOf(e.get("id")), target));
+        return Map.of("new_ids", ids);
+    }
+
+    @Action(id = "save_all_attachments", name = "Save all attachments", category = "Mailbox", timeoutSeconds = 1800, capabilities = {"network", "filesystem"},
+            description = "Save the attachments of every email of a folder that the filters find (G5).", panel = "folder, status, from_contains, subject_contains, since, before, target_folder, overwrite | name_pattern, max_results, session")
+    @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
+    public Map<String, Object> saveAllAttachments(ActionContext ctx,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = D_FOLDER) String folder,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Which emails: any, only unread or only read.") String status,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text; separate several with ; to match any of them.") String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 1, max = 10000, description = "At most this many emails.") int max,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session,
+            @Input(name = "target_folder", type = OoaType.FILE, description = "Folder to save into.") String target,
+            @Input(name = "name_pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Only names matching this pattern, e.g. *.pdf.") String pattern,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace files of the same name instead of adding a number.") boolean overwrite) {
+        ExchangeSession s = es(ctx, session);
+        List<Object> files = new ArrayList<>();
+        String st = status == null ? "any" : status.strip().toLowerCase(Locale.ROOT);
+        for (Map<String, Object> e : find(ctx, s, folder, st.equals("unread"), st.equals("read"), from, subject, since, before, true, false, max))
+            files.addAll((List<?>) saveAttachments(ctx, String.valueOf(e.get("id")), target, pattern, overwrite, false, session).get("files"));
+        return Map.of("files", files);
+    }
 
     @Action(id = "disconnect", name = "Disconnect", category = "Mailbox", description = "Close the Exchange mailbox session.",
             panel = "session")
@@ -614,18 +739,22 @@ public final class ExchangePackage {
 
     @Action(id = "mark", name = "Mark read or unread", category = "Mailbox", capabilities = "network",
             description = "Mark an email as read or unread, and optionally set or clear its follow-up flag.",
-            panel = "id, read | flagged, session")
+            panel = "id, status, read | flagged, session")
     public Map<String, Object> mark(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String id,
             @Input(name = "read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "True = read, false = unread.") boolean read,
             @Input(name = "flagged", type = OoaType.BOOLEAN, required = false, description = "Set (true) or clear (false) the follow-up flag; unchanged when empty.") Boolean flagged,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"exchange\"", description = D_SESSION) String session,
+            @Input(name = "status", type = OoaType.STRING, required = false, newStepDefault = "\"read\"", enumValues = {"read", "unread"}, description = "Mark it read or unread (G5); the tick below for older steps.") String status) {
+        if (status != null && !status.isBlank()) read = !status.strip().equalsIgnoreCase("unread");
         String updates = isRead(read);
         if (flagged != null) updates += "<t:SetItemField><t:FieldURI FieldURI=\"item:Flag\"/><t:Message><t:Flag><t:FlagStatus>" + (flagged ? "Flagged" : "NotFlagged")
                 + "</t:FlagStatus></t:Flag></t:Message></t:SetItemField>";
         setFields(ctx, es(ctx, session), id, updates);
         return Map.of();
     }
+
+    public Map<String, Object> mark(ActionContext ctx, String id, boolean read, Boolean flagged, String session) { return mark(ctx, id, read, flagged, session, null); }
 
     @Action(id = "delete", name = "Delete email", category = "Mailbox", capabilities = "network",
             description = "Delete an email: moved to Deleted Items, or with permanent removed from the folders (Exchange still keeps it in Recoverable Items for its retention time).",
@@ -818,7 +947,7 @@ public final class ExchangePackage {
      * reaches a message.
      */
     static Element call(ActionContext ctx, ExchangeSession s, String operation, String body) {
-        String header = "<t:RequestServerVersion Version=\"Exchange2013\"/>" + (s.impersonate && s.otherMailbox()
+        String header = "<t:RequestServerVersion Version=\"" + s.version + "\"/>" + (s.impersonate && s.otherMailbox()
                 ? "<t:ExchangeImpersonation><t:ConnectingSID><t:PrimarySmtpAddress>" + x(s.mailbox) + "</t:PrimarySmtpAddress></t:ConnectingSID></t:ExchangeImpersonation>" : "");
         String envelope = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"" + NS_SOAP + "\" xmlns:t=\"" + NS_TYPES + "\" xmlns:m=\"" + NS_MESSAGES + "\">"
                 + "<soap:Header>" + header + "</soap:Header><soap:Body>" + body + "</soap:Body></soap:Envelope>";
@@ -844,6 +973,7 @@ public final class ExchangePackage {
             if (s.impersonate && s.otherMailbox()) c.setRequestProperty("X-AnchorMailbox", s.mailbox);
             if ("basic".equals(s.signIn))
                 c.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString((s.user + ":" + s.password.reveal()).getBytes(StandardCharsets.UTF_8)));
+            if ("oauth".equals(s.signIn) && s.token != null) c.setRequestProperty("Authorization", "Bearer " + s.token.reveal());
             // not streamed: the body is buffered so it can be sent again after the NTLM challenge
             byte[] bytes = envelope.getBytes(StandardCharsets.UTF_8);
             c.setDoOutput(true);

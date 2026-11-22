@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1690 codes in 152 areas.
+1674 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -170,7 +170,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `ASANA.BAD_INCLUDE` | Cannot copy '…' | Use notes, assignee, subtasks, attachments, tags, followers, projects or dates. | toolkits/enterprise |
 | `ASANA.BAD_USER` | Invalid user '…' | Use a numeric user id, an email address, or me. | toolkits/enterprise |
 | `ASANA.CONFIRM_REQUIRED` | The project was not deleted because confirm is false | Set confirm to true. | toolkits/enterprise |
-| `ASANA.MISSING_FILTER` | No project, section or assignee given | Fill in project_id, section_id, or assignee together with workspace_id. | toolkits/enterprise |
+| `ASANA.MISSING_FILTER` | No project, section or assignee given<br>Give the workspace or a team | Fill in project_id, section_id, or assignee together with workspace_id.<br>Fill in workspace_id or team_id. | toolkits/enterprise |
 | `ASANA.MISSING_LOCATION` | No project, parent task or workspace given | Fill in project_id, parent_task_id, or workspace_id for a task outside projects. | toolkits/enterprise |
 | `ASANA.NOTHING_TO_UPDATE` | No changes were given<br>Nothing to change | Fill in at least one field to change.<br>Fill in text or pinned.<br>Fill in at least one field. | toolkits/enterprise |
 | `ASANA.NOT_FOUND` | No … named '…'<br>No section named '…' in the project | Check the name, or use its id from its link.<br>Check the name (see List sections), or use its id. | toolkits/enterprise |
@@ -231,6 +231,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `AZURE_DEVOPS.BAD_REPOSITORY_ID` | '…' is not a repository id | Use the repository's id (a GUID) from List repositories. | toolkits/devops |
 | `AZURE_DEVOPS.BAD_RESULTS` | The results need an outcome column and a result_id or test_point_id column | Columns: result_id, outcome, comment, duration_seconds, error_message. | toolkits/devops |
 | `AZURE_DEVOPS.BAD_STAGE` | A stage name in stages_to_skip is empty | List the stage names as written in the YAML, e.g. ["DeployProd"]. | toolkits/devops |
+| `AZURE_DEVOPS.BAD_STEPS` | The steps table needs an action column | Columns: action, expected. | toolkits/devops |
 | `AZURE_DEVOPS.CONFIRM_REQUIRED` | The test plan was not deleted because confirm is false<br>The pipeline was not deleted because confirm is false | Set confirm to true. | toolkits/devops |
 | `AZURE_DEVOPS.MISSING_QUERY` | A query suite needs a query | Fill in a WIQL query. | toolkits/devops |
 | `AZURE_DEVOPS.MISSING_REQUIREMENT` | A requirement suite needs requirement_id | Fill in the work item id. | toolkits/devops |
@@ -239,6 +240,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `AZURE_DEVOPS.NOT_ACTIVE` | Pull request … is …status… | Only active pull requests can be completed. | toolkits/devops |
 | `AZURE_DEVOPS.NOT_FOUND` | Run … has no result for test point …test_point_id…<br>Pipeline … was not found | Check the test point id.<br>Check the id with List pipelines. | toolkits/devops |
 | `AZURE_DEVOPS.NOT_YAML` | Pipeline … is a classic pipeline, not a YAML one | Only YAML pipelines can be pointed at another YAML file or repository. | toolkits/devops |
+| `AZURE_DEVOPS.NO_REPOSITORY` | No repository named '…' in … | Check the name with List repositories. | toolkits/devops |
 | `AZURE_DEVOPS.TESTER_NOT_FOUND` | No user matches the tester '…' | Use the person's sign-in email as shown in Azure DevOps. | toolkits/devops |
 
 ## AZURE_VM
@@ -287,16 +289,14 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `BROWSER.BAD_ACTION` | Unknown element action '…' | Choose one of the actions the step offers. | packages-browser |
-| `BROWSER.BAD_ARGUMENT` | Argument … (…) is not a … | Change the argument or its type. | packages-browser |
 | `BROWSER.BAD_FUNCTION` | Invalid JavaScript function name '…' | Give a name such as calculateTotal or app.utils.calculateTotal. | packages-browser |
-| `BROWSER.BAD_INDEX` | select_by_index counts from 1; … is not an item<br>select_by_index needs a whole number | Give 1 for the first item.<br>Give the item's position as a whole number, from 1.<br>Give the option's position as a whole number. | packages-browser |
+| `BROWSER.BAD_INDEX` | select_by_index needs a whole number | Give the option's position as a whole number, from 0. | packages-browser |
 | `BROWSER.BAD_INPUT` | upload_file needs the file path(s) in value<br>Then wait for … needs wait_selector<br>Each column needs a name and an XPath | Fill in value with the file's path (several separated by \|).<br>Give the selector of the element to wait for.<br>For example {"Name": "td[1]", "Link": ".//a/@href"}. | packages-browser |
 | `BROWSER.BAD_MATCH` | Property … has an unknown match rule '…' | Use one of … | packages-browser |
 | `BROWSER.BAD_MODIFIER` | Unknown modifier key '…' | Use CTRL, SHIFT, ALT or WIN, joined with +. | packages-browser |
 | `BROWSER.BAD_OBJECT` | The captured object has no …<br>No property is selected for the search<br>The index must be 0 or more, or -1 for the last match | Capture the element again, or search by properties.<br>Tick at least one property in the captured object, or search by CSS or XPath.<br>Set the index to 0 or more, or -1 for the last match. | packages-browser |
 | `BROWSER.BAD_PORT` | The port must be between 1 and 65535 | Use a port between 1 and 65535 (Chrome's usual debugging port is 9222). | packages-browser |
 | `BROWSER.BAD_RETURN` | The function returned '…', not a number<br>The function did not return a list<br>The function did not return a dictionary | Make the script's function return the type the step's Return as setting expects.<br>Choose one of the return types the step offers. | packages-browser |
-| `BROWSER.BAD_TYPE` | Argument … has the unknown type … | Use auto, text, number, boolean, list, dictionary or date. | packages-browser |
 | `BROWSER.BAD_WINDOW` | Unknown window source '…'<br>The window must be a dictionary such as {"source": "browser", "title": "..."}<br>Unknown window match rule '…' | Use browser, application or variable.<br>Give the window as a dictionary, for example {"source": "browser", "title": "Orders"}.<br>Use one of … | packages-browser |
 | `BROWSER.BAD_XPATH` | An XPath of the columns or rows is not valid: … | Check row_xpath and each column's XPath. | packages-browser |
 | `BROWSER.CONNECTOR_NOT_CONNECTED` | …No browser…The … browser… is not connected to ONEOFFICEAUTOMATION<br>Lost the connection to the browser: … | Open the browser with the ONEOFFICEAUTOMATION Browser Connector extension loaded (run: ooa browser-connector install), or use a browser the agent starts itself.<br>Check that the browser is still open and its OOA extension is turned on, then run the step again. | packages-browser |
@@ -326,7 +326,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `BROWSER.SIGN_IN_FAILED` | The server refused the sign-in (…) | Check the user name and password, or the agent user's Windows access. | packages-browser |
 | `BROWSER.STILL_VISIBLE` | … is still on the page after … ms | Raise timeout_ms. | packages-browser |
 | `BROWSER.TIMEOUT` | … timed out: …<br>No element matches … within … ms<br>The page did not finish loading after the click | Check the selector matches an element on the page, or raise timeout_ms.<br>Raise timeout_ms.<br>Raise timeout_ms, or check the elements. | packages-browser |
-| `BROWSER.VALUE_REQUIRED` | Give the script to run, or a script file<br>The action '…' needs find_text, the text of the cell to find<br>The action '…' needs a value | Fill in Script, or Script file.<br>Fill in find_text.<br>Fill in Value for this action. | packages-browser |
+| `BROWSER.VALUE_REQUIRED` | Give the script to run, or a script file<br>The action '…' needs a value<br>The action '…' needs a row and a column (1 for the first) | Fill in Script, or Script file.<br>Fill in Value for this action.<br>Fill in row and column, from 1. | packages-browser |
 | `BROWSER.WINDOW_NOT_FOUND` | No open tab is titled '…'… or at ……<br>The browser at … has no open window<br>No open tab is titled '…'…… or at … | Choose the window again from the list; it may have been closed or navigated.<br>Open a window in that browser, or start it with an Open browser step first.<br>Open or attach the browser first (open, attach or open_for_automation), or check the variable holds the session name. | packages-browser |
 
 ## CALENDAR
@@ -392,11 +392,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `CONNECTION.INVALID` | connections.json is not valid JSON: … | Fix the file in the workspace. | runner |
-| `CONNECTION.NOT_FOUND` | There is no saved connection named '…' | Create it under Connections (One CommandCenter or OneAgentStudio), or choose another connection on the step. | runner |
+| `CONNECTION.INVALID` | connections.json is not valid JSON: … | Fix the file in the workspace. | packages, runner |
+| `CONNECTION.NOT_FOUND` | Choose the saved connection to use<br>There is no saved connection named '…' | Fill in connection with the name of a saved connection.<br>Create it under Connections (One CommandCenter or OneAgentStudio), or choose another connection.<br>Create it under Connections (One CommandCenter or OneAgentStudio), or choose another connection on the step. | packages, runner |
 | `CONNECTION.SIGN_IN_FAILED` | Cannot sign the sign-in request: …<br>Connection '…' could not reach its sign-in server: …<br>Connection '…' could not sign in (HTTP …)…message……: …message…… | Check the private key in the connection (PEM or the JSON key file as the service gave it).<br>Check the token address and that the runner can reach it.<br>Check the App id, the installation id and the key. | runner |
 | `CONNECTION.SIGN_IN_INCOMPLETE` | The sign-in's private key: …<br>Connection '…': … | Put the key (PEM, or Google's JSON key file) in the vault and pick it in the connection.<br>… | runner |
-| `CONNECTION.WRONG_TOOLKIT` | Connection '…' is for …, not … | Choose a connection made for …. | runner |
+| `CONNECTION.WRONG_TOOLKIT` | Connection '…' is for …, not … | Choose a connection made for …. | packages, runner |
 
 ## CONNECTOR
 
@@ -728,12 +728,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `DESKTOP_UI.BRIDGE_FAILED` | The UI Automation helper did not start…<br>Cannot start the UI Automation helper: … | Check that Windows PowerShell 5.1 and .NET Framework 4 are available on this machine.<br>Check that powershell.exe is on the PATH (Windows PowerShell 5.1). | packages-windows |
 | `DESKTOP_UI.BRIDGE_STOPPED` | The UI Automation helper has stopped…<br>The UI Automation helper stopped while working… | Run the step again. | packages-windows |
 | `DESKTOP_UI.BRIDGE_TIMEOUT` | The application did not answer UI Automation within … s | The application may be busy or not responding; wait for it or raise the timeout. | packages-windows |
-| `DESKTOP_UI.ITEM_NOT_FOUND` | No cell of the grid has the text … | Check the text, or read the grid with get_table. | packages-windows |
 | `DESKTOP_UI.NOT_IN_BACKGROUND` | A … click needs the mouse, which Run in background does not use<br>Focus brings the window to the front, which Run in background does not do<br>This … cannot be used without the mouse and keyboard: … | Use a left click, or turn off Run in background.<br>Turn off Run in background.<br>Turn off Run in background for this step (the window will then come to the front). | packages-windows |
-| `DESKTOP_UI.NO_CELL` | The action '…' needs a row and a column (1 for the first) | Fill in row and column. | packages-windows |
-| `DESKTOP_UI.NO_ITEM` | item_index counts from 1; … is not an item<br>Give the item text or item_index to select<br>Give item_index, the button's position on the tool bar | Give 1 for the first item.<br>Fill in the item's text, or item_index.<br>Fill in item_index. | packages-windows |
+| `DESKTOP_UI.NO_ITEM` | Give the item text or item_index to select | Fill in the item's text, or item_index. | packages-windows |
 | `DESKTOP_UI.NO_PROPERTY` | Give the property to read | For example Name, Value or IsEnabled. | packages-windows |
-| `DESKTOP_UI.NO_TEXT` | The action '…' needs text<br>The action '…' needs find_text, the text of the cell to find | Fill in text.<br>Fill in find_text. | packages-windows |
 | `DESKTOP_UI.OBJECT_NOT_FOUND` | The desktop object … was not found within … s<br>No open window matches …'…'…<br>No control ……named '…' ……with role '…' …in the window | Check the application window is open, or capture the object again and review which properties are used.<br>Open the application first, or check the title.<br>Use Find legacy objects to see the names and roles the application gives its controls. | packages-windows |
 | `DESKTOP_UI.UNKNOWN_PROPERTY` | The object has no property '…' | Available: …, …. | packages-windows |
 | `DESKTOP_UI.WAIT_TIMEOUT` | The desktop object …wait_appear… did not appear… did not disappear… within … s<br>The desktop object … did not appear… did not disappear… within … s | Raise timeout_seconds, or use Wait for object with fail_on_timeout false to branch instead.<br>Raise timeout_seconds, or set fail_on_timeout to false to branch instead. | packages-windows |
@@ -792,11 +789,8 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `DOTNET.BAD_INPUT` | Give the type (for a static method) or the object's name | Fill in type or object_name. | packages |
-| `DOTNET.FAILED` | .NET reported …type…: …message… | Check the type, method and arguments; Read assembly lists them. | packages |
 | `DOTNET.MISSING` | Fill in … | Fill in the field the message names. | packages |
 | `DOTNET.NO_CODE` | Type the C# code<br>Type the VB.NET code | Fill in code. | packages |
-| `DOTNET.NO_SESSION` | No .NET session named '…dotnet…' is open | Add Open assembly before this step. | packages |
 
 ## EC2
 
@@ -829,14 +823,14 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `EMAIL.AUTH_FAILED` | Mail sign-in failed: … | Check the user and password or token; Microsoft 365 and Gmail need OAuth or an app password. | packages-email |
-| `EMAIL.BAD_ADDRESS` | The server refused the address(es) …: …<br>Invalid email address: …<br>Invalid email address in …: … | Check the recipient addresses.<br>Check the sender and recipient addresses.<br>Check the addresses. | packages-email |
-| `EMAIL.BAD_INPUT` | Give the user that signs in to …<br>Unknown protocol '…'<br>unread_only and read_only cannot both be true | Fill in user.<br>Use imap or pop3.<br>Choose one of them. | packages-email |
+| `EMAIL.BAD_ADDRESS` | The server refused the address(es) …: …<br>Invalid email address: …<br>Invalid email address in …: … | Check the recipient addresses.<br>Check the sender and recipient addresses, or tick skip_invalid_addresses.<br>Check the addresses. | packages-email |
+| `EMAIL.BAD_INPUT` | Give the user that signs in to …<br>Unknown body type '…'<br>Unknown character set '…' | Fill in user.<br>Use plain, html or rich.<br>Use UTF-8, ISO-8859-1, windows-1252 or another standard name. | packages-email |
 | `EMAIL.ERROR` | … | Check the mail server's address, port and the sign-in in the connection; the message has the server's answer. | packages-email |
 | `EMAIL.MSG_UNAVAILABLE` | Saving .msg files needs the Office module | Install the Office package, or save the email as .eml. | packages |
 | `EMAIL.NOT_FOUND` | No email with id … in … | The email may have been moved or deleted. | packages-email |
 | `EMAIL.NOT_SUPPORTED` | … needs an IMAP mailbox; POP3 has no folders or read status on the server | Connect with protocol imap. | packages-email |
 | `EMAIL.NO_CREDENTIAL` | Give a password or an OAuth access token from the vault | Fill in password or access_token. | packages-email |
-| `EMAIL.NO_FOLDER` | Mail folder '…' not found<br>The server did not create mail folder '…' | Use Get folders to see the exact names.<br>Create it in the mailbox first, or set create_folder to true.<br>Check the folder name and your rights. | packages-email |
+| `EMAIL.NO_FOLDER` | Mail folder '…' not found<br>No mail folder matches '…'<br>The server did not create mail folder '…' | Use Get folders to see the exact names.<br>Create it in the mailbox first, or set create_folder to true.<br>Check the folder name and your rights. | packages-email |
 | `EMAIL.NO_RECIPIENT` | Give at least one address in …<br>The original email has no sender to reply to | Fill in ….<br>Reply only to messages that have a sender; use Send email for a new message instead. | packages-email |
 | `EMAIL.NO_SENDER` | There is no sender address for this email | Fill in from (or user, which is also used as the sender). | packages-email |
 | `EMAIL.NO_SMTP` | No outgoing (SMTP) server for this step | Fill in smtp_host and user, or give Connect an smtp_host so the mailbox session can send. | packages-email |
@@ -940,14 +934,14 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `EXCHANGE.ACCESS_DENIED` | Exchange refused access for … (HTTP 403)<br>… | Check the user may use EWS, and its rights on the mailbox.<br>Give the user rights on the mailbox (full access, Send As, or the ApplicationImpersonation role). | toolkits/microsoft |
 | `EXCHANGE.AUTH_FAILED` | Exchange refused the sign-in of … (HTTP 401) | Check the user (DOMAIN\user or user@domain), the password in the vault and sign_in (ntlm or basic, as the server's EWS site allows). | toolkits/microsoft |
 | `EXCHANGE.BAD_ADDRESS` | Give at least one recipient in to<br>Without the sender there is nobody left to reply to<br>… | Fill in to.<br>Use Reply to email, or give cc.<br>Check the recipient addresses. | toolkits/microsoft |
-| `EXCHANGE.BAD_INPUT` | Unknown sign_in '…'<br>impersonate needs the mailbox to act as<br>unread_only and read_only cannot both be true | Use ntlm or basic.<br>Fill in mailbox, or clear impersonate.<br>Choose one of them. | toolkits/microsoft |
+| `EXCHANGE.BAD_INPUT` | Unknown sign_in '…'<br>impersonate needs the mailbox to act as<br>unread_only and read_only cannot both be true | Use ntlm, basic or oauth.<br>Fill in mailbox, or clear impersonate.<br>Choose one of them. | toolkits/microsoft |
 | `EXCHANGE.BAD_RESPONSE` | Exchange did not give the email's content<br>Exchange did not return the item's id<br>The answer from … is not an EWS answer (HTTP …; often a proxy or sign-in page) | Forward it without as_attachment.<br>The service answered in an unexpected way; try again, and if it keeps happening check the service's status page.<br>Check the EWS address ends with /EWS/Exchange.asmx and that no proxy is in the way. | toolkits/microsoft |
 | `EXCHANGE.BAD_URL` | Invalid EWS address '…'<br>There is no EWS service at … (HTTP 404)<br>Exchange at … redirects elsewhere (HTTP …) | Use the server's EWS address, e.g. https://mail.example.com/EWS/Exchange.asmx.<br>Use the server's EWS address, usually https://<mail server>/EWS/Exchange.asmx.<br>Use the final EWS address (often https:// instead of http://). | toolkits/microsoft |
 | `EXCHANGE.HTTP_ERROR` | Exchange answered HTTP … to ……: … | Try again later, or ask the Exchange administrator to check the server. | toolkits/microsoft |
 | `EXCHANGE.NOT_FOUND` | No email with id …<br>… | The email may have been moved (it then has a new id) or deleted.<br>The email may have been moved (it then has a new id) or deleted; take the id from Find emails. | toolkits/microsoft |
 | `EXCHANGE.NO_FOLDER` | Mail folder '…' not found (no '…')<br>… | Use Get folders to see the exact names, or set create_folder to true.<br>Use Get folders to see the exact names. | toolkits/microsoft |
 | `EXCHANGE.NO_MAILBOX` | … | Check the mailbox address on Connect. | toolkits/microsoft |
-| `EXCHANGE.NO_SECRET` | Input 'password' must come from the vault (a Credential), so nothing was sent | Give a vault reference {"$credential": "locker/credential/attribute"} or a Credential variable. | toolkits/microsoft |
+| `EXCHANGE.NO_SECRET` | OAuth sign-in needs an access token from the vault or a saved sign-in connection<br>Input 'password' must come from the vault (a Credential), so nothing was sent | Give access_token.<br>Give a vault reference {"$credential": "locker/credential/attribute"} or a Credential variable. | toolkits/microsoft |
 | `EXCHANGE.NO_USER` | Give the user that signs in to Exchange | Fill in user as DOMAIN\user or user@domain. | toolkits/microsoft |
 | `EXCHANGE.SERVER_BUSY` | … | Exchange is throttling or busy; try again later. | toolkits/microsoft |
 | `EXCHANGE.SERVER_ERROR` | … | Check the inputs; the response code tells the Exchange administrator what went wrong. | toolkits/microsoft |
@@ -1145,11 +1139,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `IMAGE.NOT_FOUND` | Image did not appear within … s (best similarity …similarity…%)<br>Image not found on screen (best similarity …similarity…%) | Check the screen resolution and scaling match the captured picture, or raise the tolerance.<br>Check the window is visible and not covered, or raise the tolerance. | packages |
 | `IMAGE.NOT_STEADY` | The screen region kept changing for … s | Raise timeout_seconds or threshold_percent, or choose a smaller region. | packages |
 | `IMAGE.NO_CHANGE` | The screen region did not change within … s | Raise timeout_seconds, or lower threshold_percent. | packages |
-| `IMAGE.NO_WINDOW` | No open window matches '…' | Check the window's title. | packages |
 | `IMAGE.SIZE_MISMATCH` | The pictures differ in size: … x … and … x … | Capture both at the same size, or set size_mismatch to scale. | packages |
 | `IMAGE.STILL_VISIBLE` | Image was still on the screen after … s | Raise the timeout or lower the tolerance. | packages |
 | `IMAGE.UNSUPPORTED` | Not a readable image: … | Use PNG, JPG, BMP or GIF. | packages |
-| `IMAGE.WINDOW_UNAVAILABLE` | Searching inside a window needs a Windows runner with the Window toolkit installed | Leave window empty to search the screen. | packages |
 
 ## INSIGHTS
 
@@ -1181,12 +1173,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `JAVA_APPS.ATTACH_FAILED` | The Java application did not answer the agent<br>Cannot connect to the Java application …: … | Turn on the Java Access Bridge on the runner (jabswitch -enable) and start the application again.<br>The application must run as the same user as the runner, on Java 8 or later, and allow agents (no -XX:-EnableDynamicAgentLoading). | packages-windows |
-| `JAVA_APPS.BAD_INPUT` | Give the control's name, role or path<br>Give the text of the cell to find in value | Give a control's name, role or path; Capture in the step fills them in.<br>Fill in value. | packages-windows |
+| `JAVA_APPS.BAD_INPUT` | Give the control's name, role or path | Give a control's name, role or path; Capture in the step fills them in. | packages-windows |
 | `JAVA_APPS.FAILED` | The Java application refused: …error… | Check that the Java application is open and its Access Bridge is on; the message has its answer. | packages-windows |
 | `JAVA_APPS.NOT_INSTALLED` | The Java applications agent is missing from this runner | Reinstall the runner. | packages-windows |
 | `JAVA_APPS.NOT_REACHABLE` | The Java application … no longer answers: … | Check it is still open. | packages-windows |
 | `JAVA_APPS.OBJECT_NOT_FOUND` | No control ……named '…' ……with role '…' …in a Java window…… titled '…'… | Use Find Java objects to see the controls, or Get Java applications to see which programs are reachable. | packages-windows |
-| `JAVA_APPS.PICK_TIMEOUT` | No control was picked within … s | Press Ctrl+Shift+C while pointing at the control. | packages-windows |
 
 ## JIRA
 
@@ -1200,6 +1191,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `JIRA.BAD_LABEL` | Labels cannot contain spaces: '…' | Write each label as one word; use - or _ instead of spaces. | toolkits/enterprise |
 | `JIRA.BAD_PROJECT_KEY` | Invalid project key '…' | Use upper-case letters and digits, e.g. OPS. | toolkits/enterprise |
 | `JIRA.BAD_VISIBILITY` | Give a role or a group, not both | Fill in either Visible to role or Visible to group, not both. | toolkits/enterprise |
+| `JIRA.NO_CATEGORY` | No project category named '…' | Check the name in Jira's project categories. | toolkits/enterprise |
 | `JIRA.NO_FIELDS` | No fields to change | Give at least one field, e.g. {"summary": "New title"}.<br>Give at least one field, e.g. {"name": "Operations"}. | toolkits/enterprise |
 | `JIRA.NO_LEAD` | A project lead is required | Give lead_account_id (Cloud) or lead_user_name (Data Center). | toolkits/enterprise |
 | `JIRA.NO_TRANSITION` | Transition '…' is not available for … | Available now: …. | toolkits/enterprise |
@@ -1464,7 +1456,6 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `OCR.ACCESS_DENIED` | Adding a Windows language needs administrator rights | Run the step on a runner with administrator rights, or ask IT to add the OCR language. | packages |
 | `OCR.BAD_ENGINE` | The cloud engine is azure or google | Set the cloud engine to azure or google. | packages |
-| `OCR.BAD_INPUT` | where must be right, below, left or above<br>Give the label to look for<br>action must be read, click or type | Pick where the field sits from its label.<br>Fill in label.<br>Pick one of them. | packages |
 | `OCR.BAD_LANGUAGE` | Invalid language '…'<br>Invalid language tag '…' | Examples: eng, deu, eng+fra.<br>Use a tag such as de-DE or fr-FR. | packages |
 | `OCR.BAD_MODE` | Image mode must be none, gray or black_white | Use none, gray or black_white. | packages |
 | `OCR.BAD_REGION` | A region needs x, y, width and height, with width and height above 0<br>The region lies outside the image (…x…)<br>The area starts outside the window (…x…) | Set all four, or none for the whole image.<br>Check the coordinates.<br>Check x and y against the window's size. | packages |
@@ -1476,10 +1467,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `OCR.LANGUAGE_MISSING` | Tesseract language data '…' is not installed<br>The Windows OCR engine has no language for '…'<br>Windows has no OCR language '…' installed…… (installed: …)… | Install the language pack for Tesseract.<br>Use a language Windows knows (…, …) or install Tesseract.<br>Add the language in Windows Settings > Time & language > Language (with its OCR feature), or install Tesseract with that language. | packages |
 | `OCR.LANGUAGE_UNAVAILABLE` | Windows has no OCR language pack for … | Check the tag; Get OCR engines lists the installed ones. | packages |
 | `OCR.NOT_INSTALLED` | No OCR engine on this runner: Tesseract is not installed…… (the Windows OCR engine needs Windows 10 or later)…<br>The Windows OCR engine is only on Windows<br>No OCR engine: Tesseract is not installed and Windows OCR is not available on this Windows version | Install Tesseract (on Windows the UB Mannheim installer, on Linux the tesseract-ocr package) or set OOA_TESSERACT to its program.<br>Install Tesseract, or unset OOA_OCR_ENGINE.<br>Install Tesseract (the UB Mannheim installer) or set OOA_TESSERACT to tesseract.exe. | packages |
-| `OCR.NO_PDF` | Reading PDFs needs the PDF toolkit, which is not installed on this runner | Install the PDF toolkit, or turn the PDF into images first. | packages |
 | `OCR.SCREEN` | Cannot keep the screen picture: … | Check that the runner's temporary folder has space and may be written. | packages |
-| `OCR.TEXT_NOT_FOUND` | '…' was not found on the screen… … times……<br>The label '…' was not found on the screen | Check the window is visible; try a shorter phrase.<br>Check the window is visible, or try a shorter part of the label. | packages |
-| `OCR.UNSUPPORTED_IMAGE` | Not a readable image: …<br>The address did not return a readable image<br>The address did not return a readable image or PDF | Use PNG, JPG, BMP or GIF.<br>Use the direct address of a PNG, JPG, BMP or GIF image.<br>Use the direct address of a PNG, JPG, BMP, GIF image or a PDF. | packages |
+| `OCR.TEXT_NOT_FOUND` | '…' was not found on the screen… … times…… | Check the window is visible; try a shorter phrase. | packages |
+| `OCR.UNSUPPORTED_IMAGE` | Not a readable image: …<br>The address did not return a readable image | Use PNG, JPG, BMP or GIF.<br>Use the direct address of a PNG, JPG, BMP or GIF image. | packages |
 
 ## OFFICE
 
@@ -1720,7 +1710,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `RUN.CANCELLED` | Run thread interrupted<br>Interrupted<br>The wait was stopped | The run was stopped before this step finished. Run the agent again when it should go on.<br>Start the import again.<br>The run was stopped. | cli, control-room, packages, packages-browser, packages-windows, runner, sdk, toolkits/ai, toolkits/cloud-data, toolkits/microsoft |
+| `RUN.CANCELLED` | Run thread interrupted<br>Interrupted<br>The wait was stopped | The run was stopped before this step finished. Run the agent again when it should go on.<br>Start the import again.<br>Nothing to fix: someone stopped the run in One CommandCenter. | cli, control-room, packages, packages-browser, packages-windows, runner, sdk, toolkits/ai, toolkits/cloud-data, toolkits/microsoft |
 | `RUN.INPUT_INVALID` | Input '…' must be one of … | Give one of the values the message lists. | runner |
 | `RUN.INPUT_MISSING` | Required input '…' has no value | …description…description…Provide a …type… value for '…'. | runner |
 | `RUN.INPUT_UNKNOWN` | Unknown input(s): …, … | Only variables with direction 'input' can be supplied. | runner |
@@ -1844,15 +1834,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SCRIPT.BAD_ARGUMENT` | At most 64 arguments can be passed to a VBScript function<br>VBScript function arguments cannot contain line breaks | Pass at most 64 arguments; put more in a file or a list the function reads.<br>Pass multi-line text through a file instead. | packages |
 | `SCRIPT.BAD_FUNCTION` | Invalid function name '…' | Give a plain Python name such as calculate_total.<br>Give a plain JavaScript name such as calculateTotal.<br>Give a plain VBScript name such as FormatInvoice. | packages |
 | `SCRIPT.BAD_INTERPRETER` | Invalid interpreter '…' | Give the program name or full path, e.g. C:/Python312/python.exe. | packages |
-| `SCRIPT.BAD_LANGUAGE` | Unknown language … | Use python, javascript or vbscript. | packages |
-| `SCRIPT.BAD_RESULT` | The function result could not be read as JSON<br>The … session sent an answer that could not be read | Return numbers, text, lists or dictionaries. | packages |
+| `SCRIPT.BAD_RESULT` | The function result could not be read as JSON | Return numbers, text, lists or dictionaries. | packages |
 | `SCRIPT.FAILED` | Script exited with code …: …<br>… did not return a result (exit code …exit_code…): …error_output…<br>VBScript did not return a result (exit code …exit_code…): …error_output… | Read the error output, fix the script, or set fail_on_error to false.<br>Check the file runs on its own.<br>Check the file runs on its own with cscript. | packages |
-| `SCRIPT.INTERPRETER_NOT_FOUND` | Python is not installed on this runner (tried …, …)<br>…Python is not installed on this runner…Microsoft Store… (python only opens the Microsoft Store)……None of … is installed on this runner<br>Could not start … or ……: … | Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter.<br>…Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter, e.g. C:/Python312/python.exe.…Install the interpreter on the runner or add it to the PATH.<br>Install it on the runner, or give its program in interpreter. | packages |
-| `SCRIPT.NO_SCRIPT` | Give the script text or a script file<br>Give the code or a script file | Fill in 'script' or 'file'.<br>Fill in script or file. | packages |
-| `SCRIPT.NO_SESSION` | No script session named '…script…' is open | Add Open script session before this step. | packages |
+| `SCRIPT.INTERPRETER_NOT_FOUND` | Python is not installed on this runner (tried …, …)<br>…Python is not installed on this runner…Microsoft Store… (python only opens the Microsoft Store)……None of … is installed on this runner | Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter.<br>…Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter, e.g. C:/Python312/python.exe.…Install the interpreter on the runner or add it to the PATH. | packages |
+| `SCRIPT.NO_SCRIPT` | Give the script text or a script file | Fill in 'script' or 'file'. | packages |
 | `SCRIPT.NO_SOURCE` | Give the … file or type the script | Fill in file or script. | packages |
-| `SCRIPT.SESSION_ENDED` | The … session has ended<br>The … session has ended: …<br>The … session ended: … | Open the session again.<br>Open the session again; the code may have called exit. | packages |
-| `SCRIPT.TIMEOUT` | The … code did not finish within … s; the session was closed | Raise timeout_seconds, or check the code for a loop that never ends. | packages |
 | `SCRIPT.VBSCRIPT_ERROR` | … | Fix the VBScript function or its arguments. | packages |
 
 ## SERVICE
@@ -1909,6 +1895,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `SLACK.BAD_BLOCKS` | blocks must be a list of Block Kit blocks<br>blocks is not valid JSON: … | Build the layout in Slack's Block Kit Builder and paste its blocks array.<br>Correct the blocks JSON; Slack's Block Kit Builder shows valid blocks you can copy. | toolkits/enterprise |
 | `SLACK.BAD_CHANNEL` | A channel is required | Give a channel id such as C0123456789 or a name such as #ops-alerts. | toolkits/enterprise |
+| `SLACK.BAD_INPUT` | Unknown conversation type …<br>Give 1 to 8 members | Use public_channel, private_channel, im or mpim.<br>Fill in members with member ids. | toolkits/enterprise |
 | `SLACK.BAD_RESPONSE` | Slack's answer to … has no …<br>The reply to … is not a Slack answer (no ok or error field) | Check base_url (https://slack.com/api), the token's scopes (users:read.email, im:write) and any proxy between the runner and Slack.<br>Check base_url (https://slack.com/api) and any proxy between the runner and Slack. | toolkits/enterprise |
 | `SLACK.BAD_TIME` | '…' is not a date, a date and time, or a message timestamp id | Examples: 2026-11-01, 2026-11-01T09:00 or 1700000000.000100. | toolkits/enterprise |
 | `SLACK.BAD_USER` | Invalid user '…'<br>No user given | Give a member id such as U0123456789 or an email address.<br>Give a member id or an email address. | toolkits/enterprise |
@@ -1926,8 +1913,8 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SNMP.BAD_RESPONSE` | Cannot read the SNMP message: … | Check the device speaks SNMP v2c on this port. | packages |
 | `SNMP.BAD_SECURITY` | Unknown sign-in protocol '…'<br>Unknown privacy protocol '…'<br>SNMP v3 needs the security user name | Use none, md5, sha, sha256 or sha512.<br>Use none, des or aes128.<br>Fill in the SNMP v3 user name. | packages |
 | `SNMP.BAD_TRAP_TYPE` | Unknown generic trap type '…' | Use one of …. | packages |
-| `SNMP.BAD_TYPE` | Unsupported value type …<br>Unknown value type '…'<br>counter64 values need SNMP v2c | Use one of the value types the step offers.<br>Use integer, string, hex_string, decimal_bytes, null, oid, ip_address, counter32, gauge32, timeticks or counter64.<br>Use version v2c. | packages |
-| `SNMP.BAD_VALUE` | Invalid IPv4 address '…'<br>Value … is out of range for …<br>'…' is not hex bytes | Use the form 192.168.1.10.<br>Give an IPv4 address such as 192.168.1.10.<br>Give a value within the range of the type the message names. | packages |
+| `SNMP.BAD_TYPE` | Unsupported value type …<br>Unknown value type '…'<br>counter64 values need SNMP v2c | Use one of the value types the step offers.<br>Use integer, string, oid, ip_address, counter32, gauge32, timeticks or counter64.<br>Use version v2c. | packages |
+| `SNMP.BAD_VALUE` | Invalid IPv4 address '…'<br>Value … is out of range for … | Use the form 192.168.1.10.<br>Give an IPv4 address such as 192.168.1.10.<br>Give a value within the range of the type the message names. | packages |
 | `SNMP.BAD_VERSION` | Unsupported SNMP version '…' | Use v1, v2c or v3. | packages |
 | `SNMP.DECRYPTION` | The encrypted answer has a bad length<br>Cannot decrypt the SNMP message: …<br>The device could not decrypt the request | Check the privacy protocol and password against the device's settings.<br>Check the privacy protocol and password. | packages |
 | `SNMP.ERROR` | The SNMP agent answered … | …Use a community with write access, and check the object is writable.…Check the OID, value and type.<br>Check the OID, value and type, and that the user may read or write it. | packages |
@@ -2150,9 +2137,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TERMINAL.BAD_CODE_PAGE` | Invalid code page '…'<br>Code page '…' is not available | Example: cp037.<br>Use a single-byte EBCDIC code page such as cp037, cp273, cp277, cp280, cp285, cp297 or cp500. | packages |
 | `TERMINAL.BAD_CONDITION` | Unknown condition '…' | Use input_field, unlock, screen_change, screen_blank, cursor_at, cursor_leaves or seconds. | packages |
 | `TERMINAL.BAD_DELAY` | The delay must be between 0 and 600000 ms | Set the delay between 0 and 600,000 ms. | packages |
-| `TERMINAL.BAD_DEVICE_ATTRIBUTES` | device_attributes must look like ?62;1;6c | Give the part after ESC [, ending in c. | packages |
 | `TERMINAL.BAD_EMULATION` | Unknown emulation '…' | Use vt100, vt220, xterm or ansi. | packages |
-| `TERMINAL.BAD_ENCODING` | Unknown encoding … | Use utf-8, ansi, or a name such as Shift_JIS, GBK or EUC-KR. | packages |
 | `TERMINAL.BAD_HOST` | Invalid host '…' | Give a host name or IP address (letters, digits, . - and :). | packages |
 | `TERMINAL.BAD_KEY` | Unknown key '…'<br>Cannot read the escape sequence '…' | …Use Enter, Tab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Escape, Ctrl+C, Alt+X, PF1-PF20, SEQ:\e[24~ for any escape sequence, or a name set with Set key mapping.…Use Enter, Tab, Clear, PF1-PF24 or PA1-PA3, or a name set with Set key mapping.<br>Write Escape as \e or ^[, bytes as \x1b, control keys as ^C, e.g. SEQ:\e[24~.<br>… Or a name set with Set key mapping. | packages |
 | `TERMINAL.BAD_KEY_FILE` | The key file could not be read: … | Use an OpenSSH or PEM private key, and give key_passphrase when the key is protected. | packages |
@@ -2160,7 +2145,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TERMINAL.BAD_MODEL` | Model '…' is not a 5250 display | Use 3179-2 (24 x 80) or 3477-FC (27 x 132). | packages |
 | `TERMINAL.BAD_PATTERN` | Invalid prompt pattern: … | Use a regular expression such as [$#>]\s*$. | packages |
 | `TERMINAL.BAD_PORT` | Invalid port … | Use 23 for telnet, 992 for TLS or 22 for SSH. | packages |
-| `TERMINAL.BAD_POSITION` | Row and column start at 1<br>Row, column and length start at 1<br>Give both row and column, starting at 1 | Give row and column numbers from 1 (the top-left corner is row 1, column 1).<br>Give row and column from 1.<br>Give row, column and length from 1. | packages |
+| `TERMINAL.BAD_POSITION` | Row and column start at 1<br>Row, column and length start at 1<br>Give both row and column, starting at 1 | Give row and column numbers from 1 (the top-left corner is row 1, column 1).<br>Give row, column and length from 1.<br>Fill in both row and column, from 1. | packages |
 | `TERMINAL.BAD_REPEAT` | Repeat must be between 1 and 200 | Set Repeat between 1 and 200. | packages |
 | `TERMINAL.BAD_SCREEN_SIZE` | Screen size … x … is out of range | Use 5-255 rows and 20-255 columns; 24 x 80 suits most hosts. | packages |
 | `TERMINAL.BAD_TIMEOUT` | The timeout must be between 1 and 3600 seconds | Set the timeout between 1 and 3600 seconds. | packages |
@@ -2176,12 +2161,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TERMINAL.KEY_NOT_ON_5250` | … is not a 5250 key<br>The key '…' does not exist on 5250 displays | … | packages |
 | `TERMINAL.KEY_NOT_ON_VT` | The key '…' exists only on 3270 terminals | On VT hosts use Enter, Tab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Escape, Ctrl+C, Alt+X, PF1-PF20 or SEQ:\e[24~ for any escape sequence. | packages |
 | `TERMINAL.NOT_INSTALLED` | The x3270 terminal engine is not installed | Install wc3270 (Windows) or s3270, or set OOA_S3270 to its path. | packages |
-| `TERMINAL.NOT_ON_3270` | Only VT hosts keep lines that scrolled past | Read the screen with Get screen text. | packages |
 | `TERMINAL.NOT_ON_VT` | … is a 3270 command; VT hosts have no such key | Use keys a VT host understands: Enter, Tab, BackTab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Insert, Escape, Ctrl+C, PF1-PF20. | packages |
 | `TERMINAL.NO_CURSOR` | The engine did not report a cursor position: … … | Check the session is connected. | packages |
 | `TERMINAL.NO_FIELDS` | The screen has no fields | Wait for a formatted screen before reading fields. | packages |
 | `TERMINAL.NO_POSITION` | Give the row and column for …<br>Give a row and column, or a label | Rows and columns start at 1. | packages |
-| `TERMINAL.NO_PROMPT` | No prompt matching … within … s; the cursor line shows '…'<br>The host did not ask for the …password…password…user name… in time | Check the command finished, or change the prompt pattern.<br>Leave user empty and sign in with Type text steps, or check the host. | packages |
+| `TERMINAL.NO_PROMPT` | No prompt matching … within … s; the cursor line shows '…' | Check the command finished, or change the prompt pattern. | packages |
 | `TERMINAL.NO_SIGN_IN` | Give a password or a key file to sign in to … | Fill in password (a Credential) or key_file. | packages |
 | `TERMINAL.NO_USER` | SSH hosts need a user name | Fill in user. | packages |
 | `TERMINAL.PROTECTED_FIELD` | The field at row …, column … cannot be typed into | Pick an input field; Get all fields shows which are protected. | packages |
@@ -2200,7 +2184,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TRANSFER.BAD_COMMAND` | Give the FTP command to send<br>The FTP command must be a single line<br>'…' is not an FTP command name | For example FEAT, SYST or SITE CHMOD 644 file.txt.<br>Send one command per step.<br>FTP commands are 3 or 4 letters, such as FEAT, SYST, SITE or MDTM. | packages-transfer |
 | `TRANSFER.BAD_FILTER` | Both a number of days and dates were given<br>modified_before (…) is not after modified_after (…) | Filter by the last days or by dates, not both.<br>Give a later end date. | packages-transfer |
 | `TRANSFER.BAD_MODE` | Unknown transfer_mode '…' | Use binary or ascii. | packages-transfer |
-| `TRANSFER.BAD_OPTION` | implicit_tls applies to ftps only<br>retry_attempts must be from 0 to 20, not …<br>retry_delay_seconds must be from 0 to 600, not … | Set protocol to ftps or turn off implicit_tls.<br>Use 0 to try once, or a small number such as 3.<br>Use a delay such as 5 seconds. | packages-transfer |
+| `TRANSFER.BAD_OPTION` | SFTP has no anonymous sign-in<br>Give the user name<br>implicit_tls applies to ftps only | Give a user, or use ftp.<br>Fill in user, or tick anonymous for a public FTP server.<br>Set protocol to ftps or turn off implicit_tls. | packages-transfer |
 | `TRANSFER.CANCELLED` | Stopped while waiting to connect again | The run was stopped before this step finished. Run the agent again when it should go on. | packages-transfer |
 | `TRANSFER.EXISTS` | Remote file already exists: … | Set overwrite to true or choose another path. | packages-transfer |
 | `TRANSFER.FAILED` | …: … | Check the connection and paths.<br>Check the server's address, port and the sign-in in the connection; the message has the server's answer. | packages-transfer |
@@ -2308,7 +2292,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `WEBAGENT.NOT_ALLOWED` | … is not one of the allowed sites | Add it to allowed_sites or start elsewhere. | packages-browser |
 | `WEBAGENT.NOT_SUPPORTED` | The web goal agent needs a browser it starts itself | Use Start web agent session, or Open browser with engine playwright. | packages-browser |
 | `WEBAGENT.NO_CONTROL` | There is no control … on the page now | Run the step again; the page changed while the agent was working. | packages-browser |
-| `WEBAGENT.NO_GOAL` | Describe the goal | Fill in goal, or list the goals.<br>Describe the goal in a sentence, for example: download last month's invoice. | packages-browser |
+| `WEBAGENT.NO_GOAL` | Describe the goal | Describe the goal in a sentence, for example: download last month's invoice. | packages-browser |
 | `WEBAGENT.NO_SECRET` | There is no secret named … | Add the secret the message names to the step's secrets. | packages-browser |
 | `WEBAGENT.OPEN_FAILED` | Cannot open …: … | Check the address and the network. | packages-browser |
 | `WEBAGENT.WRITE_FAILED` | Cannot write …: …<br>Cannot write the trajectory file …: … | Check the folder exists and is writable. | packages-browser |

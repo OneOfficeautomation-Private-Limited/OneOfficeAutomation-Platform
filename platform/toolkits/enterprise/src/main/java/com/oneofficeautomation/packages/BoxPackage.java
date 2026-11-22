@@ -409,6 +409,29 @@ public final class BoxPackage {
         return Out.of("info", o);
     }
 
+    @Action(id = "get_folder_info", name = "Get folder info", category = "Folders", idempotent = true, capabilities = "network",
+            description = "Read a folder's name, item count, size, dates, owner, parent and shared link (G5).", panel = "access_token, folder_id | as_user, base_url")
+    @Output(name = "info", type = OoaType.DICTIONARY, description = "id, name, item_count, size, created_at, modified_at, parent_id, parent_name, owner, shared_link.")
+    public Map<String, Object> folderInfo(ActionContext ctx,
+            @Input(name = "folder_id", type = OoaType.STRING, description = "Folder to look up; 0 is the top level.") String folder,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "as_user", type = OoaType.STRING, required = false, description = D_AS_USER) String asUser,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base) {
+        Map<String, Object> r = req("GET", api(base) + "/folders/" + id("folder", folder) + "?fields=id,name,size,created_at,modified_at,parent,owned_by,shared_link,item_collection", token, asUser).send(ctx).map();
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("id", r.get("id"));
+        o.put("name", r.get("name"));
+        o.put("item_count", r.get("item_collection") instanceof Map<?, ?> ic ? ic.get("total_count") : null);
+        o.put("size", r.get("size"));
+        o.put("created_at", r.get("created_at"));
+        o.put("modified_at", r.get("modified_at"));
+        o.put("parent_id", r.get("parent") instanceof Map<?, ?> p ? p.get("id") : null);
+        o.put("parent_name", r.get("parent") instanceof Map<?, ?> p ? p.get("name") : null);
+        o.put("owner", r.get("owned_by") instanceof Map<?, ?> ob ? ob.get("login") : null);
+        o.put("shared_link", r.get("shared_link") instanceof Map<?, ?> sl ? sl.get("url") : null);
+        return Out.of("info", o);
+    }
+
     // ----- search -----
 
     @Action(id = "search", name = "Search", category = "Search", idempotent = true, timeoutSeconds = 600, capabilities = "network",
@@ -439,7 +462,7 @@ public final class BoxPackage {
 
     @Action(id = "create_shared_link", name = "Create shared link", category = "Sharing", capabilities = "network",
             description = "Create or change the shared link of a file or folder and return the link.",
-            panel = "access_token, item_type, item_id, access, allow_download, [Set an end date: expires_at] | as_user, base_url")
+            panel = "access_token, item_type, item_id, access, allow_download, allow_preview, [Set an end date: expires_at] | as_user, base_url")
     @Output(name = "url", type = OoaType.STRING, description = "Shared link to the item.")
     @Output(name = "download_url", type = OoaType.STRING, description = "Direct download link (files only, when downloads are allowed).")
     public Map<String, Object> sharedLink(ActionContext ctx,
@@ -451,14 +474,19 @@ public final class BoxPackage {
             @Input(name = "expires_at", type = OoaType.DATETIME, required = false, description = "When the link stops working (UTC). Leave empty for no end date.") Object expires,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "as_user", type = OoaType.STRING, required = false, description = D_AS_USER) String asUser,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base,
+            @Input(name = "allow_preview", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Let people with the link preview the item (G5).") boolean preview) {
         Map<String, Object> link = new LinkedHashMap<>();
         link.put("access", access);
-        if (!"collaborators".equals(access)) link.put("permissions", Map.of("can_download", download));
+        if (!"collaborators".equals(access)) link.put("permissions", preview ? Map.of("can_download", download) : Map.of("can_download", download, "can_preview", false));   // preview is Box's default
         if (expires != null && !Values.text(expires).isBlank()) link.put("unshared_at", Values.toDateTime(expires).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")));
         Map<String, Object> r = req("PUT", api(base) + "/" + itemPath(type) + "/" + id(type, item) + "?fields=shared_link", token, asUser).json(Map.of("shared_link", link)).send(ctx).map();
         Map<?, ?> sl = r.get("shared_link") instanceof Map<?, ?> m ? m : Map.of();
         return Out.of("url", sl.get("url"), "download_url", sl.get("download_url"));
+    }
+
+    public Map<String, Object> sharedLink(ActionContext ctx, String type, String item, String access, boolean download, Object expires, Object token, String asUser, String base) {
+        return sharedLink(ctx, type, item, access, download, expires, token, asUser, base, true);
     }
 
     @Action(id = "remove_shared_link", name = "Remove shared link", category = "Sharing", capabilities = "network", description = "Turn off the shared link of a file or folder.",

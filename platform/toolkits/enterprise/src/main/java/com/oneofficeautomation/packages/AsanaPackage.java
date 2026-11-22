@@ -159,7 +159,7 @@ public final class AsanaPackage {
 
     @Action(id = "list_projects", name = "List projects", category = "Projects", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "List the projects in a workspace, optionally only those of one team.",
-            panel = "token, team_id, workspace_id, include_archived | max_results, base_url")
+            panel = "token, team_id, workspace_id, archived | include_archived, max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, archived, owner, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of projects returned.")
     public Map<String, Object> listProjects(ActionContext ctx,
@@ -168,11 +168,14 @@ public final class AsanaPackage {
             @Input(name = "workspace_id", type = OoaType.STRING, description = D_WS) String ws,
             @Input(name = "team_id", type = OoaType.STRING, required = false, description = "Only projects of this team id.") String team,
             @Input(name = "include_archived", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also list archived projects.") boolean archived,
-            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max) {
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max,
+            @Input(name = "archived", type = OoaType.STRING, required = false, newStepDefault = "\"active\"", enumValues = {"active", "archived", "all"},
+                    description = "Active projects, archived ones or all; the tick below for older steps (G5).") String which) {
         Map<String, Object> q = new LinkedHashMap<>();
         q.put("workspace", gid("workspace", ws));
         if (team != null && !team.isBlank()) q.put("team", gid("team", team));
-        if (!archived) q.put("archived", "false");
+        String w = which == null || which.isBlank() ? (archived ? "all" : "active") : which.strip().toLowerCase(Locale.ROOT);
+        if (w.equals("active")) q.put("archived", "false"); else if (w.equals("archived")) q.put("archived", "true");
         q.put("opt_fields", "name,archived,owner.name,permalink_url");
         return result(pages(ctx, base, "/projects?" + HttpJson.query(q), token, max), "gid", "name", "archived", "owner=owner.name", "url=permalink_url");
     }
@@ -193,7 +196,7 @@ public final class AsanaPackage {
 
     @Action(id = "create_project", name = "Create project", category = "Projects", capabilities = "network",
             description = "Create a project in a workspace. Organization workspaces also need a team.",
-            panel = "token, name, workspace_id, team_id, notes | base_url")
+            panel = "token, name, workspace_id, team_id, notes, owner, due_on | base_url")
     @Output(name = "project_id", type = OoaType.STRING, description = "Id of the new project.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the project.")
     public Map<String, Object> createProject(ActionContext ctx,
@@ -202,9 +205,13 @@ public final class AsanaPackage {
             @Input(name = "workspace_id", type = OoaType.STRING, description = D_WS) String ws,
             @Input(name = "name", type = OoaType.STRING, example = "Q1 2027 month-end close", description = "Project name.") String projName,
             @Input(name = "team_id", type = OoaType.STRING, required = false, description = "Team id; required in organization workspaces.") String team,
-            @Input(name = "notes", type = OoaType.STRING, required = false, description = "Project description.") String notes) {
+            @Input(name = "notes", type = OoaType.STRING, required = false, description = "Project description.") String notes,
+            @Input(name = "owner", type = OoaType.STRING, required = false, description = "The project's owner: a user id, email or me (G5).") String owner,
+            @Input(name = "due_on", type = OoaType.STRING, required = false, example = "2027-03-31", description = "The project's due date, yyyy-MM-dd (G5).") String dueOn) {
         Map<String, Object> b = new LinkedHashMap<>();
         b.put("name", projName);
+        if (owner != null && !owner.isBlank()) b.put("owner", user(owner));
+        if (dueOn != null && !dueOn.isBlank()) b.put("due_on", dueOn.strip());
         b.put("workspace", gid("workspace", ws));
         if (team != null && !team.isBlank()) b.put("team", gid("team", team));
         if (notes != null) b.put("notes", notes);
@@ -347,7 +354,7 @@ public final class AsanaPackage {
 
     @Action(id = "list_tasks", name = "List tasks", category = "Tasks", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "List the tasks of a project, of a section, or assigned to a user in a workspace.",
-            panel = "token, workspace_id, project_id, assignee, modified_since | section_id, only_open, max_results, base_url")
+            panel = "token, workspace_id, project_id, project_ids, assignee, modified_since | section_id, only_open, completed_since, max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, completed, assignee, due_on, modified_at, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of tasks returned.")
     public Map<String, Object> listTasks(ActionContext ctx,
@@ -359,7 +366,23 @@ public final class AsanaPackage {
             @Input(name = "workspace_id", type = OoaType.STRING, required = false, description = "Workspace, used together with assignee.") String ws,
             @Input(name = "only_open", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out completed tasks.") boolean open,
             @Input(name = "modified_since", type = OoaType.STRING, required = false, example = "2026-10-01T00:00:00Z", description = "Only tasks changed at or after this time (ISO 8601).") String modified,
-            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max) {
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max,
+            @Input(name = "project_ids", type = OoaType.LIST, required = false, description = "Or the tasks of several projects, one after another (G5).") List<Object> projects,
+            @Input(name = "completed_since", type = OoaType.STRING, required = false, example = "2026-10-01T00:00:00Z",
+                    description = "Only tasks not completed, or completed at or after this time (ISO 8601) (G5).") String completedSince) {
+        if (projects != null && !projects.isEmpty()) {   // G5: several projects
+            List<Object> rows = new ArrayList<>();
+            List<String> cols = null;
+            for (Object p : projects) {
+                if (rows.size() >= max) break;
+                @SuppressWarnings("unchecked")
+                Map<String, Object> t = (Map<String, Object>) listTasks(ctx, base, token, Values.text(p), null, null, null, open, modified, max - rows.size(), null, completedSince).get("table");
+                @SuppressWarnings("unchecked") List<String> c = (List<String>) t.get("columns");
+                cols = c;
+                rows.addAll((List<?>) t.get("rows"));
+            }
+            return Map.of("table", Values.table(cols == null ? List.of() : cols, rows), "count", BigDecimal.valueOf(rows.size()));
+        }
         String path;
         Map<String, Object> q = new LinkedHashMap<>();
         if (section != null && !section.isBlank()) path = "/sections/" + sectionGid(ctx, base, token, null, section) + "/tasks";
@@ -370,10 +393,25 @@ public final class AsanaPackage {
             q.put("workspace", gid("workspace", ws));
         } else throw new ActionException(P + ".MISSING_FILTER", "No project, section or assignee given", "Fill in project_id, section_id, or assignee together with workspace_id.");
         if (open) q.put("completed_since", "now");
+        else if (completedSince != null && !completedSince.isBlank()) q.put("completed_since", completedSince.strip());
         if (modified != null && !modified.isBlank()) q.put("modified_since", modified);
         q.put("opt_fields", TASK_LIST_FIELDS);
         return result(pages(ctx, base, path + "?" + HttpJson.query(q), token, max), TASK_COLS);
     }
+
+    public Map<String, Object> listTasks(ActionContext ctx, String base, Object token, String project, String section, String assignee, String ws, boolean open, String modified, int max) {
+        return listTasks(ctx, base, token, project, section, assignee, ws, open, modified, max, null, null);
+    }
+
+    public Map<String, Object> listProjects(ActionContext ctx, String base, Object token, String ws, String team, boolean archived, int max) {
+        return listProjects(ctx, base, token, ws, team, archived, max, null);
+    }
+
+    public Map<String, Object> createProject(ActionContext ctx, String base, Object token, String ws, String projName, String team, String notes) {
+        return createProject(ctx, base, token, ws, projName, team, notes, null, null);
+    }
+
+    public Map<String, Object> listUsers(ActionContext ctx, String base, Object token, String ws, int max) { return listUsers(ctx, base, token, ws, max, null); }
 
     @Action(id = "search_tasks", name = "Search tasks", category = "Tasks", idempotent = true, capabilities = "network",
             description = "Search a workspace for tasks by text, assignee, project or completion (needs a paid Asana plan). Returns up to 100 tasks, most recently changed first.",
@@ -626,14 +664,14 @@ public final class AsanaPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
             @Input(name = "attachment_id", type = OoaType.STRING, description = "Attachment id, from Upload attachment or the task's attachments.") String attachment,
-            @Input(name = "folder", type = OoaType.FILE, required = false, defaultValue = "\".\"", description = "Folder to save into.") String folder,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file of the same name; otherwise a number is added.") boolean overwrite) {
+            @Input(name = "folder", type = OoaType.FILE, required = false, defaultValue = "\".\"", newStepDefault = "\"\"", description = "Folder to save into; the run's temporary folder when empty (G5).") String folder,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace a file of the same name; otherwise a number is added.") boolean overwrite) {
         Map<String, Object> a = data(ctx, "GET", base, "/attachments/" + gid("attachment", attachment) + "?opt_fields=name,download_url", token, null);
         Object url = a.get("download_url");
         if (url == null) throw new ActionException(P + ".NO_DOWNLOAD", "Attachment " + attachment + " has no download address (links to Google Drive, Box and similar are not files)",
                 "Open the link from the task instead.");
         byte[] bytes = send(HttpJson.req(P, "GET", Values.text(url)).timeout(600), ctx).bytes();   // a signed address: no token is sent
-        java.nio.file.Path dir = ctx.resolvePath(folder == null || folder.isBlank() ? "." : folder);
+        java.nio.file.Path dir = folder == null || folder.isBlank() ? ctx.outputPath(null, "x").getParent() : ctx.resolvePath(folder);
         String name = HttpJson.safeName(Values.text(a.getOrDefault("name", "attachment")));
         java.nio.file.Path out = dir.resolve(name);
         for (int i = 2; !overwrite && java.nio.file.Files.exists(out); i++) out = dir.resolve(name.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1"));
@@ -832,14 +870,17 @@ public final class AsanaPackage {
     // ---------------------------------------------------------------- users
 
     @Action(id = "list_users", name = "List users", category = "Users", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List the people in a workspace.",
-            panel = "token, workspace_id | max_results, base_url")
+            panel = "token, (People of: The workspace = workspace_id / One team = team_id) | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, email.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of users returned.")
     public Map<String, Object> listUsers(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, signInToken = true, description = D_TOKEN) Object token,
-            @Input(name = "workspace_id", type = OoaType.STRING, description = D_WS) String ws,
-            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "2000", description = D_MAX) int max) {
+            @Input(name = "workspace_id", type = OoaType.STRING, required = false, description = D_WS) String ws,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "2000", description = D_MAX) int max,
+            @Input(name = "team_id", type = OoaType.STRING, required = false, description = "Only the people of this team (G5).") String team) {
+        if (team != null && !team.isBlank()) return result(pages(ctx, base, "/teams/" + gid("team", team) + "/users?opt_fields=name,email", token, max), "gid", "name", "email");
+        if (ws == null || ws.isBlank()) throw new ActionException(P + ".MISSING_FILTER", "Give the workspace or a team", "Fill in workspace_id or team_id.");
         return result(pages(ctx, base, "/users?workspace=" + gid("workspace", ws) + "&opt_fields=name,email", token, max), "gid", "name", "email");
     }
 
