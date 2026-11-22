@@ -44,12 +44,15 @@ public final class TriggerKinds {
                 new Kind("file_deleted", Where.RUNNER, "File deleted", false),
                 new Kind("folder_created", Where.RUNNER, "Folder created", false),
                 new Kind("folder_deleted", Where.RUNNER, "Folder deleted", false),
+                new Kind("file_renamed", Where.RUNNER, "File renamed", false),       // G6
+                new Kind("folder_renamed", Where.RUNNER, "Folder renamed", false),   // G6
                 new Kind("window_opened", Where.RUNNER, "Window opened", true),
                 new Kind("window_closed", Where.RUNNER, "Window closed", true),
                 new Kind("process_started", Where.RUNNER, "Process started", false),
                 new Kind("process_stopped", Where.RUNNER, "Process stopped", false),
                 new Kind("service_started", Where.RUNNER, "Service started", true),
                 new Kind("service_stopped", Where.RUNNER, "Service stopped", true),
+                new Kind("service_paused", Where.RUNNER, "Service paused", true),    // G6
                 new Kind("hotkey", Where.RUNNER, "Hotkey pressed", true),
                 new Kind("key_pressed", Where.RUNNER, "Key pressed in a window", true),
                 new Kind("mouse_clicked", Where.RUNNER, "Mouse click on an element or window", true),
@@ -62,7 +65,7 @@ public final class TriggerKinds {
             KINDS.put(k.id(), k);
     }
 
-    public static final Set<String> FOLDER_KINDS = Set.of("file", "file_changed", "file_deleted", "folder_created", "folder_deleted");
+    public static final Set<String> FOLDER_KINDS = Set.of("file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "file_renamed", "folder_renamed");
     static final Pattern VAULT_REF = Pattern.compile("^[A-Za-z0-9_.-]{1,80}/[A-Za-z0-9_.-]{1,80}/[A-Za-z0-9_.-]{1,80}$");
     static final Pattern SERVICE = Pattern.compile("^[A-Za-z0-9_.\\- $]{1,256}$");
     static final Pattern TABLE = Pattern.compile("^[a-z][a-z0-9_]{0,79}$");
@@ -121,17 +124,30 @@ public final class TriggerKinds {
         if (body.get("config") instanceof Map<?, ?> c) in.putAll((Map<String, Object>) c);   // settings may come flat or under "config"
         Map<String, Object> out = new LinkedHashMap<>();
         switch (kind) {
-            case "file", "file_changed", "file_deleted", "folder_created", "folder_deleted" -> {
+            case "file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "file_renamed", "folder_renamed" -> {
                 need(in, "folder", "A " + kind.replace('_', ' ') + " trigger needs a folder on the runner");
                 if (in.get("recursive") != null) out.put("recursive", Boolean.parseBoolean(String.valueOf(in.get("recursive"))));
+                // G6: "also start if it already exists" (file arrives, folder created)
+                if ((kind.equals("file") || kind.equals("folder_created")) && in.get("fire_existing") != null)
+                    out.put("fire_existing", Boolean.parseBoolean(String.valueOf(in.get("fire_existing"))));
             }
-            case "window_opened", "window_closed" -> out.put("title", pattern(need(in, "title", "A window trigger needs a title pattern")));
+            case "window_opened", "window_closed" -> {
+                boolean cs = Boolean.parseBoolean(String.valueOf(in.get("case_sensitive")));   // G6
+                String title = need(in, "title", "A window trigger needs a title pattern");
+                out.put("title", pattern(title));
+                if (cs) out.put("case_sensitive", true);
+            }
             case "process_started", "process_stopped" -> {
                 String p = need(in, "process", "A process trigger needs a process name such as notepad.exe");
                 if (p.contains("/") || p.contains("\\")) throw bad("Give the process name only, such as notepad.exe, not a path");
                 out.put("process", p);
+                String ev = str(in, "events");   // G6: started, stopped or both in one trigger
+                if (ev != null) {
+                    if (!PROCESS_EVENTS.contains(ev)) throw bad("events is started, stopped or both, not '" + ev + "'");
+                    out.put("events", ev);
+                }
             }
-            case "service_started", "service_stopped" -> {
+            case "service_started", "service_stopped", "service_paused" -> {
                 String s = need(in, "service", "A service trigger needs a Windows service name such as Spooler");
                 if (!SERVICE.matcher(s).matches()) throw bad("Invalid service name '" + s + "'; use the service name shown by sc query");
                 out.put("service", s);
@@ -157,7 +173,7 @@ public final class TriggerKinds {
                 out.put("username", need(in, "username", "An email trigger needs the mailbox user name"));
                 out.put("password_ref", vaultRef(in, "password_ref", "An email trigger needs the password", true));
                 out.put("mail_folder", Objects.requireNonNullElse(str(in, "mail_folder"), "INBOX"));
-                filters(in, out);
+                filters(in, out, true);
                 out.put("interval_seconds", interval(in));
             }
             case "outlook" -> {
@@ -179,7 +195,8 @@ public final class TriggerKinds {
                 if (mailbox != null) out.put("mailbox", mailbox);
                 out.put("mail_folder", Objects.requireNonNullElse(str(in, "mail_folder"), "inbox"));
                 if (str(in, "graph_url") != null) out.put("graph_url", httpsUrl(in, "graph_url", "graph_url", true));
-                filters(in, out);
+                azureCloud(in, out);
+                filters(in, out, false);
                 out.put("interval_seconds", interval(in));
             }
             case "servicenow" -> {
@@ -214,7 +231,7 @@ public final class TriggerKinds {
                 }
                 out.put("interval_seconds", interval(in));
             }
-            case "webhook" -> { }
+            case "webhook" -> webhookConfig(in, out);
             case "mail" -> {   // Mail accounts (MA-4): the account is read once for all its rules; this trigger's rule says which emails
                 out.put("mail_account", need(in, "mail_account", "Choose the mail account to read"));
                 if (str(in, "folder") != null) out.put("folder", str(in, "folder"));
@@ -237,9 +254,87 @@ public final class TriggerKinds {
         return p;
     }
 
-    private static void filters(Map<String, Object> in, Map<String, Object> out) {
-        if (str(in, "from_contains") != null) out.put("from_contains", str(in, "from_contains"));
-        if (str(in, "subject_contains") != null) out.put("subject_contains", str(in, "subject_contains"));
+    /**
+     * The from and subject filters ("contains", any case) and, G6, "only emails with attachments". With lists (IMAP), a
+     * filter with ; in it is a list where any one may match: kept as from_any or subject_any.
+     */
+    private static void filters(Map<String, Object> in, Map<String, Object> out, boolean lists) {
+        for (String k : List.of("from_contains", "subject_contains")) {
+            String v = str(in, k);
+            if (v == null) continue;
+            if (lists && v.contains(";")) {
+                List<String> any = new ArrayList<>();
+                for (String part : v.split(";")) if (!part.isBlank() && !any.contains(part.strip())) any.add(part.strip());
+                if (any.size() > 50) throw bad(k + " lists at most 50 values");
+                if (!any.isEmpty()) out.put(k.replace("_contains", "_any"), any);
+            } else out.put(k, v);
+        }
+        if (Boolean.parseBoolean(String.valueOf(in.get("has_attachment")))) out.put("has_attachment", true);
+    }
+
+    /** Microsoft's clouds (G6): the Graph and sign-in addresses, and the token scope, of each. */
+    public static final Map<String, List<String>> AZURE_CLOUDS = Map.of(
+            "global", List.of("https://graph.microsoft.com/v1.0", "https://login.microsoftonline.com", "https://graph.microsoft.com/.default"),
+            "us_government", List.of("https://graph.microsoft.us/v1.0", "https://login.microsoftonline.us", "https://graph.microsoft.us/.default"),
+            "china", List.of("https://microsoftgraph.chinacloudapi.cn/v1.0", "https://login.chinacloudapi.cn", "https://microsoftgraph.chinacloudapi.cn/.default"));
+
+    /** azure_cloud (G6): fills the Graph and sign-in addresses of that cloud unless they were given. */
+    private static void azureCloud(Map<String, Object> in, Map<String, Object> out) {
+        String cloud = str(in, "azure_cloud");
+        if (cloud == null || cloud.equals("global")) return;
+        List<String> hosts = AZURE_CLOUDS.get(cloud);
+        if (hosts == null) throw bad("azure_cloud is global, us_government or china, not '" + cloud + "'");
+        if (out.containsKey("ms_signin")) throw bad("Sign in with Microsoft works with Microsoft's global cloud; for " + cloud.replace('_', ' ') + " use your own app (tenant_id, client_id and client_secret_ref) or a token_ref");
+        out.put("azure_cloud", cloud);
+        out.putIfAbsent("graph_url", hosts.get(0));
+        if (out.containsKey("client_secret_ref")) out.putIfAbsent("login_url", hosts.get(1));
+        out.put("graph_scope", hosts.get(2));
+    }
+
+    static final Set<String> PROCESS_EVENTS = Set.of("started", "stopped", "both");
+    static final Pattern HEADER = Pattern.compile("^[A-Za-z0-9-]{1,80}$");
+    static final Pattern INPUT_NAME = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]{0,79}$");
+
+    /**
+     * A webhook's checks and mapping (G6), all optional: a header every call must carry (with a value kept in the vault,
+     * or just present); an HMAC signature of the body (sha256 or sha1, in the header named, with the shared secret in the
+     * vault), which then stands in for the X-OOA-Secret header; a challenge field whose value is echoed back to the
+     * sender's address check; and payload values passed to agent inputs of their own (input name to a JSON path).
+     */
+    private static void webhookConfig(Map<String, Object> in, Map<String, Object> out) {
+        String hdr = str(in, "required_header");
+        if (hdr != null) {
+            if (!HEADER.matcher(hdr).matches()) throw bad("required_header must be a header name such as X-Api-Key");
+            out.put("required_header", hdr);
+            String ref = vaultRef(in, "required_header_value_ref", "", false);
+            if (ref != null) out.put("required_header_value_ref", ref);
+        }
+        String scheme = str(in, "signature_scheme");
+        if (scheme != null && !scheme.equals("none")) {
+            if (!Set.of("sha256", "sha1").contains(scheme)) throw bad("signature_scheme is sha256 or sha1, not '" + scheme + "'");
+            String sh = need(in, "signature_header", "A signature check needs the header the sender puts the signature in, such as X-Hub-Signature-256");
+            if (!HEADER.matcher(sh).matches()) throw bad("signature_header must be a header name such as X-Hub-Signature-256");
+            out.put("signature_scheme", scheme);
+            out.put("signature_header", sh);
+            out.put("signature_secret_ref", vaultRef(in, "signature_secret_ref", "A signature check needs the shared secret", true));
+        }
+        String ch = str(in, "challenge_field");
+        if (ch != null) {
+            if (!INPUT_NAME.matcher(ch).matches()) throw bad("challenge_field must be a field name such as challenge");
+            out.put("challenge_field", ch);
+        }
+        if (in.get("input_map") instanceof Map<?, ?> m && !m.isEmpty()) {
+            if (m.size() > 50) throw bad("input_map has at most 50 entries");
+            Map<String, Object> map = new LinkedHashMap<>();
+            m.forEach((k, v) -> {
+                String name = String.valueOf(k), path = v == null ? "" : String.valueOf(v).trim();
+                if (!INPUT_NAME.matcher(name).matches() || name.equals("payload")) throw bad("'" + name + "' cannot be an input name in input_map");
+                if (path.isEmpty()) throw bad("input_map: give the payload path for " + name + ", such as $.order.id");
+                try { JsonPath.compile(path); } catch (RuntimeException e) { throw bad("input_map: '" + path + "' is not a payload path: " + e.getMessage()); }
+                map.put(name, path);
+            });
+            out.put("input_map", map);
+        } else if (in.get("input_map") != null && !(in.get("input_map") instanceof Map)) throw bad("input_map is an object of input names and payload paths");
     }
 
     /** Config as shown to users: internal state (keys starting with _) removed. */

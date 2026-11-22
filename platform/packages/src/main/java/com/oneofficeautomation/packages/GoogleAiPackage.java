@@ -30,13 +30,23 @@ public final class GoogleAiPackage {
         final SecureString credential;
         final boolean token;
         final String project, location, endpoint;
+        /** A service account key (G6): the session signs in by itself and keeps the token until it expires; null otherwise. */
+        final ServiceAccount account;
         GoogleAiSession(SecureString credential, boolean token, String project, String location, String endpoint) {
-            this.credential = credential; this.token = token; this.project = project; this.location = location; this.endpoint = endpoint;
+            this(credential, token, project, location, endpoint, null);
+        }
+        GoogleAiSession(SecureString credential, boolean token, String project, String location, String endpoint, ServiceAccount account) {
+            this.credential = credential; this.token = token; this.project = project; this.location = location; this.endpoint = endpoint; this.account = account;
         }
         String url(String service, String dflt) { return CloudAi.endpoint(endpoint, service, dflt); }
-        Map<String, String> auth() {
+        Map<String, String> auth() { return auth(null); }
+        /** The request headers; a service account session gets (or reuses) its access token first. */
+        Map<String, String> auth(ActionContext ctx) {
             Map<String, String> h = new LinkedHashMap<>();
-            if (token) {
+            if (account != null) {
+                h.put("Authorization", "Bearer " + account.token(ctx));
+                if (project != null) h.put("x-goog-user-project", project);
+            } else if (token) {
                 h.put("Authorization", "Bearer " + credential.reveal().strip());
                 if (project != null) h.put("x-goog-user-project", project);
             } else h.put("x-goog-api-key", credential.reveal().strip());
@@ -46,24 +56,127 @@ public final class GoogleAiPackage {
         }
     }
 
+    static final String TOKEN_URL = "https://oauth2.googleapis.com/token", SCOPE = "https://www.googleapis.com/auth/cloud-platform";
+
+    /**
+     * A service account key (G6): the session makes a short signed request (a JWT, signed with the key's RS256 private
+     * key) and swaps it for an access token at Google's token address, then keeps the token until a minute before it
+     * expires. The private key stays in memory only and is never logged.
+     */
+    static final class ServiceAccount {
+        final String email, keyId, tokenUrl;
+        final java.security.PrivateKey key;
+        /** Seconds since 1970; tests set a fake clock. */
+        java.util.function.LongSupplier clock = () -> System.currentTimeMillis() / 1000;
+        private String cached;
+        private long expires;
+
+        ServiceAccount(String email, String keyId, java.security.PrivateKey key, String tokenUrl) {
+            this.email = email; this.keyId = keyId; this.key = key; this.tokenUrl = tokenUrl;
+        }
+
+        /** Reads a service account key file's JSON (type service_account, client_email, private_key, optional private_key_id and token_uri). */
+        static ServiceAccount parse(String json) {
+            Object o;
+            try { o = JsonLite.parse(json); } catch (RuntimeException e) { o = null; }
+            if (!(o instanceof Map<?, ?> m)) throw new ActionException(P + ".BAD_KEY_FILE", "The service account key is not JSON", "Use the JSON key file downloaded for the service account from the Google Cloud console.");
+            String email = CloudAi.str(m.get("client_email")), pem = CloudAi.str(m.get("private_key"));
+            if (email == null || pem == null || (m.get("type") != null && !"service_account".equals(String.valueOf(m.get("type")))))
+                throw new ActionException(P + ".BAD_KEY_FILE", "The JSON is not a service account key (it needs client_email and private_key)", "Download a JSON key for the service account in the Google Cloud console (IAM > Service accounts > Keys).");
+            String uri = CloudAi.str(m.get("token_uri"));
+            if (uri == null || uri.isBlank()) uri = TOKEN_URL;
+            if (!Pattern.compile(HttpJson.HTTPS_OR_LOCAL).matcher(uri).find())
+                throw new ActionException(P + ".BAD_KEY_FILE", "The key's token_uri is not an https address", "Use the key file as Google gave it.");
+            java.security.PrivateKey k;
+            try {
+                String b64 = pem.replaceAll("-----(BEGIN|END) PRIVATE KEY-----", "").replaceAll("\\s", "");
+                k = java.security.KeyFactory.getInstance("RSA").generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(Base64.getDecoder().decode(b64)));
+            } catch (Exception e) {
+                throw new ActionException(P + ".BAD_KEY_FILE", "The service account's private key cannot be read", "Use the key file as Google gave it; the private key must be an RSA key in PKCS#8 form.");
+            }
+            return new ServiceAccount(email, CloudAi.str(m.get("private_key_id")), k, uri);
+        }
+
+        /** The signed request for a token: header and claims, base64url without padding, signed with RS256. */
+        String assertion(long now) {
+            Base64.Encoder b = Base64.getUrlEncoder().withoutPadding();
+            Map<String, Object> header = new LinkedHashMap<>(Map.of("alg", "RS256", "typ", "JWT"));
+            if (keyId != null) header.put("kid", keyId);
+            Map<String, Object> claims = new LinkedHashMap<>();
+            claims.put("iss", email);
+            claims.put("scope", SCOPE);
+            claims.put("aud", tokenUrl);
+            claims.put("iat", BigDecimal.valueOf(now));
+            claims.put("exp", BigDecimal.valueOf(now + 3600));
+            String body = b.encodeToString(JsonLite.write(header).getBytes(StandardCharsets.UTF_8)) + "." + b.encodeToString(JsonLite.write(claims).getBytes(StandardCharsets.UTF_8));
+            try {
+                java.security.Signature s = java.security.Signature.getInstance("SHA256withRSA");
+                s.initSign(key);
+                s.update(body.getBytes(StandardCharsets.US_ASCII));
+                return body + "." + b.encodeToString(s.sign());
+            } catch (java.security.GeneralSecurityException e) {
+                throw new ActionException(P + ".BAD_KEY_FILE", "The service account's key cannot sign: " + e.getMessage(), "Use the key file as Google gave it.");
+            }
+        }
+
+        /** The access token: the kept one while it has more than a minute left, else a new one from the token address. */
+        synchronized String token(ActionContext ctx) {
+            long now = clock.getAsLong();
+            if (cached != null && now < expires - 60) return cached;
+            String form = "grant_type=" + java.net.URLEncoder.encode("urn:ietf:params:oauth:grant-type:jwt-bearer", StandardCharsets.UTF_8)
+                    + "&assertion=" + assertion(now);
+            Map<String, String> h = new LinkedHashMap<>(Map.of("Content-Type", "application/x-www-form-urlencoded", "Accept", "application/json"));
+            Map<String, Object> r = CloudAi.send(ctx, P, "Google sign-in", "POST", URI.create(tokenUrl), h, form.getBytes(StandardCharsets.UTF_8), 60, a -> {
+                Map<String, Object> j = a.json();
+                String msg = CloudAi.str(j.get("error_description"));
+                if (msg == null) msg = CloudAi.str(j.get("error"));
+                return CloudAi.error(P + ".AUTH_FAILED", "Google sign-in", a.status(), CloudAi.str(j.get("error")), msg == null ? CloudAi.rawMessage(a) : msg,
+                        "Google did not accept the service account key. Check that the key is still active and the service account still exists.", false);
+            }).json();
+            String t = CloudAi.str(r.get("access_token"));
+            if (t == null || t.isBlank()) throw new ActionException(P + ".AUTH_FAILED", "Google sign-in gave no access token", "Try again; check the service account key.");
+            cached = t;
+            expires = now + CloudAi.intOf(r.get("expires_in"), 3600);
+            return t;
+        }
+    }
+
     // ----- connection -----
 
+    /** Before G6 (kept for callers in Java). */
+    public Map<String, Object> connect(ActionContext ctx, Object credential, String credentialType, String project, String location, String endpoint, String session) {
+        return connect(ctx, credential, credentialType, null, project, location, endpoint, session);
+    }
+
     @Action(id = "connect", name = "Connect", category = "Connection",
-            description = "Open a session with an API key or OAuth access token from the vault, and the project and location of your Document AI processors.",
-            panel = "session, credential, credential_type | project, location, endpoint")
+            description = "Open a session with an API key, an OAuth access token or a service account key, and the project and location of your Document AI processors.",
+            panel = "session, credential, credential_type, key_file | project, location, endpoint")
     public Map<String, Object> connect(ActionContext ctx,
-            @Input(name = "credential", type = OoaType.CREDENTIAL, description = "API key or OAuth access token from the vault.") Object credential,
-            @Input(name = "credential_type", type = OoaType.STRING, required = false, enumValues = {"api_key", "access_token"}, defaultValue = "\"api_key\"",
-                    description = "api_key: a Google Cloud API key (Natural Language and Vision). access_token: an OAuth token of a service account or user (needed for Document AI).") String credentialType,
-            @Input(name = "project", type = OoaType.STRING, required = false, example = "acme-ai-prod", description = "Google Cloud project id or number; needed for Document AI, and billed for calls made with an access token.") String project,
+            @Input(name = "credential", type = OoaType.CREDENTIAL, required = false,
+                    description = "API key, OAuth access token or service account key (the key file's JSON) from the vault.") Object credential,
+            @Input(name = "credential_type", type = OoaType.STRING, required = false, enumValues = {"api_key", "access_token", "service_account_json"}, defaultValue = "\"api_key\"",
+                    description = "api_key: a Google Cloud API key (Natural Language and Vision). access_token: an OAuth token of a service account or user (needed for Document AI). "
+                            + "service_account_json: a service account's JSON key, from the vault or a file; the session gets and renews its own access tokens (G6).") String credentialType,
+            @Input(name = "key_file", type = OoaType.FILE, required = false, visibleWhen = "credential_type=service_account_json",
+                    description = "The service account's JSON key file, when the key is not in the vault (G6). Keep the file where only the runner's account can read it.") String keyFile,
+            @Input(name = "project", type = OoaType.STRING, required = false, acceptsCredential = true, example = "acme-ai-prod",
+                    description = "Google Cloud project id or number; needed for Document AI, and billed for calls made with an access token. It may come from the vault.") String project,
             @Input(name = "location", type = OoaType.STRING, required = false, enumValues = {"us", "eu"}, defaultValue = "\"us\"", description = "Location of the Document AI processors: us or eu.") String location,
             @Input(name = "endpoint", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL,
                     description = "Another address for the APIs, e.g. a Private Service Connect address; {service} in it becomes language, vision or us-documentai (eu-documentai). Leave empty for Google's addresses.") String endpoint,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"google_ai\"", description = "Session name.") String session) {
         SecureString c = CloudAi.secret(credential);
-        if (c == null) throw new ActionException(P + ".NO_CREDENTIAL", "An API key or access token from the vault is required", "Map credential to a Credential.");
         String kind = credentialType == null || credentialType.isBlank() ? "api_key" : credentialType.strip();
-        if (!kind.equals("api_key") && !kind.equals("access_token")) throw new ActionException(P + ".BAD_CREDENTIAL_TYPE", "Unknown credential_type '" + kind + "'", "Use api_key or access_token.");
+        if (!kind.equals("api_key") && !kind.equals("access_token") && !kind.equals("service_account_json"))
+            throw new ActionException(P + ".BAD_CREDENTIAL_TYPE", "Unknown credential_type '" + kind + "'", "Use api_key, access_token or service_account_json.");
+        ServiceAccount account = null;
+        if (kind.equals("service_account_json")) {
+            String json;
+            if (c != null) json = c.reveal();
+            else if (keyFile != null && !keyFile.isBlank()) json = new String(CloudAi.readFile(ctx, P, keyFile, 64 * 1024, "service account key"), StandardCharsets.UTF_8);
+            else throw new ActionException(P + ".NO_CREDENTIAL", "A service account key is required", "Map credential to the key in the vault, or give key_file.");
+            account = ServiceAccount.parse(json);
+        } else if (c == null) throw new ActionException(P + ".NO_CREDENTIAL", "An API key or access token from the vault is required", "Map credential to a Credential.");
         String proj = project == null || project.isBlank() ? null : project.strip();
         if (proj != null && !ID.matcher(proj).matches()) throw new ActionException(P + ".BAD_PROJECT", "'" + proj + "' is not a project id", "Use the project id, e.g. acme-ai-prod, or its number.");
         String loc = location == null || location.isBlank() ? "us" : location.strip();
@@ -71,7 +184,7 @@ public final class GoogleAiPackage {
         String ep = endpoint == null || endpoint.isBlank() ? null : endpoint.strip();
         if (ep != null && !Pattern.compile(HttpJson.HTTPS_OR_LOCAL).matcher(ep).find())
             throw new ActionException(P + ".BAD_ENDPOINT", "'" + ep + "' is not an https address", "Leave endpoint empty for Google's own addresses.");
-        CloudAi.sessionName(session, "google_ai", ctx.sessions(), new GoogleAiSession(c, kind.equals("access_token"), proj, loc, ep));
+        CloudAi.sessionName(session, "google_ai", ctx.sessions(), new GoogleAiSession(c, !kind.equals("api_key"), proj, loc, ep, account));
         return Map.of();
     }
 
@@ -208,9 +321,14 @@ public final class GoogleAiPackage {
 
     // ----- Document AI -----
 
+    /** Before G6 (kept for callers in Java). */
+    public Map<String, Object> documentaiProcess(ActionContext ctx, String session, String processorId, String file, String version, String mimeType, boolean headers) {
+        return documentaiProcess(ctx, session, processorId, file, null, version, mimeType, headers);
+    }
+
     @Action(id = "documentai_process", name = "Process a document", category = "Document AI", idempotent = true, capabilities = "network",
             description = "Send a document to a Document AI processor (e.g. an invoice, form, OCR or custom extractor) and get its text, entities, form fields and tables; each table becomes a Data Table.",
-            panel = "session, processor_id, file | processor_version, mime_type, first_row_headers")
+            panel = "session, processor_id, file | project, processor_version, mime_type, first_row_headers")
     @Output(name = "text", type = OoaType.STRING, description = "All text of the document.")
     @Output(name = "entities", type = OoaType.TABLE, description = "What the processor extracted. Columns: type, text, normalized, confidence.")
     @Output(name = "fields", type = OoaType.DICTIONARY, description = "Entity type to its text, e.g. {\"invoice_id\": \"INV-100\", \"total_amount\": \"110.00\"}; repeated types become a list.")
@@ -219,17 +337,22 @@ public final class GoogleAiPackage {
     @Output(name = "page_count", type = OoaType.NUMBER, description = "Number of pages processed.")
     public Map<String, Object> documentaiProcess(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"google_ai\"", description = D_SESSION) String session,
-            @Input(name = "processor_id", type = OoaType.STRING, example = "a1b2c3d4e5f60718", description = "Id of the processor, from its page in the Google Cloud console.") String processorId,
+            @Input(name = "processor_id", type = OoaType.STRING, acceptsCredential = true, example = "a1b2c3d4e5f60718",
+                    description = "Id of the processor, from its page in the Google Cloud console. It may come from the vault.") String processorId,
             @Input(name = "file", type = OoaType.FILE, description = "PDF, TIFF, GIF, JPEG, PNG, BMP or WEBP file; at most 20 MB.") String file,
+            @Input(name = "project", type = OoaType.STRING, required = false, acceptsCredential = true,
+                    description = "The project that owns the processor, when it is not the one given to Connect (G6). It may come from the vault.") String project,
             @Input(name = "processor_version", type = OoaType.STRING, required = false, description = "A processor version id, e.g. pretrained-invoice-v2.0-2023-12-06. Leave empty for the default version.") String version,
             @Input(name = "mime_type", type = OoaType.STRING, required = false, description = "Content type of the file, e.g. application/pdf. Leave empty to take it from the file name.") String mimeType,
             @Input(name = "first_row_headers", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Use each table's header row (or first row) as its column names.") boolean headers) {
         GoogleAiSession s = ctx.sessionOrOnly(session, "google_ai", GoogleAiSession.class);
-        if (!s.token) throw new ActionException(P + ".TOKEN_REQUIRED", "Document AI does not take API keys", "Connect with credential_type access_token and an OAuth token of a service account that may use the processor.");
-        if (s.project == null) throw new ActionException(P + ".NO_PROJECT", "No project given to Connect", "Give Connect the project id that owns the processor.");
+        if (!s.token) throw new ActionException(P + ".TOKEN_REQUIRED", "Document AI does not take API keys", "Connect with credential_type access_token or service_account_json, as a service account that may use the processor.");
+        String proj = project == null || project.isBlank() ? s.project : project.strip();
+        if (proj == null) throw new ActionException(P + ".NO_PROJECT", "No project given to Connect", "Give Connect the project id that owns the processor.");
+        if (!ID.matcher(proj).matches()) throw new ActionException(P + ".BAD_PROJECT", "The project is not a project id", "Use the project id, e.g. acme-ai-prod, or its number.");
         String pid = processorId == null ? "" : processorId.strip();
-        if (!ID.matcher(pid).matches()) throw new ActionException(P + ".BAD_PROCESSOR", "'" + pid + "' is not a processor id", "Copy the id from the processor's page in the Google Cloud console.");
-        String path = "/v1/projects/" + s.project + "/locations/" + s.location + "/processors/" + pid;
+        if (!ID.matcher(pid).matches()) throw new ActionException(P + ".BAD_PROCESSOR", "The processor id is not valid", "Copy the id from the processor's page in the Google Cloud console.");
+        String path = "/v1/projects/" + proj + "/locations/" + s.location + "/processors/" + pid;
         if (version != null && !version.isBlank()) {
             if (!ID.matcher(version.strip()).matches()) throw new ActionException(P + ".BAD_PROCESSOR", "'" + version + "' is not a processor version id", "Leave it empty for the default version.");
             path += "/processorVersions/" + version.strip();
@@ -312,7 +435,7 @@ public final class GoogleAiPackage {
         try { uri = URI.create(url); }
         catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_URL", "Invalid address: " + url, "Check the endpoint given to Connect."); }
         byte[] payload = JsonLite.write(Values.toJsonable(body)).getBytes(StandardCharsets.UTF_8);
-        return CloudAi.send(ctx, P, service, "POST", uri, s.auth(), payload, 120, a -> error(service, a)).json();
+        return CloudAi.send(ctx, P, service, "POST", uri, s.auth(ctx), payload, 120, a -> error(service, a)).json();
     }
 
     /** Google errors: {"error": {"code", "message", "status", "details": [{"reason"}]}}; an invalid API key (HTTP 400) is a sign-in error too. */

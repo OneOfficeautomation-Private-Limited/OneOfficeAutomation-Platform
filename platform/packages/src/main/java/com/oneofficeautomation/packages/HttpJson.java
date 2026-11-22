@@ -373,4 +373,100 @@ final class HttpJson {
         n = n.substring(n.lastIndexOf('/') + 1).replaceAll("[\\x00-\\x1f<>:\"|?*]", "_").strip();
         return n.isEmpty() || n.equals(".") || n.equals("..") ? "file" : n;
     }
+
+    // ---------- G6: trusting a private certificate authority ----------
+
+    /**
+     * The client for these options, also trusting the certificates in trustCertificate (a .cer, .crt or .pem file of a
+     * company CA or a server) on top of the usual trusted authorities, so a private CA works without turning off
+     * certificate checks. Without a file it is opts.client(ctx, shared), as before.
+     */
+    static HttpClient clientTrusting(ActionContext ctx, HttpOptions opts, HttpClient shared, String trustCertificate, String prefix) {
+        if (trustCertificate == null || trustCertificate.isBlank()) return opts.client(ctx, shared);
+        if (opts.insecure())
+            throw new ActionException(prefix + ".BAD_TLS", "trust_certificate and insecure_tls cannot be used together",
+                    "Keep trust_certificate (certificates are still checked) and turn insecure_tls off.");
+        HttpClient.Builder b = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20))
+                .followRedirects(opts.followRedirects() ? HttpClient.Redirect.NORMAL : HttpClient.Redirect.NEVER);
+        if (opts.proxy() != null && !opts.proxy().isBlank()) {
+            b.proxy(java.net.ProxySelector.of(HttpOptions.proxyAddress(opts.proxy())));
+            String pu = opts.proxyUser();
+            if (pu != null && !pu.isBlank()) {
+                Object pp = opts.proxyPassword();
+                char[] pw = pp instanceof SecureString s ? s.reveal().toCharArray() : pp == null ? new char[0] : String.valueOf(pp).toCharArray();
+                b.authenticator(new java.net.Authenticator() {
+                    @Override protected java.net.PasswordAuthentication getPasswordAuthentication() {
+                        return getRequestorType() == RequestorType.PROXY ? new java.net.PasswordAuthentication(pu, pw) : null;
+                    }
+                });
+            }
+        }
+        if (opts.cookies()) {
+            Object jar = ctx.sessions().computeIfAbsent(HttpOptions.COOKIE_SESSION, k -> new java.net.CookieManager(null, java.net.CookiePolicy.ACCEPT_ORIGINAL_SERVER));
+            b.cookieHandler((java.net.CookieHandler) jar);
+        }
+        b.sslContext(trustingContext(ctx, opts, trustCertificate, prefix));
+        return b.build();
+    }
+
+    private static javax.net.ssl.SSLContext trustingContext(ActionContext ctx, HttpOptions opts, String trustCertificate, String prefix) {
+        java.nio.file.Path p = ctx.resolvePath(trustCertificate);
+        if (!java.nio.file.Files.isRegularFile(p))
+            throw new ActionException(prefix + ".CERTIFICATE_NOT_FOUND", "Certificate to trust not found: " + p, "Give the .cer, .crt or .pem file of the company's certificate authority.");
+        try {
+            java.util.Collection<? extends java.security.cert.Certificate> extra;
+            try (java.io.InputStream in = java.nio.file.Files.newInputStream(p)) {
+                extra = java.security.cert.CertificateFactory.getInstance("X.509").generateCertificates(in);
+            } catch (IOException | java.security.cert.CertificateException e) {
+                throw new ActionException(prefix + ".BAD_CERTIFICATE", "Cannot read the certificate to trust " + p.getFileName() + ": " + e.getMessage(),
+                        "Give an X.509 certificate as a .cer/.crt (DER) or .pem (Base64) file.");
+            }
+            if (extra.isEmpty()) throw new ActionException(prefix + ".BAD_CERTIFICATE", "No certificate found in " + p.getFileName(), "Give an X.509 certificate as a .cer/.crt (DER) or .pem (Base64) file.");
+            // one trust store: the usual trusted authorities plus the given certificates
+            java.security.KeyStore trust = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType());
+            trust.load(null, null);
+            javax.net.ssl.TrustManagerFactory def = javax.net.ssl.TrustManagerFactory.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+            def.init((java.security.KeyStore) null);
+            int n = 0;
+            for (javax.net.ssl.TrustManager tm : def.getTrustManagers())
+                if (tm instanceof javax.net.ssl.X509TrustManager x) for (java.security.cert.X509Certificate c : x.getAcceptedIssuers()) trust.setCertificateEntry("default-" + n++, c);
+            for (java.security.cert.Certificate c : extra) trust.setCertificateEntry("trusted-" + n++, c);
+            javax.net.ssl.TrustManagerFactory tmf = javax.net.ssl.TrustManagerFactory.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(trust);
+            javax.net.ssl.KeyManager[] keys = null;
+            if (opts.clientCertificate() != null && !opts.clientCertificate().isBlank()) {
+                java.nio.file.Path cp = ctx.resolvePath(opts.clientCertificate());
+                if (!java.nio.file.Files.isRegularFile(cp)) throw new ActionException("HTTP.CERTIFICATE_NOT_FOUND", "Client certificate not found: " + cp, "Give a .p12 or .pfx file.");
+                char[] pw = opts.clientCertificatePassword() instanceof SecureString s ? s.reveal().toCharArray() : new char[0];
+                java.security.KeyStore ks = java.security.KeyStore.getInstance("PKCS12");
+                try (java.io.InputStream in = java.nio.file.Files.newInputStream(cp)) { ks.load(in, pw); }
+                catch (IOException e) { throw new ActionException("HTTP.BAD_CERTIFICATE", "Cannot open client certificate " + cp.getFileName() + ": " + e.getMessage(), "Check the file is PKCS#12 (.p12/.pfx) and the password is right."); }
+                javax.net.ssl.KeyManagerFactory kmf = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+                kmf.init(ks, pw);
+                keys = kmf.getKeyManagers();
+            }
+            javax.net.ssl.SSLContext c = javax.net.ssl.SSLContext.getInstance("TLS");
+            c.init(keys, tmf.getTrustManagers(), null);
+            return c;
+        } catch (IOException | java.security.GeneralSecurityException e) {
+            throw new ActionException("HTTP.TLS_SETUP_FAILED", "Cannot set up TLS: " + e.getMessage(), "Check the certificate files and the client certificate password.");
+        }
+    }
+
+    // ---------- G6: placeholders in a text body ----------
+
+    /**
+     * The body with each {{name}} replaced by the value given for name (a vault secret is put in as the secret; the run
+     * still masks it in logs). A name whose placeholder is not in the body is reported as a warning.
+     */
+    static String replacePlaceholders(ActionContext ctx, String body, Map<String, Object> replacements) {
+        if (body == null || replacements == null || replacements.isEmpty()) return body;
+        String out = body;
+        for (Map.Entry<String, Object> e : replacements.entrySet()) {
+            String token = "{{" + e.getKey().strip() + "}}";
+            if (!out.contains(token)) { ctx.warn("The body has no " + token + " placeholder to replace"); continue; }
+            out = out.replace(token, e.getValue() == null ? "" : sendable(e.getValue()));
+        }
+        return out;
+    }
 }

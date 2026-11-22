@@ -2833,6 +2833,39 @@ public final class ControlRoom {
         return fireTrigger(t, payload == null ? Map.of() : Map.of("payload", payload), "webhook:" + tid, ip);
     }
 
+    /**
+     * A webhook call as it came (G6): the body in any content type, the headers (looked up by name, any case). An
+     * address check is answered with its challenge; a signed webhook needs no X-OOA-Secret header (a wrong one is still
+     * refused); the required header is checked; mapped payload values become agent inputs of their own.
+     */
+    public com.oneofficeautomation.controlroom.runs.Webhooks.Reply webhook(String tid, java.util.function.Function<String, String> header, byte[] raw, String contentType, String ip) {
+        Map<String, Object> t = db.one("SELECT * FROM triggers WHERE id = ? AND kind = 'webhook'", tid);
+        String secret = header.apply("X-OOA-Secret");
+        if (t == null) {
+            audit.record("webhook", "trigger.fire", "trigger", tid, null, "denied", ip);
+            throw new OoaException("CR.FORBIDDEN", "Unknown webhook or wrong secret", "Check the webhook's address and secret in Manage > Triggers; copy them again if the secret was replaced.");
+        }
+        Map<String, Object> cfg = TriggerPollers.config(t);
+        Object payload = com.oneofficeautomation.controlroom.runs.Webhooks.payload(raw, contentType);
+        String challenge = com.oneofficeautomation.controlroom.runs.Webhooks.challenge(cfg, payload);
+        if (challenge != null) {   // the sender checks the address before it sends events: nothing starts
+            audit.record("webhook", "trigger.challenge", "trigger", tid, null, "ok", ip);
+            return new com.oneofficeautomation.controlroom.runs.Webhooks.Reply(200, Map.of("challenge", challenge));
+        }
+        boolean secretOk = secret != null && Security.constantEquals(Security.sha256(secret), (String) t.get("secret_hash"));
+        if (secret != null ? !secretOk : !com.oneofficeautomation.controlroom.runs.Webhooks.signed(cfg)) {
+            audit.record("webhook", "trigger.fire", "trigger", tid, null, "denied", ip);
+            throw new OoaException("CR.FORBIDDEN", "Unknown webhook or wrong secret", "Check the webhook's address and secret in Manage > Triggers; copy them again if the secret was replaced.");
+        }
+        try { com.oneofficeautomation.controlroom.runs.Webhooks.check(cfg, header, raw, ref -> triggerPollers.triggerSecret(t, ref)); }
+        catch (OoaException e) { audit.record("webhook", "trigger.fire", "trigger", tid, Map.of("reason", String.valueOf(e.getMessage())), "denied", ip); throw e; }
+        if (!Boolean.TRUE.equals(t.get("enabled"))) throw new OoaException("CR.TRIGGER_DISABLED", "This webhook is disabled", "Enable the trigger in Manage > Triggers.");
+        Map<String, Object> in = new LinkedHashMap<>();
+        in.put("payload", payload);
+        in.putAll(com.oneofficeautomation.controlroom.runs.Webhooks.inputs(cfg, payload));
+        return new com.oneofficeautomation.controlroom.runs.Webhooks.Reply(202, fireTrigger(t, in, "webhook:" + tid, ip));
+    }
+
     public Map<String, Object> fileFired(Map<String, Object> d, String tid, String file) {
         return localFired(d, tid, Map.of("path", String.valueOf(file)));
     }

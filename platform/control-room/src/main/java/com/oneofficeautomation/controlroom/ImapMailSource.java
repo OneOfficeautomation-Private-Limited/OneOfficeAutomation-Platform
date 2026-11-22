@@ -174,7 +174,19 @@ public final class ImapMailSource implements MailSource {
         m.put("message_id", h.getOrDefault("message-id", ""));
         m.put("body_preview", preview(h, text == null ? new byte[0] : text));
         m.put("folder", folder);
+        m.put("has_attachments", hasAttachments(h.getOrDefault("content-type", ""), text));   // G6
         return m;
+    }
+
+    /**
+     * G6: whether a message has attached files, from its headers and the start of its body: a multipart/mixed message
+     * with a part marked as an attachment or carrying a file name (the whole message is not fetched for this).
+     */
+    static boolean hasAttachments(String contentType, byte[] start) {
+        if (!contentType.toLowerCase(Locale.ROOT).startsWith("multipart/mixed")) return false;
+        if (start == null) return true;
+        String s = new String(start, StandardCharsets.ISO_8859_1).toLowerCase(Locale.ROOT);
+        return s.contains("content-disposition: attachment") || s.contains("filename=") || s.contains("name=") || s.length() >= PREVIEW_BYTES;
     }
 
     // ---------- MIME helpers ----------

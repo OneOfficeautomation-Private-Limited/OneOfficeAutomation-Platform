@@ -24,6 +24,14 @@ public final class ServiceNowPackage {
     private static String sysId(String s) { if (!SYS_ID.matcher(s).matches()) throw new ActionException(P + ".BAD_SYS_ID", "Invalid sys_id '" + s + "'", "A sys_id is 32 hexadecimal characters."); return s; }
     private static String api(String instance) { return instance.replaceAll("/+$", "") + "/api/now"; }
 
+    /** The REST API root for a version: /api/now/v1 or /api/now/v2, or /api/now (the latest) when empty (G6). */
+    static String api(String instance, String version) {
+        String v = version == null ? "" : version.strip().toLowerCase(Locale.ROOT);
+        if (v.isEmpty() || v.equals("latest")) return api(instance);
+        if (!v.matches("^v[0-9]{1,2}$")) throw new ActionException(P + ".BAD_API_VERSION", "Unknown API version '" + version + "'", "Use v1, v2 or latest.");
+        return api(instance) + "/" + v;
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> result(HttpJson.Response r) { return r.map().get("result") instanceof Map<?, ?> m ? (Map<String, Object>) m : new LinkedHashMap<>(); }
 
@@ -53,9 +61,13 @@ public final class ServiceNowPackage {
         return j.toString();
     }
 
+    public Map<String, Object> authenticate(ActionContext ctx, String instance, String clientId, Object clientSecret, String grant, String user, Object password) {
+        return authenticate(ctx, instance, clientId, clientSecret, grant, user, password, null, false);
+    }
+
     @Action(id = "authenticate", name = "Authenticate", category = "Authentication", capabilities = "network",
             description = "Get an OAuth access token from the instance (user and password, or client credentials) for the other ServiceNow actions.",
-            panel = "instance_url, grant_type, client_id, client_secret, user, password")
+            panel = "instance_url, grant_type, client_id, client_secret, user, password | session, share")
     @Output(name = "access_token", type = OoaType.CREDENTIAL, description = "Access token; map it to access_token of later actions.")
     @Output(name = "refresh_token", type = OoaType.CREDENTIAL, description = "Refresh token, when the instance returns one.")
     @Output(name = "expires_in", type = OoaType.NUMBER, description = "Seconds until the access token expires.")
@@ -65,7 +77,9 @@ public final class ServiceNowPackage {
             @Input(name = "client_secret", type = OoaType.CREDENTIAL, description = "Client secret from the vault.") Object clientSecret,
             @Input(name = "grant_type", type = OoaType.STRING, required = false, defaultValue = "\"password\"", enumValues = {"password", "client_credentials"}, description = "password: sign in as a user; client_credentials: as the application.") String grant,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name (password grant).") String user,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (password grant).") Object password) {
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (password grant).") Object password,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "Keep this sign-in for the steps after it under this name; the toolkit's default session when empty (G6).") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session (G6).") boolean share) {
         String g = grant == null || grant.isBlank() ? "password" : grant;
         if (!Set.of("password", "client_credentials").contains(g)) throw new ActionException(P + ".BAD_GRANT", "Unknown grant type '" + grant + "'", "Use one of the sign-in kinds the connection offers: password, client_credentials or refresh_token.");
         if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id is required", "Fill in the OAuth client id in the connection (System OAuth > Application Registry in ServiceNow).");
@@ -81,18 +95,21 @@ public final class ServiceNowPackage {
             form.put("password", password);
         }
         Map<String, Object> r = EnterpriseAuth.token(ctx, P, instance.replaceAll("/+$", "") + "/oauth_token.do", form, null, null);
-        return Out.of("access_token", EnterpriseAuth.credential(r, "servicenow/session"),
+        return keepSession(ctx, session, share, Out.of("instance_url", instance), Out.of("access_token", EnterpriseAuth.credential(r, "servicenow/session"),
                 "refresh_token", r.get("refresh_token") instanceof String rt && !rt.isBlank() ? new SecureString(rt, "servicenow/refresh") : null,
-                "expires_in", r.get("expires_in") == null ? null : Values.toNumber(r.get("expires_in")));
+                "expires_in", r.get("expires_in") == null ? null : Values.toNumber(r.get("expires_in"))));
     }
 
     @Action(id = "revoke_authentication", name = "Revoke authentication", category = "Authentication", capabilities = "network", description = "Revoke an access or refresh token so it can no longer be used.",
             panel = "instance_url, client_id, client_secret, token")
     public Map<String, Object> revoke(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "client_id", type = OoaType.STRING, description = "Client id of the OAuth application.") String clientId,
             @Input(name = "client_secret", type = OoaType.CREDENTIAL, description = "Client secret from the vault.") Object clientSecret,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = "The token to revoke.") Object token) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
         Map<String, Object> form = new LinkedHashMap<>();
         form.put("token", new SecureString(EnterpriseAuth.secret(token, P, "token"), "t"));
         form.put("client_id", clientId);
@@ -125,11 +142,11 @@ public final class ServiceNowPackage {
 
     @Action(id = "query", name = "Query records", category = "Records", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Return records matching an encoded query (as copied from a ServiceNow list filter).",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, query, filter, fields | max_records, display_value, order_by, offset, exclude_reference_link")
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, query, filter, fields | max_records, display_value, order_by, offset, exclude_reference_link, api_version")
     @Output(name = "table", type = OoaType.TABLE, description = "Records.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     public Map<String, Object> query(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, example = "incident", description = "Table name.") String t,
             @Input(name = "query", type = OoaType.STRING, required = false, example = "active=true^priority=1", description = "Encoded query.") String q,
             @Input(name = "fields", type = OoaType.LIST, required = false, description = "Fields to return, e.g. [\"number\",\"short_description\",\"state\"].") List<Object> fields,
@@ -142,7 +159,13 @@ public final class ServiceNowPackage {
             @Input(name = "offset", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Skip this many matching records first (for paging).") int start,
             @Input(name = "exclude_reference_link", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Leave out the API links of reference fields.") boolean noLinks,
             @Input(name = "filter", type = OoaType.DICTIONARY, required = false, example = "{\"active\": true, \"priority\": 1}",
-                    description = "Field to required value, all of which must match; combined with query when both are given. No query syntax needed.") Map<String, Object> filter) {
+                    description = "Field to required value, all of which must match; combined with query when both are given. No query syntax needed.") Map<String, Object> filter,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         String dv = displayValue(display);
         String query = withFilter(q, filter);
         if (orderBy != null && !orderBy.isBlank()) {
@@ -162,7 +185,7 @@ public final class ServiceNowPackage {
             params.put("sysparm_offset", offset);
             params.put("sysparm_display_value", dv);
             params.put("sysparm_exclude_reference_link", String.valueOf(noLinks));
-            List<?> page = (List<?>) auth(HttpJson.req(P, "GET", api(instance) + "/table/" + table(t) + "?" + HttpJson.query(params)), user, password, token)
+            List<?> page = (List<?>) auth(HttpJson.req(P, "GET", api(instance, apiVersion) + "/table/" + table(t) + "?" + HttpJson.query(params)), user, password, token)
                     .timeout(120).send(ctx).map().getOrDefault("result", List.of());
             for (Object o : page) { @SuppressWarnings("unchecked") Map<String, Object> m = (Map<String, Object>) o; recs.add(dv.equals("all") ? flatDisplay(m) : m); if (recs.size() >= max) break; }
             if (page.size() < pageSize) break;
@@ -171,31 +194,47 @@ public final class ServiceNowPackage {
         return Map.of("table", recs.isEmpty() ? Values.table(List.of(), new ArrayList<>()) : Values.coerce(recs, "Table", "records"), "count", BigDecimal.valueOf(recs.size()));
     }
 
+    /** Earlier signature, kept for callers written before api_version (G6). */
+    public Map<String, Object> query(ActionContext ctx, String instance, String t, String q, List<Object> fields, int max, String user, Object password, Object token, String display, String orderBy, int start, boolean noLinks, Map<String, Object> filter) {
+        return query(ctx, instance, t, q, fields, max, user, password, token, display, orderBy, start, noLinks, filter, null);
+    }
+
     /** Earlier signature, kept for callers written before the display and paging options. */
     public Map<String, Object> query(ActionContext ctx, String instance, String t, String q, List<Object> fields, int max, String user, Object password, Object token) {
         return query(ctx, instance, t, q, fields, max, user, password, token, "true", null, 0, true);
     }
 
     @Action(id = "get_record", name = "Get record", category = "Records", idempotent = true, capabilities = "network", description = "Read one record by sys_id.",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, fields | display_value")
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, fields | display_value, api_version")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "Field values.")
     public Map<String, Object> get(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
             @Input(name = "fields", type = OoaType.LIST, required = false, description = "Fields to return; all when empty.") List<Object> fields,
-            @Input(name = "display_value", type = OoaType.STRING, required = false, defaultValue = "\"true\"", enumValues = {"true", "false", "all"}, description = D_DISPLAY) String display) {
+            @Input(name = "display_value", type = OoaType.STRING, required = false, defaultValue = "\"true\"", enumValues = {"true", "false", "all"}, description = D_DISPLAY) String display,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         String dv = displayValue(display);
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("sysparm_display_value", dv);
         params.put("sysparm_exclude_reference_link", "true");
         String fl = fieldList(fields);
         if (fl != null) params.put("sysparm_fields", fl);
-        Map<String, Object> rec = result(auth(HttpJson.req(P, "GET", api(instance) + "/table/" + table(t) + "/" + sysId(id) + "?" + HttpJson.query(params)), user, password, token).send(ctx));
+        Map<String, Object> rec = result(auth(HttpJson.req(P, "GET", api(instance, apiVersion) + "/table/" + table(t) + "/" + sysId(id) + "?" + HttpJson.query(params)), user, password, token).send(ctx));
         return Map.of("record", dv.equals("all") ? flatDisplay(rec) : rec);
+    }
+
+    /** Earlier signature, kept for callers written before api_version (G6). */
+    public Map<String, Object> get(ActionContext ctx, String instance, String t, String id, String user, Object password, Object token, List<Object> fields, String display) {
+        return get(ctx, instance, t, id, user, password, token, fields, display, null);
     }
 
     /** Earlier signature, kept for callers written before fields and display_value. */
@@ -204,20 +243,31 @@ public final class ServiceNowPackage {
     }
 
     @Action(id = "create_record", name = "Create record", category = "Records", capabilities = "network", description = "Create a record, e.g. an incident; returns its sys_id and number.",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, fields | input_display_value")
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, fields | input_display_value, api_version")
     @Output(name = "sys_id", type = OoaType.STRING, description = "New sys_id.")
     @Output(name = "number", type = OoaType.STRING, description = "Record number, e.g. INC0012345.")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "The new record as the instance returned it.")
     public Map<String, Object> create(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, example = "incident", description = "Table name.") String t,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value, e.g. {\"short_description\": \"...\", \"urgency\": \"2\"}.") Map<String, Object> fields,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
-            @Input(name = "input_display_value", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Values are display values (e.g. a user's name for caller_id) that the instance should look up.") boolean inputDisplay) {
-        Map<String, Object> r = result(auth(HttpJson.req(P, "POST", api(instance) + "/table/" + table(t) + (inputDisplay ? "?sysparm_input_display_value=true" : "")), user, password, token).json(fields).send(ctx));
+            @Input(name = "input_display_value", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Values are display values (e.g. a user's name for caller_id) that the instance should look up.") boolean inputDisplay,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
+        Map<String, Object> r = result(auth(HttpJson.req(P, "POST", api(instance, apiVersion) + "/table/" + table(t) + (inputDisplay ? "?sysparm_input_display_value=true" : "")), user, password, token).json(fields).send(ctx));
         return Out.of("sys_id", r.get("sys_id"), "number", r.get("number"), "record", r);
+    }
+
+    /** Earlier signature, kept for callers written before api_version (G6). */
+    public Map<String, Object> create(ActionContext ctx, String instance, String t, Map<String, Object> fields, String user, Object password, Object token, boolean inputDisplay) {
+        return create(ctx, instance, t, fields, user, password, token, inputDisplay, null);
     }
 
     /** Earlier signature, kept for callers written before input_display_value. */
@@ -226,19 +276,30 @@ public final class ServiceNowPackage {
     }
 
     @Action(id = "update_record", name = "Update record", category = "Records", capabilities = "network", description = "Change fields of a record.",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, fields | input_display_value")
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, fields | input_display_value, api_version")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "The record after the change, as the instance returned it.")
     public Map<String, Object> update(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to new value.") Map<String, Object> fields,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
-            @Input(name = "input_display_value", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Values are display values that the instance should look up.") boolean inputDisplay) {
-        Map<String, Object> r = result(auth(HttpJson.req(P, "PATCH", api(instance) + "/table/" + table(t) + "/" + sysId(id) + (inputDisplay ? "?sysparm_input_display_value=true" : "")), user, password, token).json(fields).send(ctx));
+            @Input(name = "input_display_value", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Values are display values that the instance should look up.") boolean inputDisplay,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
+        Map<String, Object> r = result(auth(HttpJson.req(P, "PATCH", api(instance, apiVersion) + "/table/" + table(t) + "/" + sysId(id) + (inputDisplay ? "?sysparm_input_display_value=true" : "")), user, password, token).json(fields).send(ctx));
         return Map.of("record", r);
+    }
+
+    /** Earlier signature, kept for callers written before api_version (G6). */
+    public Map<String, Object> update(ActionContext ctx, String instance, String t, String id, Map<String, Object> fields, String user, Object password, Object token, boolean inputDisplay) {
+        return update(ctx, instance, t, id, fields, user, password, token, inputDisplay, null);
     }
 
     /** Earlier signature, kept for callers written before input_display_value. */
@@ -247,25 +308,36 @@ public final class ServiceNowPackage {
     }
 
     @Action(id = "add_comment", name = "Add comment or work note", category = "Records", capabilities = "network", description = "Add a customer-visible comment or an internal work note.",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, text, internal")
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, text, internal | api_version")
     public Map<String, Object> comment(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "text", type = OoaType.STRING, description = "Comment text.") String text,
             @Input(name = "internal", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Internal work note instead of a visible comment.") boolean internal,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token) {
-        auth(HttpJson.req(P, "PATCH", api(instance) + "/table/" + table(t) + "/" + sysId(id)), user, password, token).json(Map.of(internal ? "work_notes" : "comments", text)).send(ctx);
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
+        auth(HttpJson.req(P, "PATCH", api(instance, apiVersion) + "/table/" + table(t) + "/" + sysId(id)), user, password, token).json(Map.of(internal ? "work_notes" : "comments", text)).send(ctx);
         return Map.of();
     }
 
+    /** Earlier signature, kept for callers written before api_version (G6). */
+    public Map<String, Object> comment(ActionContext ctx, String instance, String t, String id, String text, boolean internal, String user, Object password, Object token) {
+        return comment(ctx, instance, t, id, text, internal, user, password, token, null);
+    }
+
     @Action(id = "attach_file", name = "Attach file", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"}, description = "Attach a local file to a record.",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, path | file_name, content_type")
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, path | file_name, content_type, api_version")
     @Output(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id.")
     public Map<String, Object> attach(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "path", type = OoaType.FILE, description = "File to attach.") String path,
@@ -273,7 +345,13 @@ public final class ServiceNowPackage {
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
             @Input(name = "file_name", type = OoaType.STRING, required = false, description = "Name to give the attachment; the local file name when empty.") String fileName,
-            @Input(name = "content_type", type = OoaType.STRING, required = false, example = "application/pdf", description = "Content type; guessed from the file when empty.") String contentType) {
+            @Input(name = "content_type", type = OoaType.STRING, required = false, example = "application/pdf", description = "Content type; guessed from the file when empty.") String contentType,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         Path p = ctx.resolvePath(path);
         byte[] data;
         String type;
@@ -284,9 +362,14 @@ public final class ServiceNowPackage {
             type = contentType;
         }
         String name = fileName == null || fileName.isBlank() ? p.getFileName().toString() : HttpJson.safeName(fileName);
-        String url = api(instance) + "/attachment/file?" + HttpJson.query(Map.of("table_name", table(t), "table_sys_id", sysId(id), "file_name", name));
+        String url = api(instance, apiVersion) + "/attachment/file?" + HttpJson.query(Map.of("table_name", table(t), "table_sys_id", sysId(id), "file_name", name));
         Map<String, Object> r = result(auth(HttpJson.req(P, "POST", url), user, password, token).bytes(data, type).timeout(600).send(ctx));
         return Out.of("attachment_id", r.get("sys_id"));
+    }
+
+    /** Earlier signature, kept for callers written before api_version (G6). */
+    public Map<String, Object> attach(ActionContext ctx, String instance, String t, String id, String path, String user, Object password, Object token, String fileName, String contentType) {
+        return attach(ctx, instance, t, id, path, user, password, token, fileName, contentType, null);
     }
 
     /** Earlier signature, kept for callers written before file_name and content_type. */
@@ -295,67 +378,141 @@ public final class ServiceNowPackage {
     }
 
     @Action(id = "delete_attachment", name = "Delete attachment", category = "Attachments", capabilities = "network", description = "Delete an attachment by its sys_id.",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), attachment_id")
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), attachment_id | api_version")
     public Map<String, Object> deleteAttachment(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id, from List attachments.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token) {
-        auth(HttpJson.req(P, "DELETE", api(instance) + "/attachment/" + sysId(id)), user, password, token).send(ctx);
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
+        auth(HttpJson.req(P, "DELETE", api(instance, apiVersion) + "/attachment/" + sysId(id)), user, password, token).send(ctx);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before api_version (G6). */
+    public Map<String, Object> deleteAttachment(ActionContext ctx, String instance, String id, String user, Object password, Object token) {
+        return deleteAttachment(ctx, instance, id, user, password, token, null);
     }
 
     // ---- Delete, attachments and change polling ----
 
     @Action(id = "delete_record", name = "Delete record", category = "Records", capabilities = "network", description = "Delete a record by sys_id.",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id")
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id | api_version")
     public Map<String, Object> delete(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token) {
-        auth(HttpJson.req(P, "DELETE", api(instance) + "/table/" + table(t) + "/" + sysId(id)), user, password, token).send(ctx);
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
+        auth(HttpJson.req(P, "DELETE", api(instance, apiVersion) + "/table/" + table(t) + "/" + sysId(id)), user, password, token).send(ctx);
         return Map.of();
     }
 
-    @Action(id = "list_attachments", name = "List attachments", category = "Attachments", idempotent = true, capabilities = "network", description = "List the files attached to a record.",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id")
+    /** Earlier signature, kept for callers written before api_version (G6). */
+    public Map<String, Object> delete(ActionContext ctx, String instance, String t, String id, String user, Object password, Object token) {
+        return delete(ctx, instance, t, id, user, password, token, null);
+    }
+
+    @Action(id = "list_attachments", name = "List attachments", category = "Attachments", idempotent = true, timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+            description = "List the files attached to a record, one attachment by its id, or the attachments an encoded query finds; optionally save them all in the same step.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), (Find by: A record = table, sys_id / An attachment id = attachment_id / An encoded query = attachment_query, limit), download, download_folder | api_version")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: sys_id, file_name, content_type, size_bytes, created_on.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of attachments.")
+    @Output(name = "files", type = OoaType.LIST, description = "Paths of the saved files, in the order of the table; empty when not saving (G6).")
     public Map<String, Object> listAttachments(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
-            @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
-            @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "table", type = OoaType.STRING, required = false, description = "Table name of the record.") String t,
+            @Input(name = "sys_id", type = OoaType.STRING, required = false, description = "Record sys_id.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token) {
-        String url = api(instance) + "/attachment?" + HttpJson.query(Map.of("sysparm_query", "table_name=" + table(t) + "^table_sys_id=" + sysId(id), "sysparm_limit", 1000));
-        List<?> res = (List<?>) auth(HttpJson.req(P, "GET", url), user, password, token).send(ctx).map().getOrDefault("result", List.of());
-        List<Object> rows = new ArrayList<>();
-        for (Object o : res) {
-            Map<?, ?> m = (Map<?, ?>) o;
-            rows.add(new ArrayList<>(Arrays.asList(m.get("sys_id"), m.get("file_name"), m.get("content_type"), m.get("size_bytes"), m.get("sys_created_on"))));
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
+            @Input(name = "attachment_id", type = OoaType.STRING, required = false, description = "Sys_id of one attachment, to find just that one (G6).") String attachmentId,
+            @Input(name = "attachment_query", label = "Encoded query", type = OoaType.STRING, required = false, example = "table_name=incident^content_type=application/pdf",
+                    description = "Encoded query over the attachment table (sys_attachment), e.g. by table_name, file_name or content_type (G6).") String query,
+            @Input(name = "limit", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "Most attachments an encoded query returns (G6).") int limit,
+            @Input(name = "download", label = "Save the files", type = OoaType.BOOLEAN, required = false, defaultValue = "false", tone = "add",
+                    description = "Also save every attachment found, in this step (G6).") boolean download,
+            @Input(name = "download_folder", type = OoaType.FILE, required = false, visibleWhen = "download=true",
+                    description = "Folder to save the files in; the run's temporary folder when empty. A file of the same name is replaced (G6).") String folder,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
+        String root = api(instance, apiVersion);
+        List<Map<?, ?>> found = new ArrayList<>();
+        if (attachmentId != null && !attachmentId.isBlank()) {
+            found.add(result(auth(HttpJson.req(P, "GET", root + "/attachment/" + sysId(attachmentId.strip())), user, password, token).send(ctx)));
+        } else {
+            String q;
+            int max = 1000;
+            if (query != null && !query.isBlank()) { q = query.strip(); max = Math.max(1, limit); }
+            else if (t == null || t.isBlank() || id == null || id.isBlank())
+                throw new ActionException(P + ".NO_ATTACHMENT_FILTER", "Say which attachments to list", "Fill in table and sys_id, an attachment id, or an encoded query.");
+            else q = "table_name=" + table(t) + "^table_sys_id=" + sysId(id);
+            String url = root + "/attachment?" + HttpJson.query(Map.of("sysparm_query", q, "sysparm_limit", max));
+            for (Object o : (List<?>) auth(HttpJson.req(P, "GET", url), user, password, token).timeout(120).send(ctx).map().getOrDefault("result", List.of()))
+                if (o instanceof Map<?, ?> m) found.add(m);
         }
-        return Map.of("table", Values.table(List.of("sys_id", "file_name", "content_type", "size_bytes", "created_on"), rows), "count", BigDecimal.valueOf(rows.size()));
+        List<Object> rows = new ArrayList<>(), files = new ArrayList<>();
+        Path dir = download && folder != null && !folder.isBlank() ? ctx.resolvePath(folder.strip()) : null;
+        Set<String> used = new HashSet<>();
+        for (Map<?, ?> m : found) {
+            rows.add(new ArrayList<>(Arrays.asList(m.get("sys_id"), m.get("file_name"), m.get("content_type"), m.get("size_bytes"), m.get("sys_created_on"))));
+            if (!download) continue;
+            String sid = sysId(String.valueOf(m.get("sys_id")));
+            String base = HttpJson.safeName(String.valueOf(m.get("file_name") == null ? sid : m.get("file_name")));
+            String n = base;
+            for (int i = 2; !used.add(n.toLowerCase(Locale.ROOT)); i++) n = i + "_" + base;   // two attachments of one name both kept
+            byte[] data = auth(HttpJson.req(P, "GET", root + "/attachment/" + sid + "/file"), user, password, token).header("Accept", "*/*").binaryResponse().timeout(600).send(ctx).bytes();
+            Path out = dir == null ? ctx.outputPath(null, n) : dir.resolve(n);
+            try { Files.createDirectories(out.getParent()); Files.write(out, data); }
+            catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot save " + out + ": " + e.getMessage(), "Check the folder is writable.", true); }
+            files.add(out.toString());
+        }
+        return Map.of("table", Values.table(List.of("sys_id", "file_name", "content_type", "size_bytes", "created_on"), rows), "count", BigDecimal.valueOf(rows.size()), "files", files);
     }
+
+    /** Earlier signature, kept for callers written before the find-by choice, saving and api_version (G6). */
+    public Map<String, Object> listAttachments(ActionContext ctx, String instance, String t, String id, String user, Object password, Object token) {
+        return listAttachments(ctx, instance, t, id, user, password, token, null, null, 1000, false, null, null);
+    }
+
 
     @Action(id = "download_attachment", name = "Download attachment", category = "Attachments", idempotent = true, timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Save an attachment to a local folder under its original file name.",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), attachment_id, folder | file_name, overwrite")
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), attachment_id, folder | file_name, overwrite, api_version")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     public Map<String, Object> downloadAttachment(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id, from List attachments.") String id,
             @Input(name = "folder", type = OoaType.FILE, required = false, defaultValue = "\".\"", description = "Folder to save into.") String folder,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
             @Input(name = "file_name", type = OoaType.STRING, required = false, description = "Name to save the file under; the attachment's own name when empty.") String fileName,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file of the same name; when off, the action stops with an error instead.") boolean overwrite) {
-        String base = api(instance) + "/attachment/" + sysId(id);
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file of the same name; when off, the action stops with an error instead.") boolean overwrite,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
+        String base = api(instance, apiVersion) + "/attachment/" + sysId(id);
         Map<String, Object> meta = result(auth(HttpJson.req(P, "GET", base), user, password, token).send(ctx));
         Path dir = ctx.resolvePath(folder == null || folder.isBlank() ? "." : folder);
         Path out = dir.resolve(HttpJson.safeName(fileName == null || fileName.isBlank() ? String.valueOf(meta.getOrDefault("file_name", id)) : fileName));
@@ -364,6 +521,11 @@ public final class ServiceNowPackage {
         try { Files.createDirectories(dir); Files.write(out, data); }
         catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot save " + out + ": " + e.getMessage(), "Check the folder is writable.", true); }
         return Map.of("path", out.toString());
+    }
+
+    /** Earlier signature, kept for callers written before api_version (G6). */
+    public Map<String, Object> downloadAttachment(ActionContext ctx, String instance, String id, String folder, String user, Object password, Object token, String fileName, boolean overwrite) {
+        return downloadAttachment(ctx, instance, id, folder, user, password, token, fileName, overwrite, null);
     }
 
     /** Earlier signature, kept for callers written before file_name and overwrite. */
@@ -375,12 +537,12 @@ public final class ServiceNowPackage {
 
     @Action(id = "list_changed_records", name = "List changed records", category = "Records", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Return records created or updated after a point in time, oldest first, for polling-style triggers.",
-            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, since, query, fields | max_records")
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, since, query, fields | max_records, api_version")
     @Output(name = "table", type = OoaType.TABLE, description = "Changed records (values as stored, times in UTC).")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     @Output(name = "latest", type = OoaType.STRING, description = "Newest sys_updated_on seen; pass it as since on the next poll (equal to since when nothing changed).")
     public Map<String, Object> changed(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, required = false, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, example = "incident", description = "Table name.") String t,
             @Input(name = "since", type = OoaType.STRING, example = "2026-10-19 08:00:00", description = "UTC time; records updated strictly after it are returned.") String since,
             @Input(name = "query", type = OoaType.STRING, required = false, example = "active=true", description = "Extra encoded query to narrow the records.") String q,
@@ -388,7 +550,13 @@ public final class ServiceNowPackage {
             @Input(name = "max_records", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Maximum records.") int max,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth token from the vault.") Object token,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, enumValues = {"latest", "v1", "v2"},
+                    description = "Version of the ServiceNow REST API to call: v1, v2, or latest (the instance's current one) when empty (G6).") String apiVersion) {
+        ApiSession __ss = ApiSession.find(ctx, null, "servicenow", "servicenow");   // G6: an open session fills what the step leaves empty
+        instance = ApiSession.text(__ss, "instance_url", instance);
+        ApiSession.require("SERVICENOW", instance, "instance url");
+        token = ApiSession.value(__ss, "access_token", token);
         String s = since == null ? "" : since.trim().replace('T', ' ');
         if (!STAMP.matcher(s).matches()) throw new ActionException(P + ".BAD_TIME", "Invalid time '" + since + "'", "Use yyyy-MM-dd HH:mm:ss in UTC, e.g. 2026-10-19 08:00:00.");
         if (s.length() == 10) s += " 00:00:00"; else if (s.length() == 16) s += ":00";
@@ -410,7 +578,7 @@ public final class ServiceNowPackage {
             params.put("sysparm_limit", pageSize);
             params.put("sysparm_offset", offset);
             params.put("sysparm_exclude_reference_link", "true");
-            List<?> page = (List<?>) auth(HttpJson.req(P, "GET", api(instance) + "/table/" + table(t) + "?" + HttpJson.query(params)), user, password, token)
+            List<?> page = (List<?>) auth(HttpJson.req(P, "GET", api(instance, apiVersion) + "/table/" + table(t) + "?" + HttpJson.query(params)), user, password, token)
                     .timeout(120).send(ctx).map().getOrDefault("result", List.of());
             for (Object o : page) {
                 @SuppressWarnings("unchecked") Map<String, Object> m = (Map<String, Object>) o;
@@ -423,5 +591,27 @@ public final class ServiceNowPackage {
             offset += pageSize;
         }
         return Out.of("table", recs.isEmpty() ? Values.table(List.of(), new ArrayList<>()) : Values.coerce(recs, "Table", "records"), "count", BigDecimal.valueOf(recs.size()), "latest", latest);
+    }
+
+    /** Earlier signature, kept for callers written before api_version (G6). */
+    public Map<String, Object> changed(ActionContext ctx, String instance, String t, String since, String q, List<Object> fields, int max, String user, Object password, Object token) {
+        return changed(ctx, instance, t, since, q, fields, max, user, password, token, null);
+    }
+
+    // ------------------------------------------------------------------ G6 (AA parity): a session kept by the sign-in step
+
+    private static Map<String, Object> keepSession(ActionContext ctx, String session, boolean share, Map<String, Object> given, Map<String, Object> out) {
+        Map<String, Object> v = new LinkedHashMap<>(given);
+        v.putAll(out);
+        ApiSession.open(ctx, session, "servicenow", "servicenow", v, share);
+        return out;
+    }
+
+    @Action(id = "end_session", name = "End session", category = "Connection",
+            description = "Forget the open ServiceNow session; later steps then need their own address and sign-in (G6).", panel = "session")
+    @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when a session was open.")
+    public Map<String, Object> endSessionServicenow(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session; the toolkit's default session when empty.") String session) {
+        return Map.of("closed", ApiSession.close(ctx, session, "servicenow"));
     }
 }

@@ -140,6 +140,9 @@ public final class TriggerPollers {
         return cr.vault.decrypt((String) row.get("ciphertext"), ref);
     }
 
+    /** A vault secret for a trigger, with the same rules as for polling (G6: a webhook's signature and header secrets). */
+    public String triggerSecret(Map<String, Object> trigger, String ref) { return secret(new Ctx(trigger, config(trigger)), ref); }
+
     /** The trigger's config with its vault references resolved, for opening a mailbox. */
     private Map<String, Object> withSecrets(Ctx c) {
         Map<String, Object> m = new LinkedHashMap<>(c.config());
@@ -158,7 +161,7 @@ public final class TriggerPollers {
         String token = (String) m.get("token");
         if (token == null && m.get("ms_signin") instanceof String signIn) token = signedIn(signIn);
         if (token == null) {
-            try { token = GraphMailSource.clientCredentialsToken((String) m.get("login_url"), (String) m.get("tenant_id"), (String) m.get("client_id"), (String) m.get("client_secret")); }
+            try { token = GraphMailSource.clientCredentialsToken((String) m.get("login_url"), (String) m.get("tenant_id"), (String) m.get("client_id"), (String) m.get("client_secret"), (String) m.get("graph_scope")); }
             catch (IOException e) { throw new OoaException("CR.TRIGGER_SIGN_IN", "Microsoft sign-in failed: " + e.getMessage(), "Sign in to Microsoft again in the trigger's connection, or check that the app may still read the mailbox."); }
         }
         // national clouds (and tests) give Microsoft Graph's address once for the server: OOA_MICROSOFT_GRAPH_URL

@@ -26,6 +26,17 @@ final class SapJco {
     private static final Map<String, Properties> DESTINATIONS = new ConcurrentHashMap<>();
     private static volatile boolean providerRegistered;
 
+    private static volatile Path preferred;
+
+    /**
+     * A folder holding sapjco3.jar that a Connect step names (jco_folder): looked in first. False when JCo is already
+     * loaded from elsewhere on this runner (JCo cannot be loaded twice; the folder then counts after a restart).
+     */
+    static synchronized boolean preferFolder(Path dir) {
+        preferred = dir;
+        return loader == null || loader instanceof URLClassLoader u && Arrays.stream(u.getURLs()).anyMatch(x -> x.toString().startsWith(dir.toUri().toString()));
+    }
+
     /** The class loader that sees JCo, or SAP_BAPI.JCO_MISSING with how to add it. */
     static synchronized ClassLoader loader() {
         if (loader != null) return loader;
@@ -33,6 +44,7 @@ final class SapJco {
         try { Class.forName(PKG + "JCoDestinationManager", false, here); return loader = here; }
         catch (ClassNotFoundException ignored) { }
         List<Path> places = new ArrayList<>();
+        if (preferred != null) places.add(preferred);
         String home = System.getenv("OOA_SAPJCO_HOME");
         if (home != null && !home.isBlank()) places.add(Path.of(home.strip()));
         String app = System.getProperty("ooa.home", System.getenv().getOrDefault("APP_HOME", ""));

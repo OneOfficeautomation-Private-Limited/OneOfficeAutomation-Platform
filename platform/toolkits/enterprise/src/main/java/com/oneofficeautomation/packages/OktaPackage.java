@@ -90,11 +90,11 @@ public final class OktaPackage {
 
     @Action(id = "create_user", name = "Create user", category = "Users", capabilities = "network",
             description = "Add a new person to Okta, optionally with a starting password and group memberships.",
-            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), login, password, email, first_name, last_name, activate, groups | profile_fields")
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), login, password, email, first_name, last_name, phone, activate, groups | profile_fields")
     @Output(name = "user_id", type = OoaType.STRING, description = "Okta id of the new user.")
     @Output(name = "status", type = OoaType.STRING, description = "Account status, e.g. ACTIVE, PROVISIONED or STAGED.")
     public Map<String, Object> createUser(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "first_name", type = OoaType.STRING, description = "Given name.") String first,
             @Input(name = "last_name", type = OoaType.STRING, description = "Family name.") String last,
             @Input(name = "email", type = OoaType.STRING, example = "ann.lee@acme.com", description = "Primary email address.") String email,
@@ -104,12 +104,19 @@ public final class OktaPackage {
             @Input(name = "groups", type = OoaType.LIST, required = false, formerNames = "group_ids", example = "[\"Finance\", \"VPN users\"]", description = "Groups the person should join straight away, by name or id.") List<Object> groups,
             @Input(name = "activate", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Activate the account now. When off, the account is created in a staged state.") boolean activate,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken,
+            @Input(name = "phone", type = OoaType.STRING, required = false, example = "+1 555 0100", description = "Mobile phone number, kept in the profile as mobilePhone (G6).") String phone) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         Map<String, Object> profile = new LinkedHashMap<>();
         profile.put("firstName", first);
         profile.put("lastName", last);
         profile.put("email", email);
         profile.put("login", login == null || login.isBlank() ? email : login);
+        if (phone != null && !phone.isBlank()) profile.put("mobilePhone", phone.strip());
         if (extra != null) profile.putAll(extra);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("profile", profile);
@@ -119,32 +126,62 @@ public final class OktaPackage {
         return Out.of("user_id", r.get("id"), "status", r.get("status"));
     }
 
+    /** Earlier signature, kept for callers written before phone (G6). */
+    public Map<String, Object> createUser(ActionContext ctx, String org, String first, String last, String email, String login, Map<String, Object> extra,
+                                          Object password, List<Object> groups, boolean activate, Object apiToken, Object accessToken) {
+        return createUser(ctx, org, first, last, email, login, extra, password, groups, activate, apiToken, accessToken, null);
+    }
+
     @Action(id = "get_user", name = "Get user", category = "Users", idempotent = true, capabilities = "network", description = "Look up one person by Okta id or sign-in name.",
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "id, status, login, email, first_name, last_name, created, last_login.")
     @Output(name = "profile", type = OoaType.DICTIONARY, description = "All profile values held in Okta.")
     public Map<String, Object> getUser(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         Map<String, Object> r = req("GET", api(org) + "/users/" + user(u), apiToken, accessToken).send(ctx).map();
         return Out.of("user", summarizeUser(r), "profile", r.get("profile") instanceof Map<?, ?> m ? m : new LinkedHashMap<>());
     }
 
     @Action(id = "update_user", name = "Update user profile", category = "Users", capabilities = "network",
             description = "Change selected profile values; values you leave out stay as they are.",
-            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, profile_fields")
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, login, email, first_name, last_name, phone, profile_fields")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "The user after the change.")
     public Map<String, Object> updateUser(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
-            @Input(name = "profile_fields", type = OoaType.DICTIONARY, description = "Profile values to change, e.g. {\"title\": \"Team Lead\", \"department\": \"Sales\"}.") Map<String, Object> fields,
+            @Input(name = "profile_fields", type = OoaType.DICTIONARY, required = false, description = "Other profile values to change, e.g. {\"title\": \"Team Lead\", \"department\": \"Sales\"}.") Map<String, Object> fields,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
-        if (fields == null || fields.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "No profile values were given", "Fill profile_fields with at least one value.");
-        Map<String, Object> r = req("POST", api(org) + "/users/" + user(u), apiToken, accessToken).json(Map.of("profile", fields)).send(ctx).map();
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken,
+            @Input(name = "login", type = OoaType.STRING, required = false, description = "New sign-in name; unchanged when empty (G6).") String login,
+            @Input(name = "email", type = OoaType.STRING, required = false, description = "New primary email address; unchanged when empty (G6).") String email,
+            @Input(name = "first_name", type = OoaType.STRING, required = false, description = "New given name; unchanged when empty (G6).") String first,
+            @Input(name = "last_name", type = OoaType.STRING, required = false, description = "New family name; unchanged when empty (G6).") String last,
+            @Input(name = "phone", type = OoaType.STRING, required = false, description = "New mobile phone number (mobilePhone); unchanged when empty (G6).") String phone) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
+        Map<String, Object> profile = new LinkedHashMap<>();
+        String[][] named = {{"login", login}, {"email", email}, {"firstName", first}, {"lastName", last}, {"mobilePhone", phone}};
+        for (String[] n : named) if (n[1] != null && !n[1].isBlank()) profile.put(n[0], n[1].strip());
+        if (fields != null) profile.putAll(fields);   // the dictionary wins where both name the same value
+        if (profile.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "No profile values were given", "Fill at least one of the named fields or profile_fields.");
+        Map<String, Object> r = req("POST", api(org) + "/users/" + user(u), apiToken, accessToken).json(Map.of("profile", profile)).send(ctx).map();
         return Out.of("user", summarizeUser(r));
+    }
+
+    /** Earlier signature, kept for callers written before the named profile fields (G6). */
+    public Map<String, Object> updateUser(ActionContext ctx, String org, String u, Map<String, Object> fields, Object apiToken, Object accessToken) {
+        return updateUser(ctx, org, u, fields, apiToken, accessToken, null, null, null, null, null);
     }
 
     @Action(id = "activate_user", name = "Activate user", category = "User status", capabilities = "network",
@@ -152,11 +189,16 @@ public final class OktaPackage {
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, send_email")
     @Output(name = "activation_url", type = OoaType.STRING, description = "One-time activation link when no email is sent; empty otherwise.")
     public Map<String, Object> activate(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "send_email", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Email the activation link to the person. Turn off to get the link back instead.") boolean sendEmail,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         Map<String, Object> r = lifecycle(ctx, org, u, "activate", Map.of("sendEmail", sendEmail), apiToken, accessToken);
         return Out.of("activation_url", r.get("activationUrl"));
     }
@@ -165,11 +207,16 @@ public final class OktaPackage {
             description = "Turn off an account so the person can no longer sign in. Their app access is removed.",
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user | send_email")
     public Map<String, Object> deactivate(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "send_email", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Tell the organization's admins by email.") boolean sendEmail,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         lifecycle(ctx, org, u, "deactivate", Map.of("sendEmail", sendEmail), apiToken, accessToken);
         return Map.of();
     }
@@ -178,10 +225,15 @@ public final class OktaPackage {
             description = "Block sign-in for an active account for now, keeping its app assignments.",
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
     public Map<String, Object> suspend(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         lifecycle(ctx, org, u, "suspend", Map.of(), apiToken, accessToken);
         return Map.of();
     }
@@ -192,12 +244,17 @@ public final class OktaPackage {
             description = "Sign a person out everywhere: end their Okta sessions and, if you like, revoke the tokens apps were given for them (offboarding).",
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, revoke_app_tokens")
     public Map<String, Object> clearSessions(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "revoke_app_tokens", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
                     description = "Also revoke the OpenID Connect and OAuth tokens apps hold for the person.") boolean tokens,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         req("DELETE", api(org) + "/users/" + user(u) + "/sessions?oauthTokens=" + tokens, apiToken, accessToken).send(ctx);
         return Map.of();
     }
@@ -206,10 +263,15 @@ public final class OktaPackage {
             description = "Let a person whose account was locked by too many wrong passwords sign in again.",
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
     public Map<String, Object> unlock(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         lifecycle(ctx, org, u, "unlock", Map.of(), apiToken, accessToken);
         return Map.of();
     }
@@ -219,12 +281,17 @@ public final class OktaPackage {
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, [Give a temporary password: temporary_password]")
     @Output(name = "temporary_password", type = OoaType.CREDENTIAL, description = "The temporary password, when one was asked for (kept secret in logs).")
     public Map<String, Object> expirePassword(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "temporary_password", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Have Okta make a temporary password to give the person.") boolean temp,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         Map<String, Object> r = lifecycle(ctx, org, u, "expire_password", temp ? Map.of("tempPassword", true) : Map.of(), apiToken, accessToken);
         Object t = r.get("tempPassword");
         return t == null ? Map.of() : Map.of("temporary_password", new SecureString(Values.text(t), "okta/temporary_password"));
@@ -234,10 +301,15 @@ public final class OktaPackage {
             description = "Let a suspended person sign in again.",
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
     public Map<String, Object> unsuspend(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         lifecycle(ctx, org, u, "unsuspend", Map.of(), apiToken, accessToken);
         return Map.of();
     }
@@ -246,10 +318,15 @@ public final class OktaPackage {
             description = "Remove a person from Okta for good. An account that is still active is deactivated first.",
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
     public Map<String, Object> deleteUser(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         Map<String, Object> current = req("GET", api(org) + "/users/" + user(u), apiToken, accessToken).send(ctx).map();
         String id = String.valueOf(current.get("id"));
         if (!"DEPROVISIONED".equals(current.get("status"))) lifecycle(ctx, org, id, "deactivate", Map.of("sendEmail", false), apiToken, accessToken);
@@ -262,11 +339,16 @@ public final class OktaPackage {
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, send_email")
     @Output(name = "reset_url", type = OoaType.STRING, description = "One-time reset link when no email is sent; empty otherwise.")
     public Map<String, Object> resetPassword(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "send_email", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Email the reset link to the person. Turn off to get the link back instead.") boolean sendEmail,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         Map<String, Object> r = lifecycle(ctx, org, u, "reset_password", Map.of("sendEmail", sendEmail), apiToken, accessToken);
         return Out.of("reset_url", r.get("resetPasswordUrl"));
     }
@@ -277,12 +359,17 @@ public final class OktaPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, status, login, email, first_name, last_name, created, last_login.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of users returned.")
     public Map<String, Object> listUsers(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "search_text", type = OoaType.STRING, required = false, description = "Match the start of first name, last name or email, e.g. ann.") String q,
             @Input(name = "filter", type = OoaType.STRING, required = false, example = "status eq \"ACTIVE\"", description = "Okta search expression, used instead of search_text, e.g. profile.department eq \"Finance\".") String filter,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Most users to return.") int max,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         Map<String, Object> params = new LinkedHashMap<>();
         if (filter != null && !filter.isBlank()) params.put("search", filter);
         else if (q != null && !q.isBlank()) params.put("q", q);
@@ -304,13 +391,18 @@ public final class OktaPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description, type.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of groups returned.")
     public Map<String, Object> listGroups(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "name_starts_with", type = OoaType.STRING, required = false, description = "Only groups whose name starts with this text.") String q,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Most groups to return.") int max,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken,
             @Input(name = "search", type = OoaType.STRING, required = false, example = "profile.name eq \"Finance\"",
                     description = "Okta search expression on group properties, e.g. profile.name eq \"Finance\" for an exact name, or type eq \"APP_GROUP\". Used instead of name_starts_with.") String search) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         boolean hasQ = q != null && !q.isBlank(), hasSearch = search != null && !search.isBlank();
         if (hasQ && hasSearch) throw new ActionException(P + ".BAD_INPUT", "Give either name_starts_with or search, not both", "Clear one of the two inputs.");
         Map<String, Object> params = new LinkedHashMap<>();
@@ -325,29 +417,41 @@ public final class OktaPackage {
     @Action(id = "add_user_to_group", name = "Add user to group", category = "Groups", idempotent = true, capabilities = "network",
             description = "Make a person a member of a group. Nothing changes if they are already a member.",
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), group, user")
+    @Output(name = "done", type = OoaType.BOOLEAN, description = "True when the person is a member of the group now (G6).")
     public Map<String, Object> addToGroup(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "group", type = OoaType.STRING, description = "Group id, or the group's exact name.") String group,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         String uid = String.valueOf(req("GET", api(org) + "/users/" + user(u), apiToken, accessToken).send(ctx).map().get("id"));
         req("PUT", api(org) + "/groups/" + groupId(ctx, org, group, apiToken, accessToken) + "/users/" + user(uid), apiToken, accessToken).send(ctx);
-        return Map.of();
+        return Map.of("done", true);
     }
 
     @Action(id = "remove_user_from_group", name = "Remove user from group", category = "Groups", capabilities = "network",
             description = "Take a person out of a group.",
             panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), group, user")
+    @Output(name = "done", type = OoaType.BOOLEAN, description = "True when the person is no longer a member of the group (G6).")
     public Map<String, Object> removeFromGroup(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "group", type = OoaType.STRING, description = "Group id, or the group's exact name.") String group,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         String uid = String.valueOf(req("GET", api(org) + "/users/" + user(u), apiToken, accessToken).send(ctx).map().get("id"));
         req("DELETE", api(org) + "/groups/" + groupId(ctx, org, group, apiToken, accessToken) + "/users/" + user(uid), apiToken, accessToken).send(ctx);
-        return Map.of();
+        return Map.of("done", true);
     }
 
     @Action(id = "list_user_groups", name = "List user's groups", category = "Groups", idempotent = true, capabilities = "network",
@@ -356,10 +460,15 @@ public final class OktaPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description, type.")
     @Output(name = "names", type = OoaType.LIST, description = "Group names only.")
     public Map<String, Object> userGroups(ActionContext ctx,
-            @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+        ApiSession __ss = ApiSession.find(ctx, null, "okta", "okta");   // G6: an open session fills what the step leaves empty
+        org = ApiSession.text(__ss, "org_url", org);
+        ApiSession.require("OKTA", org, "org url");
+        apiToken = ApiSession.value(__ss, "api_token", apiToken);
+        accessToken = ApiSession.value(__ss, "access_token", accessToken);
         List<Object> rows = new ArrayList<>();
         List<Object> names = new ArrayList<>();
         for (Map<?, ?> g : pages(ctx, api(org) + "/users/" + user(u) + "/groups?limit=200", Integer.MAX_VALUE, apiToken, accessToken)) {
@@ -368,5 +477,29 @@ public final class OktaPackage {
             names.add(row.get(1));
         }
         return Out.of("table", Values.table(GROUP_COLS, rows), "names", names);
+    }
+
+    @Action(id = "connect", name = "Connect", category = "Connection",
+            description = "Keep the address and sign-in under a session for the steps after it, so they need not repeat them (G6).",
+            panel = "org_url, (Sign in with: An API token = api_token / An OAuth access token = access_token) | session, share")
+    public Map<String, Object> connectOkta(ActionContext ctx,
+            @Input(name = "org_url", type = OoaType.STRING, required = false, description = "The org url the later steps use (G6).") String orgUrl,
+            @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "The api token the later steps use (G6).") Object apiToken,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "The access token the later steps use (G6).") Object accessToken,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session's name; the toolkit's default session when empty.") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same session.") boolean share) {
+        Map<String, Object> v = new LinkedHashMap<>();
+        Object[] kv = {"org_url", orgUrl, "api_token", apiToken, "access_token", accessToken};
+        for (int i = 0; i < kv.length; i += 2) v.put((String) kv[i], kv[i + 1]);
+        ApiSession.open(ctx, session, "okta", "okta", v, share);
+        return Map.of();
+    }
+
+    @Action(id = "disconnect", name = "Disconnect", category = "Connection",
+            description = "Forget the open Okta session; later steps then need their own address and sign-in (G6).", panel = "session")
+    @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when a session was open.")
+    public Map<String, Object> endSessionOkta(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session; the toolkit's default session when empty.") String session) {
+        return Map.of("closed", ApiSession.close(ctx, session, "okta"));
     }
 }

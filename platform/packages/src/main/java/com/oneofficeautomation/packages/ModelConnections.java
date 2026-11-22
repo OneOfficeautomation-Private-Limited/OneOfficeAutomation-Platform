@@ -82,6 +82,15 @@ final class ModelConnections {
      */
     static LlmClient.Config config(ActionContext ctx, String connection, String provider, String model, Object key, String base, double temp, int max, boolean mask,
                                    Object accessKeyId, String region) {
+        return config(ctx, connection, provider, model, key, base, temp, max, mask, accessKeyId, region, null);
+    }
+
+    /**
+     * G6: as above, plus the AWS session token of temporary credentials; a connection may carry it as
+     * "aws_session_token" ({"$credential": ...}) or "aws_session_token_env".
+     */
+    static LlmClient.Config config(ActionContext ctx, String connection, String provider, String model, Object key, String base, double temp, int max, boolean mask,
+                                   Object accessKeyId, String region, Object sessionToken) {
         // Settings > AI (item 4n): an administrator can switch AI off for every agent; then no step calls a model
         if (Boolean.TRUE.equals(guardrails(ctx).get("disabled")))
             throw new ActionException("AI.DISABLED", "AI is switched off in One CommandCenter", "Ask an administrator to switch it on (Administration > Settings > AI).");
@@ -108,9 +117,10 @@ final class ModelConnections {
             if (key == null) key = key(ctx, c, "api_key");
             if (accessKeyId == null) accessKeyId = key(ctx, c, "aws_access_key_id");
             if ((region == null || region.isBlank()) && c.get("region") instanceof String r) region = r;
+            if (sessionToken == null) sessionToken = key(ctx, c, "aws_session_token");
         }
         if (model == null || model.isBlank()) throw new ActionException("AI.NO_MODEL", "No model chosen", "Pick a Model Connection, or set provider and model on this action.");
-        LlmClient.Config cfg = GenAiPackage.cfg(provider, model, key, base, temp, max, mask, accessKeyId, region);
+        LlmClient.Config cfg = GenAiPackage.cfg(provider, model, key, base, temp, max, mask, accessKeyId, region).withSessionToken(sessionToken);
         if (c != null) USED.put(cfg, c);
         return cfg;
     }
