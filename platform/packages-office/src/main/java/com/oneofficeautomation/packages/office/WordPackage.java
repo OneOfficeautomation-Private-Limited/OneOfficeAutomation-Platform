@@ -22,6 +22,8 @@ public final class WordPackage {
         boolean readOnly;
         /** Password the file was opened or created with; saves keep the file encrypted. */
         String password;
+        /** Where the last insert ended: the paragraph or table it added (a CTP or CTTbl), for position "cursor". */
+        org.apache.xmlbeans.XmlObject cursor;   // set by Insert text; compared by identity
         DocSession(Path p, XWPFDocument d) { path = p; doc = d; }
         @Override public void close() throws IOException { doc.close(); }
     }
@@ -60,9 +62,13 @@ public final class WordPackage {
 
     public Map<String, Object> open(ActionContext ctx, String path, boolean create, String session) { return open(ctx, path, create, session, false, null); }
 
+    public Map<String, Object> open(ActionContext ctx, String path, boolean create, String session, boolean readOnly, Object password) {
+        return open(ctx, path, create, session, readOnly, password, null, false);
+    }
+
     @Action(id = "open", name = "Open document", category = "Document", capabilities = "filesystem",
-            description = "Open a .docx, .doc, .rtf or .odt document, or create a new one, as a named session; can open password-protected .docx files and open read-only. .doc, .rtf and .odt files are converted with Word or LibreOffice on the runner and saved back in their own format.",
-            panel = "path, read_only, [The file has a password: password] | create, session")
+            description = "Open a .docx, .doc, .rtf or .odt document, or create a new one, as a named session; can open password-protected .docx files, check the password to edit and open read-only. .doc, .rtf and .odt files are converted with Word or LibreOffice on the runner and saved back in their own format.",
+            panel = "path, read_only, [The file has a password: password], [The file has a password to edit: edit_password] | create, session, share")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Document path.") String path,
             @Input(name = "create", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the document when it does not exist.") boolean create,
@@ -70,7 +76,10 @@ public final class WordPackage {
             @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Open for reading only: save over the opened file is refused, save_as to another file still works.") boolean readOnly,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
-                    description = "Password of an encrypted document; saves keep the file encrypted with it.") Object password) {
+                    description = "Password of an encrypted document; saves keep the file encrypted with it.") Object password,
+            @Input(name = "edit_password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Password to edit a document whose editing is restricted; a wrong one stops the step. Without it such a file still opens.") Object editPassword,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs may use it.") boolean share) {
         Path p = ctx.resolvePath(path);
         String pw = OfficeCrypto.secret(password);
         XWPFDocument doc;
@@ -84,11 +93,17 @@ public final class WordPackage {
             catch (IOException | RuntimeException e) { throw new ActionException("WORD.OPEN_FAILED", "Cannot open " + p + ": " + e.getMessage(), "Close it in Word and check it is a .docx file.", true); }
         } else if (create) doc = new XWPFDocument();
         else throw new ActionException("WORD.NOT_FOUND", "Document not found: " + p, "Set create to true or fix the path.");
+        String edit = OfficeCrypto.secret(editPassword);
+        if (edit != null && doc.isEnforcedReadonlyProtection() && !doc.validateProtectionPassword(edit)) {
+            try { doc.close(); } catch (IOException ignored) { }
+            throw new ActionException("WORD.WRONG_EDIT_PASSWORD", "The password to edit " + p.getFileName() + " is wrong", "Check the password stored in the credential vault, or open the file without it.");
+        }
         DocSession d = new DocSession(p, doc);
         d.readOnly = readOnly;
         d.password = pw;
         Object old = ctx.sessions().put(session, d);
         if (old instanceof AutoCloseable c && old != d) try { c.close(); } catch (Exception ignored) { }
+        if (share) ctx.shareSession(session);
         return Map.of();
     }
 
@@ -375,8 +390,40 @@ public final class WordPackage {
     }
 
     private static List<Hit> hits(XWPFDocument d, java.util.regex.Pattern pat, String occurrence, Integer from, Integer to) {
+        return hitsIn(inRange(d, from, to), pat, occurrence);
+    }
+
+    /**
+     * The paragraphs from the one holding a bookmark's start to the one holding its end (whole paragraphs), in document
+     * order; body, tables, headers and footers.
+     */
+    static List<XWPFParagraph> bookmarkParagraphs(XWPFDocument d, String name) {
+        List<XWPFParagraph> out = new ArrayList<>();
+        String id = null;
+        for (XWPFParagraph p : allParagraphs(d)) {
+            if (id == null) for (var bm : p.getCTP().getBookmarkStartList()) if (name.equals(bm.getName())) { id = String.valueOf(bm.getId()); break; }
+            if (id == null) continue;
+            out.add(p);
+            for (var end : p.getCTP().getBookmarkEndList()) if (id.equals(String.valueOf(end.getId()))) return out;
+        }
+        if (id == null) throw new ActionException("WORD.NO_BOOKMARK", "Bookmark '" + name + "' not found", "Check the bookmark name in Word (Insert > Bookmark).");
+        return out;
+    }
+
+    /** Occurrences in the given paragraphs, narrowed to all, the first or the last; page keeps those on that body page. */
+    private static List<Hit> areaHits(XWPFDocument doc, java.util.regex.Pattern pat, String occurrence, Integer from, Integer to, Integer page, String bookmark) {
+        List<XWPFParagraph> ps = bookmark != null && !bookmark.isBlank() ? bookmarkParagraphs(doc, bookmark.strip()) : inRange(doc, from, to);
+        if (page == null) return hitsIn(ps, pat, occurrence);
+        PageMap pm = pages(doc, "auto");
+        checkPage(pm, page);
+        List<Hit> all = new ArrayList<>();
+        for (Hit h : hitsIn(ps, pat, "all")) if (Objects.equals(pm.at(h.p(), h.start()), page)) all.add(h);
+        return pickOccurrence(all, occurrence, "WORD");
+    }
+
+    private static List<Hit> hitsIn(List<XWPFParagraph> paragraphs, java.util.regex.Pattern pat, String occurrence) {
         List<Hit> out = new ArrayList<>();
-        for (XWPFParagraph p : inRange(d, from, to)) {
+        for (XWPFParagraph p : paragraphs) {
             String all = p.getRuns().stream().map(WordPackage::runText).reduce("", String::concat);
             var m = pat.matcher(all);
             while (m.find()) if (m.end() > m.start()) out.add(new Hit(p, m.start(), m.end()));
@@ -411,33 +458,39 @@ public final class WordPackage {
     private static final String D_FROM = "1-based first body paragraph to search; the whole document (with tables, headers and footers) when both are empty.";
     private static final String D_TO = "1-based last body paragraph to search, included; to the end when empty.";
 
-    @Action(id = "replace_text", name = "Replace text", category = "Text",
-            description = "Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}} placeholders in a template; can ignore case, match whole words or change only the first or last occurrence.",
-            panel = "find, match_case, whole_word, (Look in: The whole document = / A paragraph range = from_paragraph, to_paragraph / A page = page), replace_with, occurrence | session")
-    @Output(name = "count", type = OoaType.NUMBER, description = "Number of replacements.")
+    public Map<String, Object> replaceText(ActionContext ctx, String find, String with, String session, boolean matchCase, boolean wholeWord, String occurrence, Integer from, Integer to, Integer page) {
+        return replaceText(ctx, find, with, session, matchCase, wholeWord, occurrence, from, to, page, true, null);
+    }
+
+    static final String D_REPLACE = "Replace what is found with the replacement text (empty removes it); when off the step only counts the matches and changes nothing (the default for new steps).";
+
+    @Action(id = "replace_text", name = "Find and replace text", category = "Text",
+            description = "Find text everywhere (body, tables, headers, footers) or in a paragraph range, bookmark or page and count it, or replace it, e.g. fill {{customer}} placeholders; can ignore case, match whole words or take only the first or last occurrence.",
+            panel = "find, match_case, whole_word, (Look in: The whole document = / A paragraph range = from_paragraph, to_paragraph / A bookmark = bookmark / A page = page), replace, replace_with, occurrence | session")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches found, or of replacements made.")
     public Map<String, Object> replaceText(ActionContext ctx,
             @Input(name = "find", type = OoaType.STRING, example = "{{customer}}", description = "Text to find.") String find,
-            @Input(name = "replace_with", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Replacement text.") String with,
+            @Input(name = "replace_with", type = OoaType.STRING, required = false, defaultValue = "\"\"", visibleWhen = "replace=true", description = "Replacement text; empty removes what is found.") String with,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
-            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MATCH_CASE) boolean matchCase,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = D_MATCH_CASE) boolean matchCase,
             @Input(name = "whole_word", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_WHOLE_WORD) boolean wholeWord,
             @Input(name = "occurrence", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "first", "last"}, description = D_OCCURRENCE) String occurrence,
             @Input(name = "from_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_FROM) Integer from,
             @Input(name = "to_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_TO) Integer to,
             @Input(name = "page", type = OoaType.NUMBER, required = false, min = 1,
-                    description = "Only replace text on this 1-based page of the body (from Word's saved page layout, else the stored page breaks).") Integer page) {
-        if (find.isEmpty()) throw new ActionException("WORD.EMPTY_FIND", "Text to find is empty", "Fill in the text to find.");
+                    description = "Only look on this 1-based page of the body (from Word's saved page layout, else the stored page breaks).") Integer page,
+            @Input(name = "replace", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", tone = "danger", description = D_REPLACE) boolean replace,
+            @Input(name = "bookmark", type = OoaType.STRING, required = false, description = "Only look in the paragraphs a bookmark covers.") String bookmark) {
+        if (find == null || find.isEmpty()) throw new ActionException("WORD.EMPTY_FIND", "Text to find is empty", "Fill in the text to find.");
         String rep = with == null ? "" : with;
-        if (!matchCase || wholeWord || !"all".equalsIgnoreCase(occurrence == null ? "all" : occurrence) || from != null || to != null || page != null) {
+        boolean area = bookmark != null && !bookmark.isBlank();
+        if (!replace) {
             XWPFDocument doc = s(ctx, session).doc;
-            List<Hit> hs;
-            if (page != null) {
-                PageMap pm = pages(doc, "auto");
-                checkPage(pm, page);
-                List<Hit> all = new ArrayList<>();
-                for (Hit h : hits(doc, searchPattern(find, matchCase, wholeWord), "all", from, to)) if (Objects.equals(pm.at(h.p(), h.start()), page)) all.add(h);
-                hs = pickOccurrence(all, occurrence, "WORD");
-            } else hs = hits(doc, searchPattern(find, matchCase, wholeWord), occurrence, from, to);
+            return Map.of("count", BigDecimal.valueOf(areaHits(doc, searchPattern(find, matchCase, wholeWord), occurrence, from, to, page, bookmark).size()));
+        }
+        if (!matchCase || wholeWord || !"all".equalsIgnoreCase(occurrence == null ? "all" : occurrence) || from != null || to != null || page != null || area) {
+            XWPFDocument doc = s(ctx, session).doc;
+            List<Hit> hs = areaHits(doc, searchPattern(find, matchCase, wholeWord), occurrence, from, to, page, bookmark);
             for (int i = hs.size() - 1; i >= 0; i--) {  // back to front keeps earlier offsets valid
                 Hit h = hs.get(i);
                 List<XWPFRun> runs = isolate(h.p(), h.start(), h.end());
@@ -455,10 +508,10 @@ public final class WordPackage {
             boolean done = false;
             for (XWPFRun r : p.getRuns()) {  // keep formatting when the text sits inside a single run
                 String t = r.getText(0);
-                if (t != null && t.contains(find)) { r.setText(t.replace(find, with), 0); done = true; }
+                if (t != null && t.contains(find)) { r.setText(t.replace(find, rep), 0); done = true; }
             }
             if (!done || p.getText().contains(find)) {  // text split across runs: rewrite into the first run
-                String full = p.getText().replace(find, with);
+                String full = p.getText().replace(find, rep);
                 List<XWPFRun> runs = p.getRuns();
                 for (int i = runs.size() - 1; i > 0; i--) p.removeRun(i);
                 if (runs.isEmpty()) p.createRun().setText(full, 0); else p.getRuns().get(0).setText(full, 0);
@@ -744,9 +797,13 @@ public final class WordPackage {
         return createDocument(ctx, path, overwrite, session, password, template, null);
     }
 
+    public Map<String, Object> createDocument(ActionContext ctx, String path, boolean overwrite, String session, Object password, String template, Object editPassword) {
+        return createDocument(ctx, path, overwrite, session, password, template, editPassword, false);
+    }
+
     @Action(id = "create_document", name = "Create document", category = "Document", capabilities = "filesystem",
             description = "Create a new .docx (or .doc, .rtf or .odt) file on disk, empty or as a copy of a template document, optionally password-protected, and open it as a named session.",
-            panel = "path, [Require a password to open the file: password], [Require a password to edit the file: edit_password] | overwrite, template, session")
+            panel = "path, [Require a password to open the file: password], [Require a password to edit the file: edit_password] | overwrite, template, session, share")
     public Map<String, Object> createDocument(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Path of the new document.") String path,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace a file that already exists at the path.") boolean overwrite,
@@ -754,7 +811,8 @@ public final class WordPackage {
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Encrypt the new file with this password; later saves keep it.") Object password,
             @Input(name = "template", type = OoaType.FILE, required = false, description = "Existing .docx whose content and styles the new document starts from; empty document when empty.") String template,
             @Input(name = "edit_password", type = OoaType.CREDENTIAL, required = false,
-                    description = "Restrict editing with this password: Word opens the document read-only until the password is given (Review > Restrict Editing > Stop Protection).") Object editPassword) {
+                    description = "Restrict editing with this password: Word opens the document read-only until the password is given (Review > Restrict Editing > Stop Protection).") Object editPassword,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs may use it.") boolean share) {
         Path p = ctx.resolvePath(path);
         if (Files.exists(p) && !overwrite) throw new ActionException("WORD.EXISTS", "A file already exists at " + p, "Set overwrite to true or use open to edit it.");
         XWPFDocument doc;
@@ -775,6 +833,7 @@ public final class WordPackage {
         Object old = ctx.sessions().put(session, d);
         if (old instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
         writeTo(ctx, d, p, d.password);
+        if (share) ctx.shareSession(session);
         return Map.of();
     }
 
@@ -998,7 +1057,8 @@ public final class WordPackage {
     public Map<String, Object> insertText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to insert; line breaks are kept.") String text,
             @Input(name = "position", type = OoaType.STRING, required = false, defaultValue = "\"end\"",
-                    enumValues = {"end", "start", "after_text", "before_text", "bookmark"}, description = "Where to insert: end, start of the document, after_text, before_text or bookmark.") String position,
+                    enumValues = {"end", "start", "after_text", "before_text", "bookmark", "cursor"},
+                    description = "Where to insert: end, start of the document, after_text, before_text, bookmark, or cursor: where the last Insert text of this session ended (G3, AA's cursor; the end at first).") String position,
             @Input(name = "anchor", type = OoaType.STRING, required = false, description = "Marker text or bookmark name the position refers to.") String anchor,
             @Input(name = "new_paragraph", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
                     description = "Put the text in its own paragraph; false adds it inside the existing paragraph.") boolean newParagraph,
@@ -1012,9 +1072,18 @@ public final class WordPackage {
             @Input(name = "as_html", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "The text is HTML: headings, paragraphs, bold/italic/underline, colours and sizes, links, bulleted and numbered lists, tables and pictures "
                             + "(data: URIs or local files) become Word formatting; it always starts in its own paragraph.") boolean asHtml) {
-        XWPFDocument d = s(ctx, session).doc;
+        DocSession ds = s(ctx, session);
+        XWPFDocument d = ds.doc;
         RunFormat fmt = new RunFormat(bold, italic, underline, size, hexColour(colour), font, null, null);
         String pos = position == null ? "end" : position.toLowerCase(Locale.ROOT);
+        if (pos.equals("cursor")) {   // where the last insert ended; the end of the document before any insert
+            XWPFParagraph at = null;
+            if (ds.cursor != null) for (XWPFParagraph p : allParagraphs(d)) if (p.getCTP() == ds.cursor) { at = p; break; }
+            XWPFParagraph p = at == null ? appendParagraph(d) : newParagraph ? paragraphAfter(at) : at;
+            writeStyled(fmt, p.createRun(), text);
+            ds.cursor = p.getCTP();
+            return Map.of();
+        }
         if (!pos.equals("end") && !pos.equals("start") && (anchor == null || anchor.isEmpty()))
             throw new ActionException("WORD.NO_ANCHOR", "Position '" + pos + "' needs an anchor", "Set anchor to the marker text or bookmark name.");
         if (asHtml) {
@@ -1028,6 +1097,7 @@ public final class WordPackage {
                 XWPFParagraph last = !els.isEmpty() && els.get(els.size() - 1) instanceof XWPFParagraph lp ? lp : null;
                 XWPFParagraph p = !newParagraph && last != null ? last : appendParagraph(d);
                 writeStyled(fmt, p.createRun(), text);
+                ds.cursor = p.getCTP();
             }
             case "start" -> {
                 List<XWPFParagraph> ps = d.getParagraphs();
@@ -1050,6 +1120,7 @@ public final class WordPackage {
                         try { np = insertBefore(p, c); } finally { c.close(); }
                     }
                     writeStyled(fmt, np.createRun(), text);
+                    ds.cursor = np.getCTP();
                 } else {
                     String all = p.getRuns().stream().map(WordPackage::runText).reduce("", String::concat);
                     int found = all.indexOf(anchor);
@@ -1069,7 +1140,7 @@ public final class WordPackage {
                 for (XWPFParagraph p : allParagraphs(d)) {
                     for (var bm : p.getCTP().getBookmarkStartList()) {
                         if (!anchor.equals(bm.getName())) continue;
-                        if (newParagraph) { writeStyled(fmt, paragraphAfter(p).createRun(), text); return Map.of(); }
+                        if (newParagraph) { XWPFParagraph np = paragraphAfter(p); writeStyled(fmt, np.createRun(), text); ds.cursor = np.getCTP(); return Map.of(); }
                         int runsBefore = 0;  // runs that come before the bookmark start inside the paragraph
                         org.apache.xmlbeans.XmlCursor c = p.getCTP().newCursor();
                         try {
@@ -1279,9 +1350,14 @@ public final class WordPackage {
         return formatText(ctx, text, bold, italic, underline, size, colour, font, session, matchCase, wholeWord, occurrence, highlight, strike, null, null);
     }
 
+    public Map<String, Object> formatText(ActionContext ctx, String text, Boolean bold, Boolean italic, Boolean underline, Double size, String colour, String font,
+                                          String session, boolean matchCase, boolean wholeWord, String occurrence, String highlight, Boolean strike, Integer from, Integer to) {
+        return formatText(ctx, text, bold, italic, underline, size, colour, font, session, matchCase, wholeWord, occurrence, highlight, strike, from, to, null, null);
+    }
+
     @Action(id = "format_text", name = "Format text", category = "Text",
-            description = "Apply bold, italic, underline, strikethrough, highlight, font, size or colour to occurrences of a text; inputs left empty are not changed.",
-            panel = "text, match_case, whole_word, (Look in: The whole document = / A paragraph range = from_paragraph, to_paragraph), occurrence, font, color, size, bold, italic, underline | highlight, strikethrough, session")
+            description = "Apply bold, italic, underline, strikethrough, highlight, font, size or colour to occurrences of a text in the document, a paragraph range, a bookmark or a page; inputs left empty are not changed.",
+            panel = "text, match_case, whole_word, (Look in: The whole document = / A paragraph range = from_paragraph, to_paragraph / A bookmark = bookmark / A page = page), occurrence, font, color, size, bold, italic, underline | highlight, strikethrough, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of occurrences formatted.")
     public Map<String, Object> formatText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to format wherever it appears.") String text,
@@ -1292,7 +1368,7 @@ public final class WordPackage {
             @Input(name = "color", type = OoaType.STRING, required = false, example = "#C00000", description = "Hex text colour.") String colour,
             @Input(name = "font", type = OoaType.STRING, required = false, description = "Font name, e.g. Calibri.") String font,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
-            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MATCH_CASE) boolean matchCase,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = D_MATCH_CASE) boolean matchCase,
             @Input(name = "whole_word", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_WHOLE_WORD) boolean wholeWord,
             @Input(name = "occurrence", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "first", "last"}, description = D_OCCURRENCE) String occurrence,
             @Input(name = "highlight", type = OoaType.STRING, required = false,
@@ -1300,10 +1376,12 @@ public final class WordPackage {
                     description = "Highlighter colour behind the text, or none to remove it.") String highlight,
             @Input(name = "strikethrough", type = OoaType.BOOLEAN, required = false, description = "Strikethrough on or off.") Boolean strike,
             @Input(name = "from_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_FROM) Integer from,
-            @Input(name = "to_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_TO) Integer to) {
+            @Input(name = "to_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_TO) Integer to,
+            @Input(name = "page", type = OoaType.NUMBER, required = false, min = 1, description = "Only format text on this 1-based page of the body.") Integer page,
+            @Input(name = "bookmark", type = OoaType.STRING, required = false, description = "Only format text in the paragraphs a bookmark covers.") String bookmark) {
         if (text == null || text.isEmpty()) throw new ActionException("WORD.EMPTY_FIND", "Text to format is empty", "Give the text to format.");
         RunFormat f = new RunFormat(bold, italic, underline, size, hexColour(colour), font, highlight, strike);
-        List<Hit> hs = hits(s(ctx, session).doc, searchPattern(text, matchCase, wholeWord), occurrence, from, to);
+        List<Hit> hs = areaHits(s(ctx, session).doc, searchPattern(text, matchCase, wholeWord), occurrence, from, to, page, bookmark);
         for (int i = hs.size() - 1; i >= 0; i--) {
             Hit h = hs.get(i);
             for (XWPFRun r : isolate(h.p(), h.start(), h.end())) f.apply(r);
@@ -1321,7 +1399,7 @@ public final class WordPackage {
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"docx\"", enumValues = {"docx", "doc", "rtf", "odt", "pdf", "txt"},
                     description = "docx keeps the document; doc (Word 97-2003), rtf and odt are written with Microsoft Word (or LibreOffice) on the runner; pdf exports it the same way; txt writes the plain text (body, tables and headers). After pdf and txt the session stays on the previous file.") String format,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that already exists at the target path; false stops with WORD.EXISTS.") boolean overwrite,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace a file that already exists at the target path; off stops with WORD.EXISTS (the default for new steps).") boolean overwrite,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Encrypt the new .docx file with this password; later saves keep it.") Object password) {
         DocSession d = s(ctx, session);
         Path target = ctx.resolvePath(path);

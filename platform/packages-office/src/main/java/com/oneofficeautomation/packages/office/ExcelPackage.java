@@ -40,7 +40,7 @@ public final class ExcelPackage {
     private static final String CELL = "^[A-Za-z]{1,3}[1-9][0-9]*$";
 
     /** Workbook session shared by later steps; closed automatically at the end of the run. */
-    public static final class WorkbookSession implements AutoCloseable {
+    public static final class WorkbookSession implements AutoCloseable, OpenWorkbook {
         Path path;
         Workbook wb;
         /** Cell or range chosen by go_to_cell / select_range; empty until one of them runs. */
@@ -56,8 +56,28 @@ public final class ExcelPackage {
         String password;
         /** Default for the header input of the table-reading actions, set by open. */
         boolean header = true;
+        /** Opened with skip_hidden_sheets: hidden sheets are left out of lists and counts and cannot be used by name. */
+        boolean skipHidden;
+        /** G3 (AA parity): opened from a .csv or .txt file; Save writes it back as text with this delimiter. */
+        Character csvDelimiter;
         WorkbookSession(Path path, Workbook wb) { this.path = path; this.wb = wb; }
         @Override public void close() throws IOException { wb.close(); }
+
+        // G3 (AA parity): the Excel desktop steps work on the open workbook through OpenWorkbook
+        @Override public Path file() { return path; }
+        @Override public String activeSheet() { return wb.getSheetName(wb.getActiveSheetIndex()); }
+        @Override public void writeCopy(Path target) { writeFile(this, target, null); }
+        @Override public void replaceWith(Path source) {
+            Workbook next = csvDelimiter != null && isCsv(source) ? csvWorkbook(readCsvText(source), csvDelimiter, stem(path)) : load(source, null);
+            Workbook old = wb;
+            wb = next;
+            selection = null;
+            try { old.close(); } catch (IOException ignored) { }
+        }
+        @Override public void save() {
+            if (readOnly) throw new ActionException("EXCEL.READ_ONLY", "The workbook was opened read-only", "Turn off save, or open the workbook without read_only.");
+            writeFile(this, path, password);
+        }
     }
 
     /** The step's workbook: its session, or the one open workbook when the step keeps the default name (T1). */
@@ -66,13 +86,16 @@ public final class ExcelPackage {
     private static Sheet sheet(WorkbookSession s, String name) {
         if (name == null || name.isBlank()) return s.wb.getSheetAt(s.wb.getActiveSheetIndex());
         Sheet sh = s.wb.getSheet(name);
-        if (sh == null) {
+        if (sh == null || (s.skipHidden && hidden(s, s.wb.getSheetIndex(sh)))) {
             List<String> names = new ArrayList<>();
-            for (int i = 0; i < s.wb.getNumberOfSheets(); i++) names.add(s.wb.getSheetName(i));
-            throw new ActionException("EXCEL.NO_SHEET", "Sheet '" + name + "' not found", "Sheets: " + String.join(", ", names) + ".");
+            for (int i = 0; i < s.wb.getNumberOfSheets(); i++) if (!s.skipHidden || !hidden(s, i)) names.add(s.wb.getSheetName(i));
+            throw new ActionException("EXCEL.NO_SHEET", "Sheet '" + name + "' not found" + (sh != null ? " among the visible sheets (the workbook was opened to skip hidden sheets)" : ""),
+                    "Sheets: " + String.join(", ", names) + ".");
         }
         return sh;
     }
+
+    private static boolean hidden(WorkbookSession s, int idx) { return s.wb.isSheetHidden(idx) || s.wb.isSheetVeryHidden(idx); }
 
     private static Cell cell(Sheet sh, String address, boolean create) {
         CellReference ref = new CellReference(address.toUpperCase(Locale.ROOT));
@@ -143,9 +166,79 @@ public final class ExcelPackage {
         return r;
     }
 
+    public Map<String, Object> open(ActionContext ctx, String path, String session, boolean create, String sheet, boolean readOnly, Object password, boolean header,
+                                    Object accessToken, String drive, String graphUrl) {
+        return open(ctx, path, session, create, sheet, readOnly, password, header, accessToken, drive, graphUrl, null, false, null, null, false, false);
+    }
+
+    /** A link copied from SharePoint or OneDrive in the browser (or Excel's File > Info > Copy path). */
+    static boolean shareUrl(String path) { return com.oneofficeautomation.packages.Microsoft365Package.isShareLink(path); }
+
+    /** The drive and the path inside it of a pasted SharePoint or OneDrive link: {"drives/{id}", "Folder/Book.xlsx", id}. */
+    static String[] resolveShareUrl(ActionContext ctx, Object token, String url, String graph) {
+        return com.oneofficeautomation.packages.Microsoft365Package.shareLink(ctx, token, url, graph);
+    }
+
+    /** The write-access password stored in an .xlsx (Excel's "password to modify"); empty when none. */
+    static boolean hasEditPassword(Workbook wb) {
+        return wb instanceof XSSFWorkbook x && x.getCTWorkbook().isSetFileSharing()
+                && (x.getCTWorkbook().getFileSharing().isSetHashValue() || x.getCTWorkbook().getFileSharing().isSetReservationPassword());
+    }
+
+    /** True when the password is the workbook's password to modify (salted hash, or the older 16-bit one). */
+    static boolean editPasswordMatches(Workbook wb, String password) {
+        if (!(wb instanceof XSSFWorkbook x) || !x.getCTWorkbook().isSetFileSharing()) return true;
+        var fs = x.getCTWorkbook().getFileSharing();
+        if (fs.isSetHashValue() && fs.isSetSaltValue()) {
+            HashAlgorithm alg = HashAlgorithm.fromString(fs.isSetAlgorithmName() ? fs.getAlgorithmName() : "SHA-512");
+            int spin = fs.isSetSpinCount() ? (int) fs.getSpinCount() : 100_000;
+            byte[] want = org.apache.poi.poifs.crypt.CryptoFunctions.hashPassword(password, alg, fs.getSaltValue(), spin, false);
+            return Arrays.equals(want, fs.getHashValue());
+        }
+        if (fs.isSetReservationPassword()) {
+            byte[] stored = fs.getReservationPassword();
+            int v = org.apache.poi.poifs.crypt.CryptoFunctions.createXorVerifier1(password);
+            return stored.length == 2 && ((stored[0] & 0xff) << 8 | (stored[1] & 0xff)) == v;
+        }
+        return true;
+    }
+
+    /** Sets Excel's password to modify: Excel asks for it, or offers to open the file read-only. */
+    static void setEditPassword(Workbook wb, String password) {
+        if (!(wb instanceof XSSFWorkbook x)) throw new ActionException("EXCEL.NOT_SUPPORTED", "A password to edit needs an .xlsx workbook", "Save the workbook as .xlsx first.");
+        var ct = x.getCTWorkbook();
+        var fs = ct.isSetFileSharing() ? ct.getFileSharing() : ct.addNewFileSharing();
+        byte[] salt = new byte[16];
+        new java.security.SecureRandom().nextBytes(salt);
+        int spin = 100_000;
+        if (fs.isSetReservationPassword()) fs.unsetReservationPassword();
+        fs.setAlgorithmName("SHA-512");
+        fs.setSaltValue(salt);
+        fs.setSpinCount(spin);
+        fs.setHashValue(org.apache.poi.poifs.crypt.CryptoFunctions.hashPassword(password, HashAlgorithm.sha512, salt, spin, false));
+    }
+
+    /** Writes a sensitivity label given on Open or Create; with carry_on a failure is logged instead of stopping the run. */
+    private static void labelOnOpen(ActionContext ctx, Workbook wb, String label, String site, boolean carryOn) {
+        if (label == null || label.isBlank()) return;
+        try {
+            if (!(wb instanceof XSSFWorkbook x)) throw new ActionException("EXCEL.XLSX_ONLY", "Sensitivity labels are only supported for .xlsx workbooks", "Save the workbook as .xlsx first.");
+            Msip.write(x.getProperties().getCustomProperties(), label, site, null, "Standard", "EXCEL");
+        } catch (ActionException e) {
+            if (!carryOn) throw e;
+            ctx.warn("The sensitivity label was not set: " + e.getMessage());
+        }
+    }
+
+    private static final String D_EDIT_PW = "Password to modify the file (Excel's write access password); a wrong one stops the step. Without it such a file still opens.";
+    private static final String D_LABEL = "Sensitivity label id (a GUID) to put on the workbook; it may come from the vault.";
+    private static final String D_LABEL_SITE = "Microsoft 365 tenant id (a GUID) the label belongs to.";
+    private static final String D_LABEL_CARRY_ON = "When the label cannot be set, log a warning and go on instead of stopping.";
+    static final String D_SHARE = "Agents this one runs may use it.";
+
     @Action(id = "open", name = "Open workbook", category = "Workbook", capabilities = {"filesystem", "network"},
-            description = "Open an .xlsx or .xls workbook, or create a new one, as a named session; can open encrypted files and open read-only.",
-            panel = "path, header, [Open a named sheet: sheet], read_only, [The file has a password: password], [The file is on OneDrive or SharePoint: access_token, drive] | create, session, graph_url")
+            description = "Open an .xlsx or .xls workbook (a local path, onedrive:path or a pasted SharePoint or OneDrive link), or a .csv or .txt file (one sheet, saved back as text), or create a new one, as a named session; can open encrypted files, open read-only and skip hidden sheets.",
+            panel = "path, header, [Open a named sheet: sheet], read_only, [The file has a password: password], [The file has a password to edit: edit_password], skip_hidden_sheets, [Set a sensitivity label: sensitivity_label, label_site_id, continue_if_label_fails], [The file is on OneDrive or SharePoint: access_token, drive] | create, session, share, graph_url")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook path.") String path,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Session name used by later steps.") String session,
@@ -162,36 +255,67 @@ public final class ExcelPackage {
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"",
                     description = "For onedrive: paths: me/drive (the signed-in user's OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}.") String drive,
             @Input(name = "graph_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"",
-                    description = "Microsoft Graph address (national clouds, tests).") String graphUrl) {
+                    description = "Microsoft Graph address (national clouds, tests).") String graphUrl,
+            @Input(name = "edit_password", type = OoaType.CREDENTIAL, required = false, description = D_EDIT_PW) Object editPassword,
+            @Input(name = "skip_hidden_sheets", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Leave hidden sheets out: sheet lists, counts and positions only see visible sheets, and later steps cannot use a hidden sheet.") boolean skipHidden,
+            @Input(name = "sensitivity_label", type = OoaType.STRING, required = false, acceptsCredential = true, description = D_LABEL) String label,
+            @Input(name = "label_site_id", type = OoaType.STRING, required = false, visibleWhen = "sensitivity_label!=", description = D_LABEL_SITE) String labelSite,
+            @Input(name = "continue_if_label_fails", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "sensitivity_label!=", description = D_LABEL_CARRY_ON) boolean labelCarryOn,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_SHARE) boolean share) {
+        String graph = graphUrl == null || graphUrl.isBlank() ? "https://graph.microsoft.com/v1.0" : graphUrl;
+        if (shareUrl(path)) {
+            if (accessToken == null) throw new ActionException("EXCEL.NO_TOKEN", "A SharePoint or OneDrive link needs access_token", "Pick the Microsoft Graph token from the vault.");
+            String[] where = resolveShareUrl(ctx, accessToken, path, graph);
+            drive = where[0];
+            path = CLOUD + where[1];
+        }
         String cloud = cloudPath(path);
         if (cloud != null) {
             if (accessToken == null) throw new ActionException("EXCEL.NO_TOKEN", "A onedrive: path needs access_token", "Pick the Microsoft Graph token from the vault.");
             String local = ".cloud/" + Path.of(cloud).getFileName();
             if (create) {
-                try { new com.oneofficeautomation.packages.Microsoft365Package().download(ctx, accessToken, cloud, local, true, drive, graphUrl == null || graphUrl.isBlank() ? "https://graph.microsoft.com/v1.0" : graphUrl); }
+                try { new com.oneofficeautomation.packages.Microsoft365Package().download(ctx, accessToken, cloud, local, true, drive, graph); }
                 catch (RuntimeException notThere) { try { Files.deleteIfExists(ctx.resolvePath(local)); } catch (IOException ignored) { } }   // created on the first save
-            } else new com.oneofficeautomation.packages.Microsoft365Package().download(ctx, accessToken, cloud, local, true, drive, graphUrl == null || graphUrl.isBlank() ? "https://graph.microsoft.com/v1.0" : graphUrl);
+            } else new com.oneofficeautomation.packages.Microsoft365Package().download(ctx, accessToken, cloud, local, true, drive, graph);
             path = local;
         }
         Path p = ctx.resolvePath(path);
         String pw = OfficeCrypto.secret(password);
         Workbook wb;
-        if (Files.exists(p)) wb = load(p, pw);
+        Character csv = null;
+        if (isCsv(p) && Files.exists(p)) {   // G3 (AA parity): a CSV or text file opens as a workbook of one sheet
+            String text = readCsvText(p);
+            csv = guessDelimiter(text);
+            wb = csvWorkbook(text, csv, stem(p));
+        }
+        else if (isCsv(p) && create) { wb = new XSSFWorkbook(); wb.createSheet(stem(p)); csv = ','; }
+        else if (Files.exists(p)) wb = load(p, pw);
         else if (create) {
             wb = new XSSFWorkbook();
             wb.createSheet("Sheet1");
         } else throw new ActionException("EXCEL.NOT_FOUND", "Workbook not found: " + p, "Set create to true or fix the path.");
+        String edit = OfficeCrypto.secret(editPassword);
+        if (edit != null && hasEditPassword(wb) && !editPasswordMatches(wb, edit)) {
+            try { wb.close(); } catch (IOException ignored) { }
+            throw new ActionException("EXCEL.WRONG_EDIT_PASSWORD", "The password to edit " + p.getFileName() + " is wrong", "Check the password stored in the credential vault, or open the file read-only without it.");
+        }
         WorkbookSession s = new WorkbookSession(p, wb);
+        s.csvDelimiter = csv;
         s.readOnly = readOnly;
         s.password = pw;
         s.header = header;
-        if (cloud != null) { s.cloudPath = cloud; s.cloudToken = accessToken; s.cloudDrive = drive; s.cloudBase = graphUrl == null || graphUrl.isBlank() ? "https://graph.microsoft.com/v1.0" : graphUrl; }
-        if (sheet != null && !sheet.isBlank()) {
-            try { activate(s, s.wb.getSheetIndex(sheet(s, sheet))); }
-            catch (ActionException e) { try { wb.close(); } catch (IOException ignored) { } throw e; }
-        }
+        s.skipHidden = skipHidden;
+        if (cloud != null) { s.cloudPath = cloud; s.cloudToken = accessToken; s.cloudDrive = drive; s.cloudBase = graph; }
+        try {
+            if (sheet != null && !sheet.isBlank()) activate(s, s.wb.getSheetIndex(sheet(s, sheet)));
+            else if (skipHidden && hidden(s, s.wb.getActiveSheetIndex()))
+                for (int i = 0; i < s.wb.getNumberOfSheets(); i++) if (!hidden(s, i)) { activate(s, i); break; }
+            labelOnOpen(ctx, wb, label, labelSite, labelCarryOn);
+        } catch (ActionException e) { try { wb.close(); } catch (IOException ignored) { } throw e; }
         Object old = ctx.sessions().put(session, s);
-        if (old instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
+        if (old instanceof AutoCloseable c && old != s) try { c.close(); } catch (Exception ignored) { }
+        if (share) ctx.shareSession(session);
         return Map.of();
     }
 
@@ -199,26 +323,40 @@ public final class ExcelPackage {
         return createWorkbook(ctx, path, sheet, overwrite, session, null);
     }
 
+    public Map<String, Object> createWorkbook(ActionContext ctx, String path, String sheet, boolean overwrite, String session, Object password) {
+        return createWorkbook(ctx, path, sheet, overwrite, session, password, null, null, null, false, false);
+    }
+
     @Action(id = "create_workbook", name = "Create workbook", category = "Workbook", capabilities = "filesystem",
-            description = "Create a new empty .xlsx file on disk with one named sheet and open it as a session; optionally encrypted with a password.",
-            panel = "path, overwrite, sheet, [Require a password to open the file: password] | session")
+            description = "Create a new empty .xlsx file on disk with one named sheet and open it as a session; optionally with a password to open, a password to edit and a sensitivity label.",
+            panel = "path, overwrite, sheet, [Require a password to open the file: password], [Require a password to edit the file: edit_password], [Set a sensitivity label: sensitivity_label, label_site_id, continue_if_label_fails] | session, share")
     public Map<String, Object> createWorkbook(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Path of the new workbook.") String path,
             @Input(name = "sheet", type = OoaType.STRING, required = false, defaultValue = "\"Sheet1\"", description = "Name of the first worksheet.") String sheet,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace a file that already exists at the path.") boolean overwrite,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Session name used by later steps.") String session,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
-                    description = "Encrypt the file with this password; later saves keep it encrypted.") Object password) {
+                    description = "Encrypt the file with this password; later saves keep it encrypted.") Object password,
+            @Input(name = "edit_password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Password to modify: Excel asks for it, or offers to open the file read-only.") Object editPassword,
+            @Input(name = "sensitivity_label", type = OoaType.STRING, required = false, acceptsCredential = true, description = D_LABEL) String label,
+            @Input(name = "label_site_id", type = OoaType.STRING, required = false, visibleWhen = "sensitivity_label!=", description = D_LABEL_SITE) String labelSite,
+            @Input(name = "continue_if_label_fails", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "sensitivity_label!=", description = D_LABEL_CARRY_ON) boolean labelCarryOn,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_SHARE) boolean share) {
         Path p = ctx.resolvePath(path);
         if (Files.exists(p) && !overwrite) throw new ActionException("EXCEL.EXISTS", "A file already exists at " + p, "Set overwrite to true or use open to edit it.");
         XSSFWorkbook wb = new XSSFWorkbook();
         try { wb.createSheet(sheetName(sheet == null || sheet.isBlank() ? "Sheet1" : sheet)); }
         catch (IllegalArgumentException e) { throw new ActionException("EXCEL.BAD_SHEET_NAME", e.getMessage(), "Sheet names are at most 31 characters and cannot contain : \\ / ? * [ ]."); }
+        String edit = OfficeCrypto.secret(editPassword);
+        if (edit != null) setEditPassword(wb, edit);
+        labelOnOpen(ctx, wb, label, labelSite, labelCarryOn);
         WorkbookSession s = new WorkbookSession(p, wb);
         s.password = OfficeCrypto.secret(password);
         writeFile(s, p, s.password);
         Object old = ctx.sessions().put(session, s);
         if (old instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
+        if (share) ctx.shareSession(session);
         return Map.of();
     }
 
@@ -249,7 +387,98 @@ public final class ExcelPackage {
         return failed;
     }
 
+    static boolean isCsv(Path p) { String n = p.getFileName().toString().toLowerCase(Locale.ROOT); return n.endsWith(".csv") || n.endsWith(".txt"); }
+
+    static String stem(Path p) {
+        String n = p.getFileName().toString();
+        int i = n.lastIndexOf('.');
+        String st = (i > 0 ? n.substring(0, i) : n).replaceAll("[\\[\\]*?:/\\\\]", "_");
+        return st.isBlank() ? "Sheet1" : st.length() > 31 ? st.substring(0, 31) : st;
+    }
+
+    /** The file's text: UTF-8 (a leading byte-order mark dropped), or Windows-1252 when it is not UTF-8. */
+    static String readCsvText(Path p) {
+        String text;
+        try {
+            byte[] b = Files.readAllBytes(p);
+            try { text = java.nio.charset.StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(b)).toString(); }
+            catch (java.nio.charset.CharacterCodingException e) { text = new String(b, java.nio.charset.Charset.forName("windows-1252")); }
+        } catch (IOException e) {
+            throw new ActionException("EXCEL.OPEN_FAILED", "Cannot read " + p + ": " + e.getMessage(), "Check that the file is there and not locked.");
+        }
+        return text.startsWith("\uFEFF") ? text.substring(1) : text;
+    }
+
+    /** The delimiter of a CSV text: the one of comma, semicolon, tab and | that appears most in its first line (comma when none). */
+    static char guessDelimiter(String text) {
+        String first = text.lines().findFirst().orElse("");
+        char best = ','; long most = 0;
+        for (char d : new char[]{',', ';', '\t', '|'}) {
+            long n = first.chars().filter(c -> c == d).count();
+            if (n > most) { most = n; best = d; }
+        }
+        return best;
+    }
+
+    /** A workbook of one sheet holding the CSV's rows as text; quoted fields may hold the delimiter, quotes and line breaks. */
+    static Workbook csvWorkbook(String text, char d, String sheetName) {
+        XSSFWorkbook wb = new XSSFWorkbook();
+        Sheet sh = wb.createSheet(sheetName);
+        List<String> row = new ArrayList<>();
+        StringBuilder cell = new StringBuilder();
+        boolean quoted = false;
+        int r = 0;
+        for (int i = 0; i <= text.length(); i++) {
+            boolean end = i == text.length();
+            char ch = end ? '\n' : text.charAt(i);
+            if (quoted && !end) {
+                if (ch == '"' && i + 1 < text.length() && text.charAt(i + 1) == '"') { cell.append('"'); i++; }
+                else if (ch == '"') quoted = false;
+                else cell.append(ch);
+                continue;
+            }
+            if (ch == '"' && cell.length() == 0) { quoted = true; continue; }
+            if (ch == d) { row.add(cell.toString()); cell.setLength(0); continue; }
+            if (ch == '\r') continue;
+            if (ch == '\n') {
+                row.add(cell.toString()); cell.setLength(0);
+                if (!(end && row.size() == 1 && row.get(0).isEmpty())) {
+                    Row out = sh.createRow(r++);
+                    for (int c = 0; c < row.size(); c++) if (!row.get(c).isEmpty()) out.createCell(c).setCellValue(row.get(c));
+                }
+                row = new ArrayList<>();
+                continue;
+            }
+            cell.append(ch);
+        }
+        return wb;
+    }
+
+    /** One sheet written as CSV text (UTF-8) with the delimiter, the values as they read; fields that need it are quoted. */
+    static void writeCsv(WorkbookSession s, Sheet sh, Path target, char d) throws IOException {
+        FormulaEvaluator ev = evaluator(s);
+        StringBuilder sb = new StringBuilder();
+        int width = lastCol(sh) + 1;
+        for (int r = 0; r <= sh.getLastRowNum(); r++) {
+            Row row = sh.getRow(r);
+            for (int c = 0; c < width; c++) {
+                if (c > 0) sb.append(d);
+                Object v = row == null ? null : read(row.getCell(c), ev);
+                String t = v == null ? "" : Values.text(v);
+                boolean quote = t.indexOf(d) >= 0 || t.indexOf('"') >= 0 || t.indexOf('\r') >= 0 || t.indexOf('\n') >= 0 || t.startsWith(" ") || t.endsWith(" ");
+                sb.append(quote ? "\"" + t.replace("\"", "\"\"") + "\"" : t);
+            }
+            sb.append("\r\n");
+        }
+        Files.writeString(target, sb.toString(), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     private static void writeFile(WorkbookSession s, Path target, String password) {
+        if (s.csvDelimiter != null && isCsv(target)) {   // G3: a workbook opened from CSV is saved back as CSV (its first sheet)
+            try { writeCsv(s, s.wb.getSheetAt(0), target, s.csvDelimiter); }
+            catch (IOException e) { throw new ActionException("EXCEL.SAVE_FAILED", "Cannot save " + target + ": " + e.getMessage(), "Close the file if it is open in another program."); }
+            return;
+        }
         s.unevaluated = recalculate(s.wb);
         try {
             if (password != null && !(s.wb instanceof XSSFWorkbook)) {  // .xls files use the legacy RC4 encryption
@@ -350,6 +579,16 @@ public final class ExcelPackage {
 
     private static final String D_HEADER = "First row holds column names; the workbook's open setting (true by default) when empty.";
     private static final String D_READ_AS = "value returns numbers, dates and booleans as such; text returns what Excel displays, with number formats applied.";
+    private static final String D_FROM_ROW = "Only from this sheet row number on (the header row, when there is one, still gives the column names); from the first row when empty.";
+    private static final String D_TO_ROW = "Only up to this sheet row number, included; to the last used row when empty.";
+
+    public Iterable<Object> rows(ActionContext ctx, String sheet, String range, Boolean header, String session, String readAs, boolean includeHidden) {
+        return rows(ctx, sheet, range, header, session, readAs, includeHidden, null, null);
+    }
+
+    public Map<String, Object> getAllCells(ActionContext ctx, String sheet, Boolean header, String session, String readAs, boolean includeHidden, boolean keepBlankRows) {
+        return getAllCells(ctx, sheet, header, session, readAs, includeHidden, keepBlankRows, null, null);
+    }
 
     @LoopIterator(id = "rows", name = "Each row in a worksheet",
             description = "Yield each row of a sheet (or of a range) of an open workbook as a record keyed by the header names (Column1, Column2 ... without a header).")
@@ -360,9 +599,11 @@ public final class ExcelPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "read_as", type = OoaType.STRING, required = false, defaultValue = "\"value\"", enumValues = {"value", "text"}, description = D_READ_AS) String readAs,
             @Input(name = "include_hidden", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "range=",
-                    description = "Include hidden rows; false skips rows hidden by a filter.") boolean includeHidden) {
+                    description = "Include hidden rows; false skips rows hidden by a filter.") boolean includeHidden,
+            @Input(name = "from_row", type = OoaType.NUMBER, required = false, min = 1, visibleWhen = "range=", description = D_FROM_ROW) Integer fromRow,
+            @Input(name = "to_row", type = OoaType.NUMBER, required = false, min = 1, visibleWhen = "range=", description = D_TO_ROW) Integer toRow) {
         Map<String, Object> t = range == null || range.isBlank()
-                ? getAllCells(ctx, sheet, header, session, readAs, includeHidden, false)
+                ? getAllCells(ctx, sheet, header, session, readAs, includeHidden, false, fromRow, toRow)
                 : getRange(ctx, range, header, sheet, session, readAs);
         @SuppressWarnings("unchecked") Map<String, Object> table = (Map<String, Object>) t.get("table");
         @SuppressWarnings("unchecked") List<String> cols = (List<String>) table.get("columns");
@@ -377,8 +618,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "get_all_cells", name = "Get all cells", category = "Cells", idempotent = true,
-            description = "Read the used area of a sheet as a table; the first row can be the column names.",
-            panel = "(Worksheet: The active sheet = / A named sheet = sheet), header, read_as | include_hidden, keep_blank_rows, session")
+            description = "Read the used area of a sheet, or only rows N to M of it, as a table; the first row can be the column names.",
+            panel = "(Worksheet: The active sheet = / A named sheet = sheet), header, (Rows: All rows = / Rows from-to = from_row, to_row), read_as | include_hidden, keep_blank_rows, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Sheet content.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of data rows.")
     public Map<String, Object> getAllCells(ActionContext ctx,
@@ -389,15 +630,23 @@ public final class ExcelPackage {
             @Input(name = "include_hidden", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
                     description = "Include hidden rows and columns; false returns only what is visible, as after a filter in Excel.") boolean includeHidden,
             @Input(name = "keep_blank_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "Keep empty rows inside the data as rows of empty values instead of dropping them.") boolean keepBlankRows) {
+                    description = "Keep empty rows inside the data as rows of empty values instead of dropping them.") boolean keepBlankRows,
+            @Input(name = "from_row", type = OoaType.NUMBER, required = false, min = 1, description = D_FROM_ROW) Integer fromRow,
+            @Input(name = "to_row", type = OoaType.NUMBER, required = false, min = 1, description = D_TO_ROW) Integer toRow) {
         WorkbookSession s = session(ctx, session);
         Sheet sh = sheet(s, sheet);
         FormulaEvaluator ev = evaluator(s);
         DataFormatter fmt = new DataFormatter();
         int width = lastCol(sh) + 1;
+        boolean hdr = header == null ? s.header : header;
+        if (fromRow != null && toRow != null && toRow < fromRow)
+            throw new ActionException("EXCEL.BAD_ROW", "Row " + toRow + " comes before row " + fromRow, "Give from_row first and to_row at or after it.");
+        int headRow = -1;   // with a header and rows from-to, the header row is the first non-empty row of the sheet
+        if (hdr && (fromRow != null || toRow != null)) for (Row row : sh) if (!blankRow(row)) { headRow = row.getRowNum(); break; }
         List<List<Object>> grid = new ArrayList<>();
         for (int r = sh.getFirstRowNum(); r >= 0 && r <= sh.getLastRowNum(); r++) {
             Row row = sh.getRow(r);
+            if (r != headRow && ((fromRow != null && r + 1 < fromRow) || (toRow != null && r + 1 > toRow))) continue;
             if (!includeHidden && row != null && row.getZeroHeight()) continue;
             List<Object> vals = new ArrayList<>();
             int last = row == null ? 0 : keepBlankRows ? width : Math.max(0, row.getLastCellNum());
@@ -407,7 +656,7 @@ public final class ExcelPackage {
             }
             grid.add(vals);
         }
-        Map<String, Object> t = toTable(grid, header == null ? s.header : header, keepBlankRows);
+        Map<String, Object> t = toTable(grid, hdr, keepBlankRows);
         return Map.of("table", t, "row_count", BigDecimal.valueOf(((List<?>) t.get("rows")).size()));
     }
 
@@ -463,12 +712,12 @@ public final class ExcelPackage {
     }
 
     public Map<String, Object> find(ActionContext ctx, String text, boolean matchCase, String sheet, String session) {
-        return find(ctx, text, matchCase, sheet, session, null, false, "values", "rows");
+        return find(ctx, text, matchCase, sheet, session, null, false, "values", "rows", "top", null);
     }
 
     @Action(id = "find", name = "Find", category = "Cells", idempotent = true,
             description = "Find cells whose content contains (or equals) a text, in the whole sheet or a range; returns their addresses in search order.",
-            panel = "range, text, search_by, match_case, whole_cell | look_in, sheet, session")
+            panel = "range, text, search_by, match_case, whole_cell | start_from, start_cell, look_in, sheet, session")
     @Output(name = "cells", type = OoaType.LIST, description = "Addresses such as B7.")
     @Output(name = "first_cell", type = OoaType.STRING, description = "Address of the first match; empty when nothing matched.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matching cells.")
@@ -482,7 +731,10 @@ public final class ExcelPackage {
             @Input(name = "look_in", type = OoaType.STRING, required = false, defaultValue = "\"values\"", enumValues = {"values", "formulas"},
                     description = "values searches the calculated results; formulas searches the formula text of formula cells and the value of the others.") String lookIn,
             @Input(name = "search_by", type = OoaType.STRING, required = false, defaultValue = "\"rows\"", enumValues = {"rows", "columns"},
-                    description = "Order of the results: rows goes across each row first, columns goes down each column first.") String searchBy) {
+                    description = "Order of the results: rows goes across each row first, columns goes down each column first.") String searchBy,
+            @Input(name = "start_from", type = OoaType.STRING, required = false, defaultValue = "\"top\"", enumValues = {"top", "active_cell", "cell", "end"},
+                    description = "G3 (AA parity): where the search starts: the top of the sheet, the active cell, a given cell (start_cell), or the end (searching backwards); it goes round to the start, as Excel does.") String startFrom,
+            @Input(name = "start_cell", type = OoaType.STRING, required = false, visibleWhen = "start_from=cell", example = "C10", description = "The cell the search starts at.") String startCell) {
         WorkbookSession s = session(ctx, session);
         FormulaEvaluator ev = evaluator(s);
         AreaReference a = range == null || range.isBlank() ? null : area(s, range);
@@ -498,6 +750,7 @@ public final class ExcelPackage {
         }
         if ("columns".equalsIgnoreCase(searchBy))
             found.sort(Comparator.comparingInt(Cell::getColumnIndex).thenComparingInt(Cell::getRowIndex));
+        found = fromStart(found, sheet(s, sheet), startFrom, startCell, "columns".equalsIgnoreCase(searchBy));
         List<Object> hits = new ArrayList<>();
         for (Cell c : found) hits.add(addr(c.getRowIndex(), c.getColumnIndex()));
         return out("cells", hits, "first_cell", hits.isEmpty() ? "" : hits.get(0), "count", n(hits.size()));
@@ -514,25 +767,33 @@ public final class ExcelPackage {
         WorkbookSession s = session(ctx, session);
         List<Object> names = new ArrayList<>();
         for (int i = 0; i < s.wb.getNumberOfSheets(); i++)
-            if (includeHidden || (!s.wb.isSheetHidden(i) && !s.wb.isSheetVeryHidden(i))) names.add(s.wb.getSheetName(i));
+            if ((includeHidden && !s.skipHidden) || !hidden(s, i)) names.add(s.wb.getSheetName(i));
         return Map.of("names", names);
     }
 
     public Map<String, Object> addSheet(ActionContext ctx, String name, boolean replace, String session) { return addSheet(ctx, name, replace, session, null, false); }
 
     @Action(id = "add_sheet", name = "Create worksheet", category = "Sheets",
-            description = "Create a worksheet at the end or at a position, or clear it first when replace is true.",
+            description = "Create a worksheet at the end or at a position; when a sheet of that name exists the step stops, unless 'replace' is ticked, which deletes that sheet and everything on it first.",
             panel = "name, position, activate | replace, session")
+    @Output(name = "name", type = OoaType.STRING, description = "Name of the new worksheet.")
     public Map<String, Object> addSheet(ActionContext ctx,
-            @Input(name = "name", type = OoaType.STRING, description = "Worksheet name.") String name,
-            @Input(name = "replace", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing sheet with this name.") boolean replace,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "Worksheet name; the next free SheetN name when empty.") String name,
+            @Input(name = "replace", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", tone = "danger",
+                    description = "When a sheet with this name exists, delete it with all its content and create an empty one; when off, the step stops with an error instead (the default for new steps).") boolean replace,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "position", type = OoaType.NUMBER, required = false, min = 1, description = "1-based position among the sheets; at the end when empty.") Integer position,
             @Input(name = "activate", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Make the new sheet the active one.") boolean activate) {
         WorkbookSession s = session(ctx, session);
+        if (name == null || name.isBlank()) {
+            int k = s.wb.getNumberOfSheets() + 1;
+            while (s.wb.getSheetIndex("Sheet" + k) >= 0) k++;
+            name = "Sheet" + k;
+        }
         int idx = s.wb.getSheetIndex(name);
         if (idx >= 0) {
-            if (!replace) throw new ActionException("EXCEL.SHEET_EXISTS", "Sheet '" + name + "' already exists", "Set replace to true or choose another name.");
+            if (!replace) throw new ActionException("EXCEL.SHEET_EXISTS", "Sheet '" + name + "' already exists", "Choose another name, or tick replace to delete that sheet and its content first.");
+            ctx.warn("Sheet '" + name + "' existed and was deleted with its content (replace is on)");
             s.wb.removeSheetAt(idx);
         }
         try { s.wb.createSheet(sheetName(name)); }
@@ -546,15 +807,17 @@ public final class ExcelPackage {
             s.wb.setActiveSheet(s.wb.getSheetIndex(activeName));
         }
         if (activate) activate(s, s.wb.getSheetIndex(name));
-        return Map.of();
+        return out("name", name);
     }
 
     /** A sheet chosen by name or by 1-based index; one of the two is needed. */
     private static Sheet sheetByNameOrIndex(WorkbookSession s, String name, Integer index) {
         if (index != null) {
-            int n = s.wb.getNumberOfSheets();
-            if (index < 1 || index > n) throw new ActionException("EXCEL.NO_SHEET", "There is no sheet number " + index + " (the workbook has " + n + ")", "Use an index from 1 to " + n + ".");
-            return s.wb.getSheetAt(index - 1);
+            List<Integer> usable = new ArrayList<>();   // with skip_hidden_sheets the positions count the visible sheets only
+            for (int i = 0; i < s.wb.getNumberOfSheets(); i++) if (!s.skipHidden || !hidden(s, i)) usable.add(i);
+            int n = usable.size();
+            if (index < 1 || index > n) throw new ActionException("EXCEL.NO_SHEET", "There is no sheet number " + index + " (the workbook has " + n + (s.skipHidden ? " visible" : "") + ")", "Use an index from 1 to " + n + ".");
+            return s.wb.getSheetAt(usable.get(index - 1));
         }
         if (name == null || name.isBlank()) throw new ActionException("EXCEL.NO_SHEET", "Give a sheet name or index", "Set the sheet name or its 1-based index.");
         return sheet(s, name);
@@ -617,7 +880,7 @@ public final class ExcelPackage {
             panel = "save, fail_if_read_only | session")
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
-            @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save,
+            @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true", description = "Save the changes to the opened file before closing (on for new steps, as AA).") boolean save,
             @Input(name = "fail_if_read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "save=true",
                     description = "When the workbook was opened read-only, stop with an error instead of saving; false closes it without saving and logs a warning.") boolean failIfReadOnly) {
         session = ctx.sessionNameOrOnly(session, "excel", WorkbookSession.class);
@@ -912,7 +1175,7 @@ public final class ExcelPackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of worksheets.")
     public Map<String, Object> sheetCount(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
-            @Input(name = "include_hidden", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Count hidden sheets too.") boolean includeHidden) {
+            @Input(name = "include_hidden", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Count hidden sheets too.") boolean includeHidden) {
         return out("count", n(((List<?>) getSheetNames(ctx, session, includeHidden).get("names")).size()));
     }
 
@@ -1057,7 +1320,7 @@ public final class ExcelPackage {
     public Map<String, Object> deleteCells(ActionContext ctx,
             @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "B2:C3",
                     description = "Cell or range to delete; when empty, the range chosen by select_range or the cell chosen by go_to_cell (the sheet's active cell).") String range,
-            @Input(name = "shift", type = OoaType.STRING, required = false, defaultValue = "\"up\"", enumValues = {"up", "left", "entire_row", "entire_column"},
+            @Input(name = "shift", type = OoaType.STRING, required = false, defaultValue = "\"up\"", newStepDefault = "\"left\"", enumValues = {"up", "left", "entire_row", "entire_column"},
                     description = "up or left moves the remaining cells into the gap; entire_row or entire_column deletes the whole rows or columns the range touches.") String shift,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
@@ -1539,17 +1802,21 @@ public final class ExcelPackage {
 
     public Map<String, Object> rowCount(ActionContext ctx, String sheet, String session) { return rowCount(ctx, sheet, session, "non_empty"); }
 
+    public Map<String, Object> rowCount(ActionContext ctx, String sheet, String session, String mode) { return rowCount(ctx, sheet, session, mode, null); }
+
     @Action(id = "row_count", name = "Get number of rows", category = "Rows and columns", idempotent = true,
             description = "Count the rows that hold data, or all rows of the used area, and report the number of the last used row.",
-            panel = "sheet, mode | session")
+            panel = "(Sheet: The active sheet = / By name = sheet / By position = index), mode | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Rows with at least one non-empty cell, or all rows of the used area.")
     @Output(name = "last_row", type = OoaType.NUMBER, description = "1-based number of the last row with data; 0 when the sheet is empty.")
     public Map<String, Object> rowCount(ActionContext ctx,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "mode", type = OoaType.STRING, required = false, defaultValue = "\"non_empty\"", enumValues = {"non_empty", "all"},
-                    description = "non_empty counts rows holding data; all counts every row from the first to the last used row, empty ones included.") String mode) {
-        Sheet sh = sheet(session(ctx, session), sheet);
+                    description = "non_empty counts rows holding data; all counts every row from the first to the last used row, empty ones included.") String mode,
+            @Input(name = "index", type = OoaType.NUMBER, required = false, min = 1, description = D_INDEX) Integer index) {
+        WorkbookSession ws = session(ctx, session);
+        Sheet sh = index != null ? sheetByNameOrIndex(ws, null, index) : sheet(ws, sheet);
         int count = 0, first = -1, last = 0;
         for (Row r : sh) if (!blankRow(r)) { count++; if (first < 0) first = r.getRowNum(); last = Math.max(last, r.getRowNum() + 1); }
         if ("all".equalsIgnoreCase(mode)) count = first < 0 ? 0 : last - first;
@@ -1709,14 +1976,60 @@ public final class ExcelPackage {
         return out("cell", cell);
     }
 
+    public Map<String, Object> selectRange(ActionContext ctx, String range, String sheet, String session) { return selectRange(ctx, range, sheet, session, "range", null, null); }
+
+    private static final java.util.regex.Pattern ROWS = java.util.regex.Pattern.compile("^\\s*(\\d+)\\s*(?::\\s*(\\d+)\\s*)?$");
+    private static final java.util.regex.Pattern COLS = java.util.regex.Pattern.compile("^\\s*([A-Za-z]{1,3}|\\d+)\\s*(?::\\s*([A-Za-z]{1,3}|\\d+)\\s*)?$");
+
     @Action(id = "select_range", name = "Select range", category = "Cells",
-            description = "Remember a range as the session's current selection and make its top-left cell active.",
-            panel = "range | sheet, session")
+            description = "Select a range, whole rows, whole columns (given, or those of the active cell) or the whole sheet; later steps see it as the current selection and its top-left cell becomes active.",
+            panel = "select, range, rows, columns | sheet, session")
+    @Output(name = "range", type = OoaType.STRING, description = "The address that is now selected, e.g. A3:XFD5 for rows 3 to 5.")
     public Map<String, Object> selectRange(ActionContext ctx,
-            @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "A1:D20", description = "Range address.") String range,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "A1:D20", visibleWhen = "select=range", description = "Range address.") String range,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
-        return select(ctx, session, sheet, range.toUpperCase(Locale.ROOT));
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
+            @Input(name = "select", type = OoaType.STRING, required = false, defaultValue = "\"range\"", enumValues = {"range", "rows", "columns", "whole_sheet"},
+                    description = "What to select: a range, whole rows, whole columns, or every cell of the sheet.") String select,
+            @Input(name = "rows", type = OoaType.STRING, required = false, example = "3:5", visibleWhen = "select=rows",
+                    description = "Row number or rows such as 3:5; the active cell's row when empty.") String rows,
+            @Input(name = "columns", type = OoaType.STRING, required = false, example = "C:E", visibleWhen = "select=columns",
+                    description = "Column letter, number or columns such as C:E; the active cell's column when empty.") String columns) {
+        String what = select == null || select.isBlank() ? "range" : select.trim().toLowerCase(Locale.ROOT);
+        SpreadsheetVersion v = session(ctx, session).wb.getSpreadsheetVersion();
+        String lastCol = CellReference.convertNumToColString(v.getLastColumnIndex());
+        int lastRow = v.getLastRowIndex() + 1;
+        String address = switch (what) {
+            case "range" -> {
+                if (range == null || range.isBlank()) throw new ActionException("EXCEL.BAD_RANGE", "No range was given", "Give a range such as A1:D20, or choose rows, columns or the whole sheet.");
+                yield range.toUpperCase(Locale.ROOT);
+            }
+            case "rows" -> {
+                int a, b;
+                if (rows == null || rows.isBlank()) a = b = activeRef(ctx, session, sheet).getRow() + 1;
+                else {
+                    var m = ROWS.matcher(rows);
+                    if (!m.matches()) throw new ActionException("EXCEL.BAD_ROW", "'" + rows + "' is not a row or rows", "Write a row number such as 3, or rows such as 3:5.");
+                    a = Integer.parseInt(m.group(1)); b = m.group(2) == null ? a : Integer.parseInt(m.group(2));
+                }
+                rowIndex(a); rowIndex(b);
+                yield "A" + Math.min(a, b) + ":" + lastCol + Math.max(a, b);
+            }
+            case "columns" -> {
+                int a, b;
+                if (columns == null || columns.isBlank()) a = b = activeRef(ctx, session, sheet).getCol();
+                else {
+                    var m = COLS.matcher(columns);
+                    if (!m.matches()) throw new ActionException("EXCEL.BAD_COLUMN", "'" + columns + "' is not a column or columns", "Write a column such as C, or columns such as C:E.");
+                    a = columnIndex(m.group(1)); b = m.group(2) == null ? a : columnIndex(m.group(2));
+                }
+                yield CellReference.convertNumToColString(Math.min(a, b)) + "1:" + CellReference.convertNumToColString(Math.max(a, b)) + lastRow;
+            }
+            case "whole_sheet" -> "A1:" + lastCol + lastRow;
+            default -> throw new ActionException("EXCEL.BAD_OPTION", "select must be range, rows, columns or whole_sheet, not '" + select + "'", "Pick range, rows, columns or whole_sheet.");
+        };
+        select(ctx, session, sheet, address);
+        return out("range", address);
     }
 
     private Map<String, Object> select(ActionContext ctx, String session, String sheet, String range) {
@@ -1729,31 +2042,79 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "cell_address", name = "Get cell address", category = "Addresses", idempotent = true, description = "Turn a row number and a column number or letter into an address such as B7.",
-            panel = "column, row")
+    public Map<String, Object> cellAddress(ActionContext ctx, int row, Object column) { return cellAddress(ctx, (Integer) row, column, null, null, null, null); }
+
+    /** The active cell of the step's workbook session (the cell chosen by go_to_cell or select_range, else the saved one). */
+    private static CellReference activeRef(ActionContext ctx, String session, String sheet) {
+        Sheet sh = sheet(session(ctx, session), sheet);
+        return new CellReference(activeCell(sh));
+    }
+
+    @Action(id = "cell_address", name = "Get cell address", category = "Addresses", idempotent = true,
+            description = "Give the address (such as B7) of the active cell, of a row and column, or of the cell some rows below a column title.",
+            panel = "(Cell: The active cell = / A row and column = column, row / Below a column title = header, offset) | sheet, session")
     @Output(name = "cell", type = OoaType.STRING, description = "Cell address.")
     public Map<String, Object> cellAddress(ActionContext ctx,
-            @Input(name = "row", type = OoaType.NUMBER, min = 1, description = "1-based row number.") int row,
-            @Input(name = "column", description = "1-based column number or column letters.") Object column) {
+            @Input(name = "row", type = OoaType.NUMBER, required = false, min = 1, description = "1-based row number.") Integer row,
+            @Input(name = "column", required = false, description = "1-based column number or column letters.") Object column,
+            @Input(name = "header", type = OoaType.STRING, required = false, example = "First name",
+                    description = "Column title to look for in the sheet's first used row (not case-sensitive).") String header,
+            @Input(name = "offset", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0, visibleWhen = "header!=",
+                    description = "How many cells below the title: 1 is the first cell under it.") Integer offset,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session; used for the active cell and a column title.") String session) {
+        if (header != null && !header.isBlank()) {
+            WorkbookSession s = session(ctx, session);
+            Sheet sh = sheet(s, sheet);
+            FormulaEvaluator ev = evaluator(s);
+            List<String> titles = new ArrayList<>();
+            for (Row r : sh) {
+                if (blankRow(r)) continue;
+                for (Cell c : r) {
+                    Object v = read(c, ev);
+                    if (v == null) continue;
+                    titles.add(Values.text(v).trim());
+                    if (Values.text(v).trim().equalsIgnoreCase(header.trim())) return out("cell", addr(r.getRowNum() + (offset == null ? 1 : offset), c.getColumnIndex()));
+                }
+                throw new ActionException("EXCEL.BAD_COLUMN", "There is no column titled '" + header + "' in row " + (r.getRowNum() + 1), "Column titles: " + String.join(", ", titles) + ".");
+            }
+            throw new ActionException("EXCEL.BAD_COLUMN", "The sheet is empty, so it has no column titled '" + header + "'", "Check the sheet name.");
+        }
+        boolean hasRow = row != null, hasCol = column != null && !Values.text(column).isBlank();
+        if (!hasRow && !hasCol) return out("cell", activeRef(ctx, session, sheet).formatAsString(false));
+        if (!hasRow || !hasCol) throw new ActionException("EXCEL.BAD_CELL", "Give both the row and the column", "Fill in both, or leave both empty for the active cell.");
         return out("cell", addr(rowIndex(row), columnIndex(column)));
     }
 
-    @Action(id = "column_name", name = "Get column name", category = "Addresses", idempotent = true, description = "Turn a 1-based column number into its letters, e.g. 28 becomes AB.",
-            panel = "column")
+    public Map<String, Object> columnName(ActionContext ctx, int column) { return columnName(ctx, (Integer) column, null, null, null); }
+
+    @Action(id = "column_name", name = "Get column name", category = "Addresses", idempotent = true,
+            description = "Give the letters of a column, from its number (28 becomes AB), from a cell, or of the active cell.",
+            panel = "(Column of: A column number = column / A cell = cell / The active cell = ) | sheet, session")
     @Output(name = "name", type = OoaType.STRING, description = "Column letters.")
     public Map<String, Object> columnName(ActionContext ctx,
-            @Input(name = "column", type = OoaType.NUMBER, min = 1, max = 16384, description = "1-based column number.") int column) {
-        return out("name", CellReference.convertNumToColString(checkCol(column)));
+            @Input(name = "column", type = OoaType.NUMBER, required = false, min = 1, max = 16384, description = "1-based column number.") Integer column,
+            @Input(name = "cell", type = OoaType.STRING, required = false, pattern = CELL, example = "B7", description = "Cell address whose column is wanted.") String cell,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session; used for the active cell.") String session) {
+        if (column != null) return out("name", CellReference.convertNumToColString(checkCol(column)));
+        CellReference r = cell != null && !cell.isBlank() ? new CellReference(cell.toUpperCase(Locale.ROOT)) : activeRef(ctx, session, sheet);
+        return out("name", CellReference.convertNumToColString(r.getCol()));
     }
 
-    @Action(id = "row_number", name = "Get row and column number", category = "Addresses", idempotent = true, description = "Split a cell address such as B7 into its row and column numbers.",
-            panel = "cell")
+    public Map<String, Object> rowNumber(ActionContext ctx, String address) { return rowNumber(ctx, address, null, null); }
+
+    @Action(id = "row_number", name = "Get row and column number", category = "Addresses", idempotent = true,
+            description = "Split a cell address such as B7, or the active cell, into its row and column numbers.",
+            panel = "(Cell: The active cell = / A specific cell = cell) | sheet, session")
     @Output(name = "row", type = OoaType.NUMBER, description = "1-based row number.")
     @Output(name = "column", type = OoaType.NUMBER, description = "1-based column number.")
     @Output(name = "column_name", type = OoaType.STRING, description = "Column letters.")
     public Map<String, Object> rowNumber(ActionContext ctx,
-            @Input(name = "cell", type = OoaType.STRING, pattern = CELL, example = "B7", description = "Cell address.") String address) {
-        CellReference r = new CellReference(address.toUpperCase(Locale.ROOT));
+            @Input(name = "cell", type = OoaType.STRING, required = false, pattern = CELL, example = "B7", description = "Cell address; the active cell when empty.") String address,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session; used for the active cell.") String session) {
+        CellReference r = address != null && !address.isBlank() ? new CellReference(address.toUpperCase(Locale.ROOT)) : activeRef(ctx, session, sheet);
         return out("row", n(r.getRow() + 1), "column", n(r.getCol() + 1), "column_name", CellReference.convertNumToColString(r.getCol()));
     }
 
@@ -1781,11 +2142,11 @@ public final class ExcelPackage {
     }
 
     @Action(id = "read_column", name = "Read column", category = "Cells", idempotent = true,
-            description = "Read the values of one column, from a start row down to an end row or the last used row.",
-            panel = "column, start_row, end_row, read_as | header_row, sheet, session")
+            description = "Read the values of one column, from the active cell or a start row down to an end row or the last used row.",
+            panel = "(Start at: The active cell = / A column = column, start_row), end_row, read_as | header_row, sheet, session")
     @Output(name = "values", type = OoaType.LIST, description = "Cell values from top to bottom; empty cells are null.")
     public Map<String, Object> readColumn(ActionContext ctx,
-            @Input(name = "column", example = "B", description = "Column letter, 1-based number or header name (looked up in header_row).") Object column,
+            @Input(name = "column", required = false, example = "B", description = "Column letter, 1-based number or header name (looked up in header_row); empty starts at the active cell and reads down its column.") Object column,
             @Input(name = "start_row", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "1-based row to start from, e.g. 2 to skip a header.") int startRow,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
@@ -1797,6 +2158,12 @@ public final class ExcelPackage {
         Sheet sh = sheet(s, sheet);
         FormulaEvaluator ev = evaluator(s);
         DataFormatter fmt = new DataFormatter();
+        if (column == null || Values.text(column).isBlank()) {   // from the active cell down its column
+            CellReference a = new CellReference(activeCell(sh));
+            column = a.getCol() + 1;
+            startRow = a.getRow() + 1;
+            headerRow = null;
+        }
         int first = rowIndex(startRow);
         int c = -1;
         String t = Values.text(column).trim();
@@ -1828,18 +2195,27 @@ public final class ExcelPackage {
         return readRow(ctx, row, startColumn, sheet, session, null, "value");
     }
 
+    public Map<String, Object> readRow(ActionContext ctx, int row, Object startColumn, String sheet, String session, Object endColumn, String readAs) {
+        return readRow(ctx, (Integer) row, startColumn, sheet, session, endColumn, readAs);
+    }
+
     @Action(id = "read_row", name = "Read row", category = "Cells", idempotent = true,
-            description = "Read the values of one row, from a start column to an end column or the last used cell.",
-            panel = "row, start_column, end_column, read_as | sheet, session")
+            description = "Read the values of one row, from the active cell or a start column to an end column or the last used cell.",
+            panel = "(Start at: The active cell = / A row = row, start_column), end_column, read_as | sheet, session")
     @Output(name = "values", type = OoaType.LIST, description = "Cell values from left to right; empty cells are null.")
     public Map<String, Object> readRow(ActionContext ctx,
-            @Input(name = "row", type = OoaType.NUMBER, min = 1, description = "1-based row number.") int row,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, min = 1, description = "1-based row number; empty starts at the active cell and reads along its row.") Integer row,
             @Input(name = "start_column", required = false, defaultValue = "\"A\"", description = "Column letter or 1-based number to start from.") Object startColumn,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "end_column", required = false, description = "Column letter or 1-based number of the last column to read; the last used cell when empty.") Object endColumn,
             @Input(name = "read_as", type = OoaType.STRING, required = false, defaultValue = "\"value\"", enumValues = {"value", "text"}, description = D_READ_AS) String readAs) {
         WorkbookSession s = session(ctx, session);
+        if (row == null) {   // from the active cell along its row
+            CellReference a = new CellReference(activeCell(sheet(s, sheet)));
+            row = a.getRow() + 1;
+            startColumn = a.getCol() + 1;
+        }
         Row r = sheet(s, sheet).getRow(rowIndex(row));
         FormulaEvaluator ev = evaluator(s);
         DataFormatter fmt = new DataFormatter();
@@ -2417,9 +2793,16 @@ public final class ExcelPackage {
         return protectSheet(ctx, password, sheet, session, true, true, false, false, false, false, false, false, false, false, false);
     }
 
+    public Map<String, Object> protectSheet(ActionContext ctx, Object password, String sheet, String session, boolean selectLocked, boolean selectUnlocked,
+                                            boolean formatCells, boolean formatColumns, boolean formatRows, boolean insertRows, boolean insertColumns,
+                                            boolean deleteRows, boolean deleteColumns, boolean sort, boolean filter) {
+        return protectSheet(ctx, password, sheet, session, selectLocked, selectUnlocked, formatCells, formatColumns, formatRows, insertRows, insertColumns,
+                deleteRows, deleteColumns, sort, filter, false, false, false, false);
+    }
+
     @Action(id = "protect_sheet", name = "Protect sheet", category = "Protection",
             description = "Password-protect a worksheet so its locked cells cannot be edited in Excel, choosing which operations people may still perform.",
-            panel = "password, allow_format_cells, allow_format_columns, allow_format_rows, allow_insert_columns, allow_insert_rows, allow_delete_columns, allow_delete_rows, allow_sort, allow_filter | allow_select_locked, allow_select_unlocked, sheet, session")
+            panel = "password, allow_format_cells, allow_format_columns, allow_format_rows, allow_insert_columns, allow_insert_rows, allow_insert_hyperlinks, allow_delete_columns, allow_delete_rows, allow_sort, allow_filter, allow_pivot_tables | allow_select_locked, allow_select_unlocked, allow_edit_objects, allow_edit_scenarios, sheet, session")
     public Map<String, Object> protectSheet(ActionContext ctx,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "Password needed to unprotect the sheet; a credential from the vault or text.") Object password,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
@@ -2434,7 +2817,11 @@ public final class ExcelPackage {
             @Input(name = "allow_delete_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "People may delete rows.") boolean deleteRows,
             @Input(name = "allow_delete_columns", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "People may delete columns.") boolean deleteColumns,
             @Input(name = "allow_sort", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "People may sort.") boolean sort,
-            @Input(name = "allow_filter", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "People may use AutoFilter.") boolean filter) {
+            @Input(name = "allow_filter", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "People may use AutoFilter.") boolean filter,
+            @Input(name = "allow_insert_hyperlinks", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "People may insert links.") boolean hyperlinks,
+            @Input(name = "allow_pivot_tables", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "People may use and change pivot tables.") boolean pivots,
+            @Input(name = "allow_edit_objects", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "People may change pictures, charts and other objects.") boolean objects,
+            @Input(name = "allow_edit_scenarios", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "People may change what-if scenarios.") boolean scenarios) {
         Sheet sh = sheet(session(ctx, session), sheet);
         String pw = OfficeCrypto.secret(password);
         if (pw == null) throw new ActionException("EXCEL.PASSWORD_REQUIRED", "An empty password would leave the sheet unprotected", "Give a password, ideally a credential from the vault.");
@@ -2451,6 +2838,10 @@ public final class ExcelPackage {
             x.lockDeleteColumns(!deleteColumns);
             x.lockSort(!sort);
             x.lockAutoFilter(!filter);
+            x.lockInsertHyperlinks(!hyperlinks);
+            x.lockPivotTables(!pivots);
+            x.lockObjects(!objects);
+            x.lockScenarios(!scenarios);
         }
         return Map.of();
     }
@@ -2476,12 +2867,12 @@ public final class ExcelPackage {
     // ------------------------------------------------------------------------------------------------
 
     public Map<String, Object> replace(ActionContext ctx, String find, String with, String range, boolean matchCase, boolean wholeCell, String sheet, String session) {
-        return replace(ctx, find, with, range, matchCase, wholeCell, sheet, session, "values", "rows", false);
+        return replace(ctx, find, with, range, matchCase, wholeCell, sheet, session, "values", "rows", false, "top", null);
     }
 
     @Action(id = "replace", name = "Replace", category = "Cells",
             description = "Replace text in the cells of a sheet or range, optionally matching case or the whole cell, inside formulas, or only in the first matching cell.",
-            panel = "range, find, search_by, match_case, whole_cell, replace_with | first_only, look_in, sheet, session")
+            panel = "range, find, search_by, match_case, whole_cell, replace_with | first_only, start_from, start_cell, look_in, sheet, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of cells changed.")
     @Output(name = "cells", type = OoaType.LIST, description = "Addresses of the changed cells, in search order.")
     public Map<String, Object> replace(ActionContext ctx,
@@ -2496,7 +2887,10 @@ public final class ExcelPackage {
                     description = "values changes text cells; formulas also changes the formula text of formula cells, e.g. a sheet name inside references.") String lookIn,
             @Input(name = "search_by", type = OoaType.STRING, required = false, defaultValue = "\"rows\"", enumValues = {"rows", "columns"},
                     description = "Search order: rows goes across each row first, columns goes down each column first; matters with first_only.") String searchBy,
-            @Input(name = "first_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Change only the first matching cell in search order.") boolean firstOnly) {
+            @Input(name = "first_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Change only the first matching cell in search order.") boolean firstOnly,
+            @Input(name = "start_from", type = OoaType.STRING, required = false, defaultValue = "\"top\"", enumValues = {"top", "active_cell", "cell", "end"},
+                    description = "G3 (AA parity): where the search starts: the top of the sheet, the active cell, a given cell (start_cell), or the end (searching backwards); it goes round to the start, as Excel does.") String startFrom,
+            @Input(name = "start_cell", type = OoaType.STRING, required = false, visibleWhen = "start_from=cell", example = "C10", description = "The cell the search starts at.") String startCell) {
         if (find == null || find.isEmpty()) throw new ActionException("EXCEL.EMPTY_FIND", "Text to find is empty", "Give the text to replace.");
         WorkbookSession s = session(ctx, session);
         Sheet sh = sheet(s, sheet);
@@ -2511,6 +2905,7 @@ public final class ExcelPackage {
             cells.add(c);
         }
         if ("columns".equalsIgnoreCase(searchBy)) cells.sort(Comparator.comparingInt(Cell::getColumnIndex).thenComparingInt(Cell::getRowIndex));
+        cells = fromStart(cells, sh, startFrom, startCell, "columns".equalsIgnoreCase(searchBy));
         List<Object> changed = new ArrayList<>();
         for (Cell c : cells) {
             boolean f = c.getCellType() == CellType.FORMULA;
@@ -2527,6 +2922,36 @@ public final class ExcelPackage {
             if (firstOnly) break;
         }
         return out("count", n(changed.size()), "cells", changed);
+    }
+
+    /**
+     * The cells in search order from where the search starts (G3, as Excel's Find from the active cell): those at or after
+     * the start first, then round from the top; "end" searches backwards from the last cell.
+     */
+    static List<Cell> fromStart(List<Cell> inOrder, Sheet sh, String startFrom, String startCell, boolean byColumns) {
+        String from = startFrom == null || startFrom.isBlank() ? "top" : startFrom.strip();
+        if (from.equals("top")) return inOrder;
+        if (from.equals("end")) { List<Cell> r = new ArrayList<>(inOrder); Collections.reverse(r); return r; }
+        String at = from.equals("active_cell") ? activeCell(sh) : startCell;
+        if (!from.equals("active_cell") && !from.equals("cell"))
+            throw new ActionException("EXCEL.BAD_OPTION", "Unknown start '" + startFrom + "'", "Use top, active_cell, cell or end.");
+        if (at == null || at.isBlank()) throw new ActionException("EXCEL.BAD_CELL", "Give the cell the search starts at", "Fill in start_cell, e.g. C10.");
+        CellReference ref = new CellReference(at.strip());
+        Comparator<int[]> order = byColumns ? Comparator.<int[]>comparingInt(x -> x[1]).thenComparingInt(x -> x[0]) : Comparator.<int[]>comparingInt(x -> x[0]).thenComparingInt(x -> x[1]);
+        int[] start = {ref.getRow(), ref.getCol()};
+        List<Cell> after = new ArrayList<>(), before = new ArrayList<>();
+        for (Cell c : inOrder) (order.compare(new int[]{c.getRowIndex(), c.getColumnIndex()}, start) >= 0 ? after : before).add(c);
+        after.addAll(before);
+        return after;
+    }
+
+    public Map<String, Object> find(ActionContext ctx, String text, boolean matchCase, String sheet, String session, String range, boolean wholeCell, String lookIn, String searchBy) {
+        return find(ctx, text, matchCase, sheet, session, range, wholeCell, lookIn, searchBy, "top", null);
+    }
+
+    public Map<String, Object> replace(ActionContext ctx, String find, String with, String range, boolean matchCase, boolean wholeCell, String sheet, String session,
+            String lookIn, String searchBy, boolean firstOnly) {
+        return replace(ctx, find, with, range, matchCase, wholeCell, sheet, session, lookIn, searchBy, firstOnly, "top", null);
     }
 
     private static boolean inArea(AreaReference a, Cell c) {
@@ -2594,9 +3019,23 @@ public final class ExcelPackage {
         return sortRange(ctx, column, descending, (Boolean) header, range, sheet, session, null, false);
     }
 
+    public Map<String, Object> sortRange(ActionContext ctx, Object column, boolean descending, Boolean header, String range, String sheet, String session, Object thenBy, boolean thenDescending) {
+        return sortRange(ctx, column, descending, header, range, sheet, session, thenBy, thenDescending, null, false, "auto");
+    }
+
+    /** Sort keys compared as numbers or as text when the step says so; as they are otherwise. */
+    private static Object sortKey(Object v, String as) {
+        if (v == null) return null;
+        return switch (as) {
+            case "number" -> { BigDecimal d = asNumber(v instanceof String t ? t.replace(",", "").trim() : v); yield d == null ? Values.text(v) : d; }
+            case "text" -> Values.text(v);
+            default -> v;
+        };
+    }
+
     @Action(id = "sort_range", name = "Sort", category = "Cells",
-            description = "Sort the rows of a range (or of the used area) by one column and an optional second column, ascending or descending, keeping an optional header row in place.",
-            panel = "sheet, range, header, column, descending | then_by, then_descending, session")
+            description = "Sort the rows of a range, an Excel table or the used area by one column and an optional second column, ascending or descending, keeping a header row in place; or sort only that column's cells.",
+            panel = "sheet, (Sort: The used area = / A range = range / An Excel table = table), header, column, descending, sort_as | then_by, then_descending, only_column, session")
     public Map<String, Object> sortRange(ActionContext ctx,
             @Input(name = "column", example = "C", description = "Sort column: letter, 1-based sheet column number, or header name.") Object column,
             @Input(name = "descending", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Sort from largest to smallest.") boolean descending,
@@ -2605,8 +3044,22 @@ public final class ExcelPackage {
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "then_by", required = false, example = "A", description = "Second sort column used when the first column's values are equal: letter, number or header name.") Object thenBy,
-            @Input(name = "then_descending", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "then_by!=", description = "Sort the second column from largest to smallest.") boolean thenDescending) {
+            @Input(name = "then_descending", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "then_by!=", description = "Sort the second column from largest to smallest.") boolean thenDescending,
+            @Input(name = "table", type = OoaType.STRING, required = false, description = "Excel table name, e.g. Table1: sort that table's rows (its header row stays); sheet and range are then not used.") String tableName,
+            @Input(name = "only_column", type = OoaType.BOOLEAN, required = false, defaultValue = "false", tone = "danger",
+                    description = "Sort only the cells of the sort column and leave the other columns as they are (rows no longer stay together).") boolean onlyColumn,
+            @Input(name = "sort_as", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "number", "text"},
+                    description = "auto keeps numbers before text as Excel does; number sorts numbers written as text by their value; text sorts everything as text.") String sortAs) {
         WorkbookSession s = session(ctx, session);
+        if (tableName != null && !tableName.isBlank()) {
+            XSSFTable xt = table(xlsx(s, "Excel tables"), tableName);
+            CellReference a = xt.getStartCellReference(), b = xt.getEndCellReference();
+            sheet = xt.getSheetName();
+            header = xt.getHeaderRowCount() > 0;
+            range = addr(a.getRow(), a.getCol()) + ":" + addr(b.getRow(), b.getCol());
+        }
+        String as = sortAs == null || sortAs.isBlank() ? "auto" : sortAs.trim().toLowerCase(Locale.ROOT);
+        if (!List.of("auto", "number", "text").contains(as)) throw new ActionException("EXCEL.BAD_OPTION", "sort_as must be auto, number or text, not '" + sortAs + "'", "Pick auto, number or text.");
         Sheet sh = sheet(s, sheet);
         boolean hdr = header == null ? s.header : header;
         String rg = range;
@@ -2624,12 +3077,14 @@ public final class ExcelPackage {
         boolean second = thenBy != null && !Values.text(thenBy).isBlank();
         int key2 = second ? resolveColumn(thenBy, headRow, ev) : -1;
         if (second && (key2 < c0 || key2 > c1)) throw new ActionException("EXCEL.BAD_COLUMN", "Second sort column is outside the range " + rg, "Pick a column inside the range.");
+        if (onlyColumn) { c0 = key; c1 = key; }
         List<Object[]> rows = new ArrayList<>();
         for (int r = r0; r <= r1; r++) {
             Row row = sh.getRow(r);
             Snap[] cells = new Snap[c1 - c0 + 1];
             for (int c = c0; c <= c1; c++) cells[c - c0] = row == null ? null : snap(row.getCell(c));
-            rows.add(new Object[]{row == null ? null : read(row.getCell(key), ev), cells, row == null || !second ? null : read(row.getCell(key2), ev), r});
+            rows.add(new Object[]{row == null ? null : sortKey(read(row.getCell(key), ev), as), cells,
+                    row == null || !second || onlyColumn ? null : sortKey(read(row.getCell(key2), ev), as), r});
         }
         Comparator<Object[]> cmp = (x, y) -> {
             int v = compareKeys(x[0], y[0], descending);
@@ -2681,9 +3136,136 @@ public final class ExcelPackage {
         return filter(ctx, column, operator, value, matchCase, header, sheet, session, valueTo, hideRows, null, null);
     }
 
+    public Map<String, Object> filter(ActionContext ctx, Object column, String operator, Object value, boolean matchCase, Boolean header,
+                                      String sheet, String session, Object valueTo, boolean hideRows, String tableName, String range) {
+        return filter(ctx, column, operator, value, matchCase, header, sheet, session, valueTo, hideRows, tableName, range, false, false);
+    }
+
+    /** Shows every row an Excel filter (or an earlier hide_rows) hid inside the area, and removes the sheet's filter. */
+    private static int clearFilter(WorkbookSession s, Sheet sh, int r0, int r1, boolean keepButtons) {
+        int shown = 0;
+        int first = r0, last = r1;
+        if (sh instanceof XSSFSheet xs && xs.getCTWorksheet().isSetAutoFilter()) {
+            String ref = xs.getCTWorksheet().getAutoFilter().getRef();
+            if (ref != null && !ref.isBlank()) {
+                org.apache.poi.ss.util.CellRangeAddress a = org.apache.poi.ss.util.CellRangeAddress.valueOf(ref);
+                first = a.getFirstRow() + 1; last = a.getLastRow();
+            }
+            if (keepButtons) {
+                dropFilterColumns(xs);
+            } else {
+                xs.getCTWorksheet().unsetAutoFilter();
+                int idx = s.wb.getSheetIndex(sh);
+                for (Name n : new ArrayList<>(s.wb.getAllNames()))
+                    if ("_xlnm._FilterDatabase".equalsIgnoreCase(n.getNameName()) && n.getSheetIndex() == idx) s.wb.removeName(n);
+            }
+        }
+        if (first < 0) first = sh.getFirstRowNum();
+        if (last < 0) last = sh.getLastRowNum();
+        for (int r = Math.max(0, first); r <= last; r++) {
+            Row row = sh.getRow(r);
+            if (row != null && row.getZeroHeight()) { row.setZeroHeight(false); shown++; }
+        }
+        return shown;
+    }
+
+    private static final String SS_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+    /**
+     * Writes the condition as an Excel filter on one column of the area, so Excel shows the filter buttons and the
+     * criteria (the filter elements are written as XML: the trimmed schema POI ships has no classes for them).
+     */
+    private static void excelFilter(XSSFSheet xs, int top, int bottom, int c0, int c1, int col, String op, Object value, Object valueTo) {
+        xs.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(top, bottom, c0, c1));
+        String v = value == null ? "" : Values.text(value);
+        try (org.apache.xmlbeans.XmlCursor c = xs.getCTWorksheet().getAutoFilter().newCursor()) {
+            c.toEndToken();
+            c.beginElement("filterColumn", SS_NS);
+            c.insertAttributeWithValue("colId", String.valueOf(col));
+            switch (op) {
+                case "equals" -> { c.beginElement("filters", SS_NS); c.beginElement("filter", SS_NS); c.insertAttributeWithValue("val", v); }
+                case "empty" -> { c.beginElement("filters", SS_NS); c.insertAttributeWithValue("blank", "1"); }
+                default -> {
+                    c.beginElement("customFilters", SS_NS);
+                    switch (op) {
+                        case "not_equals" -> custom(c, "notEqual", v);
+                        case "contains" -> custom(c, "equal", "*" + v + "*");
+                        case "not_contains" -> custom(c, "notEqual", "*" + v + "*");
+                        case "starts_with" -> custom(c, "equal", v + "*");
+                        case "ends_with" -> custom(c, "equal", "*" + v);
+                        case "gt" -> custom(c, "greaterThan", v);
+                        case "gte" -> custom(c, "greaterThanOrEqual", v);
+                        case "lt" -> custom(c, "lessThan", v);
+                        case "lte" -> custom(c, "lessThanOrEqual", v);
+                        case "between" -> {
+                            c.insertAttributeWithValue("and", "1");
+                            custom(c, "greaterThanOrEqual", v);
+                            custom(c, "lessThanOrEqual", Values.text(valueTo));
+                        }
+                        case "not_empty" -> custom(c, "notEqual", " ");
+                        default -> throw new ActionException("EXCEL.BAD_OPERATOR", "Unknown operator '" + op + "'", "Use equals, not_equals, contains, starts_with, ends_with, gt, gte, lt, lte, between, empty or not_empty.");
+                    }
+                }
+            }
+        }
+    }
+
+    /** One customFilter element inside the customFilters element the cursor is in; the cursor stays inside customFilters. */
+    private static void custom(org.apache.xmlbeans.XmlCursor c, String operator, String val) {
+        c.beginElement("customFilter", SS_NS);
+        c.insertAttributeWithValue("operator", operator);
+        c.insertAttributeWithValue("val", val);
+        c.toNextToken();
+    }
+
+    /** The filter columns of a sheet's Excel filter, each as "colId kind [operator:]val ...", for checks and tests. */
+    static List<String> filterColumns(XSSFSheet xs) {
+        List<String> out = new ArrayList<>();
+        if (!xs.getCTWorksheet().isSetAutoFilter()) return out;
+        try (org.apache.xmlbeans.XmlCursor c = xs.getCTWorksheet().getAutoFilter().newCursor()) {
+            if (!c.toFirstChild()) return out;
+            do {
+                StringBuilder sb = new StringBuilder(String.valueOf(c.getAttributeText(new javax.xml.namespace.QName("colId"))));
+                try (org.apache.xmlbeans.XmlCursor k = c.newCursor()) {
+                    if (k.toFirstChild()) {
+                        sb.append(' ').append(k.getName().getLocalPart());
+                        String blank = k.getAttributeText(new javax.xml.namespace.QName("blank"));
+                        if (blank != null) sb.append(" blank");
+                        if (k.toFirstChild()) do {
+                            String opr = k.getAttributeText(new javax.xml.namespace.QName("operator"));
+                            sb.append(' ').append(opr == null ? "" : opr + ":").append(k.getAttributeText(new javax.xml.namespace.QName("val")));
+                        } while (k.toNextSibling());
+                    }
+                }
+                out.add(sb.toString());
+            } while (c.toNextSibling());
+        }
+        return out;
+    }
+
+    /** Removes the filter columns (the conditions) of the sheet's Excel filter, keeping its buttons. */
+    private static void dropFilterColumns(XSSFSheet xs) {
+        try (org.apache.xmlbeans.XmlCursor c = xs.getCTWorksheet().getAutoFilter().newCursor()) {
+            while (c.toFirstChild()) c.removeXml();
+        }
+    }
+
+    @Action(id = "clear_filter", name = "Clear filter", category = "Cells",
+            description = "Show every row a filter hid on a sheet and remove the sheet's Excel filter, or keep its buttons and drop only the conditions.",
+            panel = "sheet, keep_filter_buttons | session")
+    @Output(name = "rows_shown", type = OoaType.NUMBER, description = "Number of rows that were hidden and are shown again.")
+    public Map<String, Object> clearFilter(ActionContext ctx,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
+            @Input(name = "keep_filter_buttons", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Keep the filter buttons on the header row and only remove the conditions.") boolean keepButtons,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+        WorkbookSession s = session(ctx, session);
+        return out("rows_shown", n(clearFilter(s, sheet(s, sheet), -1, -1, keepButtons)));
+    }
+
     @Action(id = "filter", name = "Filter", category = "Cells",
-            description = "Return the rows of a sheet, a range or an Excel table whose value in one column matches a condition, as a Data Table; optionally also hide the other rows on the sheet.",
-            panel = "sheet, (Filter: The used area = / A range = range / An Excel table = table), header, column, operator, value, value_to, match_case | hide_rows, session")
+            description = "Return the rows of a sheet, a range or an Excel table whose value in one column matches a condition, as a Data Table; optionally also hide the other rows, or put the condition into the file as a real Excel filter.",
+            panel = "sheet, (Filter: The used area = / A range = range / An Excel table = table), header, column, operator, value, value_to, match_case, clear_existing | apply_in_file, hide_rows, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Matching rows with the sheet's column names.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matching rows.")
     @SuppressWarnings("unchecked")
@@ -2703,7 +3285,11 @@ public final class ExcelPackage {
             @Input(name = "table", type = OoaType.STRING, required = false,
                     description = "Excel table name, e.g. Table1: filter only the rows of that table (its header row gives the column names); sheet and range are then not used.") String tableName,
             @Input(name = "range", type = OoaType.STRING, required = false, pattern = "^[A-Za-z]{1,3}[1-9][0-9]*:[A-Za-z]{1,3}[1-9][0-9]*$", example = "B3:F40",
-                    description = "Filter only this range of the sheet; the whole used area when empty. A column letter or number still means the sheet column.") String range) {
+                    description = "Filter only this range of the sheet; the whole used area when empty. A column letter or number still means the sheet column.") String range,
+            @Input(name = "apply_in_file", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Also put the condition into the workbook as an Excel filter: the header gets filter buttons, the other rows are hidden, and Excel shows the condition; save to keep it.") boolean applyInFile,
+            @Input(name = "clear_existing", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "First show the rows an earlier filter hid and remove the sheet's Excel filter.") boolean clearExisting) {
         WorkbookSession s = session(ctx, session);
         boolean hdr = header == null ? s.header : header;
         int c0 = 0, r0 = -1, r1 = -1;   // area filtered: sheet columns from c0, rows r0..r1 (-1: the used area)
@@ -2715,11 +3301,16 @@ public final class ExcelPackage {
             hdr = xt.getHeaderRowCount() > 0;
             range = addr(a.getRow(), a.getCol()) + ":" + addr(b.getRow(), b.getCol());
         }
+        if (applyInFile && !hdr) throw new ActionException("EXCEL.BAD_FILTER", "An Excel filter needs a header row for its buttons", "Tick header, or leave apply_in_file off.");
         if (range != null && !range.isBlank()) {
             AreaReference a = area(s, range);
             c0 = a.getFirstCell().getCol(); r0 = a.getFirstCell().getRow(); r1 = a.getLastCell().getRow();
+            if (clearExisting) clearFilter(s, sheet(s, sheet), r0, r1, false);
             all = getRange(ctx, addr(r0, c0) + ":" + addr(r1, a.getLastCell().getCol()), hdr, sheet, session, "value");
-        } else all = getAllCells(ctx, sheet, hdr, session);
+        } else {
+            if (clearExisting) clearFilter(s, sheet(s, sheet), -1, -1, false);
+            all = getAllCells(ctx, sheet, hdr, session);
+        }
         Map<String, Object> t = (Map<String, Object>) all.get("table");
         List<?> cols = (List<?>) t.get("columns");
         String name = Values.text(column).trim();
@@ -2737,14 +3328,20 @@ public final class ExcelPackage {
             Object v = ((List<?>) r).get(idx);
             if (filterMatch(v, op, value, valueTo, matchCase)) hits.add(r);
         }
-        if (hideRows) {
+        if (hideRows || applyInFile) {
             Sheet sh = sheet(s, sheet);
             FormulaEvaluator ev = evaluator(s);
-            int first = (r0 < 0 ? sh.getFirstRowNum() : r0) + (hdr ? 1 : 0), last = r1 < 0 ? sh.getLastRowNum() : r1;
+            int top = r0;
+            if (top < 0) { top = sh.getFirstRowNum(); for (Row row : sh) if (!blankRow(row)) { top = row.getRowNum(); break; } }
+            int first = top + (hdr ? 1 : 0), last = r1 < 0 ? sh.getLastRowNum() : r1;
             for (int r = first; r >= 0 && r <= last; r++) {
                 Row row = sh.getRow(r);
                 if (row == null || blankRow(row)) continue;
                 row.setZeroHeight(!filterMatch(read(row.getCell(c0 + idx), ev), op, value, valueTo, matchCase));
+            }
+            if (applyInFile) {
+                if (!(sh instanceof XSSFSheet xs)) throw new ActionException("EXCEL.XLSX_ONLY", "An Excel filter in the file needs an .xlsx workbook", "Save the workbook as .xlsx first, or use hide_rows.");
+                excelFilter(xs, top, Math.max(top, last), c0, c0 + cols.size() - 1, idx, op, value, valueTo);
             }
         }
         return out("table", Values.table(cols.stream().map(Values::text).toList(), hits), "count", n(hits.size()));
@@ -2807,13 +3404,21 @@ public final class ExcelPackage {
     @Action(id = "insert_table_column", name = "Insert table column", category = "Tables",
             description = "Add a named column to an Excel table, moving the table cells to its right over by one.",
             panel = "table, column_name, position | session")
+    @Output(name = "column_name", type = OoaType.STRING, description = "Header of the new column.")
     public Map<String, Object> insertTableColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.STRING, description = "Excel table name, e.g. Table1.") String tableName,
-            @Input(name = "column_name", type = OoaType.STRING, description = "Header for the new column.") String columnName,
+            @Input(name = "column_name", type = OoaType.STRING, required = false, description = "Header for the new column; ColumnN (the next free number) when empty.") String columnName,
             @Input(name = "position", type = OoaType.NUMBER, required = false, min = 1, description = "1-based position inside the table; at the end when empty.") Integer position,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
         XSSFWorkbook wb = xlsx(session(ctx, session), "Excel tables");
         XSSFTable t = table(wb, tableName);
+        if (columnName == null || columnName.isBlank()) {
+            Set<String> taken = new HashSet<>();
+            for (XSSFTableColumn col : t.getColumns()) taken.add(col.getName().toLowerCase(Locale.ROOT));
+            int k = t.getColumnCount() + 1;
+            while (taken.contains("column" + k)) k++;
+            columnName = "Column" + k;
+        }
         for (XSSFTableColumn col : t.getColumns()) if (col.getName().equalsIgnoreCase(columnName))
             throw new ActionException("EXCEL.COLUMN_EXISTS", "Table '" + tableName + "' already has a column '" + columnName + "'", "Choose another column name.");
         XSSFSheet sh = t.getXSSFSheet();
@@ -2831,7 +3436,7 @@ public final class ExcelPackage {
         t.createColumn(columnName, pos);
         t.setArea(new AreaReference(a, new CellReference(b.getRow(), b.getCol() + 1), SpreadsheetVersion.EXCEL2007));
         t.updateHeaders();
-        return Map.of();
+        return out("column_name", columnName);
     }
 
     /** Earlier signature, kept for callers written before column_position. */
@@ -2889,20 +3494,22 @@ public final class ExcelPackage {
             panel = "session")
     @Output(name = "links", type = OoaType.LIST, description = "Linked workbook file names.")
     @Output(name = "cells", type = OoaType.LIST, description = "Cells with external formulas, as Sheet!A1.")
+    @Output(name = "table", type = OoaType.TABLE, description = "One row per cell with an external formula: sheet, cell, formula.")
     public Map<String, Object> getLinks(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
         WorkbookSession s = session(ctx, session);
         Set<Object> links = new LinkedHashSet<>();
         if (s.wb instanceof XSSFWorkbook x) for (ExternalLinksTable t : x.getExternalLinksTable()) links.add(t.getLinkedFileName());
-        List<Object> cells = new ArrayList<>();
+        List<Object> cells = new ArrayList<>(), rows = new ArrayList<>();
         for (Cell c : externalFormulaCells(s.wb)) {
             cells.add(c.getSheet().getSheetName() + "!" + addr(c.getRowIndex(), c.getColumnIndex()));
+            rows.add(new ArrayList<>(List.of(c.getSheet().getSheetName(), addr(c.getRowIndex(), c.getColumnIndex()), "=" + c.getCellFormula())));
             if (!(s.wb instanceof XSSFWorkbook)) {
                 var m = EXTERNAL.matcher(c.getCellFormula());
                 while (m.find()) links.add(m.group().substring(1, m.group().length() - 1));
             }
         }
-        return out("links", new ArrayList<>(links), "cells", cells);
+        return out("links", new ArrayList<>(links), "cells", cells, "table", Values.table(List.of("sheet", "cell", "formula"), rows));
     }
 
     public Map<String, Object> breakLinks(ActionContext ctx, String session) { return breakLinks(ctx, session, null); }
@@ -2997,7 +3604,7 @@ public final class ExcelPackage {
             description = "Write a sensitivity label into the workbook's MSIP_Label custom properties, replacing any earlier label; this marks the file but does not encrypt it.",
             panel = "label_id, site_id, method | name, session")
     public Map<String, Object> setSensitivityLabel(ActionContext ctx,
-            @Input(name = "label_id", type = OoaType.STRING, description = "Label GUID from your organisation's compliance centre.") String labelId,
+            @Input(name = "label_id", type = OoaType.STRING, acceptsCredential = true, description = "Label GUID from your organisation's compliance centre; it may come from the vault.") String labelId,
             @Input(name = "site_id", type = OoaType.STRING, description = "Tenant (site) GUID the label belongs to.") String siteId,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "Label display name, e.g. Confidential.") String name,
             @Input(name = "method", type = OoaType.STRING, required = false, defaultValue = "\"Standard\"", enumValues = {"Standard", "Privileged"}, description = "Standard for a default label, Privileged for one chosen by a person.") String method,
@@ -3023,7 +3630,7 @@ public final class ExcelPackage {
             @Input(name = "format", type = OoaType.STRING, required = false, enumValues = {"xlsx", "xls", "csv"}, description = "File format; taken from the file extension when empty.") String format,
             @Input(name = "sheet", type = OoaType.STRING, required = false, visibleWhen = "format=csv", description = "Sheet written for csv; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that already exists at the target path; false stops with EXCEL.EXISTS.") boolean overwrite,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace a file that already exists at the target path; false stops with EXCEL.EXISTS.") boolean overwrite,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
                     description = "Encrypt the new xlsx or xls file with this password; later saves keep it. Not used for csv.") Object password) {
         WorkbookSession s = session(ctx, session);
@@ -3035,23 +3642,7 @@ public final class ExcelPackage {
         try {
             if (target.getParent() != null) Files.createDirectories(target.getParent());
             switch (fmt) {
-                case "csv" -> {
-                    Sheet sh = sheet(s, sheet);
-                    FormulaEvaluator ev = evaluator(s);
-                    StringBuilder sb = new StringBuilder();
-                    int width = lastCol(sh) + 1;
-                    for (int r = 0; r <= sh.getLastRowNum(); r++) {
-                        Row row = sh.getRow(r);
-                        for (int c = 0; c < width; c++) {
-                            if (c > 0) sb.append(',');
-                            Object v = row == null ? null : read(row.getCell(c), ev);
-                            String t = v == null ? "" : Values.text(v);
-                            sb.append(t.matches(".*[\",\\r\\n].*") || t.startsWith(" ") || t.endsWith(" ") ? "\"" + t.replace("\"", "\"\"") + "\"" : t);
-                        }
-                        sb.append("\r\n");
-                    }
-                    Files.writeString(target, sb.toString(), java.nio.charset.StandardCharsets.UTF_8);
-                }
+                case "csv" -> writeCsv(s, sheet(s, sheet), target, s.csvDelimiter != null ? s.csvDelimiter : ',');
                 case "xlsx", "xls" -> {
                     boolean wantX = fmt.equals("xlsx");
                     Workbook wb = s.wb;

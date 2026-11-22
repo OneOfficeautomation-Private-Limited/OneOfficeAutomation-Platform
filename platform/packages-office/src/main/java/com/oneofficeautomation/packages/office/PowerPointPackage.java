@@ -31,13 +31,19 @@ public final class PowerPointPackage {
         boolean readOnly;
         /** Password the file was opened or created with; saves keep the file encrypted. */
         String password;
+        /** G3 (AA parity): the current slide, the one Add slide or Copy slide made last; steps without a slide number use it. */
+        XSLFSlide current;
         DeckSession(Path p, XMLSlideShow s) { path = p; ppt = s; }
         @Override public void close() throws IOException { ppt.close(); }
     }
 
     private static DeckSession s(ActionContext ctx, String name) { return ctx.sessionOrOnly(name, "powerpoint", DeckSession.class); }
 
-    private static int lastSlide(DeckSession d) { return d.ppt.getSlides().size(); }
+    /** The slide a step without a slide number works on: the current slide (G3) while it is still there, else the last one. */
+    private static int lastSlide(DeckSession d) {
+        if (d.current != null) { int i = d.ppt.getSlides().indexOf(d.current); if (i >= 0) return i + 1; }
+        return d.ppt.getSlides().size();
+    }
 
     private static XSLFSlide slide(DeckSession d, int number) {
         List<XSLFSlide> slides = d.ppt.getSlides();
@@ -114,15 +120,28 @@ public final class PowerPointPackage {
         } finally { if (tmp != null) try { Files.deleteIfExists(tmp); } catch (IOException ignored) { } }
     }
 
+    public Map<String, Object> findReplaceText(ActionContext ctx, String find, String with, Integer slide, String session, boolean matchCase, boolean wholeWord, String occurrence) {
+        return findReplaceText(ctx, find, with, slide, session, matchCase, wholeWord, occurrence, true);
+    }
+
+    public Map<String, Object> insertTable(ActionContext ctx, Integer slide, Map<String, Object> table, double x, double y, double width, double fontSize, String session,
+            boolean includeHeader, Double rowHeight, List<Object> columnWidths) {
+        return insertTable(ctx, slide, table, x, y, width, fontSize, session, includeHeader, rowHeight, columnWidths, null, null);
+    }
+
     // ------------------------------------------------------------------------------------------------
     // Presentation
     // ------------------------------------------------------------------------------------------------
 
     public Map<String, Object> open(ActionContext ctx, String path, boolean create, String session) { return open(ctx, path, create, session, false, null); }
 
+    public Map<String, Object> open(ActionContext ctx, String path, boolean create, String session, boolean readOnly, Object password) {
+        return open(ctx, path, create, session, readOnly, password, null);
+    }
+
     @Action(id = "open", name = "Open presentation", category = "Presentation", capabilities = "filesystem",
             description = "Open a .pptx, .ppt or .odp presentation, or create a new empty one, as a named session; can open password-protected .pptx files and open read-only. .ppt and .odp files are converted with PowerPoint or LibreOffice on the runner and saved back in their own format.",
-            panel = "path, read_only, [The file has a password: password] | create, session")
+            panel = "path, read_only, [The file has a password: password], [The file has a password to edit: edit_password] | create, session")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Presentation path.") String path,
             @Input(name = "create", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the presentation when it does not exist.") boolean create,
@@ -130,7 +149,9 @@ public final class PowerPointPackage {
             @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Open for reading only: save over the opened file is refused, save_as to another file still works.") boolean readOnly,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
-                    description = "Password of an encrypted presentation; saves keep the file encrypted with it.") Object password) {
+                    description = "Password of an encrypted presentation; saves keep the file encrypted with it.") Object password,
+            @Input(name = "edit_password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Password to modify a presentation that has one; a wrong one stops the step. Without it such a file still opens (G3).") Object editPassword) {
         Path p = ctx.resolvePath(path);
         String pw = OfficeCrypto.secret(password);
         XMLSlideShow ppt;
@@ -146,6 +167,11 @@ public final class PowerPointPackage {
             }
         } else if (create) ppt = new XMLSlideShow();
         else throw new ActionException("PPT.NOT_FOUND", "Presentation not found: " + p, "Set create to true or fix the path.");
+        String edit = OfficeCrypto.secret(editPassword);
+        if (edit != null && !modifyPasswordMatches(ppt, edit)) {
+            try { ppt.close(); } catch (IOException ignored) { }
+            throw new ActionException("PPT.WRONG_EDIT_PASSWORD", "The password to edit " + p.getFileName() + " is wrong", "Check the password stored in the credential vault, or open the file without it.");
+        }
         DeckSession d = new DeckSession(p, ppt);
         d.readOnly = readOnly;
         d.password = pw;
@@ -211,6 +237,36 @@ public final class PowerPointPackage {
         }
     }
 
+    /**
+     * True when the password is the presentation's password to modify, or it has none. Reads both the agile form
+     * (algorithmName, hashValue, saltValue, spinValue) and the older one PowerPoint 2007-2010 wrote (cryptAlgorithmSid,
+     * hashData, saltData, spinCount).
+     */
+    static boolean modifyPasswordMatches(XMLSlideShow ppt, String password) {
+        String ns = "http://schemas.openxmlformats.org/presentationml/2006/main";
+        try (org.apache.xmlbeans.XmlCursor c = ppt.getCTPresentation().newCursor()) {
+            if (!c.toChild(ns, "modifyVerifier")) return true;
+            String alg = c.getAttributeText(new javax.xml.namespace.QName("algorithmName"));
+            String hash = c.getAttributeText(new javax.xml.namespace.QName("hashValue"));
+            String salt = c.getAttributeText(new javax.xml.namespace.QName("saltValue"));
+            String spin = c.getAttributeText(new javax.xml.namespace.QName("spinValue"));
+            if (hash == null) {   // the older form
+                String sid = c.getAttributeText(new javax.xml.namespace.QName("cryptAlgorithmSid"));
+                alg = switch (sid == null ? "4" : sid) { case "12" -> "SHA-256"; case "13" -> "SHA-384"; case "14" -> "SHA-512"; case "3" -> "MD5"; default -> "SHA-1"; };
+                hash = c.getAttributeText(new javax.xml.namespace.QName("hashData"));
+                salt = c.getAttributeText(new javax.xml.namespace.QName("saltData"));
+                spin = c.getAttributeText(new javax.xml.namespace.QName("spinCount"));
+            }
+            if (hash == null || salt == null) return true;
+            org.apache.poi.poifs.crypt.HashAlgorithm h = org.apache.poi.poifs.crypt.HashAlgorithm.fromString(alg == null ? "SHA-512" : alg);
+            byte[] want = org.apache.poi.poifs.crypt.CryptoFunctions.hashPassword(password, h, Base64.getDecoder().decode(salt),
+                    spin == null ? 100_000 : Integer.parseInt(spin.strip()), false);
+            return Arrays.equals(want, Base64.getDecoder().decode(hash));
+        } catch (IllegalArgumentException e) {
+            return false;   // a verifier that cannot be read does not let a password through
+        }
+    }
+
     public Map<String, Object> save(ActionContext ctx, String path, String session) { return save(ctx, path, session, null); }
 
     @Action(id = "save", name = "Save", category = "Presentation", capabilities = "filesystem",
@@ -237,7 +293,7 @@ public final class PowerPointPackage {
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"pptx\"", enumValues = {"pptx", "ppt", "odp", "pdf"},
                     description = "pptx keeps the presentation; ppt (PowerPoint 97-2003) and odp are written with Microsoft PowerPoint (or LibreOffice) on the runner; pdf exports it the same way and the session stays on the previous file.") String format,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file that already exists at the target path; false stops with PPT.EXISTS.") boolean overwrite,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace a file that already exists at the target path; false stops with PPT.EXISTS.") boolean overwrite,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Encrypt the new file with this password; later saves keep it.") Object password) {
         DeckSession d = s(ctx, session);
         Path target = ctx.resolvePath(path);
@@ -338,6 +394,7 @@ public final class PowerPointPackage {
         if (body != null && !body.isEmpty()) placeholder(sl, false).setText(body);
         int n = d.ppt.getSlides().size();
         if (position != null && position >= 1 && position < n) { d.ppt.setSlideOrder(sl, position - 1); n = position; }
+        d.current = sl;
         return Map.of("slide", BigDecimal.valueOf(n));
     }
 
@@ -396,6 +453,7 @@ public final class PowerPointPackage {
         int n = d.ppt.getSlides().size();
         int target = position == null ? (other ? n : slide + 1) : Math.max(1, Math.min(position, n));
         d.ppt.setSlideOrder(copy, target - 1);
+        d.current = copy;
         return Map.of("slide", BigDecimal.valueOf(target));
     }
 
@@ -407,7 +465,7 @@ public final class PowerPointPackage {
             description = "Put text into a slide's title or body placeholder, or add it as a new text box at a position given in points.",
             panel = "(Slide: The last slide = / A slide number = slide), text, x, y, [Format the text: font, font_size, color, bold, italic, underline] | placeholder, width, height, alignment, session")
     public Map<String, Object> insertText(ActionContext ctx,
-            @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the last slide (usually the one just added) when empty.") Integer slide,
+            @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the current slide (the one added or copied last) when empty, else the last.") Integer slide,
             @Input(name = "text", type = OoaType.STRING, description = "Text to insert; each line becomes a paragraph.") String text,
             @Input(name = "placeholder", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "title", "body"},
                     description = "title or body replaces that placeholder's text; none adds a new text box.") String placeholder,
@@ -523,22 +581,25 @@ public final class PowerPointPackage {
     }
 
     public Map<String, Object> findReplaceText(ActionContext ctx, String find, String with, Integer slide, String session) {
-        return findReplaceText(ctx, find, with, slide, session, true, false, "all");
+        return findReplaceText(ctx, find, with, slide, session, true, false, "all", true);
     }
 
     @Action(id = "find_replace_text", name = "Find and replace text", category = "Text",
             description = "Replace text on every slide, including tables and grouped shapes, e.g. fill {{name}} placeholders; can ignore case, match whole words or change only the first or last occurrence.",
-            panel = "find, match_case, whole_word, (Look in: All slides = / One slide = slide), replace_with, occurrence | session")
-    @Output(name = "count", type = OoaType.NUMBER, description = "Number of replacements.")
+            panel = "find, match_case, whole_word, (Look in: All slides = / One slide = slide), replace, replace_with, occurrence | session")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches found, or of replacements made.")
     public Map<String, Object> findReplaceText(ActionContext ctx,
             @Input(name = "find", type = OoaType.STRING, example = "{{customer}}", description = "Text to find.") String find,
-            @Input(name = "replace_with", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Replacement text.") String with,
+            @Input(name = "replace_with", type = OoaType.STRING, required = false, defaultValue = "\"\"", visibleWhen = "replace=true", description = "Replacement text; empty removes what is found.") String with,
             @Input(name = "slide", type = OoaType.NUMBER, required = false, description = "Only this 1-based slide; all slides when empty.") Integer slide,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session,
-            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MATCH_CASE) boolean matchCase,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = D_MATCH_CASE) boolean matchCase,
             @Input(name = "whole_word", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_WHOLE_WORD) boolean wholeWord,
-            @Input(name = "occurrence", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "first", "last"}, description = D_OCCURRENCE) String occurrence) {
+            @Input(name = "occurrence", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "first", "last"}, description = D_OCCURRENCE) String occurrence,
+            @Input(name = "replace", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", tone = "danger",
+                    description = "G3 (AA parity): replace what is found (empty replacement removes it); when off the step only counts the matches (the default for new steps).") boolean replace) {
         if (find == null || find.isEmpty()) throw new ActionException("PPT.EMPTY_FIND", "Text to find is empty", "Give the text to replace.");
+        if (!replace) return Map.of("count", BigDecimal.valueOf(hits(targetSlides(s(ctx, session), slide), searchPattern(find, matchCase, wholeWord), occurrence).size()));
         String rep = with == null ? "" : with;
         if (!matchCase || wholeWord || !"all".equalsIgnoreCase(occurrence == null ? "all" : occurrence)) {
             List<Hit> hs = hits(targetSlides(s(ctx, session), slide), searchPattern(find, matchCase, wholeWord), occurrence);
@@ -713,7 +774,7 @@ public final class PowerPointPackage {
             panel = "(Slide: The last slide = / A slide number = slide), image, x, y, width, height | alt_text, session")
     @Output(name = "shape", type = OoaType.STRING, description = "Name of the new picture shape.")
     public Map<String, Object> insertPicture(ActionContext ctx,
-            @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the last slide (usually the one just added) when empty.") Integer slide,
+            @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the current slide (the one added or copied last) when empty, else the last.") Integer slide,
             @Input(name = "image", type = OoaType.FILE, description = "Image file (PNG, JPEG, GIF, BMP, TIFF, EMF or WMF).") String image,
             @Input(name = "x", type = OoaType.NUMBER, required = false, defaultValue = "50", description = "Left edge in points.") double x,
             @Input(name = "y", type = OoaType.NUMBER, required = false, defaultValue = "50", description = "Top edge in points.") double y,
@@ -723,7 +784,7 @@ public final class PowerPointPackage {
             @Input(name = "height", type = OoaType.NUMBER, required = false,
                     description = "Height in points; with width both are used as given, alone the width keeps the aspect ratio.") Double height) {
         DeckSession d = s(ctx, session);
-        XSLFSlide sl = slide(d, slide == null ? d.ppt.getSlides().size() : slide);
+        XSLFSlide sl = slide(d, slide == null ? lastSlide(d) : slide);
         Path img = ctx.resolvePath(image);
         PictureData.PictureType type = pictureType(img);
         byte[] bytes = WordPackage.readImage(img, "PPT");
@@ -796,27 +857,37 @@ public final class PowerPointPackage {
 
     @Action(id = "insert_table", name = "Insert table", category = "Tables",
             description = "Add a table to a slide from a Data Table, with the column names as an optional bold header row, at a position and size in points.",
-            panel = "(Slide: The last slide = / A slide number = slide), x, y, width, row_height, column_widths, table, include_header | font_size, session")
+            panel = "(Slide: The current slide = / A slide number = slide), x, y, width, (Height: Of each row = row_height / Of the whole table = height), column_widths, table, include_header, title | font_size, session")
     @Output(name = "shape", type = OoaType.STRING, description = "Name of the new table shape.")
     public Map<String, Object> insertTable(ActionContext ctx,
-            @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the last slide (usually the one just added) when empty.") Integer slide,
+            @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the current slide (the one added or copied last) when empty, else the last.") Integer slide,
             @Input(name = "table", type = OoaType.TABLE, description = "Data to insert.") Map<String, Object> table,
             @Input(name = "x", type = OoaType.NUMBER, required = false, defaultValue = "50", description = "Left edge in points.") double x,
             @Input(name = "y", type = OoaType.NUMBER, required = false, defaultValue = "120", description = "Top edge in points.") double y,
             @Input(name = "width", type = OoaType.NUMBER, required = false, defaultValue = "600", description = "Total table width in points.") double width,
             @Input(name = "font_size", type = OoaType.NUMBER, required = false, defaultValue = "14", description = "Font size in points.") double fontSize,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session,
-            @Input(name = "include_header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Put the column names in a bold first row.") boolean includeHeader,
+            @Input(name = "include_header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Put the column names in a bold first row.") boolean includeHeader,
             @Input(name = "row_height", type = OoaType.NUMBER, required = false, description = "Height of each row in points; twice the font size when empty.") Double rowHeightPt,
             @Input(name = "column_widths", type = OoaType.LIST, required = false,
-                    description = "Width of each column in points, in order; the total width is shared equally when empty.") List<Object> columnWidths) {
+                    description = "Width of each column in points, in order; the total width is shared equally when empty.") List<Object> columnWidths,
+            @Input(name = "height", type = OoaType.NUMBER, required = false, min = 1,
+                    description = "G3 (AA parity): the whole table's height in points, shared by its rows (instead of a row height).") Double height,
+            @Input(name = "title", type = OoaType.STRING, required = false,
+                    description = "G3 (AA parity): the table's name, read by screen readers and shown in PowerPoint's selection pane.") String title) {
         XSLFSlide sl = slide(s(ctx, session), slide == null ? lastSlide(s(ctx, session)) : slide);
         List<?> cols = (List<?>) table.get("columns");
         List<?> rows = (List<?>) table.get("rows");
+        int lineCount = (includeHeader ? 1 : 0) + (rows == null ? 0 : rows.size());
+        if (height != null && height > 0 && lineCount > 0) rowHeightPt = height / lineCount;
         if (cols == null || cols.isEmpty()) throw new ActionException("PPT.EMPTY_TABLE", "The table has no columns", "Pass a Data Table with at least one column.");
         if (columnWidths != null && !columnWidths.isEmpty() && columnWidths.size() != cols.size())
             throw new ActionException("PPT.BAD_WIDTHS", "column_widths has " + columnWidths.size() + " values for " + cols.size() + " columns", "Give one width per column.");
         XSLFTable t = sl.createTable();
+        if (title != null && !title.isBlank()) {   // the shape's name and its alternative text
+            ((org.openxmlformats.schemas.presentationml.x2006.main.CTGraphicalObjectFrame) t.getXmlObject()).getNvGraphicFramePr().getCNvPr().setName(title.strip());
+            ((org.openxmlformats.schemas.presentationml.x2006.main.CTGraphicalObjectFrame) t.getXmlObject()).getNvGraphicFramePr().getCNvPr().setDescr(title.strip());
+        }
         double rowHeight = rowHeightPt != null && rowHeightPt > 0 ? rowHeightPt : fontSize * 2;
         List<List<?>> lines = new ArrayList<>();
         if (includeHeader) lines.add(cols);
