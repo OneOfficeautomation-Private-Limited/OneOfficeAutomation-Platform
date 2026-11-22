@@ -350,6 +350,63 @@ public final class GooglePackage {
     // ------------------------------------------------------------------ shared helpers for the actions below
 
     private static final String SHEETS = "https://sheets.googleapis.com/v4/spreadsheets/";
+
+    // ------------------------------------------------------------------ G5 (AA parity): a spreadsheet session
+
+    static final String SHEETS_SESSION = "sheets";
+    private static final String D_TOKEN_SS = "Google access token from the vault; the open spreadsheet session's when empty.";
+    private static final String D_SID_SS = "Spreadsheet id, URL or Drive path; the open spreadsheet session's when empty.";
+    private static final String D_CELL_SS = "Cell such as Sheet1!B2 or B2; the session's current cell (Go to cell) when empty.";
+
+    /** An open spreadsheet with a current sheet and cell, for the steps after it. */
+    static final class SheetsSession {
+        final Object token; final String id, ep;
+        String sheet, cell = "A1";
+        SheetsSession(Object token, String id, String sheet, String ep) { this.token = token; this.id = id; this.sheet = sheet; this.ep = ep; }
+        String cellRef() { return a1(sheet, cell); }
+    }
+
+    static SheetsSession sheetsSession(ActionContext ctx) { return ctx.sessions().get(SHEETS_SESSION) instanceof SheetsSession s ? s : null; }
+
+    @Action(id = "sheets_open", name = "Open spreadsheet", category = "Sheets", capabilities = "network",
+            description = "Open a Google spreadsheet for the steps after it, with a current sheet and cell; cell steps then need no spreadsheet or cell (G5).",
+            panel = "access_token, spreadsheet_id, sheet | base_url")
+    @Output(name = "sheets", type = OoaType.LIST, description = "The spreadsheet's sheet (tab) names.")
+    public Map<String, Object> sheetsOpen(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "The current sheet; the first sheet when empty.") String sheet,
+            @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        id = spreadsheetId(ctx, token, id, ep);
+        String title = sheetTitle(ctx, token, id, sheet, ep);
+        List<Object> names = new ArrayList<>();
+        for (Object o : list(call(ctx, token, "GET", SHEETS + HttpJson.enc(id) + "?fields=sheets.properties.title", ep, null).get("sheets")))
+            names.add(obj(obj(o).get("properties")).get("title"));
+        ctx.sessions().put(SHEETS_SESSION, new SheetsSession(token, id, title, ep));
+        return Map.of("sheets", names);
+    }
+
+    @Action(id = "sheets_go_to_cell", name = "Go to cell", category = "Sheets",
+            description = "Make a cell, and optionally another sheet, the current one of the open spreadsheet session (G5).", panel = "cell, sheet")
+    public Map<String, Object> sheetsGoToCell(ActionContext ctx,
+            @Input(name = "cell", type = OoaType.STRING, example = "B2", description = "The cell, e.g. B2; with a sheet, Sheet2!B2.") String cell,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Another sheet to make current.") String sheet) {
+        SheetsSession s = sheetsSession(ctx);
+        if (s == null) throw bad("No spreadsheet is open", "Add Open spreadsheet first.");
+        String c = cell == null ? "" : cell.strip();
+        int bang = c.lastIndexOf('!');
+        if (bang > 0) { s.sheet = c.substring(0, bang).replaceAll("^'|'$", "").replace("''", "'"); c = c.substring(bang + 1); }
+        if (!blank(sheet)) s.sheet = sheet.strip();
+        if (!c.matches("(?i)[A-Z]{1,3}[1-9][0-9]*")) throw bad("Cell '" + cell + "' is not a cell address", "Write it like B2.");
+        s.cell = c.toUpperCase(Locale.ROOT);
+        return Map.of();
+    }
+
+    @Action(id = "sheets_close", name = "Close spreadsheet", category = "Sheets", description = "Close the open spreadsheet session (G5).")
+    public Map<String, Object> sheetsClose(ActionContext ctx) {
+        ctx.sessions().remove(SHEETS_SESSION);
+        return Map.of();
+    }
     private static final String DRIVE = "https://www.googleapis.com/drive/v3/files";
     private static final String GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me/";
     private static final String CAL = "https://www.googleapis.com/calendar/v3/calendars/";
@@ -685,11 +742,14 @@ public final class GooglePackage {
             panel = "access_token, spreadsheet_id, cell, formatted | base_url")
     @Output(name = "value", description = "Cell value (number, text or boolean); empty when the cell is blank.")
     public Map<String, Object> sheetsGetCell(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
-            @Input(name = "cell", type = OoaType.STRING, example = "Sheet1!B2", description = D_CELL) String cell,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SS) Object token,
+            @Input(name = "spreadsheet_id", type = OoaType.STRING, required = false, description = D_SID_SS) String id,
+            @Input(name = "cell", type = OoaType.STRING, required = false, example = "Sheet1!B2", description = D_CELL_SS) String cell,
             @Input(name = "formatted", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the text as displayed (e.g. 12.5%) instead of the raw value.") boolean formatted,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        SheetsSession ss = sheetsSession(ctx);   // G5: an open spreadsheet session fills what is left empty
+        if (ss != null) { if (token == null) token = ss.token; if (blank(id)) id = ss.id; if (blank(ep)) ep = ss.ep; if (blank(cell)) cell = ss.cellRef(); }
+        if (blank(cell)) throw bad("Give the cell, e.g. Sheet1!B2, or open a spreadsheet session and go to a cell first", null);
         id = spreadsheetId(ctx, token, id, ep);
         return Out.of("value", firstValue(getValues(ctx, token, id, cell, formatted ? "FORMATTED_VALUE" : "UNFORMATTED_VALUE", null, ep)));
     }
@@ -698,11 +758,14 @@ public final class GooglePackage {
             description = "Write a value into one cell; text is interpreted as if typed by a user.",
             panel = "access_token, spreadsheet_id, cell, value | base_url")
     public Map<String, Object> sheetsSetCell(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
-            @Input(name = "cell", type = OoaType.STRING, example = "Sheet1!B2", description = D_CELL) String cell,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SS) Object token,
+            @Input(name = "spreadsheet_id", type = OoaType.STRING, required = false, description = D_SID_SS) String id,
+            @Input(name = "cell", type = OoaType.STRING, required = false, example = "Sheet1!B2", description = D_CELL_SS) String cell,
             @Input(name = "value", description = "Value to write; empty clears the cell.") Object value,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        SheetsSession ss = sheetsSession(ctx);   // G5: an open spreadsheet session fills what is left empty
+        if (ss != null) { if (token == null) token = ss.token; if (blank(id)) id = ss.id; if (blank(ep)) ep = ss.ep; if (blank(cell)) cell = ss.cellRef(); }
+        if (blank(cell)) throw bad("Give the cell, e.g. Sheet1!B2, or open a spreadsheet session and go to a cell first", null);
         id = spreadsheetId(ctx, token, id, ep);
         putValues(ctx, token, id, cell, List.of(List.of(value == null ? "" : Values.toJsonable(value))), ep);
         return Map.of();
@@ -898,11 +961,14 @@ public final class GooglePackage {
     @Action(id = "sheets_set_formula", name = "Set formula", category = "Sheets", idempotent = true, capabilities = "network", description = "Put a formula into one cell.",
             panel = "access_token, spreadsheet_id, cell, formula | base_url")
     public Map<String, Object> sheetsSetFormula(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
-            @Input(name = "cell", type = OoaType.STRING, example = "Sheet1!D2", description = D_CELL) String cell,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SS) Object token,
+            @Input(name = "spreadsheet_id", type = OoaType.STRING, required = false, description = D_SID_SS) String id,
+            @Input(name = "cell", type = OoaType.STRING, required = false, example = "Sheet1!D2", description = D_CELL_SS) String cell,
             @Input(name = "formula", type = OoaType.STRING, example = "=SUM(B2:C2)", description = "Formula; a leading = is added when missing.") String formula,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        SheetsSession ss = sheetsSession(ctx);   // G5: an open spreadsheet session fills what is left empty
+        if (ss != null) { if (token == null) token = ss.token; if (blank(id)) id = ss.id; if (blank(ep)) ep = ss.ep; if (blank(cell)) cell = ss.cellRef(); }
+        if (blank(cell)) throw bad("Give the cell, e.g. Sheet1!B2, or open a spreadsheet session and go to a cell first", null);
         id = spreadsheetId(ctx, token, id, ep);
         if (blank(formula)) throw bad("The formula is empty", null);
         String f = formula.trim().startsWith("=") ? formula.trim() : "=" + formula.trim();
@@ -915,10 +981,13 @@ public final class GooglePackage {
             panel = "access_token, spreadsheet_id, cell | base_url")
     @Output(name = "formula", type = OoaType.STRING, description = "Formula text such as =SUM(B2:C2).")
     public Map<String, Object> sheetsReadFormula(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
-            @Input(name = "cell", type = OoaType.STRING, example = "Sheet1!D2", description = D_CELL) String cell,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN_SS) Object token,
+            @Input(name = "spreadsheet_id", type = OoaType.STRING, required = false, description = D_SID_SS) String id,
+            @Input(name = "cell", type = OoaType.STRING, required = false, example = "Sheet1!D2", description = D_CELL_SS) String cell,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        SheetsSession ss = sheetsSession(ctx);   // G5: an open spreadsheet session fills what is left empty
+        if (ss != null) { if (token == null) token = ss.token; if (blank(id)) id = ss.id; if (blank(ep)) ep = ss.ep; if (blank(cell)) cell = ss.cellRef(); }
+        if (blank(cell)) throw bad("Give the cell, e.g. Sheet1!B2, or open a spreadsheet session and go to a cell first", null);
         id = spreadsheetId(ctx, token, id, ep);
         Object v = firstValue(getValues(ctx, token, id, cell, "FORMULA", null, ep));
         return Out.of("formula", v == null ? "" : Values.text(v));

@@ -77,4 +77,27 @@ class GoogleParityG5Test {
             assertEquals(java.time.ZoneId.systemDefault().getId(), ((Map<?, ?>) ev.get("start")).get("timeZone"));
         }
     }
+
+    @Test void aSpreadsheetSessionWithACurrentCell() throws Exception {
+        try (Fake f = new Fake()) {
+            String sid = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcdEF";
+            f.on("GET /v4/spreadsheets/" + sid, c -> ok("{\"sheets\":[{\"properties\":{\"title\":\"Sales\",\"sheetId\":0}},{\"properties\":{\"title\":\"Costs\",\"sheetId\":1}}]}"))
+             .on("PUT /v4/spreadsheets/" + sid + "/values/.*", c -> ok("{}"))
+             .on("GET /v4/spreadsheets/" + sid + "/values/.*", c -> ok("{\"values\":[[42]]}"));
+            var p = new GooglePackage();
+            var ctx = PackagesTestSupport.ctx(tmp(), Map.of());
+            var tok = new com.oneofficeautomation.sdk.SecureString("tok", "t");
+            assertEquals(List.of("Sales", "Costs"), p.sheetsOpen(ctx, tok, sid, "Costs", f.url()).get("sheets"));
+            p.sheetsGoToCell(ctx, "C4", null);
+            p.sheetsSetCell(ctx, null, null, null, 7, null);
+            assertTrue(f.last("PUT", "/v4/spreadsheets/" + sid + "/values/.*").path().contains("Costs") && f.last("PUT", "/v4/spreadsheets/" + sid + "/values/.*").path().contains("C4"),
+                    f.last("PUT", "/v4/spreadsheets/" + sid + "/values/.*").path());
+            assertEquals(new java.math.BigDecimal(42), new java.math.BigDecimal(String.valueOf(p.sheetsGetCell(ctx, null, null, null, false, null).get("value"))));
+            p.sheetsGoToCell(ctx, "Sales!B2", null);
+            p.sheetsSetFormula(ctx, null, null, null, "SUM(A1:A3)", null);
+            assertTrue(f.last("PUT", "/v4/spreadsheets/" + sid + "/values/.*").path().contains("Sales"));
+            p.sheetsClose(ctx);
+            assertEquals("GOOGLE.BAD_INPUT", assertThrows(com.oneofficeautomation.sdk.ActionException.class, () -> p.sheetsGoToCell(ctx, "A1", null)).code());
+        }
+    }
 }
