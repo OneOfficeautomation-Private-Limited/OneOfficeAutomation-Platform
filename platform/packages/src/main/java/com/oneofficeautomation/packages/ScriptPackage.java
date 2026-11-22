@@ -692,8 +692,8 @@ public final class ScriptPackage {
         return ctx.sessions().get(session == null || session.isBlank() ? "script" : session.strip()) instanceof ScriptSession s && s.process.isAlive();
     }
 
-    @Condition(id = "script_succeeded", name = "Script succeeded", description = "True when the last script step succeeded: in this session, or (session empty) the last script step of the run (G4).")
-    public boolean scriptSucceeded(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, description = "A script session; the last script step of the run when empty.") String session) {
+    @Condition(id = "last_script_succeeded", name = "Last script step succeeded", description = "True when the last script step succeeded: in this session, or (session empty) the last script step of the run (G4).")
+    public boolean lastScriptSucceeded(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, description = "A script session; the last script step of the run when empty.") String session) {
         if (session != null && !session.isBlank()) return scriptSession(ctx, session).lastOk;
         return !Boolean.FALSE.equals(ctx.sessions().get(LAST_OK));
     }

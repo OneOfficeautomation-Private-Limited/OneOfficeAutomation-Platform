@@ -83,6 +83,17 @@ class ArchitectureTest {
         assertEquals(List.of(), all, "programs are started with argument lists, never through a shell");
     }
 
+    /** visibleWhen: ';' separates conditions and '|' means one of; a comma silently never matches (found twice in the AA-parity merge). */
+    @Test void visibleWhenUsesBarsNotCommas() throws IOException {
+        Pattern comma = Pattern.compile("visibleWhen = \"[^\"]*,[^\"]*\"");
+        List<String> all = new ArrayList<>();
+        List<String> modules = new ArrayList<>(List.of("packages"));
+        modules.addAll(OPTIONAL);
+        for (String t : List.of("microsoft", "google", "enterprise", "devops", "cloud-data", "ai")) modules.add("toolkits/" + t);
+        for (String m : modules) all.addAll(violations(m, comma));
+        assertEquals(List.of(), all, "visibleWhen lists choices with |, e.g. type=choice|multi_choice");
+    }
+
     @Test void xmlParsingOnlyThroughTheHardenedParser() throws IOException {
         List<String> v = new ArrayList<>(violations("packages", Pattern.compile("DocumentBuilderFactory\\.newInstance|SAXParserFactory\\.newInstance|XMLInputFactory\\.newInstance")));
         v.removeIf(x -> x.contains("XmlSupport.java"));

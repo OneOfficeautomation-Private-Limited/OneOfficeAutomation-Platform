@@ -39,7 +39,7 @@ class ScriptSessionsG4Test {
             assertEquals("hello", sp.runInSession(c, "py", "print('hello')", null, 30, true, "exec").get("output"));
             Map<String, Object> bad = sp.runInSession(c, "py", "1/0", null, 30, false, "exec");
             assertTrue(String.valueOf(bad.get("error")).startsWith("ZeroDivisionError"), String.valueOf(bad));
-            assertFalse(sp.scriptSucceeded(c, "py"));
+            assertFalse(sp.lastScriptSucceeded(c, "py"));
             assertEquals("SCRIPT.FAILED", assertThrows(ActionException.class, () -> sp.runInSession(c, "py", "undefined_name", null, 30, true, "exec")).code());
             assertTrue(sp.sessionOpen(c, "py"));
             sp.closeSession(c, "py");
@@ -71,7 +71,7 @@ class ScriptSessionsG4Test {
             assertEquals(0, new BigDecimal(41).compareTo(new BigDecimal(String.valueOf(sp.runInSession(c, "vb", "total + 1", null, 30, true, "eval").get("result")))));
             Map<String, Object> bad = sp.runInSession(c, "vb", "x = 1 / 0", null, 30, false, "exec");
             assertTrue(String.valueOf(bad.get("error")).toLowerCase(Locale.ROOT).contains("division"), String.valueOf(bad));
-            assertFalse(sp.scriptSucceeded(c, "vb"));
+            assertFalse(sp.lastScriptSucceeded(c, "vb"));
         } finally { sp.closeSession(c, "vb"); }
     }
 
