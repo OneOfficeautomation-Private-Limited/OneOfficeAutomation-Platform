@@ -133,7 +133,7 @@ final class PgpBuiltIn {
                 KeyPairGenerator x = KeyPairGenerator.getInstance("X25519", BC);
                 sub = new JcaPGPKeyPair(PublicKeyAlgorithmTags.ECDH, x.generateKeyPair(), now);
             } else {
-                int bits = a.equals("rsa4096") ? 4096 : 3072;
+                int bits = a.equals("rsa4096") ? 4096 : a.equals("rsa2048") ? 2048 : 3072;
                 KeyPairGenerator g = KeyPairGenerator.getInstance("RSA", BC);
                 g.initialize(bits, RANDOM);
                 KeyPair kp = g.generateKeyPair(), kp2 = g.generateKeyPair();

@@ -86,9 +86,10 @@ class CommandTestFixesTest {
         assertTrue(p.stream().anyMatch(s -> s.contains("Unknown input 'valu'")), p.toString());
         assertTrue(p.stream().anyMatch(s -> s.contains("Missing required input 'value'")), p.toString());
         assertTrue(p.stream().anyMatch(s -> s.contains("expects List")), p.toString());
-        List<String> it = problems("[{\"name\":\"r\",\"type\":\"Any\"}]", "[{\"id\":\"l\",\"action\":\"core/loop\",\"args\":{\"iterator\":\"ooa.csv/rows\",\"iterator_args\":{\"pathx\":\"a\"},\"as\":\"r\"},\"children\":[]}]");
-        assertTrue(it.stream().anyMatch(s -> s.contains("Unknown input 'pathx'")), it.toString());
-        assertTrue(it.stream().anyMatch(s -> s.contains("Missing required input 'path'")), it.toString());
+        // (ooa.csv/rows took this role until its path became optional: an open CSV/TXT session can stand for the file)
+        List<String> it = problems("[{\"name\":\"r\",\"type\":\"Any\"}]", "[{\"id\":\"l\",\"action\":\"core/loop\",\"args\":{\"iterator\":\"ooa.file/files_in_folder\",\"iterator_args\":{\"folderx\":\"a\"},\"as\":\"r\"},\"children\":[]}]");
+        assertTrue(it.stream().anyMatch(s -> s.contains("Unknown input 'folderx'")), it.toString());
+        assertTrue(it.stream().anyMatch(s -> s.contains("Missing required input 'folder'")), it.toString());
         assertTrue(problems("[{\"name\":\"r\",\"type\":\"Any\"}]", "[{\"id\":\"l\",\"action\":\"core/loop\",\"args\":{\"iterator\":\"ooa.csv/nope\",\"as\":\"r\"},\"children\":[]}]")
                 .stream().anyMatch(s -> s.contains("has no loop type 'nope'")));
         assertEquals(List.of(), problems("[{\"name\":\"x\",\"type\":\"Any\"}]", "[{\"id\":\"i\",\"action\":\"core/if\",\"args\":{\"condition\":{\"not\":{\"condition\":\"ooa.file/exists\",\"args\":{\"path\":\"$x\"}}}},\"children\":[]}]"));

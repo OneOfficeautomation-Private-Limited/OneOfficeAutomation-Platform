@@ -2188,6 +2188,15 @@ public final class ControlRoom {
                 audit.record(actor, "agent.calendar", "calendar", cal, Map.of("from_run", runId), "ok", null);
                 return out;
             }
+            case "repo_file" -> {   // G2 (AA parity): a file kept in One CommandCenter, named while the agent runs, read as the run's user
+                String path = args.get("path") instanceof String s ? s.strip() : "";
+                Map<String, Object> f = repoFiles.get(as, path);
+                byte[] b = (byte[]) f.get("content");
+                if (b.length > RepoFiles.MAX_PER_RUN)
+                    throw new OoaException("CR.TOO_LARGE", "The file is larger than " + (RepoFiles.MAX_PER_RUN >> 20) + " MB", "Keep large files on a file share the runner can read.");
+                audit.record(actor, "agent.repo_file", "file", path, Map.of("from_run", runId, "size", b.length), "ok", null);
+                return Map.of("path", path, "content", Base64.getEncoder().encodeToString(b), "content_type", String.valueOf(f.get("content_type")));
+            }
             // long-running agents (G36); each audits itself
             case "create_callback" -> out = runWaits.createCallback(run, actor);
             case "suspend" -> out = runWaits.suspend(run, as, args, actor);

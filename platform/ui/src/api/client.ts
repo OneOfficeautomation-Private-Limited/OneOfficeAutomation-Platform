@@ -301,6 +301,8 @@ export class StudioApi {
   /** The vault credentials of the connected One CommandCenter the person may use (none when not connected). */
   crCredentials() { return this.call<{ connected: boolean; credentials: VaultCredentialRef[] }>("GET", "cr/credentials"); }
   async windows() { return (await this.call<{ windows?: OpenWindow[] }>("GET", "windows")).windows ?? []; }
+  /** The printers of this computer (G2: printer fields choose from them). */
+  printers() { return this.call<{ printers: string[]; default_printer: string }>("GET", "printers"); }
   /** Capture: the person clicks an element in a browser (a new page at url, or an open tab); gives its object and selector. */
   capture(req: { url?: string; browser?: string; tab_id?: number; endpoint?: string; tab_title?: string; tab_url?: string }) {
     return this.call<{ selector?: string; element?: { tag?: string; type?: string; text?: string }; object?: Record<string, unknown> }>("POST", "capture", req);

@@ -131,22 +131,37 @@ public final class LogPackage {
             case "DEBUG" -> "debug";
             case "INFO" -> "info";
             case "WARN", "WARNING" -> "warning";
-            case "ERROR" -> "error";
-            default -> throw new ActionException("LOG.BAD_LEVEL", "Unknown level '" + level + "'", "Use DEBUG, INFO, WARN or ERROR.");
+            case "ERROR", "CRITICAL", "EMERGENCY" -> "error";
+            default -> throw new ActionException("LOG.BAD_LEVEL", "Unknown level '" + level + "'", "Use DEBUG, INFO, WARN, ERROR, CRITICAL or EMERGENCY.");
         };
     }
 
     @Action(id = "log_to_command_center", name = "Log to One CommandCenter", category = "Logging",
             description = "Add a message, with optional details, to this run's log so it appears in One CommandCenter with the run's activity.",
-            panel = "message, details, level | source")
+            panel = "message, details, level | source, variables_of_type")
     public Map<String, Object> logToCommandCenter(ActionContext ctx,
             @Input(name = "message", type = OoaType.STRING, description = "Text to log; ${...} interpolation allowed.") String message,
-            @Input(name = "level", type = OoaType.STRING, required = false, defaultValue = "\"INFO\"", enumValues = {"DEBUG", "INFO", "WARN", "ERROR"}, description = "Level of the log entry.") String level,
+            @Input(name = "level", type = OoaType.STRING, required = false, defaultValue = "\"INFO\"", enumValues = {"DEBUG", "INFO", "WARN", "ERROR", "CRITICAL", "EMERGENCY"},
+                    description = "Level of the log entry; CRITICAL and EMERGENCY are recorded as errors with the level named.") String level,
             @Input(name = "details", type = OoaType.DICTIONARY, required = false, description = "Extra name and value pairs added to the entry as JSON.") Map<String, Object> details,
             @Input(name = "source", type = OoaType.STRING, required = false, example = "invoice-check",
-                    description = "Short tag for where the entry comes from, shown in brackets before the message, e.g. [invoice-check].") String source) {
+                    description = "Short tag for where the entry comes from, shown in brackets before the message, e.g. [invoice-check].") String source,
+            @Input(name = "variables_of_type", type = OoaType.STRING, required = false,
+                    enumValues = {"", "all", "String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Any"},
+                    description = "G2 (AA parity): also log the agent's variables of this type (all = every variable) after the message; credentials never.") String ofType) {
         String lvl = level(level);
-        String text = message == null ? "" : message;
+        String up = level == null ? "" : level.strip().toUpperCase(Locale.ROOT);
+        String text = (up.equals("CRITICAL") || up.equals("EMERGENCY") ? up + ": " : "") + (message == null ? "" : message);
+        if (ofType != null && !ofType.isBlank()) {
+            com.oneofficeautomation.runner.FlowVariables fv;
+            try { fv = ctx.service(com.oneofficeautomation.runner.FlowVariables.SERVICE, com.oneofficeautomation.runner.FlowVariables.class); }
+            catch (OoaException e) { throw new ActionException("LOG.NO_VARIABLES", "This run cannot list its variables", "Put the values in details instead."); }
+            Map<String, Object> vars = new LinkedHashMap<>();
+            for (var e : fv.declared().entrySet())
+                if (!"Credential".equalsIgnoreCase(e.getValue()) && (ofType.strip().equalsIgnoreCase("all") || ofType.strip().equalsIgnoreCase(e.getValue())))
+                    vars.put(e.getKey(), fv.value(e.getKey()));
+            details = details == null ? vars : new LinkedHashMap<>(details) {{ vars.forEach(this::putIfAbsent); }};
+        }
         if (source != null && !source.isBlank()) text = "[" + source.strip().replaceAll("[\r\n]+", " ") + "] " + text;
         if (details != null && !details.isEmpty()) text += " " + JsonLite.write(com.oneofficeautomation.runner.Values.toDisplay(details));
         ctx.log(lvl, text);  // ActionContext masks every secret of the run before the line leaves the action
@@ -154,7 +169,11 @@ public final class LogPackage {
     }
 
     public Map<String, Object> logToCommandCenter(ActionContext ctx, String message, String level, Map<String, Object> details) {
-        return logToCommandCenter(ctx, message, level, details, null);
+        return logToCommandCenter(ctx, message, level, details, null, null);
+    }
+
+    public Map<String, Object> logToCommandCenter(ActionContext ctx, String message, String level, Map<String, Object> details, String source) {
+        return logToCommandCenter(ctx, message, level, details, source, null);
     }
 
     // ---------- log fields (gap G16, 3 Nov 2026) ----------

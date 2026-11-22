@@ -347,6 +347,28 @@ export function isWindowTitle(action: string, name: string, spec?: { "x-ooa-labe
  * A window title typed in (text in it, * and ? wildcards, or re: and a regular expression), or chosen from the windows
  * open on this computer. The title has the whole width; the picker sits under it (U1), so a long title stays readable.
  */
+/**
+ * A printer by name (G2, AA parity): typed or a $variable, or chosen from the printers of this computer, the default
+ * marked. On a runner the same name must exist there.
+ */
+export function PrinterField({ id, name, value, fallback, onCommit, apply }: Omit<FieldProps, "apply"> & { apply?: FieldProps["apply"] }) {
+  const vars = useVars();
+  const [list, setList] = useState<{ printers: string[]; default_printer: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const text = typeof value === "string" ? value : value === undefined ? "" : showValue(value);
+  const load = () => { if (!vars) return; setBusy(true); vars.api.printers().then(setList, () => setList({ printers: [], default_printer: "" })).finally(() => setBusy(false)); };
+  return <div className="st-source st-window-field">
+    <CommitInput key={"p" + text} id={id} initial={text} placeholder={fallback || "Printer name or $printer$"} want="String" nameHint={name}
+      onCommit={(t) => onCommit(t === "" ? undefined : t)} apply={apply} />
+    <div className="st-row-tight">
+      <Button kind="secondary" disabled={busy || !vars} onClick={load}>{busy ? "Looking…" : list ? "Refresh" : "Printers"}</Button>
+      {list && <Select aria-label="Printers of this computer" value="" onChange={(e) => e.target.value && onCommit(e.target.value)}
+        options={[{ value: "", label: list.printers.length ? "Choose a printer…" : "No printers found" },
+          ...list.printers.map((p) => ({ value: p, label: p + (p === list.default_printer ? " (default)" : "") }))]} />}
+    </div>
+  </div>;
+}
+
 export function WindowField({ id, name, value, fallback, onCommit, apply }: Omit<FieldProps, "apply"> & { apply?: FieldProps["apply"] }) {
   const vars = useVars();
   const [open, setOpen] = useState<OpenWindow[] | null>(null);

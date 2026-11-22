@@ -60,9 +60,9 @@ public final class DatabasePackage {
     }
 
     @Action(id = "connect", name = "Connect", category = "Database", capabilities = "network", description = "Open a database connection as a named session.",
-            panel = "(Connect using: Connection details = database_type, server, port, database, file / A JDBC address = jdbc_url), user, password | session, [Load a specific driver class: driver_class], login_timeout_seconds, properties, read_only, auto_commit")
+            panel = "(Connect using: Connection details = database_type, server, port, instance, database, oracle_connect, file / A JDBC address = jdbc_url), user, password | session, share, secrets, [Load a specific driver class: driver_class], login_timeout_seconds, properties, read_only, auto_commit")
     public Map<String, Object> connect(ActionContext ctx,
-            @Input(name = "jdbc_url", type = OoaType.STRING, required = false, pattern = "^(jdbc:|$)", description = "JDBC URL, e.g. jdbc:sqlserver://host;databaseName=erp; when empty it is built from database_type and the fields below.") String jdbcUrl,
+            @Input(name = "jdbc_url", type = OoaType.STRING, required = false, acceptsCredential = true, pattern = "^(jdbc:|$)", description = "JDBC URL, e.g. jdbc:sqlserver://host;databaseName=erp; when empty it is built from database_type and the fields below.") String jdbcUrl,
             @Input(name = "database_type", type = OoaType.STRING, required = false, enumValues = {"sqlserver", "postgresql", "mysql", "oracle", "sqlite", "h2", "access", "odbc", "excel"},
                     description = "Kind of database, used to build the URL when jdbc_url is empty. odbc: any ODBC data source on a Windows runner (a DSN name or an ODBC connection string in database); excel: an Excel workbook through the Excel ODBC driver (sheets are tables, e.g. [Sheet1$]).") String type,
             @Input(name = "server", type = OoaType.STRING, required = false, visibleWhen = "database_type=sqlserver|postgresql|mysql|oracle", example = "dbserver01", description = "Database server name or address.") String server,
@@ -70,16 +70,24 @@ public final class DatabasePackage {
             @Input(name = "database", type = OoaType.STRING, required = false, visibleWhen = "database_type=sqlserver|postgresql|mysql|oracle|odbc",
                     description = "Database name (service name for Oracle; for odbc a DSN name, or a connection string such as Driver={SQL Server};Server=db01;Trusted_Connection=Yes).") String database,
             @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "database_type=sqlite|h2|access|excel", description = "Database file for SQLite, H2 or Access, or the workbook for excel.") String file,
-            @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
+            @Input(name = "user", type = OoaType.STRING, required = false, acceptsCredential = true, description = "User name, typed or from the vault.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name for later steps.") String session,
             @Input(name = "driver_class", type = OoaType.STRING, required = false, example = "org.postgresql.Driver", description = "JDBC driver class to load first, for drivers that do not register themselves.") String driverClass,
             @Input(name = "login_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up connecting after this many seconds; 0 uses the driver's default.") int loginTimeout,
             @Input(name = "properties", type = OoaType.DICTIONARY, required = false, description = "Extra driver properties, e.g. {\"encrypt\": \"true\"}; Credential values are revealed only to the driver.") Map<String, Object> properties,
             @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Open the connection read-only, so the agent cannot change data by mistake: the database enforces it where it can (PostgreSQL, MySQL/MariaDB, Oracle), and otherwise OOA refuses statements that change data.") boolean readOnly,
-            @Input(name = "auto_commit", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Save each statement at once; false starts in a transaction that needs Commit.") boolean autoCommit) {
-        String url = jdbcUrl != null && !jdbcUrl.isBlank() ? jdbcUrl.strip()
-                : jdbcUrl(type, server, port, database, file == null || file.isBlank() ? null : ctx.resolvePath(file).toString());
+            @Input(name = "auto_commit", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Save each statement at once; false starts in a transaction that needs Commit.") boolean autoCommit,
+            @Input(name = "instance", type = OoaType.STRING, required = false, visibleWhen = "database_type=sqlserver", example = "SQLEXPRESS",
+                    description = "G2 (AA parity): a named SQL Server instance on the server.") String instance,
+            @Input(name = "oracle_connect", type = OoaType.STRING, required = false, defaultValue = "\"service\"", enumValues = {"service", "sid", "tns"}, visibleWhen = "database_type=oracle",
+                    description = "G2 (AA parity): what database names for Oracle: a service name, a SID, or a TNS alias from tnsnames.ora (its folder in properties as oracle.net.tns_admin).") String oracleConnect,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", label = "Agents this one runs may use it",
+                    description = "G2 (AA parity): child agents this one runs may use the connection by its session name.") boolean share,
+            @Input(name = "secrets", type = OoaType.DICTIONARY, required = false, example = "{\"pwd\": {\"$credential\": \"Finance/ERP/password\"}}",
+                    description = "G2 (AA parity): values from the vault for {{name}} places in jdbc_url, e.g. jdbc:sqlserver://db;password={{pwd}}; never logged.") Map<String, Object> secrets) {
+        String url = jdbcUrl != null && !jdbcUrl.isBlank() ? fillSecrets(jdbcUrl.strip(), secrets)
+                : jdbcUrl(type, server, port, database, file == null || file.isBlank() ? null : ctx.resolvePath(file).toString(), instance, oracleConnect);
         // the runner ships the MariaDB driver (LGPL), which speaks MySQL's protocol; a jdbc:mysql: address uses it when
         // MySQL's own Connector/J has not been added
         if (url.startsWith("jdbc:mysql:") && !hasDriver("com.mysql.cj.jdbc.Driver") && hasDriver("org.mariadb.jdbc.Driver")) url = "jdbc:mariadb:" + url.substring("jdbc:mysql:".length());
@@ -110,7 +118,8 @@ public final class DatabasePackage {
                 if (!autoCommit) conn.setAutoCommit(false);
             } catch (SQLException e) { conn.close(); throw e; }
             ctx.sessions().put(session, new DbSession(conn, readOnly, enforced));
-            ctx.info("Connected session '" + session + "' to " + url.replaceAll("(?i)password=[^;&]+", "password=****"));
+            if (share) ctx.shareSession(session);
+            ctx.info("Connected session '" + session + "' to " + ctx.redact(url.replaceAll("(?i)password=[^;&]+", "password=****")));
         } catch (SQLException e) {
             if (String.valueOf(e.getMessage()).contains("No suitable driver"))
                 throw new ActionException("DB.NO_DRIVER", "No JDBC driver found for " + url.split(":")[1],
@@ -120,6 +129,11 @@ public final class DatabasePackage {
         return Map.of();
     }
 
+    public Map<String, Object> connect(ActionContext ctx, String jdbcUrl, String type, String server, Integer port, String database, String file, String user, Object password,
+            String session, String driverClass, int loginTimeout, Map<String, Object> properties, boolean readOnly, boolean autoCommit) {
+        return connect(ctx, jdbcUrl, type, server, port, database, file, user, password, session, driverClass, loginTimeout, properties, readOnly, autoCommit, null, null, false, null);
+    }
+
     static { OdbcBridge.register(); }   // jdbc:odbc: addresses (ODBC data sources on Windows runners)
 
     static boolean hasDriver(String cls) {
@@ -127,7 +141,22 @@ public final class DatabasePackage {
     }
 
     /** JDBC URL in each driver's usual form; server databases use server/port/database, file databases the file path. */
-    static String jdbcUrl(String type, String server, Integer port, String database, String file) {
+    /** {{name}} places of an address filled from the vault values given (G2); a place without a value is an error. */
+    static String fillSecrets(String url, Map<String, Object> secrets) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{\\{\\s*([A-Za-z0-9_.-]+)\\s*}}").matcher(url);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            Object v = secrets == null ? null : secrets.get(m.group(1));
+            if (v == null) throw new ActionException("DB.NO_SECRET", "The address needs {{" + m.group(1) + "}}, which secrets does not give", "Add " + m.group(1) + " to secrets, with a vault reference.");
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(v instanceof SecureString ss ? ss.reveal() : Values.text(v)));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    static String jdbcUrl(String type, String server, Integer port, String database, String file) { return jdbcUrl(type, server, port, database, file, null, null); }
+
+    static String jdbcUrl(String type, String server, Integer port, String database, String file, String instance, String oracleConnect) {
         if (type == null || type.isBlank())
             throw new ActionException("DB.BAD_INPUT", "Give a jdbc_url or a database_type", "Choose the database type and fill in its server or file, or type the full JDBC URL.");
         String t = type.strip().toLowerCase(Locale.ROOT);
@@ -151,12 +180,18 @@ public final class DatabasePackage {
         String host = server.strip(), db = database == null || database.isBlank() ? null : database.strip();
         String hp = host + (port != null ? ":" + port : "");
         return switch (t) {
-            case "sqlserver" -> "jdbc:sqlserver://" + hp + (db != null ? ";databaseName=" + db : "");
+            case "sqlserver" -> "jdbc:sqlserver://" + hp + (instance != null && !instance.isBlank() ? ";instanceName=" + instance.strip() : "") + (db != null ? ";databaseName=" + db : "");
             case "postgresql" -> "jdbc:postgresql://" + hp + "/" + (db != null ? db : "");
             case "mysql" -> "jdbc:mysql://" + hp + "/" + (db != null ? db : "");
             case "oracle" -> {
-                if (db == null) throw new ActionException("DB.BAD_INPUT", "oracle needs a database (service name)", "Fill in database with the Oracle service name, e.g. ORCLPDB1.");
-                yield "jdbc:oracle:thin:@//" + host + ":" + (port != null ? port : 1521) + "/" + db;
+                if (db == null) throw new ActionException("DB.BAD_INPUT", "oracle needs a database (service name, SID or TNS alias)", "Fill in database, e.g. ORCLPDB1.");
+                String how = oracleConnect == null || oracleConnect.isBlank() ? "service" : oracleConnect.strip();
+                yield switch (how) {
+                    case "sid" -> "jdbc:oracle:thin:@" + host + ":" + (port != null ? port : 1521) + ":" + db;
+                    case "tns" -> "jdbc:oracle:thin:@" + db;
+                    case "service" -> "jdbc:oracle:thin:@//" + host + ":" + (port != null ? port : 1521) + "/" + db;
+                    default -> throw new ActionException("DB.BAD_INPUT", "Unknown Oracle connection '" + oracleConnect + "'", "Use service, sid or tns.");
+                };
             }
             default -> throw new ActionException("DB.BAD_INPUT", "Unknown database_type '" + type + "'", "Use sqlserver, postgresql, mysql, oracle, sqlite, h2, access, odbc or excel.");
         };
@@ -307,7 +342,7 @@ public final class DatabasePackage {
 
     @Action(id = "bulk_insert", name = "Bulk insert", category = "Database", timeoutSeconds = 3600, capabilities = "network",
             description = "Insert every row of a Data Table, or of a delimited text file read line by line, into a database table in batches, all or nothing.",
-            panel = "table, (Rows from: A Data Table = data / A delimited file = source_file, delimiter, start_row, has_header, encoding), columns, batch_size | session")
+            panel = "table, (Rows from: A Data Table = data / A delimited file = source_file, delimiter, start_row, has_header, encoding), (Columns: In order = columns / By name = column_map), batch_size | timeout_seconds, session")
     @Output(name = "rows_inserted", type = OoaType.NUMBER, description = "Rows inserted.")
     public Map<String, Object> bulkInsert(ActionContext ctx,
             @Input(name = "table", type = OoaType.STRING, example = "dbo.invoices", description = "Database table to insert into.") String tableName,
@@ -322,11 +357,27 @@ public final class DatabasePackage {
                     description = "Line of the file where reading starts (1 = the first line); lines above it, such as a title, are skipped.") int startRow,
             @Input(name = "has_header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "source_file!=",
                     description = "The first line read holds the column names, used as database columns when columns is empty.") boolean hasHeader,
-            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", visibleWhen = "source_file!=", description = "Text encoding of the file, e.g. utf-8 or windows-1252.") String encoding) {
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", visibleWhen = "source_file!=", description = "Text encoding of the file, e.g. utf-8 or windows-1252.") String encoding,
+            @Input(name = "column_map", type = OoaType.DICTIONARY, required = false, example = "{\"Invoice No\": \"invoice_no\", \"Amount\": \"amount\"}",
+                    description = "G2 (AA parity): source column (Data Table or file header) to database column; columns left out are not inserted.") Map<String, Object> columnMap,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0,
+                    description = "G2 (AA parity): cancel a batch the database takes longer than this many seconds over; 0 waits as long as the step allows.") int timeoutSeconds) {
         String t = identifier(tableName, "table");
         boolean fromFile = sourceFile != null && !sourceFile.isBlank();
         if (fromFile == (data != null))
             throw new ActionException("DB.BAD_INPUT", fromFile ? "Both data and source_file are given" : "No rows to insert", "Give either a Data Table in data or a file in source_file.");
+        if (!fromFile && columnMap != null && !columnMap.isEmpty()) {   // by name: only the mapped columns, in the table's order
+            List<String> srcCols = DataTablePackage.cols(data);
+            List<Integer> keep = new ArrayList<>();
+            List<String> dbCols = new ArrayList<>();
+            for (int i = 0; i < srcCols.size(); i++) if (columnMap.get(srcCols.get(i)) != null) { keep.add(i); dbCols.add(identifier(Values.text(columnMap.get(srcCols.get(i))).strip(), "column")); }
+            for (String k : columnMap.keySet()) if (!srcCols.contains(k))
+                throw new ActionException("DB.COLUMN_MISMATCH", "The Data Table has no column '" + k + "'", "Use the Data Table's column names on the left of column_map.");
+            if (dbCols.isEmpty()) throw new ActionException("DB.NO_COLUMNS", "column_map maps no column", "Map at least one Data Table column to a database column.");
+            Iterator<List<Object>> it = DataTablePackage.rows(data).iterator();
+            return insertBatches(ctx, t, dbCols, () -> { if (!it.hasNext()) return null; List<Object> r = it.next(); List<Object> out = new ArrayList<>(); for (int i : keep) out.add(i < r.size() ? r.get(i) : null); return out; },
+                    batchSize, session, timeoutSeconds);
+        }
         if (!fromFile) {
             List<String> srcCols = DataTablePackage.cols(data);
             List<String> cols = columnNames(columns, srcCols);
@@ -334,7 +385,7 @@ public final class DatabasePackage {
             if (cols.size() != srcCols.size())
                 throw new ActionException("DB.COLUMN_MISMATCH", "columns lists " + cols.size() + " names but the Data Table has " + srcCols.size() + " columns", "Give one database column per Data Table column.");
             Iterator<List<Object>> it = DataTablePackage.rows(data).iterator();
-            return insertBatches(ctx, t, cols, () -> it.hasNext() ? it.next() : null, batchSize, session);
+            return insertBatches(ctx, t, cols, () -> it.hasNext() ? it.next() : null, batchSize, session, timeoutSeconds);
         }
         String d = CsvPackage.delimiterText(delimiter);
         char dc = d.equalsIgnoreCase("tab") || d.equals("\\t") ? '\t' : d.length() == 1 ? d.charAt(0) : 0;
@@ -359,12 +410,17 @@ public final class DatabasePackage {
                 List<Object> vals = new ArrayList<>();
                 for (String v : row) vals.add(v.isEmpty() ? null : v);
                 return vals;
-            }, batchSize, session);
+            }, batchSize, session, timeoutSeconds);
         } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     public Map<String, Object> bulkInsert(ActionContext ctx, String tableName, Map<String, Object> data, List<Object> columns, int batchSize, String session) {
-        return bulkInsert(ctx, tableName, data, columns, batchSize, session, null, ",", 1, true, "utf-8");
+        return bulkInsert(ctx, tableName, data, columns, batchSize, session, null, ",", 1, true, "utf-8", null, 0);
+    }
+
+    public Map<String, Object> bulkInsert(ActionContext ctx, String tableName, Map<String, Object> data, List<Object> columns, int batchSize, String session,
+            String sourceFile, String delimiter, int startRow, boolean hasHeader, String encoding) {
+        return bulkInsert(ctx, tableName, data, columns, batchSize, session, sourceFile, delimiter, startRow, hasHeader, encoding, null, 0);
     }
 
     private static List<String> columnNames(List<Object> columns, List<String> fallback) {
@@ -376,7 +432,7 @@ public final class DatabasePackage {
     /** Next row to insert, or null at the end. */
     private interface RowSource { List<Object> next(); }
 
-    private static Map<String, Object> insertBatches(ActionContext ctx, String t, List<String> cols, RowSource rows, int batchSize, String session) {
+    private static Map<String, Object> insertBatches(ActionContext ctx, String t, List<String> cols, RowSource rows, int batchSize, String session, int timeoutSeconds) {
         String sql = "INSERT INTO " + t + " (" + String.join(", ", cols) + ") VALUES (" + String.join(", ", Collections.nCopies(cols.size(), "?")) + ")";
         DbSession dbs = db(ctx, session);
         dbs.guard("Bulk insert", sql);
@@ -386,6 +442,7 @@ public final class DatabasePackage {
             boolean auto = c.getAutoCommit();
             if (auto) c.setAutoCommit(false);
             try (PreparedStatement ps = c.prepareStatement(sql)) {
+                if (timeoutSeconds > 0) ps.setQueryTimeout(timeoutSeconds);
                 int pending = 0;
                 for (List<Object> row = rows.next(); row != null; row = rows.next()) {
                     for (int i = 0; i < cols.size(); i++) bind(ps, i + 1, i < row.size() ? row.get(i) : null);
@@ -567,7 +624,7 @@ public final class DatabasePackage {
 
     @Action(id = "export_to_file", name = "Export to CSV file", category = "Database", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
             description = "Run a SELECT or a stored procedure with ? parameters and write its rows to a CSV file without loading them into memory.",
-            panel = "(Rows from: A SELECT = sql / A stored procedure = procedure), parameters, path, encoding, header | delimiter, overwrite, max_rows, query_timeout_seconds, session")
+            panel = "(Rows from: A SELECT = sql / A stored procedure = procedure), parameters, path, encoding, header | delimiter, overwrite, append, skip_when_no_rows, max_rows, query_timeout_seconds, session")
     @Output(name = "path", type = OoaType.FILE, description = "Written file.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Rows written.")
     public Map<String, Object> exportToFile(ActionContext ctx,
@@ -582,7 +639,11 @@ public final class DatabasePackage {
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite,
             @Input(name = "procedure", type = OoaType.STRING, required = false, example = "dbo.month_report",
                     description = "Stored procedure whose first result set is written, used instead of sql; parameters are its input values in order.") String procedure,
-            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Stop after writing this many rows; 0 writes them all.") int maxRows) {
+            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Stop after writing this many rows; 0 writes them all.") int maxRows,
+            @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "G2 (AA parity): add the rows to the end of the file when it is there (without a second header line).") boolean append,
+            @Input(name = "skip_when_no_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "G2 (AA parity): make no file when the query gives no rows (path is then empty).") boolean skipWhenNone) {
         boolean byProc = procedure != null && !procedure.isBlank(), bySql = sql != null && !sql.isBlank();
         if (byProc == bySql)
             throw new ActionException("DB.BAD_INPUT", byProc ? "Both sql and procedure are given" : "No SELECT or procedure given", "Fill in either sql or procedure.");
@@ -590,7 +651,8 @@ public final class DatabasePackage {
         String proc = byProc ? identifier(procedure, "procedure") : null;
         char d = CsvPackage.delimiterText(delimiter).charAt(0);
         java.nio.file.Path p = ctx.resolvePath(path);
-        if (!overwrite && java.nio.file.Files.exists(p)) throw new ActionException("DB.FILE_EXISTS", "File already exists: " + p, "Set overwrite to true or choose another name.");
+        boolean adding = append && java.nio.file.Files.exists(p);
+        if (!overwrite && !adding && java.nio.file.Files.exists(p)) throw new ActionException("DB.FILE_EXISTS", "File already exists: " + p, "Set overwrite to true or choose another name.");
         DbSession dbs = db(ctx, session);
         dbs.guard(byProc ? "procedure" : null, sql);
         Connection c = dbs.conn;
@@ -601,15 +663,19 @@ public final class DatabasePackage {
             if (maxRows > 0) ps.setMaxRows(maxRows);
             if (queryTimeout > 0) ps.setQueryTimeout(queryTimeout);
             try (ResultSet rs = byProc ? firstResultSet(ps, proc) : ps.executeQuery()) {
+                boolean first = rs.next();
+                if (!first && skipWhenNone) return Out.of("path", "", "row_count", BigDecimal.ZERO);   // no rows: no file
                 if (p.getParent() != null) java.nio.file.Files.createDirectories(p.getParent());
-                try (java.io.BufferedWriter w = java.nio.file.Files.newBufferedWriter(p, FilePackage.charset(encoding))) {
+                java.nio.file.OpenOption[] how = adding ? new java.nio.file.OpenOption[]{java.nio.file.StandardOpenOption.APPEND}
+                        : new java.nio.file.OpenOption[]{java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING, java.nio.file.StandardOpenOption.WRITE};
+                try (java.io.BufferedWriter w = java.nio.file.Files.newBufferedWriter(p, FilePackage.charset(encoding), how)) {
                     ResultSetMetaData md = rs.getMetaData();
                     int n = md.getColumnCount();
-                    if (header) {
+                    if (header && !adding) {
                         for (int i = 1; i <= n; i++) { if (i > 1) w.write(d); w.write(CsvPackage.quote(md.getColumnLabel(i), d)); }
                         w.write("\r\n");
                     }
-                    while ((maxRows == 0 || count < maxRows) && rs.next()) {
+                    for (boolean more = first; more && (maxRows == 0 || count < maxRows); more = rs.next()) {
                         for (int i = 1; i <= n; i++) { if (i > 1) w.write(d); w.write(CsvPackage.quote(Values.text(value(rs.getObject(i))), d)); }
                         w.write("\r\n");
                         if (++count % 10_000 == 0) ctx.checkCancelled();
@@ -623,7 +689,12 @@ public final class DatabasePackage {
 
     public Map<String, Object> exportToFile(ActionContext ctx, String sql, String path, List<Object> params, String delimiter, boolean header, String encoding,
             String session, int queryTimeout, boolean overwrite) {
-        return exportToFile(ctx, sql, path, params, delimiter, header, encoding, session, queryTimeout, overwrite, null, 0);
+        return exportToFile(ctx, sql, path, params, delimiter, header, encoding, session, queryTimeout, overwrite, null, 0, false, false);
+    }
+
+    public Map<String, Object> exportToFile(ActionContext ctx, String sql, String path, List<Object> params, String delimiter, boolean header, String encoding,
+            String session, int queryTimeout, boolean overwrite, String procedure, int maxRows) {
+        return exportToFile(ctx, sql, path, params, delimiter, header, encoding, session, queryTimeout, overwrite, procedure, maxRows, false, false);
     }
 
     /** Runs the procedure call and returns its first result set, skipping update counts before it. */

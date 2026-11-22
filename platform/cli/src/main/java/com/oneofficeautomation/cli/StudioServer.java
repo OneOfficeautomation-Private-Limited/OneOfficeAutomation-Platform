@@ -494,6 +494,12 @@ public final class StudioServer {
             pickPoint(ex);
         } else if (method.equals("GET") && route.equals("windows")) {
             listWindows(ex);
+        } else if (method.equals("GET") && route.equals("printers")) {
+            // G2 (AA parity): printer fields choose from the printers of this computer, where OneAgentStudio runs the agent
+            List<Object> names = new ArrayList<>();
+            for (javax.print.PrintService s : javax.print.PrintServiceLookup.lookupPrintServices(null, null)) names.add(s.getName());
+            javax.print.PrintService d = javax.print.PrintServiceLookup.lookupDefaultPrintService();
+            sendJson(ex, 200, Map.of("printers", names, "default_printer", d == null ? "" : d.getName()));
         } else if (method.equals("GET") && route.equals("fs/list")) {
             sendJson(ex, 200, listFolder(query(ex).getOrDefault("path", "")));
         } else if (method.equals("POST") && route.equals("fs/pick")) {

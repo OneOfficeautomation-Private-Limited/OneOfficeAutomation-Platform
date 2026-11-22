@@ -15,7 +15,7 @@ import {
 } from "./stepKinds";
 import { AssignmentsEditor, AssignValue, CommitInput, FORMULA_HELP, FormulaValue, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
 import { useVars } from "./VariablesPanel";
-import { BoolField, CollectionField, TickField, CredentialField, DateField, FileField, isFolderField, MODEL_STEPS, ModelConnectionField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
+import { BoolField, CollectionField, TickField, CredentialField, DateField, FileField, isFolderField, PrinterField, MODEL_STEPS, ModelConnectionField, WindowAlternativesField, WindowField, isWindowTitle } from "./FieldKinds";
 import { pickerFor } from "./Pickers";
 import { hasReadState, readState, readStateArgs, READ_STATES, type ReadState } from "./mailFields";
 
@@ -430,6 +430,7 @@ function InputField({ action, name, label, spec, required, value, onCommit, appl
       if (ooaType === "Credential") return <CredentialField {...kind} />;
       if (ooaType === "File") return <FileField {...kind} folder={isFolderField(action, name)} rules={choosesExistingFiles(name)} />;
       if (isWindowTitle(action, name, spec) && (ooaType === "String" || ooaType === undefined)) return <WindowField {...kind} />;
+      if (name === "printer" && (ooaType === "String" || ooaType === undefined)) return <PrinterField {...kind} />;
       if (name === "connection" && MODEL_STEPS.test(action) && (ooaType === "String" || ooaType === undefined)) return <ModelConnectionField {...kind} />;
       const text = isNumber(spec) ? showNumber(value) : showValue(value);
       return <CommitInput key={text} id={id} initial={text} placeholder={fallback} mono={typeof value === "string" && value.startsWith("$")}

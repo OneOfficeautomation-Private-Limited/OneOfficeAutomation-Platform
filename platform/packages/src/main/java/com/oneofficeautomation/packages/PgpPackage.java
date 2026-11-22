@@ -358,6 +358,7 @@ public final class PgpPackage {
     static String[] algorithms(String algorithm) {
         return switch (algorithm == null ? "ed25519" : algorithm) {
             case "ed25519" -> new String[]{"ed25519", "cv25519"};
+            case "rsa2048" -> new String[]{"rsa2048", "rsa2048"};   // G2: for partners whose systems need it (no smaller sizes)
             case "rsa3072" -> new String[]{"rsa3072", "rsa3072"};
             case "rsa4096" -> new String[]{"rsa4096", "rsa4096"};
             default -> throw new ActionException("PGP.BAD_ALGORITHM", "Unknown algorithm '" + algorithm + "'", "Use ed25519, rsa3072 or rsa4096.");
@@ -366,11 +367,16 @@ public final class PgpPackage {
 
     /** User id "Name (comment) <email>", rejecting text that gpg could read as options or that would break the user id. */
     static String userId(String name, String email, String comment) {
-        if (name == null || name.isBlank() || name.strip().startsWith("-") || name.matches(".*[<>()\\x00-\\x1f].*") || name.length() > 200)
+        // G2 (AA parity): name and e-mail may each be left out, but not both
+        boolean noName = name == null || name.isBlank(), noEmail = email == null || email.isBlank();
+        if (noName && noEmail) throw new ActionException("PGP.NO_USER_ID", "Give the key owner's name, e-mail address, or both", "Fill in name or email.");
+        if (!noName && (name.strip().startsWith("-") || name.matches(".*[<>()\\x00-\\x1f].*") || name.length() > 200))
             throw new ActionException("PGP.BAD_NAME", "Invalid key owner name '" + name + "'", "Give a plain name, e.g. Finance Agent.");
-        if (email == null || !email.strip().matches("^[^\\s<>()@]+@[^\\s<>()@]+\\.[^\\s<>()@]+$"))
+        if (!noEmail && !email.strip().matches("^[^\\s<>()@]+@[^\\s<>()@]+\\.[^\\s<>()@]+$"))
             throw new ActionException("PGP.BAD_EMAIL", "Invalid email address '" + email + "'", "Give an address such as finance-agent@example.com.");
         String c = comment == null || comment.isBlank() ? "" : comment.strip();
+        if (noName) return "<" + email.strip() + ">";
+        if (noEmail) return name.strip() + (c.isEmpty() ? "" : " (" + c + ")");
         if (c.matches(".*[<>()\\x00-\\x1f].*")) throw new ActionException("PGP.BAD_COMMENT", "The comment may not contain < > ( ) or control characters", "Remove < > ( ) and control characters from the comment.");
         return name.strip() + (c.isEmpty() ? "" : " (" + c + ")") + " <" + email.strip() + ">";
     }
@@ -390,11 +396,11 @@ public final class PgpPackage {
     @Output(name = "public_key_file", type = OoaType.FILE, description = "Exported public key, or empty.")
     @Output(name = "private_key_file", type = OoaType.FILE, description = "Exported private key, or empty.")
     public Map<String, Object> createKeys(ActionContext ctx,
-            @Input(name = "name", type = OoaType.STRING, example = "Finance Agent", description = "Key owner name.") String name,
-            @Input(name = "email", type = OoaType.STRING, example = "finance-agent@example.com", description = "Key owner email address.") String email,
+            @Input(name = "name", type = OoaType.STRING, required = false, example = "Finance Agent", description = "Key owner name (name, e-mail or both).") String name,
+            @Input(name = "email", type = OoaType.STRING, required = false, example = "finance-agent@example.com", description = "Key owner email address (name, e-mail or both).") String email,
             @Input(name = "passphrase", type = OoaType.CREDENTIAL, required = false, description = "Passphrase that protects the private key; strongly recommended.") Object pass,
             @Input(name = "comment", type = OoaType.STRING, required = false, description = "Optional comment stored in the user id.") String comment,
-            @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"ed25519\"", enumValues = {"ed25519", "rsa3072", "rsa4096"},
+            @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"ed25519\"", enumValues = {"ed25519", "rsa2048", "rsa3072", "rsa4096"},
                     description = "Key type: ed25519 (modern, small) or RSA for older systems.") String algorithm,
             @Input(name = "expires", type = OoaType.STRING, required = false, defaultValue = "\"2y\"", description = "Lifetime, e.g. 1y, 6m, 90d, a date like 2028-12-31, or never.") String expires,
             @Input(name = "public_key_file", type = OoaType.FILE, required = false, description = "Where to save the armored public key (.asc) to share with partners.") String publicFile,

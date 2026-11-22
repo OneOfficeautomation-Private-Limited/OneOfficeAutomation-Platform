@@ -20,7 +20,7 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  */
 public final class RepoFiles {
     public static final long MAX_BYTES = 25L * 1024 * 1024;
-    static final long MAX_PER_RUN = 50L * 1024 * 1024;
+    public static final long MAX_PER_RUN = 50L * 1024 * 1024;
     static final Pattern FILE = Pattern.compile("^[A-Za-z0-9 _.()-]+(/[A-Za-z0-9 _.()-]+){0,8}$");
     private final ControlRoom cr;
     private final Db db;

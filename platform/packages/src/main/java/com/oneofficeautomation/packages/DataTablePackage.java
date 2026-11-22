@@ -597,6 +597,50 @@ public final class DataTablePackage {
         return Out.of("names", new ArrayList<Object>(cols(table)));
     }
 
+    /**
+     * G1/G2 (AA parity): the ready-made date formats AA lists, by name, for Change column type: ISO 8601 and RFC 1123 forms.
+     * A value with a time zone or offset is turned into UTC, as every DateTime is.
+     */
+    static final Map<String, java.time.format.DateTimeFormatter> NAMED_FORMATS = Map.ofEntries(
+            Map.entry("ISO_DATE", java.time.format.DateTimeFormatter.ISO_DATE),
+            Map.entry("ISO_LOCAL_DATE", java.time.format.DateTimeFormatter.ISO_LOCAL_DATE),
+            Map.entry("ISO_OFFSET_DATE", java.time.format.DateTimeFormatter.ISO_OFFSET_DATE),
+            Map.entry("BASIC_ISO_DATE", java.time.format.DateTimeFormatter.BASIC_ISO_DATE),
+            Map.entry("ISO_DATE_TIME", java.time.format.DateTimeFormatter.ISO_DATE_TIME),
+            Map.entry("ISO_LOCAL_DATE_TIME", java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+            Map.entry("ISO_OFFSET_DATE_TIME", java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+            Map.entry("ISO_ZONED_DATE_TIME", java.time.format.DateTimeFormatter.ISO_ZONED_DATE_TIME),
+            Map.entry("ISO_INSTANT", java.time.format.DateTimeFormatter.ISO_INSTANT.withZone(java.time.ZoneOffset.UTC)),
+            Map.entry("ISO_ORDINAL_DATE", java.time.format.DateTimeFormatter.ISO_ORDINAL_DATE),
+            Map.entry("ISO_WEEK_DATE", java.time.format.DateTimeFormatter.ISO_WEEK_DATE),
+            Map.entry("RFC_1123_DATE_TIME", java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME));
+
+    private static java.time.LocalDateTime asDateTime(java.time.temporal.TemporalAccessor t) {
+        if (t instanceof java.time.ZonedDateTime z) return z.withZoneSameInstant(java.time.ZoneOffset.UTC).toLocalDateTime();
+        if (t instanceof java.time.LocalDate d) return d.atStartOfDay();
+        return (java.time.LocalDateTime) t;
+    }
+
+    @Action(id = "create_table", name = "Create empty table", category = "Table", idempotent = true,
+            description = "Make a table with the columns you name (or a number of columns) and a number of empty rows, ready to fill.",
+            panel = "(Columns: By name = columns / A number of them = column_count), rows")
+    @Output(name = "table", type = OoaType.TABLE, description = "The new table.")
+    public Map<String, Object> createTable(ActionContext ctx,
+            @Input(name = "columns", type = OoaType.LIST, required = false, description = "Column names, in order.") List<Object> columns,
+            @Input(name = "column_count", type = OoaType.NUMBER, required = false, min = 1, max = 1000, description = "Number of columns, named Column1, Column2 ...") Integer columnCount,
+            @Input(name = "rows", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 100000, description = "Number of empty rows.") int rows) {
+        List<String> names = new ArrayList<>();
+        if (columns != null && !columns.isEmpty()) for (Object o : columns) names.add(String.valueOf(o).strip());
+        else if (columnCount != null) for (int i = 1; i <= columnCount; i++) names.add("Column" + i);
+        else throw new ActionException("TABLE.NO_COLUMNS", "Give the columns, or how many there are", "Fill in columns (names) or column_count.");
+        if (new HashSet<>(names).size() != names.size() || names.contains(""))
+            throw new ActionException("TABLE.BAD_COLUMN", "Column names must be filled in and different", "Check the list of column names.");
+        if (rows < 0 || rows > 100000) throw new ActionException("TABLE.BAD_ROWS", "rows must be between 0 and 100000", "Use a smaller number of rows.");
+        List<Object> rs = new ArrayList<>();
+        for (int i = 0; i < rows; i++) { List<Object> r = new ArrayList<>(); for (int j = 0; j < names.size(); j++) r.add(null); rs.add(r); }
+        return Out.of("table", Values.table(new ArrayList<>(names), rs));
+    }
+
     @Action(id = "change_column_type", name = "Change column type", category = "Table", idempotent = true,
             description = "Convert every value in a column to String, Number, DateTime or Boolean; empty cells stay empty.",
             panel = "table, (Column: By name = column / By position = column_index), type, date_format")
@@ -606,7 +650,7 @@ public final class DataTablePackage {
             @Input(name = "column", type = OoaType.STRING, required = false, description = "Column to convert.") String column,
             @Input(name = "type", type = OoaType.STRING, enumValues = {"String", "Number", "DateTime", "Boolean"}, description = "Target type.") String type,
             @Input(name = "column_index", type = OoaType.NUMBER, required = false, min = 0, description = COL_INDEX) Integer columnIndex,
-            @Input(name = "date_format", type = OoaType.STRING, required = false, visibleWhen = "type=DateTime", description = "Pattern of the text when converting to DateTime, e.g. dd/MM/yyyy; ISO dates when empty.") String dateFormat) {
+            @Input(name = "date_format", type = OoaType.STRING, required = false, visibleWhen = "type=DateTime", description = "Pattern of the text when converting to DateTime, e.g. dd/MM/yyyy, or a ready format: ISO_DATE, ISO_LOCAL_DATE_TIME, ISO_OFFSET_DATE_TIME, BASIC_ISO_DATE, RFC_1123_DATE_TIME...; ISO dates when empty.") String dateFormat) {
         int c = col(table, column, columnIndex);
         if (column == null || column.isBlank()) column = cols(table).get(c);
         if (!List.of("String", "Number", "DateTime", "Boolean").contains(type))
@@ -621,8 +665,10 @@ public final class DataTablePackage {
             Object conv;
             try {
                 if (type.equals("DateTime") && dateFormat != null && !dateFormat.isBlank() && v instanceof String s) {
-                    java.time.format.DateTimeFormatter f = DateTimePackage.strictPattern(dateFormat, Locale.ENGLISH);
-                    try { conv = dateFormat.contains("H") || dateFormat.contains("h") ? java.time.LocalDateTime.parse(s.trim(), f) : java.time.LocalDate.parse(s.trim(), f).atStartOfDay(); }
+                    java.time.format.DateTimeFormatter named = NAMED_FORMATS.get(dateFormat.strip().toUpperCase(Locale.ROOT));
+                    java.time.format.DateTimeFormatter f = named != null ? named : DateTimePackage.strictPattern(dateFormat, Locale.ENGLISH);
+                    try { conv = named != null ? asDateTime(f.parseBest(s.trim(), java.time.ZonedDateTime::from, java.time.LocalDateTime::from, java.time.LocalDate::from))
+                            : dateFormat.contains("H") || dateFormat.contains("h") ? java.time.LocalDateTime.parse(s.trim(), f) : java.time.LocalDate.parse(s.trim(), f).atStartOfDay(); }
                     catch (RuntimeException e) { throw new OoaException("VAR.TYPE_MISMATCH", "not a date", "Give the value as a date, for example 2026-11-13."); }
                     r.set(c, conv);
                     continue;
@@ -804,7 +850,8 @@ public final class DataTablePackage {
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the written file.")
     public Map<String, Object> writeToFile(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Table to save.") Map<String, Object> table,
-            @Input(name = "path", type = OoaType.FILE, description = "Target file, e.g. output/report.csv.") String path,
+            @Input(name = "path", type = OoaType.FILE, required = false,
+                    description = "Target file, e.g. output/report.csv; a folder keeps the file there; a temporary file in the run's folder when empty (G2, AA's file variable).") String path,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"csv\"", enumValues = {"csv", "json"}, description = "csv or json.") String format,
             @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", visibleWhen = "format=csv", description = "CSV delimiter (one character).") String delimiter,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "format=csv", description = "Write the column names as the first CSV line.") boolean header,
@@ -816,7 +863,7 @@ public final class DataTablePackage {
             @Input(name = "create_folders", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
                     description = "Create the file's folder when it does not exist; when off, a missing folder is an error.") boolean createFolders) {
         String fmt = format == null ? "csv" : format.toLowerCase(Locale.ROOT);
-        java.nio.file.Path p = ctx.resolvePath(path);
+        java.nio.file.Path p = path == null || path.isBlank() ? ctx.outputPath(null, "table." + (fmt.equals("json") ? "json" : "csv")) : ctx.resolvePath(path);
         if (!createFolders && p.getParent() != null && !java.nio.file.Files.isDirectory(p.getParent()))
             throw new ActionException("TABLE.NO_FOLDER", "The folder " + p.getParent() + " does not exist", "Create the folder first, or turn on create_folders.");
         boolean appending = append && fmt.equals("csv") && java.nio.file.Files.exists(p);

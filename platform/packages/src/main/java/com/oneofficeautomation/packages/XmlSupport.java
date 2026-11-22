@@ -24,6 +24,34 @@ final class XmlSupport {
     private static final java.util.regex.Pattern EXTERNAL_ENTITY = java.util.regex.Pattern.compile("(?is)<!ENTITY\\s+(?:%\\s+)?[^\\s>]+\\s+(?:SYSTEM|PUBLIC)\\b");
 
     /**
+     * A parser that checks a document against its DTD (Validate XML, G2), hardened as {@link #parse}: secure processing
+     * (entity expansion capped), no external entities, no XInclude, and the only outside DTD it ever reads is the local
+     * file given; nothing is downloaded. Documents declaring entities that read a file or URL are refused first.
+     */
+    static DocumentBuilder dtdValidator(String xml, java.nio.file.Path localDtd) throws javax.xml.parsers.ParserConfigurationException {
+        if (xml != null && EXTERNAL_ENTITY.matcher(xml).find())
+            throw new ActionException("XML.EXTERNAL_ENTITY_NOT_ALLOWED", "The XML declares an entity that reads a file or URL (SYSTEM/PUBLIC), which is refused for security",
+                    "Remove the external <!ENTITY ...> declaration; internal entities and DOCTYPE lines are allowed.");
+        DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
+        f.setValidating(true);
+        f.setNamespaceAware(true);
+        f.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        f.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        f.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        f.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        f.setXIncludeAware(false);
+        DocumentBuilder b = f.newDocumentBuilder();
+        // the only outside DTD ever read is the local file given
+        b.setEntityResolver((publicId, systemId) -> {
+            if (localDtd == null) throw new org.xml.sax.SAXException("the DTD at " + systemId + " is outside the document and is not downloaded; give it in dtd_path");
+            InputSource in = new InputSource(java.nio.file.Files.newBufferedReader(localDtd));
+            in.setSystemId(localDtd.toUri().toString());
+            return in;
+        });
+        return b;
+    }
+
+    /**
      * Parses XML safely. Documents with a DOCTYPE (an internal DTD, or a reference to an external one, which is never
      * downloaded) are read like any other; every DOCTYPE used to be refused. Entities that point to files or URLs are refused
      * (XML.EXTERNAL_ENTITY_NOT_ALLOWED), and entity expansion is capped by the JDK's secure processing limits.
