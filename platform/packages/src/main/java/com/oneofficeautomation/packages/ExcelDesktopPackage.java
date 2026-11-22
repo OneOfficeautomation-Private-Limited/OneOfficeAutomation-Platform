@@ -93,6 +93,12 @@ public final class ExcelDesktopPackage {
     private static final String D_PASSWORD = "Password needed to open the workbook; passed to Excel through the environment, not the command line.";
     private static final String D_SESSION = "An Excel session open in this run: the step works on that workbook as it is now, changes not yet saved included; the path is not needed then (G3).";
 
+    /** The workbook path a step gives when it names no session (G3: the path became optional with the session choice). */
+    static String needPath(String path) {
+        if (path == null || path.isBlank()) throw new ActionException("EXCEL_DESKTOP.NO_WORKBOOK", "Give the workbook's path or an open Excel session", "Fill in the path, or choose An open Excel session and name it.");
+        return path;
+    }
+
     /** The workbook an Excel step names by session, or null when the step uses a path. */
     static OpenWorkbook openWorkbook(ActionContext ctx, String session) {
         if (session == null || session.isBlank()) return null;
@@ -163,7 +169,7 @@ public final class ExcelDesktopPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, description = D_SESSION) String session) {
         OpenWorkbook w = openWorkbook(ctx, session);
         if (w == null) {
-            Script s = runMacroScript(file(ctx, path), macro, args, save, password, visible);
+            Script s = runMacroScript(file(ctx, needPath(path)), macro, args, save, password, visible);
             return Map.of("result", excel(ctx, s, timeout).stdout().strip());
         }
         // G3: the macro runs on a copy of the open workbook; the session then holds what the macro made, saved when asked
@@ -284,7 +290,7 @@ public final class ExcelDesktopPackage {
         OpenWorkbook w = openWorkbook(ctx, session);
         Path copy = w == null ? null : copyOf(w);
         try {
-            String src = copy != null ? copy.toString() : file(ctx, path);
+            String src = copy != null ? copy.toString() : file(ctx, needPath(path));
             if (activeSheet && (sheet == null || sheet.isBlank()) && w != null) sheet = w.activeSheet();
             Path t = target(ctx, target, overwrite, ifExists);
             Script script = exportPdfScript(src, t.toString(), sheet, quality, includeProperties, ignorePrintAreas, from, to, copy != null ? null : password);
