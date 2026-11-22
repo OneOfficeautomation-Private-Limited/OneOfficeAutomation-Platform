@@ -36,7 +36,7 @@ public final class Microsoft365Package {
             description = "Send an email from a Microsoft 365 mailbox with optional CC, BCC and attachments (up to 3 MB each).",
             panel = "access_token, from, to, cc, bcc, subject, attachments, body, html | importance, reply_to, save_to_sent_items, read_receipt, mailbox, base_url")
     public Map<String, Object> sendMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "to", description = "Recipient address(es).") Object to,
             @Input(name = "subject", type = OoaType.STRING, description = "Subject.") String subject,
             @Input(name = "body", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Message body.") String body,
@@ -51,6 +51,9 @@ public final class Microsoft365Package {
             @Input(name = "read_receipt", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Ask for a receipt when the email is read.") boolean receipt,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> msg = new LinkedHashMap<>();
         msg.put("subject", subject);
         msg.put("body", Map.of("contentType", html ? "HTML" : "Text", "content", body));
@@ -82,7 +85,7 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, from, subject, received, unread, has_attachments.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails.")
     public Map<String, Object> listMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = "Folder id or well-known name: inbox, archive, sentitems, deleteditems.") String folder,
             @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
             @Input(name = "from_contains", type = OoaType.STRING, required = false, description = D_FROM) String from,
@@ -95,6 +98,9 @@ public final class Microsoft365Package {
             @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the oldest emails first instead of the newest.") boolean oldestFirst,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> q = new LinkedHashMap<>();
         q.put("$top", Math.min(1000, Math.max(1, max * (from != null || subject != null ? 4 : 1))));
         q.put("$select", "id,subject,from,receivedDateTime,isRead,hasAttachments");
@@ -122,7 +128,7 @@ public final class Microsoft365Package {
             description = "Go through the emails matching the Find emails filters, one per turn: id, from, subject, received, unread, has_attachments, or the whole email.")
     @SuppressWarnings("unchecked")
     public Iterable<Object> emails(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = "Folder id or well-known name: inbox, archive, sentitems, deleteditems.") String folder,
             @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
             @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
@@ -136,9 +142,13 @@ public final class Microsoft365Package {
             @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = MailRecord.D_WITH_BODY) boolean withBody,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Object table = listMail(ctx, token, folder, unread, from, subject, max, readOnly, since, before, withAtts, oldestFirst, mailbox, base).get("table");
+        Object tok = token; String b = base;
         return MailRecord.each(MailRecord.rows(table), withBody,
-                row -> (Map<String, Object>) getMail(ctx, token, String.valueOf(row.get("id")), false, false, mailbox, base).get("email"));
+                row -> (Map<String, Object>) getMail(ctx, tok, String.valueOf(row.get("id")), false, false, mailbox, b).get("email"));
     }
 
     // ---------------------------------------------------------------- G1 (AA parity): loop types for Teams, the calendar and Excel online
@@ -152,37 +162,49 @@ public final class Microsoft365Package {
 
     @LoopIterator(id = "teams", name = "Each team (Teams)", description = "Go through the teams a person belongs to, one a turn: id, name, description.")
     public Iterable<Object> eachTeam(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = "me, or a user's id or email address.") String user,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         return eachRow(listTeams(ctx, token, user, base));
     }
 
     @LoopIterator(id = "channels", name = "Each channel of a team (Teams)", description = "Go through a team's channels, one a turn: id, name, description, membership_type.")
     public Iterable<Object> eachChannel(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         return eachRow(listChannels(ctx, token, team, base));
     }
 
     @LoopIterator(id = "channel_messages", name = "Each message in a channel (Teams)",
             description = "Go through a Teams channel's posts (as Get channel messages reads them), one a turn: id, created, from, subject, text, body, content_type, reply_to_id, web_url.")
     public Iterable<Object> eachChannelMessage(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
             @Input(name = "channel_id", type = OoaType.STRING, description = "Channel id.") String channel,
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Only posts created at or after this time (UTC); all posts when empty.") LocalDateTime since,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Most posts to go through.") int max,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         return eachRow(channelMessages(ctx, token, team, channel, since, max, base));
     }
 
     @LoopIterator(id = "chats", name = "Each chat (Teams)", description = "Go through a person's Teams chats, one a turn: id, topic, chat_type, updated.")
     public Iterable<Object> eachChat(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "50", min = 1, description = "At most this many chats.") int max,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         List<Object> out = new ArrayList<>();
         String url = base.replaceAll("/+$", "") + "/me/chats?$top=" + Math.min(Math.max(max, 1), 50);
         while (url != null && out.size() < max) {
@@ -202,7 +224,7 @@ public final class Microsoft365Package {
     @LoopIterator(id = "calendar_events", name = "Each calendar event (Outlook)",
             description = "Go through the events between two dates, one a turn: id, subject, start, end, location, organizer.")
     public Iterable<Object> eachEvent(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "start", type = OoaType.DATETIME, description = "Start of the period (UTC).") LocalDateTime from,
             @Input(name = "end", type = OoaType.DATETIME, description = "End of the period (UTC).") LocalDateTime to,
             @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Only events whose title contains this text.") String subject,
@@ -211,19 +233,31 @@ public final class Microsoft365Package {
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 0, description = "At most this many events (0: every event in the period).") int max,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         return eachRow(listEvents(ctx, token, from, to, subject, tz, calendar, mailbox, base, max));
     }
 
     @LoopIterator(id = "excel_rows", name = "Each row of a sheet (Excel online)",
             description = "Go through the rows of a worksheet (or a range) in OneDrive or SharePoint, one record a turn, the first row giving the column names.")
     public Iterable<Object> eachExcelRow(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, example = "Finance/budget.xlsx", description = "Workbook path in the drive.") String remote,
-            @Input(name = "sheet", type = OoaType.STRING, example = "Sheet1", description = "Worksheet name.") String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, example = "Finance/budget.xlsx", description = "Workbook path in the drive.") String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, example = "Sheet1", description = "Worksheet name.") String sheet,
             @Input(name = "range", type = OoaType.STRING, required = false, example = "A1:D20", description = "Range address; all cells in use on the sheet when empty.") String range,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "The first row holds the column names.") boolean header,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         return eachRow(excelRead(ctx, token, remote, sheet, range, drive, base, header, "value"));
     }
 
@@ -231,12 +265,15 @@ public final class Microsoft365Package {
             panel = "access_token, id, mark_read, body_as_text | mailbox, base_url")
     @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")
     public Map<String, Object> getMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id from Find emails.") String id,
             @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Mark as read.") boolean markRead,
             @Input(name = "body_as_text", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the body as plain text even when the email is HTML.") boolean asText,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String url = root(base, mailbox) + "/messages/" + HttpJson.enc(id);
         HttpJson.Req rq = HttpJson.req(P, "GET", url).bearer(token);
         if (asText) rq.header("Prefer", "outlook.body-content-type=\"text\"");
@@ -280,7 +317,7 @@ public final class Microsoft365Package {
             panel = "access_token, id, target_folder, overwrite | name_pattern, include_inline, mailbox, base_url")
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
     public Map<String, Object> saveAttachments(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "target_folder", type = OoaType.FILE, description = "Folder to save into.") String target,
             @Input(name = "name_pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Only names matching this pattern.") String pattern,
@@ -288,6 +325,9 @@ public final class Microsoft365Package {
             @Input(name = "include_inline", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also save images embedded in the body, such as signature logos.") boolean inline,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         return Map.of("files", saveAtts(ctx, token, root(base, mailbox), id, ctx.resolvePath(target), pattern, overwrite, inline));
     }
 
@@ -319,7 +359,7 @@ public final class Microsoft365Package {
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
     @Output(name = "email_count", type = OoaType.NUMBER, description = "Number of emails that matched.")
     public Map<String, Object> saveAllAttachments(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "target_folder", type = OoaType.FILE, description = "Folder to save into.") String target,
             @Input(name = "name_pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Only names matching this pattern, e.g. *.pdf.") String pattern,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = D_FOLDER_FILTERS) String folder,
@@ -334,6 +374,9 @@ public final class Microsoft365Package {
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Most emails handled in one run.") int max,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String r = root(base, mailbox);
         Path dir = ctx.resolvePath(target);
         List<Map<String, Object>> found = findMail(ctx, token, r, folder, unread, readOnly, from, subject, since, before, true, Math.max(1, max));
@@ -350,11 +393,14 @@ public final class Microsoft365Package {
             panel = "access_token, id, to_folder | mailbox, base_url")
     @Output(name = "new_id", type = OoaType.STRING, description = "The email's id in the destination folder.")
     public Map<String, Object> moveMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder id, well-known name, or a path such as Inbox/Invoices/2026.") String to,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String dest = mailFolder(ctx, token, root(base, mailbox), to);
         Map<String, Object> r = HttpJson.req(P, "POST", root(base, mailbox) + "/messages/" + HttpJson.enc(id) + "/move").bearer(token).json(Map.of("destinationId", dest)).send(ctx).map();
         return Out.of("new_id", r.get("id"));
@@ -373,7 +419,7 @@ public final class Microsoft365Package {
     @Output(name = "web_link", type = OoaType.STRING, description = "Link to open the event in Outlook.")
     @Output(name = "online_meeting_url", type = OoaType.STRING, description = "Teams join link, when online_meeting is true.")
     public Map<String, Object> createEvent(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "subject", type = OoaType.STRING, description = "Title.") String subject,
             @Input(name = "start", type = OoaType.DATETIME, description = "Start date and time.") LocalDateTime start,
             @Input(name = "end", type = OoaType.DATETIME, description = "End date and time.") LocalDateTime end,
@@ -403,6 +449,9 @@ public final class Microsoft365Package {
                     description = "Weekdays the event repeats on, e.g. [\"monday\", \"thursday\"]. For weekly repeats, instead of the start's weekday; for monthly or yearly repeats, used with recurrence_week_of_month.") List<Object> days,
             @Input(name = "recurrence_week_of_month", type = OoaType.STRING, required = false, enumValues = {"first", "second", "third", "fourth", "last"},
                     description = "Monthly or yearly repeats only: repeat on this week of the month (e.g. the second Tuesday) instead of on a fixed day of the month.") String weekOfMonth) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> rec = recurrence(recurrence, interval, start, recurrenceEnd, count, days, weekOfMonth);
         List<Map<String, Object>> files = new ArrayList<>();
         if (attachments != null) for (Object a : attachments) files.add(fileAttachment(ctx, Values.text(a)));
@@ -529,7 +578,7 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, subject, start, end, location, organizer.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listEvents(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "start", type = OoaType.DATETIME, formerNames = "from", description = "Start of the period (UTC).") LocalDateTime from,
             @Input(name = "end", type = OoaType.DATETIME, formerNames = "to", description = "End of the period (UTC).") LocalDateTime to,
             @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Only events whose title contains this text.") String subject,
@@ -539,6 +588,9 @@ public final class Microsoft365Package {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 0,
                     description = "At most this many events (0: every event in the period).") int max) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String cal = calendar == null || calendar.isBlank() ? "" : "/calendars/" + HttpJson.enc(calendar);
         String url = root(base, mailbox) + cal + "/calendarView?" + HttpJson.query(Map.of("startDateTime", from + "Z", "endDateTime", to + "Z", "$top", 500, "$orderby", "start/dateTime"));
         String zone = tz == null || tz.isBlank() ? "UTC" : tz.replace("\"", "");
@@ -621,7 +673,7 @@ public final class Microsoft365Package {
     @Output(name = "web_url", type = OoaType.STRING, description = "Link to the file.")
     @Output(name = "size", type = OoaType.NUMBER, description = "Bytes uploaded.")
     public Map<String, Object> upload(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "local_path", type = OoaType.FILE, description = "File to upload.") String local,
             @Input(name = "remote_path", type = OoaType.STRING, example = "Reports/2026/summary.xlsx", description = "Target path in the drive, including the file name; ending with / it is a folder and the file keeps its name (G3).") String remote,
             @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", newStepDefault = "\"rename\"", enumValues = {"fail", "rename", "replace"}, description = "When the name is taken at the destination: fail, rename (add a number) or replace.") String ifExists,
@@ -629,6 +681,9 @@ public final class Microsoft365Package {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base,
             @Input(name = "chunk_size_mb", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0.3125, max = 60,
                     description = "Size of each piece sent for files over 4 MB (rounded down to a multiple of 320 KB); smaller pieces suit slow or unreliable networks.") double chunkMb) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Path p = ctx.resolvePath(local);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path.");
         String conflict = conflict(ifExists, "replace");
@@ -731,12 +786,15 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, local_path, overwrite | drive, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
     public Map<String, Object> download(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "remote_path", type = OoaType.STRING, description = "Path of the file in the drive.") String remote,
             @Input(name = "local_path", type = OoaType.FILE, required = false, description = "Where to save it: a file, or a folder (the drive's file name); the run's temporary folder when empty (G3).") String local,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Path p = ctx.outputPath(local, remote == null ? "file" : remote.replace('\\', '/').substring(remote.replace('\\', '/').lastIndexOf('/') + 1));
         if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
         // K3 (batch 10): straight to the file, so a file of any size does not pass through memory
@@ -774,10 +832,13 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, type, size, modified, web_url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listFiles(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Folder path; the root when empty.") String folder,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String url = drive(drive, base) + (folder == null || folder.isBlank() ? "/root/children" : "/root:/" + HttpJson.encPath(folder) + ":/children");
         List<Object> rows = new ArrayList<>();
         while (url != null) {
@@ -873,7 +934,7 @@ public final class Microsoft365Package {
             panel = "access_token, (Team: By id = team_id / By name = team_name), (Channel: By id = channel_id / By name = channel_name), message, mentions | html, subject, importance, reply_to_message_id, base_url")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message id.")
     public Map<String, Object> teamsMessage(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, required = false, description = "Team id; or give team_name instead.") String team,
             @Input(name = "channel_id", type = OoaType.STRING, required = false, description = "Channel id; or give channel_name instead.") String channel,
             @Input(name = "message", type = OoaType.STRING, description = "Message text (HTML allowed when html is true).") String message,
@@ -885,6 +946,9 @@ public final class Microsoft365Package {
             @Input(name = "team_name", type = OoaType.STRING, required = false, example = "Finance", description = "Team display name (not case-sensitive), among the teams the signed-in user belongs to; used instead of team_id.") String teamName,
             @Input(name = "channel_name", type = OoaType.STRING, required = false, example = "General", description = "Channel display name (not case-sensitive); used instead of channel_id.") String channelName,
             @Input(name = "mentions", type = OoaType.LIST, required = false, example = "[\"ann@contoso.com\", \"channel\"]", description = D_MENTIONS) List<Object> mentions) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         boolean byTeamId = team != null && !team.isBlank(), byTeamName = teamName != null && !teamName.isBlank();
         boolean byChannelId = channel != null && !channel.isBlank(), byChannelName = channelName != null && !channelName.isBlank();
         if (byTeamId == byTeamName) throw new ActionException(P + ".BAD_INPUT", byTeamId ? "Give team_id or team_name, not both" : "A team is required", "Set team_id or team_name.");
@@ -924,15 +988,24 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, sheet, (Cells: All cells in use = / A range = range), header, read_as | drive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Range values; the first row gives the column names when header is on, else Column1, Column2 ...")
     public Map<String, Object> excelRead(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, example = "Finance/budget.xlsx", description = "Workbook path in the drive.") String remote,
-            @Input(name = "sheet", type = OoaType.STRING, example = "Sheet1", description = "Worksheet name.") String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, example = "Finance/budget.xlsx", description = "Workbook path in the drive.") String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, example = "Sheet1", description = "Worksheet name.") String sheet,
             @Input(name = "range", type = OoaType.STRING, required = false, example = "A1:D20", description = "Range address; all cells in use on the sheet when empty.") String range,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "The first row holds the column names.") boolean header,
             @Input(name = "read_as", type = OoaType.STRING, required = false, defaultValue = "\"value\"", enumValues = {"value", "text"},
                     description = "value returns numbers and booleans as such; text returns what Excel displays, with number formats applied.") String readAs) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         String as = readAs == null || readAs.isBlank() ? "value" : readAs.strip().toLowerCase(Locale.ROOT);
         if (!as.equals("value") && !as.equals("text")) throw new ActionException(P + ".BAD_INPUT", "read_as must be value or text, not '" + readAs + "'", "Pick value or text.");
         String where = range == null || range.isBlank()
@@ -954,13 +1027,22 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, sheet, start_cell, table | drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "The range that was written.")
     public Map<String, Object> excelWrite(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = "Workbook path in the drive.") String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = "Worksheet name.") String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = "Workbook path in the drive.") String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Worksheet name.") String sheet,
             @Input(name = "start_cell", type = OoaType.STRING, required = false, defaultValue = "\"A1\"", description = "Top-left cell.") String start,
             @Input(name = "table", type = OoaType.TABLE, description = "Data to write.") Map<String, Object> table,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         List<Object> values = new ArrayList<>();
         List<?> cols = (List<?>) table.get("columns");
         values.add(new ArrayList<>(cols));
@@ -981,9 +1063,9 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, sheet, range, destination, [To another sheet: destination_sheet] | copy, include_number_formats, drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "The range that was written, e.g. H2:K10.")
     public Map<String, Object> excelCopyRange(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = "Worksheet the range is on.") String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Worksheet the range is on.") String sheet,
             @Input(name = "range", type = OoaType.STRING, example = "A2:D10", description = "Cell or range to copy.") String range,
             @Input(name = "destination", type = OoaType.STRING, example = "H2", description = "Top-left cell to copy to.") String destination,
             @Input(name = "destination_sheet", type = OoaType.STRING, required = false, description = "Worksheet to copy to; the same sheet when empty.") String destSheet,
@@ -992,6 +1074,15 @@ public final class Microsoft365Package {
             @Input(name = "include_number_formats", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also copy number formats such as dates and currency.") boolean formats,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         String what = copy == null || copy.isBlank() ? "values" : copy.trim().toLowerCase(Locale.ROOT);
         if (!what.equals("values") && !what.equals("formulas")) throw new ActionException(P + ".BAD_OPTION", "Unknown copy option '" + copy + "'", "Use values or formulas.");
         String from = rangePath(range);
@@ -1209,11 +1300,14 @@ public final class Microsoft365Package {
             description = "Mark an email as read or unread, or set, clear or complete its follow-up flag.",
             panel = "access_token, id, status | mailbox, base_url")
     public Map<String, Object> markMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "status", type = OoaType.STRING, enumValues = {"read", "unread", "flagged", "unflagged", "complete"}, description = "New status: read, unread, flagged, unflagged or complete.") String status,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> patch = switch (status.toLowerCase(Locale.ROOT)) {
             case "read" -> Map.of("isRead", true);
             case "unread" -> Map.of("isRead", false);
@@ -1230,11 +1324,14 @@ public final class Microsoft365Package {
             description = "Delete an email by moving it to Deleted Items, or remove it permanently.",
             panel = "access_token, id | permanent, mailbox, base_url")
     public Map<String, Object> deleteMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "permanent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove permanently instead of moving to Deleted Items.") boolean permanent,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         removeMail(ctx, token, root(base, mailbox), id, permanent);
         return Map.of();
     }
@@ -1250,7 +1347,7 @@ public final class Microsoft365Package {
             panel = "access_token, folder, unread_only, read_only, subject_contains, from_contains, since, before | permanent, max_results, mailbox, base_url")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails deleted.")
     public Map<String, Object> deleteAllMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = D_FOLDER_FILTERS) String folder,
             @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
             @Input(name = "from_contains", type = OoaType.STRING, required = false, description = D_FROM) String from,
@@ -1262,6 +1359,9 @@ public final class Microsoft365Package {
             @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String r = root(base, mailbox);
         List<Map<String, Object>> found = findMail(ctx, token, r, folder, unread, readOnly, from, subject, since, before, false, Math.max(1, max));
         for (Map<String, Object> m : found) removeMail(ctx, token, r, s(m.get("id")), permanent);
@@ -1273,7 +1373,7 @@ public final class Microsoft365Package {
             panel = "access_token, to_folder, unread_only, read_only, folder, subject_contains, from_contains, since, before | max_results, mailbox, base_url")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails moved.")
     public Map<String, Object> moveAllMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder id, well-known name, or a path such as Inbox/Invoices/2026.") String to,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = "Source " + D_FOLDER_FILTERS) String folder,
             @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
@@ -1285,6 +1385,9 @@ public final class Microsoft365Package {
             @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String r = root(base, mailbox);
         String dest = mailFolder(ctx, token, r, to);
         List<Map<String, Object>> found = findMail(ctx, token, r, folder, unread, readOnly, from, subject, since, before, false, Math.max(1, max));
@@ -1297,7 +1400,7 @@ public final class Microsoft365Package {
             description = "Forward an email to new recipients with an optional note above the original message.",
             panel = "access_token, id, from, to, cc, bcc, attachments, comment, html | if_attachment_missing, importance, mailbox, base_url")
     public Map<String, Object> forwardMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "to", description = "Recipient address(es).") Object to,
             @Input(name = "comment", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Note added above the forwarded message.") String comment,
@@ -1312,6 +1415,9 @@ public final class Microsoft365Package {
                     description = "G3 (AA parity): the note is HTML (bold, links, lists), placed above the original message.") boolean html,
             @Input(name = "if_attachment_missing", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "skip"},
                     description = "G3 (AA parity): when a file to attach is not there: stop the step, or send without it (logged).") String ifMissing) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         if (HttpJson.addressList(to).isEmpty()) throw new ActionException(P + ".NO_RECIPIENTS", "No recipients to forward to", "Give at least one address.");
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("toRecipients", recipients(to));
@@ -1327,7 +1433,7 @@ public final class Microsoft365Package {
             description = "Reply to the sender of an email, or to everyone on it, with a note above the original message.",
             panel = "access_token, id, reply_all, from, cc, bcc, attachments, comment, html | exclude_sender, if_attachment_missing, importance, mailbox, base_url")
     public Map<String, Object> replyMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "comment", type = OoaType.STRING, description = "Reply text.") String comment,
             @Input(name = "reply_all", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Reply to the sender and every other recipient.") boolean all,
@@ -1343,6 +1449,9 @@ public final class Microsoft365Package {
                     description = "G3 (AA parity): the note is HTML (bold, links, lists), placed above the original message.") boolean html,
             @Input(name = "if_attachment_missing", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "skip"},
                     description = "G3 (AA parity): when a file to attach is not there: stop the step, or send without it (logged).") String ifMissing) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String r = root(base, mailbox);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("comment", comment == null ? "" : comment);
@@ -1379,7 +1488,7 @@ public final class Microsoft365Package {
             description = "Reply to the sender and every other recipient of an email with a note above the original message.",
             panel = "access_token, id, from, cc, bcc, exclude_sender, attachments, comment | importance, mailbox, base_url")
     public Map<String, Object> replyAllMail(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "comment", type = OoaType.STRING, description = "Reply text.") String comment,
             @Input(name = "cc", required = false, description = "CC address(es).") Object cc,
@@ -1390,6 +1499,9 @@ public final class Microsoft365Package {
             @Input(name = "exclude_sender", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave the original sender out and reply to the other recipients.") boolean excludeSender,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         return replyMail(ctx, token, id, comment, true, cc, bcc, attachments, sendAs, importance, excludeSender, mailbox, base, false, "fail");
     }
 
@@ -1399,10 +1511,13 @@ public final class Microsoft365Package {
     @Output(name = "exists", type = OoaType.BOOLEAN, description = "True when the folder exists.")
     @Output(name = "folder_id", type = OoaType.STRING, description = "Folder id, empty when it does not exist.")
     public Map<String, Object> folderExists(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "name", type = OoaType.STRING, description = "Folder display name, e.g. Invoices, or a path such as Inbox/Invoices/2026 (/ or \\ between levels).") String name,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         if (name.contains("/") || name.contains("\\")) {
             String id = folderPath(ctx, token, root(base, mailbox), name);
             return Map.of("exists", id != null, "folder_id", id == null ? "" : id);
@@ -1417,12 +1532,15 @@ public final class Microsoft365Package {
             panel = "access_token, id, local_path, overwrite | mailbox, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
     public Map<String, Object> saveEml(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "local_path", type = OoaType.FILE, example = "mail/order-123.eml", description = "Where to save the .eml file; a path ending in / or an existing folder gets a file named after the subject.") String local,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String url = root(base, mailbox) + "/messages/" + HttpJson.enc(id);
         Path p = ctx.resolvePath(local);
         if (local.endsWith("/") || local.endsWith("\\") || Files.isDirectory(p)) {
@@ -1442,12 +1560,15 @@ public final class Microsoft365Package {
     @Output(name = "attachments", type = OoaType.NUMBER, description = "Number of attachments saved in the file.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> saveMsg(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "local_path", type = OoaType.FILE, example = "mail/order-123.msg", description = "Where to save the .msg file; a path ending in / or an existing folder gets a file named after the subject.") String local,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String url = root(base, mailbox) + "/messages/" + HttpJson.enc(id);
         Map<String, Object> j = HttpJson.req(P, "GET", url + "?$select=subject,body,from,toRecipients,ccRecipients,bccRecipients,sentDateTime,receivedDateTime,internetMessageId,importance,isRead,hasAttachments")
                 .bearer(token).send(ctx).map();
@@ -1538,7 +1659,7 @@ public final class Microsoft365Package {
     @Output(name = "status", type = OoaType.STRING, description = "completed, or inProgress when the wait ran out.")
     @Output(name = "monitor_url", type = OoaType.STRING, description = "Address to check the copy's progress.")
     public Map<String, Object> copyItem(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder path (empty for the root), or id:{item-id}.") String to,
             @Input(name = "new_name", type = OoaType.STRING, required = false, description = "Name for the copy; the original name when empty.") String newName,
@@ -1547,6 +1668,9 @@ public final class Microsoft365Package {
             @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "rename", "replace"}, description = "When the name is taken at the destination: fail, rename (add a number) or replace.") String ifExists,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String[] dest = folderRef(ctx, token, toDrive == null || toDrive.isBlank() ? drive : toDrive, base, to);
         Map<String, Object> parent = new LinkedHashMap<>();
         if (!dest[0].isEmpty()) parent.put("driveId", dest[0]);
@@ -1575,13 +1699,16 @@ public final class Microsoft365Package {
     @Output(name = "item_id", type = OoaType.STRING, description = "Item id.")
     @Output(name = "web_url", type = OoaType.STRING, description = "Link to the item in its new place.")
     public Map<String, Object> moveItem(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder path (empty for the root), or id:{item-id}.") String to,
             @Input(name = "new_name", type = OoaType.STRING, required = false, description = "New name; unchanged when empty.") String newName,
             @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "rename", "replace"}, description = "When the name is taken at the destination: fail, rename (add a number) or replace.") String ifExists,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String[] dest = folderRef(ctx, token, drive, base, to);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("parentReference", Map.of("id", dest[1]));
@@ -1600,12 +1727,15 @@ public final class Microsoft365Package {
     @Output(name = "item_id", type = OoaType.STRING, description = "Item id.")
     @Output(name = "web_url", type = OoaType.STRING, description = "Link to the renamed item.")
     public Map<String, Object> renameItem(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "new_name", type = OoaType.STRING, description = "New name, including the extension for files.") String newName,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "rename", "replace"}, description = "When the new name is taken in the folder: fail, rename (add a number) or replace.") String ifExists) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> r = HttpJson.req(P, "PATCH", item(drive, base, ref, "") + conflict(ifExists, "fail")).bearer(token).json(Map.of("name", newName)).send(ctx).map();
         return Out.of("item_id", r.get("id"), "web_url", r.get("webUrl"));
     }
@@ -1614,11 +1744,14 @@ public final class Microsoft365Package {
             description = "Delete a file or folder; it goes to the drive's recycle bin unless deleted permanently.",
             panel = "access_token, item | permanent, drive, base_url")
     public Map<String, Object> deleteItem(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "permanent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Delete for good, skipping the recycle bin (OneDrive for work or school and SharePoint).") boolean permanent,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         if (ref == null || ref.isBlank()) throw new ActionException(P + ".BAD_ITEM", "No item given", "Give a path or id:{item-id}; the drive root cannot be deleted.");
         if (permanent) HttpJson.req(P, "POST", item(drive, base, ref, "/permanentDelete")).bearer(token).send(ctx);
         else HttpJson.req(P, "DELETE", item(drive, base, ref, "")).bearer(token).send(ctx);
@@ -1631,12 +1764,15 @@ public final class Microsoft365Package {
     @Output(name = "item_id", type = OoaType.STRING, description = "Folder id.")
     @Output(name = "web_url", type = OoaType.STRING, description = "Link to the folder.")
     public Map<String, Object> createFolder(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "name", type = OoaType.STRING, description = "New folder name.") String name,
             @Input(name = "parent_folder", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Parent folder path (empty for the root), or id:{item-id}.") String parent,
             @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "rename", "replace"}, description = "When the name is taken: fail, rename (add a number) or replace.") String ifExists,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", name);
         body.put("folder", Map.of());
@@ -1651,7 +1787,7 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, type, size, modified, web_url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of items found.")
     public Map<String, Object> findItems(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "text", type = OoaType.STRING, description = "Text to look for.") String text,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Maximum items.") int max,
             @Input(name = "item_type", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "file", "folder"}, description = "Files, folders or both.") String type,
@@ -1659,6 +1795,9 @@ public final class Microsoft365Package {
             @Input(name = "exact_name", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Keep only items whose name equals the text (not case-sensitive).") boolean exact,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String t = choice(type, "item_type", new LinkedHashSet<>(List.of("any", "file", "folder")));
         String scope = inFolder == null || inFolder.isBlank() ? drive(drive, base) + "/root" : item(drive, base, inFolder, "");
         if (scope.endsWith(":")) scope = scope.substring(0, scope.length() - 1);
@@ -1680,10 +1819,13 @@ public final class Microsoft365Package {
             panel = "access_token, item | drive, base_url")
     @Output(name = "info", type = OoaType.DICTIONARY, description = "id, name, type, size, created, modified, modified_by, parent_path, web_url.")
     public Map<String, Object> itemInfo(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         return Map.of("info", itemInfo(HttpJson.req(P, "GET", item(drive, base, ref, "")).bearer(token).send(ctx).map()));
     }
 
@@ -1703,10 +1845,13 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, roles, granted_to, link_type, link_scope, link_url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listPermissions(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> p : pages(ctx, token, item(drive, base, ref, "/permissions"), 0, null)) {
             List<String> who = permissionEmails(p);
@@ -1723,11 +1868,14 @@ public final class Microsoft365Package {
     @Output(name = "has_access", type = OoaType.BOOLEAN, description = "True when the person has a direct permission.")
     @Output(name = "roles", type = OoaType.LIST, description = "Roles such as read, write or owner.")
     public Map<String, Object> checkPermissions(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Email address of the person; the signed-in account itself when empty (G3).") String email,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         if (email == null || email.isBlank()) {   // G3 (AA parity): the agent's own rights
             Map<String, Object> me = HttpJson.req(P, "GET", base.replaceAll("/+$", "") + "/me?$select=mail,userPrincipalName").bearer(token).send(ctx).map();
             email = String.valueOf(me.get("mail") != null ? me.get("mail") : me.get("userPrincipalName"));
@@ -1745,7 +1893,7 @@ public final class Microsoft365Package {
             panel = "access_token, item, recipients, role, send_invitation, [Add a note to the invitation: message] | require_sign_in, drive, base_url")
     @Output(name = "permission_ids", type = OoaType.LIST, description = "Ids of the new permissions.")
     public Map<String, Object> shareItem(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "recipients", description = "Email address(es) of the people to share with.") Object recipients,
             @Input(name = "role", type = OoaType.STRING, required = false, defaultValue = "\"read\"", enumValues = {"read", "write"}, description = "read to view, write to edit.") String role,
@@ -1754,6 +1902,9 @@ public final class Microsoft365Package {
             @Input(name = "require_sign_in", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "People must sign in to open the item.") boolean signIn,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         List<Object> who = new ArrayList<>();
         for (String a : HttpJson.addressList(recipients)) who.add(Map.of("email", a));
         if (who.isEmpty()) throw new ActionException(P + ".NO_RECIPIENTS", "Nobody to share with", "Give at least one email address.");
@@ -1774,13 +1925,16 @@ public final class Microsoft365Package {
     @Output(name = "link", type = OoaType.STRING, description = "The sharing link.")
     @Output(name = "permission_id", type = OoaType.STRING, description = "Id of the link's permission.")
     public Map<String, Object> sharingLink(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "type", type = OoaType.STRING, required = false, defaultValue = "\"view\"", enumValues = {"view", "edit"}, description = "view or edit.") String type,
             @Input(name = "scope", type = OoaType.STRING, required = false, defaultValue = "\"organization\"", enumValues = {"organization", "anonymous"}, description = "organization: people in your organisation; anonymous: anyone with the link.") String scope,
             @Input(name = "expires", type = OoaType.DATETIME, required = false, description = "When the link stops working (UTC); never when empty.") LocalDateTime expires,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("type", choice(type == null || type.isBlank() ? "view" : type, "type", new LinkedHashSet<>(List.of("view", "edit"))));
         body.put("scope", choice(scope == null || scope.isBlank() ? "organization" : scope, "scope", new LinkedHashSet<>(List.of("organization", "anonymous"))));
@@ -1798,12 +1952,15 @@ public final class Microsoft365Package {
             panel = "access_token, item, local_path, overwrite | drive, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved PDF path.")
     public Map<String, Object> exportPdf(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "local_path", type = OoaType.FILE, required = false, example = "out/report.pdf", description = "Where to save the PDF: a file or a folder; the run's temporary folder when empty (G3).") String local,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Path p = ctx.outputPath(local, "document.pdf");
         if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
         HttpJson.req(P, "GET", item(drive, base, ref, "/content") + "?format=pdf").bearer(token).timeout(1800).download(ctx, p);
@@ -1815,11 +1972,14 @@ public final class Microsoft365Package {
             panel = "access_token, item, (Version: The previous version = / A specific version = version_id) | drive, base_url")
     @Output(name = "restored_version", type = OoaType.STRING, description = "Id of the version that was restored.")
     public Map<String, Object> restoreVersion(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "version_id", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Version to restore, e.g. 3.0; the previous version when empty.") String version,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String v = version;
         if (v == null || v.isBlank()) {
             List<Map<String, Object>> versions = pages(ctx, token, item(drive, base, ref, "/versions"), 0, null);
@@ -1927,10 +2087,17 @@ public final class Microsoft365Package {
     @Output(name = "sheets", type = OoaType.LIST, description = "Worksheet names.")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, position, visibility.")
     public Map<String, Object> excelSheets(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
         List<Map<String, Object>> sheets = new ArrayList<>(pages(ctx, token, book(drive, base, remote, "/workbook/worksheets"), 0, null));
         sheets.sort(Comparator.comparingInt(m -> m.get("position") instanceof Number n ? n.intValue() : 0));
         List<Object> names = new ArrayList<>(), rows = new ArrayList<>();
@@ -1944,11 +2111,18 @@ public final class Microsoft365Package {
     @Output(name = "sheet_name", type = OoaType.STRING, description = "Name of the new worksheet.")
     @Output(name = "sheet_id", type = OoaType.STRING, description = "Id of the new worksheet.")
     public Map<String, Object> excelAddSheet(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "Name for the worksheet; Excel picks one when empty.") String name,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
         Map<String, Object> body = new LinkedHashMap<>();
         if (name != null && !name.isBlank()) body.put("name", name);
         Map<String, Object> r = HttpJson.req(P, "POST", book(drive, base, remote, "/workbook/worksheets/add")).bearer(token).json(body).send(ctx).map();
@@ -1975,12 +2149,20 @@ public final class Microsoft365Package {
             description = "Delete a worksheet and everything on it from a workbook in OneDrive or SharePoint.",
             panel = "access_token, remote_path, (Sheet by: Name = sheet / Position = sheet_position) | drive, base_url")
     public Map<String, Object> excelDeleteSheet(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Worksheet name; or give sheet_position instead.") String sheet,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "sheet_position", type = OoaType.NUMBER, required = false, example = "2", description = "Position of the worksheet among the tabs, the first being 1; used instead of sheet.") Integer position) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
         String name = sheetByNameOrPosition(ctx, token, drive, base, remote, sheet, position);
         HttpJson.req(P, "DELETE", book(drive, base, remote, ws(name))).bearer(token).send(ctx);
         return Map.of();
@@ -1994,13 +2176,21 @@ public final class Microsoft365Package {
             description = "Give a worksheet in a OneDrive or SharePoint workbook a new name.",
             panel = "access_token, remote_path, (Sheet by: Name = sheet / Position = sheet_position), new_name | drive, base_url")
     public Map<String, Object> excelRenameSheet(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Current worksheet name; or give sheet_position instead.") String sheet,
             @Input(name = "new_name", type = OoaType.STRING, description = "New worksheet name.") String newName,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "sheet_position", type = OoaType.NUMBER, required = false, example = "2", description = "Position of the worksheet among the tabs, the first being 1; used instead of sheet.") Integer position) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
         String name = sheetByNameOrPosition(ctx, token, drive, base, remote, sheet, position);
         HttpJson.req(P, "PATCH", book(drive, base, remote, ws(name))).bearer(token).json(Map.of("name", newName)).send(ctx);
         return Map.of();
@@ -2013,12 +2203,21 @@ public final class Microsoft365Package {
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows.")
     @Output(name = "column_count", type = OoaType.NUMBER, description = "Number of columns.")
     public Map<String, Object> excelGetRange(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "range", type = OoaType.STRING, example = "A1:D20", description = "Range address.") String range,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         Map<String, Object> r = HttpJson.req(P, "GET", book(drive, base, remote, ws(sheet) + rangePath(range))).bearer(token).send(ctx).map();
         List<List<Object>> v = matrix(r.get("values"));
         return Map.of("values", v, "row_count", num(v.size()), "column_count", num(v.isEmpty() ? 0 : v.get(0).size()));
@@ -2029,13 +2228,22 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, sheet, range, values | drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "The range that was written.")
     public Map<String, Object> excelSetRange(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "range", type = OoaType.STRING, example = "B2", description = "Top-left cell, or a full range matching the values' size.") String range,
             @Input(name = "values", description = "List of rows (each a list of values), one flat list for a single row, or a Data Table (rows only).") Object values,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         List<Object> g = grid(values);
         String address = spanFrom(range, g);
         HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet) + rangePath(address))).bearer(token).json(Map.of("values", g)).send(ctx);
@@ -2048,12 +2256,23 @@ public final class Microsoft365Package {
     @Output(name = "value", description = "Cell value (number, text or boolean).")
     @Output(name = "text", type = OoaType.STRING, description = "Displayed text with number formatting applied.")
     public Map<String, Object> excelGetCell(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
-            @Input(name = "cell", type = OoaType.STRING, example = "C7", description = "Cell address.") String cell,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
+            @Input(name = "cell", type = OoaType.STRING, required = false, example = "C7", description = "Cell address.") String cell,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
+        cell = ApiSession.text(__xs, "cell", cell);
+        ApiSession.require(P, cell, "cell");
         cell(cell);
         Map<String, Object> r = HttpJson.req(P, "GET", book(drive, base, remote, ws(sheet) + rangePath(cell))).bearer(token).send(ctx).map();
         return Out.of("value", first(r.get("values")), "text", s(first(r.get("text"))));
@@ -2063,13 +2282,24 @@ public final class Microsoft365Package {
             description = "Write one value into a cell.",
             panel = "access_token, remote_path, sheet, cell, value | drive, base_url")
     public Map<String, Object> excelSetCell(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
-            @Input(name = "cell", type = OoaType.STRING, example = "C7", description = "Cell address.") String cell,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
+            @Input(name = "cell", type = OoaType.STRING, required = false, example = "C7", description = "Cell address.") String cell,
             @Input(name = "value", description = "Value to write; empty clears the value.") Object value,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
+        cell = ApiSession.text(__xs, "cell", cell);
+        ApiSession.require(P, cell, "cell");
         cell(cell);
         HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet) + rangePath(cell))).bearer(token)
                 .json(Map.of("values", List.of(List.of(value == null ? "" : Values.toJsonable(value))))).send(ctx);
@@ -2081,13 +2311,24 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, sheet, cell, formula | drive, base_url")
     @Output(name = "value", description = "Calculated value of the formula.")
     public Map<String, Object> excelSetFormula(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
-            @Input(name = "cell", type = OoaType.STRING, example = "D10", description = "Cell address.") String cell,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
+            @Input(name = "cell", type = OoaType.STRING, required = false, example = "D10", description = "Cell address.") String cell,
             @Input(name = "formula", type = OoaType.STRING, example = "=SUM(D2:D9)", description = "Formula; the leading = is added when missing.") String formula,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
+        cell = ApiSession.text(__xs, "cell", cell);
+        ApiSession.require(P, cell, "cell");
         cell(cell);
         String f = formula.startsWith("=") ? formula : "=" + formula;
         Map<String, Object> r = HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet) + rangePath(cell))).bearer(token)
@@ -2101,12 +2342,23 @@ public final class Microsoft365Package {
     @Output(name = "formula", type = OoaType.STRING, description = "Formula, or the plain value when the cell has none.")
     @Output(name = "value", description = "Current value of the cell.")
     public Map<String, Object> excelReadFormula(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
-            @Input(name = "cell", type = OoaType.STRING, example = "D10", description = "Cell address.") String cell,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
+            @Input(name = "cell", type = OoaType.STRING, required = false, example = "D10", description = "Cell address.") String cell,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
+        cell = ApiSession.text(__xs, "cell", cell);
+        ApiSession.require(P, cell, "cell");
         cell(cell);
         Map<String, Object> r = HttpJson.req(P, "GET", book(drive, base, remote, ws(sheet) + rangePath(cell))).bearer(token).send(ctx).map();
         return Out.of("formula", s(first(r.get("formulas"))), "value", first(r.get("values")));
@@ -2116,13 +2368,22 @@ public final class Microsoft365Package {
             description = "Clear the values, the formatting, or both from a range without shifting other cells.",
             panel = "access_token, remote_path, sheet, range, clear | drive, base_url")
     public Map<String, Object> excelClear(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "range", type = OoaType.STRING, example = "A2:F100", description = "Range address.") String range,
             @Input(name = "clear", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "contents", "formats"}, description = "What to clear: all, contents or formats.") String what,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         String applyTo = switch (what == null ? "all" : what.toLowerCase(Locale.ROOT)) {
             case "contents" -> "Contents"; case "formats" -> "Formats"; case "all" -> "All";
             default -> throw new ActionException(P + ".BAD_OPTION", "Unknown clear option '" + what + "'", "Use all, contents or formats.");
@@ -2150,14 +2411,23 @@ public final class Microsoft365Package {
             description = "Delete the cells of a range and close the gap by moving cells up or left, or delete the whole rows or columns the range covers.",
             panel = "access_token, remote_path, sheet, range, shift | drive, base_url")
     public Map<String, Object> excelDeleteRange(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "range", type = OoaType.STRING, example = "A5:F5", description = "Range address.") String range,
             @Input(name = "shift", type = OoaType.STRING, required = false, defaultValue = "\"up\"", enumValues = {"up", "left", "entire_row", "entire_column"},
                     description = "Move the remaining cells up or left; entire_row or entire_column deletes the whole rows or columns of the range.") String shift,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         shiftRange(ctx, token, remote, sheet, range, "delete", shift, new LinkedHashSet<>(List.of("up", "left", "entire_row", "entire_column")), drive, base);
         return Map.of();
     }
@@ -2167,14 +2437,23 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, sheet, range, shift | drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "Address of the inserted cells.")
     public Map<String, Object> excelInsertRange(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "range", type = OoaType.STRING, example = "A5:F5", description = "Range address.") String range,
             @Input(name = "shift", type = OoaType.STRING, required = false, defaultValue = "\"down\"", enumValues = {"down", "right", "entire_row", "entire_column"},
                     description = "Push the existing cells down or right; entire_row or entire_column inserts as many whole rows or columns as the range covers.") String shift,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         Map<String, Object> r = shiftRange(ctx, token, remote, sheet, range, "insert", shift, new LinkedHashSet<>(List.of("down", "right", "entire_row", "entire_column")), drive, base);
         return Map.of("address", s(r.get("address")));
     }
@@ -2183,12 +2462,21 @@ public final class Microsoft365Package {
             description = "Resize the columns of a range so their contents fit.",
             panel = "access_token, remote_path, sheet, range | drive, base_url")
     public Map<String, Object> excelAutofitColumns(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "range", type = OoaType.STRING, example = "A1:F1", description = "Range whose columns are resized.") String range,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         HttpJson.req(P, "POST", book(drive, base, remote, ws(sheet) + rangePath(range) + "/format/autofitColumns")).bearer(token).send(ctx);
         return Map.of();
     }
@@ -2197,12 +2485,21 @@ public final class Microsoft365Package {
             description = "Resize the rows of a range so their contents fit.",
             panel = "access_token, remote_path, sheet, range | drive, base_url")
     public Map<String, Object> excelAutofitRows(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "range", type = OoaType.STRING, example = "A1:A50", description = "Range whose rows are resized.") String range,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         HttpJson.req(P, "POST", book(drive, base, remote, ws(sheet) + rangePath(range) + "/format/autofitRows")).bearer(token).send(ctx);
         return Map.of();
     }
@@ -2211,9 +2508,9 @@ public final class Microsoft365Package {
             description = "Set fill, font, alignment, wrapping, size, borders, merging and number format of a range; empty settings are left as they are.",
             panel = "access_token, remote_path, sheet, range, fill_color, font_color, bold, number_format | italic, underline, strikethrough, font_name, font_size, horizontal_alignment, vertical_alignment, wrap_text, column_width, row_height, border_style, border_color, merge, drive, base_url")
     public Map<String, Object> excelFormat(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "range", type = OoaType.STRING, example = "A1:F1", description = "Range address.") String range,
             @Input(name = "fill_color", type = OoaType.STRING, required = false, example = "#FFF2CC", description = "Background colour as #RRGGBB or a colour name.") String fill,
             @Input(name = "bold", type = OoaType.BOOLEAN, required = false, description = "Make the text bold (true) or normal (false).") Boolean bold,
@@ -2234,6 +2531,15 @@ public final class Microsoft365Package {
             @Input(name = "merge", type = OoaType.BOOLEAN, required = false, description = "Merge the cells (true) or unmerge them (false); unchanged when empty.") Boolean merge,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         String r = book(drive, base, remote, ws(sheet) + rangePath(range));
         boolean any = false;
         if (fill != null && !fill.isBlank()) { HttpJson.req(P, "PATCH", r + "/format/fill").bearer(token).json(Map.of("color", fill)).send(ctx); any = true; }
@@ -2281,12 +2587,21 @@ public final class Microsoft365Package {
             description = "Hide a worksheet tab without deleting it; very hidden sheets can only be shown again by an agent or code.",
             panel = "access_token, remote_path, sheet | very_hidden, drive, base_url")
     public Map<String, Object> excelHideSheet(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "very_hidden", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Hide it so that it cannot be shown from Excel's menu.") boolean very,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         return visibility(ctx, token, remote, sheet, very ? "VeryHidden" : "Hidden", drive, base);
     }
 
@@ -2294,11 +2609,20 @@ public final class Microsoft365Package {
             description = "Make a hidden worksheet tab visible again.",
             panel = "access_token, remote_path, sheet | drive, base_url")
     public Map<String, Object> excelShowSheet(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         return visibility(ctx, token, remote, sheet, "Visible", drive, base);
     }
 
@@ -2312,15 +2636,24 @@ public final class Microsoft365Package {
     @Output(name = "sheet_name", type = OoaType.STRING, description = "Name of the new worksheet.")
     @Output(name = "address", type = OoaType.STRING, description = "Cells written on the new worksheet, e.g. A1:F42; empty when the source sheet is empty.")
     public Map<String, Object> excelCopySheet(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = "Worksheet to copy.") String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Worksheet to copy.") String sheet,
             @Input(name = "target_remote_path", type = OoaType.STRING, required = false, description = "Workbook to copy into (path in the same drive, or id:{item-id}); the same workbook when empty.") String target,
             @Input(name = "new_name", type = OoaType.STRING, required = false, description = "Name of the new worksheet; the source sheet's name when empty, which must then be free in the target workbook.") String newName,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "copy_formats", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "sizes", "none"},
                     description = "all copies column widths, row heights, fonts, fill colours and alignment; sizes only widths and heights; none only cells and number formats (fastest).") String copyFormats) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         String copyMode = copyFormats == null || copyFormats.isBlank() ? "all" : copyFormats.trim().toLowerCase(Locale.ROOT);
         if (!Set.of("all", "sizes", "none").contains(copyMode)) throw new ActionException(P + ".BAD_OPTION", "Unknown copy_formats '" + copyFormats + "'", "Use all, sizes or none.");
         if (sheet == null || sheet.isBlank()) throw new ActionException(P + ".BAD_INPUT", "A worksheet to copy is required", "Set sheet.");
@@ -2499,9 +2832,9 @@ public final class Microsoft365Package {
     @Output(name = "cells", type = OoaType.LIST, description = "Addresses of the matches, e.g. B7, in search order.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches.")
     public Map<String, Object> excelFind(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "text", type = OoaType.STRING, description = "Text to look for in the displayed cell text.") String text,
             @Input(name = "range", type = OoaType.STRING, required = false, example = "A1:F200", description = "Range to search; the used cells when empty.") String range,
             @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Upper and lower case must match.") boolean matchCase,
@@ -2510,6 +2843,15 @@ public final class Microsoft365Package {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "search_by", type = OoaType.STRING, required = false, defaultValue = "\"rows\"", enumValues = {"rows", "columns"},
                     description = "Order of the results: rows goes across each row first, columns goes down each column first.") String searchBy) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         if (text == null || text.isEmpty()) throw new ActionException(P + ".BAD_INPUT", "Give the text to find", "Fill in the text to find.");
         boolean byColumns = "columns".equals(choice(searchBy, "search_by", new LinkedHashSet<>(List.of("rows", "columns"))));
         String addr = range == null || range.isBlank() ? used(ctx, token, drive, base, remote, sheet) : range.trim();
@@ -2536,12 +2878,23 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, sheet, cell | drive, base_url")
     @Output(name = "format", type = OoaType.DICTIONARY, description = "fill_color, font_name, font_size, font_color, bold, italic, underline, horizontal_alignment, vertical_alignment, wrap_text, number_format.")
     public Map<String, Object> excelCellFormat(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
-            @Input(name = "cell", type = OoaType.STRING, example = "C7", description = "Cell address.") String cell,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
+            @Input(name = "cell", type = OoaType.STRING, required = false, example = "C7", description = "Cell address.") String cell,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
+        cell = ApiSession.text(__xs, "cell", cell);
+        ApiSession.require(P, cell, "cell");
         cell(cell);
         String r = book(drive, base, remote, ws(sheet) + rangePath(cell));
         Map<String, Object> f = HttpJson.req(P, "GET", r + "/format").bearer(token).send(ctx).map();
@@ -2567,12 +2920,19 @@ public final class Microsoft365Package {
             description = "Give an Excel table a new name.",
             panel = "access_token, remote_path, table, new_name | drive, base_url")
     public Map<String, Object> excelRenameTable(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
             @Input(name = "table", type = OoaType.STRING, description = "Table name or id.") String table,
             @Input(name = "new_name", type = OoaType.STRING, description = "New table name (no spaces).") String newName,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
         HttpJson.req(P, "PATCH", book(drive, base, remote, table(table))).bearer(token).json(Map.of("name", newName)).send(ctx);
         return Map.of();
     }
@@ -2583,12 +2943,19 @@ public final class Microsoft365Package {
     @Output(name = "item_id", type = OoaType.STRING, description = "Drive item id of the workbook.")
     @Output(name = "web_url", type = OoaType.STRING, description = "Link to open the workbook.")
     public Map<String, Object> excelCreateWorkbook(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, example = "Reports/2026/new.xlsx", description = "Path of the new workbook, ending in .xlsx.") String remote,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, example = "Reports/2026/new.xlsx", description = "Path of the new workbook, ending in .xlsx.") String remote,
             @Input(name = "sheet_names", type = OoaType.LIST, required = false, description = "Names of the sheets; one sheet called Sheet1 when empty.") List<Object> names,
             @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "rename", "replace"}, description = "When a file of that name exists: fail, rename (add a number) or replace it.") String ifExists,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
         if (!remote.toLowerCase(Locale.ROOT).endsWith(".xlsx")) throw new ActionException(P + ".BAD_INPUT", "The workbook name must end in .xlsx", "Give the workbook's name with .xlsx at the end.");
         List<String> sheets = new ArrayList<>();
         if (names != null) for (Object n : names) if (!Values.text(n).isBlank()) sheets.add(Values.text(n).trim());
@@ -2643,15 +3010,24 @@ public final class Microsoft365Package {
     @Output(name = "row", type = OoaType.NUMBER, description = "Its row number.")
     @Output(name = "column", type = OoaType.STRING, description = "Its column letter.")
     public Map<String, Object> excelFindNextEmptyCell(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "direction", type = OoaType.STRING, required = false, defaultValue = "\"down\"", enumValues = {"down", "right"},
                     description = "down: after the last value of a column; right: after the last value of a row.") String direction,
             @Input(name = "column", type = OoaType.STRING, required = false, defaultValue = "\"A\"", pattern = "^[A-Za-z]{1,3}$", visibleWhen = "direction=down", description = "Column letter to look in.") String column,
             @Input(name = "row", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, visibleWhen = "direction=right", description = "Row number to look in.") int row,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         boolean right = "right".equals(direction);
         String col = (column == null || column.isBlank() ? "A" : column.strip()).toUpperCase(Locale.ROOT);
         String line = right ? row + ":" + row : col + ":" + col;
@@ -2677,11 +3053,20 @@ public final class Microsoft365Package {
     @Output(name = "last_row", type = OoaType.NUMBER, description = "Sheet row number of the last used row (0 when empty).")
     @Output(name = "last_column", type = OoaType.STRING, description = "Letter of the last used column.")
     public Map<String, Object> excelUsedRange(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         String a = used(ctx, token, drive, base, remote, sheet);
         if (a == null) return Map.of("address", "", "row_count", num(0), "column_count", num(0), "last_row", num(0), "last_column", "");
         int[][] b = bounds(a);
@@ -2693,12 +3078,21 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, sheet, row | drive, base_url")
     @Output(name = "values", type = OoaType.LIST, description = "Cell values; the first item is column A.")
     public Map<String, Object> excelReadRow(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "row", type = OoaType.NUMBER, description = "Row number, starting at 1.") int row,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         if (row < 1) throw new ActionException(P + ".BAD_RANGE", "Row numbers start at 1", "Give row numbers from 1 (the first row).");
         String a = used(ctx, token, drive, base, remote, sheet);
         if (a == null) return Map.of("values", List.of());
@@ -2713,12 +3107,21 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, sheet, column | drive, base_url")
     @Output(name = "values", type = OoaType.LIST, description = "Cell values; the first item is row 1.")
     public Map<String, Object> excelReadColumn(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "column", type = OoaType.STRING, example = "C", description = "Column letter, or its number starting at 1.") String column,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         String col = column.trim().matches("\\d+") ? colName(Integer.parseInt(column.trim())) : column.trim().toUpperCase(Locale.ROOT);
         cell(col + "1");
         String a = used(ctx, token, drive, base, remote, sheet);
@@ -2749,11 +3152,19 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, style, show_headers.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> excelListTables(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
             @Input(name = "sheet", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Only tables on this worksheet; all when empty.") String sheet,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
         String path = sheet == null || sheet.isBlank() ? "/workbook/tables" : ws(sheet) + "/tables";
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> t : pages(ctx, token, book(drive, base, remote, path), 0, null))
@@ -2767,14 +3178,23 @@ public final class Microsoft365Package {
     @Output(name = "table_id", type = OoaType.STRING, description = "Table id.")
     @Output(name = "table_name", type = OoaType.STRING, description = "Table name.")
     public Map<String, Object> excelCreateTable(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "range", type = OoaType.STRING, example = "A1:D1", description = "Range the table covers.") String range,
             @Input(name = "has_headers", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "The first row holds column names.") boolean headers,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "Table name; Excel picks one when empty.") String name,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         rangePath(range);
         Map<String, Object> t = HttpJson.req(P, "POST", book(drive, base, remote, ws(sheet) + "/tables/add")).bearer(token)
                 .json(Map.of("address", range.toUpperCase(Locale.ROOT), "hasHeaders", headers)).send(ctx).map();
@@ -2791,12 +3211,19 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, table, rows | drive, base_url")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows added.")
     public Map<String, Object> excelAddTableRows(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
             @Input(name = "table", type = OoaType.STRING, description = "Table name or id.") String table,
             @Input(name = "rows", description = "List of rows (each a list of values), one flat list for a single row, or a Data Table (rows only).") Object rows,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
         List<Object> g = grid(rows);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("index", null);
@@ -2815,12 +3242,19 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "The table's rows.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows.")
     public Map<String, Object> excelGetTableRows(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
             @Input(name = "table", type = OoaType.STRING, description = "Table name or id.") String table,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "row_index", type = OoaType.NUMBER, required = false, min = 1, description = "Return only this data row; 1 is the first row under the headers. All rows when empty.") Integer rowIndex) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
         if (rowIndex != null && rowIndex < 1) throw new ActionException(P + ".BAD_INPUT", "row_index starts at 1, not " + rowIndex, "Use 1 for the first row under the headers.");
         Map<String, Object> h = HttpJson.req(P, "GET", book(drive, base, remote, table(table) + "/headerRowRange")).bearer(token).send(ctx).map();
         List<String> cols = new ArrayList<>();
@@ -2840,11 +3274,18 @@ public final class Microsoft365Package {
             description = "Delete an Excel table together with its data.",
             panel = "access_token, remote_path, table | drive, base_url")
     public Map<String, Object> excelDeleteTable(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
             @Input(name = "table", type = OoaType.STRING, description = "Table name or id.") String table,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
         HttpJson.req(P, "DELETE", book(drive, base, remote, table(table))).bearer(token).send(ctx);
         return Map.of();
     }
@@ -2854,14 +3295,23 @@ public final class Microsoft365Package {
             panel = "access_token, remote_path, table, sheet, start_cell | include_headers, drive, base_url")
     @Output(name = "address", type = OoaType.STRING, description = "The range that was written.")
     public Map<String, Object> excelWriteDataTable(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
-            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, required = false, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
             @Input(name = "table", type = OoaType.TABLE, description = "Data to write.") Map<String, Object> table,
             @Input(name = "start_cell", type = OoaType.STRING, required = false, defaultValue = "\"A1\"", description = "Top-left cell.") String start,
             @Input(name = "include_headers", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Write the column names as the first row.") boolean headers,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        ApiSession __xs = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");   // G3: an open workbook fills the book, sheet and cell
+        remote = ApiSession.text(__xs, "remote_path", remote);
+        ApiSession.require(P, remote, "remote path");
+        if (__xs != null && (drive == null || drive.isBlank() || drive.equals("me/drive"))) drive = ApiSession.text(__xs, "drive", null) == null ? drive : ApiSession.text(__xs, "drive", null);
+        sheet = ApiSession.text(__xs, "sheet", sheet);
+        ApiSession.require(P, sheet, "sheet");
         List<Object> g = tableMatrix(table, headers);
         if (g.isEmpty() || list(g.get(0)).isEmpty()) throw new ActionException(P + ".NO_VALUES", "The Data Table is empty", "Check that the table has columns and rows.");
         String address = spanFrom(start, g);
@@ -2916,7 +3366,7 @@ public final class Microsoft365Package {
             panel = "access_token, event_id, start, end, time_zone, subject, body, location, [Change the reminder: reminder_minutes], [Change all day: all_day], [Change the repeat: recurrence, recurrence_interval, recurrence_end, recurrence_count, recurrence_days_of_week, recurrence_week_of_month] | html, importance, show_as, sensitivity, categories, mailbox, base_url")
     @Output(name = "web_link", type = OoaType.STRING, description = "Link to open the event in Outlook.")
     public Map<String, Object> updateEvent(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "event_id", type = OoaType.STRING, description = D_EVENT) String id,
             @Input(name = "subject", type = OoaType.STRING, required = false, description = "New title.") String subject,
             @Input(name = "start", type = OoaType.DATETIME, required = false, description = "New start date and time.") LocalDateTime start,
@@ -2942,6 +3392,9 @@ public final class Microsoft365Package {
                     description = "Weekdays the series repeats on. For weekly repeats, instead of the start's weekday; for monthly or yearly repeats, used with recurrence_week_of_month (e.g. the second Tuesday).") List<Object> days,
             @Input(name = "recurrence_week_of_month", type = OoaType.STRING, required = false, enumValues = {"first", "second", "third", "fourth", "last"},
                     description = "For monthly or yearly repeats: which week of the month, with recurrence_days_of_week (or the start's weekday).") String weekOfMonth) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         if (start != null && end != null && !end.isAfter(start) && !Boolean.TRUE.equals(allDay)) throw new ActionException(P + ".BAD_TIMES", "The end must be after the start", "Set the end later than the start.");
         boolean repeat = recurrence != null && !recurrence.isBlank();
         if (!repeat && ((days != null && !days.isEmpty()) || (weekOfMonth != null && !weekOfMonth.isBlank())))
@@ -2998,11 +3451,14 @@ public final class Microsoft365Package {
             description = "Cancel a meeting you organise and send attendees a cancellation note.",
             panel = "access_token, event_id, message | mailbox, base_url")
     public Map<String, Object> cancelEvent(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "event_id", type = OoaType.STRING, description = D_EVENT) String id,
             @Input(name = "message", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Note sent to attendees.") String message,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         HttpJson.req(P, "POST", event(base, mailbox, id) + "/cancel").bearer(token).json(Map.of("comment", message == null ? "" : message)).send(ctx);
         return Map.of();
     }
@@ -3011,10 +3467,13 @@ public final class Microsoft365Package {
             description = "Remove an event from the calendar without sending a cancellation note.",
             panel = "access_token, event_id | mailbox, base_url")
     public Map<String, Object> deleteEvent(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "event_id", type = OoaType.STRING, description = D_EVENT) String id,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         HttpJson.req(P, "DELETE", event(base, mailbox, id)).bearer(token).send(ctx);
         return Map.of();
     }
@@ -3023,13 +3482,16 @@ public final class Microsoft365Package {
             description = "Accept, tentatively accept or decline a meeting invitation, with an optional note to the organiser.",
             panel = "access_token, event_id, response, [Add a note: comment] | send_response, mailbox, base_url")
     public Map<String, Object> respondEvent(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "event_id", type = OoaType.STRING, description = D_EVENT) String id,
             @Input(name = "response", type = OoaType.STRING, enumValues = {"accept", "tentative", "decline"}, description = "accept, tentative or decline.") String response,
             @Input(name = "comment", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Note to the organiser.") String comment,
             @Input(name = "send_response", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Let the organiser know.") boolean send,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String op = switch (response.toLowerCase(Locale.ROOT)) {
             case "accept" -> "accept"; case "tentative" -> "tentativelyAccept"; case "decline" -> "decline";
             default -> throw new ActionException(P + ".BAD_OPTION", "Unknown response '" + response + "'", "Use accept, tentative or decline.");
@@ -3053,12 +3515,15 @@ public final class Microsoft365Package {
             panel = "access_token, event_id, attendees, type | mailbox, base_url")
     @Output(name = "attendees", type = OoaType.LIST, description = "Attendee addresses after the change.")
     public Map<String, Object> addAttendees(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "event_id", type = OoaType.STRING, description = D_EVENT) String id,
             @Input(name = "attendees", description = "Address(es) to invite.") Object add,
             @Input(name = "type", type = OoaType.STRING, required = false, defaultValue = "\"required\"", enumValues = {"required", "optional", "resource"}, description = "required, optional or resource.") String type,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String url = event(base, mailbox, id);
         List<Object> at = currentAttendees(ctx, token, url);
         Set<String> have = new HashSet<>();
@@ -3074,11 +3539,14 @@ public final class Microsoft365Package {
             panel = "access_token, event_id, attendees | mailbox, base_url")
     @Output(name = "attendees", type = OoaType.LIST, description = "Attendee addresses after the change.")
     public Map<String, Object> removeAttendees(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "event_id", type = OoaType.STRING, description = D_EVENT) String id,
             @Input(name = "attendees", description = "Address(es) to remove.") Object remove,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String url = event(base, mailbox, id);
         Set<String> drop = new HashSet<>();
         for (String a : HttpJson.addressList(remove)) drop.add(a.toLowerCase(Locale.ROOT));
@@ -3093,7 +3561,7 @@ public final class Microsoft365Package {
             panel = "access_token, event_id, clear_subject, clear_location, clear_body, clear_reminder, clear_recurrence, clear_all_day | mailbox, base_url")
     @Output(name = "web_link", type = OoaType.STRING, description = "Link to open the event in Outlook.")
     public Map<String, Object> clearEventDetails(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "event_id", type = OoaType.STRING, description = D_EVENT) String id,
             @Input(name = "clear_subject", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Empty the title.") boolean subject,
             @Input(name = "clear_location", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Empty the location.") boolean location,
@@ -3103,6 +3571,9 @@ public final class Microsoft365Package {
             @Input(name = "clear_all_day", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Make an all-day event a timed one, keeping its dates.") boolean allDay,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> ev = new LinkedHashMap<>();
         if (subject) ev.put("subject", "");
         if (location) ev.put("location", Map.of("displayName", ""));
@@ -3128,11 +3599,14 @@ public final class Microsoft365Package {
             panel = "access_token, event_id, file | mailbox, base_url")
     @Output(name = "attachment_id", type = OoaType.STRING, description = "Attachment id.")
     public Map<String, Object> addEventAttachment(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "event_id", type = OoaType.STRING, description = D_EVENT) String id,
             @Input(name = "file", type = OoaType.FILE, description = "File to attach.") String file,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> r = HttpJson.req(P, "POST", event(base, mailbox, id) + "/attachments").bearer(token).json(fileAttachment(ctx, file)).send(ctx).map();
         return Out.of("attachment_id", r.get("id"));
     }
@@ -3149,7 +3623,7 @@ public final class Microsoft365Package {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of suggestions.")
     @Output(name = "reason", type = OoaType.STRING, description = "Why there are no suggestions, when there are none.")
     public Map<String, Object> findMeetingTimes(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "attendees", description = "Attendee address(es).") Object attendees,
             @Input(name = "start", type = OoaType.DATETIME, formerNames = "from", description = "Start of the search period.") LocalDateTime from,
             @Input(name = "end", type = OoaType.DATETIME, formerNames = "to", description = "End of the search period.") LocalDateTime to,
@@ -3159,6 +3633,9 @@ public final class Microsoft365Package {
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "include_outside_working_hours", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also suggest times outside the attendees' working hours.") boolean anyTime) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         if (!to.isAfter(from)) throw new ActionException(P + ".BAD_TIMES", "The end of the period must be after its start", "Set the end of the period later than its start.");
         List<Object> at = new ArrayList<>();
         for (String a : HttpJson.addressList(attendees)) at.add(Map.of("emailAddress", Map.of("address", a), "type", "required"));
@@ -3201,9 +3678,12 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listTeams(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = "me, or a user's id or email address.") String user,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> t : joinedTeams(ctx, token, base, user)) rows.add(new ArrayList<>(Arrays.asList(t.get("id"), t.get("displayName"), t.get("description"))));
         return Map.of("table", Values.table(List.of("id", "name", "description"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
@@ -3214,10 +3694,13 @@ public final class Microsoft365Package {
             panel = "access_token, name | user, base_url")
     @Output(name = "team_id", type = OoaType.STRING, description = "Team id.")
     public Map<String, Object> teamByName(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "name", type = OoaType.STRING, description = "Team display name (not case-sensitive).") String name,
             @Input(name = "user", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = "me, or a user's id or email address.") String user,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         return Map.of("team_id", s(byName(joinedTeams(ctx, token, base, user), name, "team").get("id")));
     }
 
@@ -3227,9 +3710,12 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description, membership_type.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many rows the table has.")
     public Map<String, Object> listChannels(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> c : channels(ctx, token, base, team))
             rows.add(new ArrayList<>(Arrays.asList(c.get("id"), c.get("displayName"), c.get("description"), c.get("membershipType"))));
@@ -3245,11 +3731,14 @@ public final class Microsoft365Package {
             panel = "access_token, (Team: By id = team_id / By name = team_name), name | base_url")
     @Output(name = "channel_id", type = OoaType.STRING, description = "Channel id.")
     public Map<String, Object> channelByName(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, required = false, description = "Team id; or give team_name instead.") String team,
             @Input(name = "name", type = OoaType.STRING, description = "Channel display name (not case-sensitive), e.g. General.") String name,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "team_name", type = OoaType.STRING, required = false, example = "Finance", description = "Team display name (not case-sensitive), among the teams the signed-in user belongs to; used instead of team_id.") String teamName) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         boolean byId = team != null && !team.isBlank(), byTeamName = teamName != null && !teamName.isBlank();
         if (byId == byTeamName) throw new ActionException(P + ".BAD_INPUT", byId ? "Give team_id or team_name, not both" : "A team is required", "Set team_id or team_name.");
         String t = byId ? team.trim() : s(byName(joinedTeams(ctx, token, base, "me"), teamName, "team").get("id"));
@@ -3261,9 +3750,12 @@ public final class Microsoft365Package {
             panel = "access_token, team_id | base_url")
     @Output(name = "team", type = OoaType.DICTIONARY, description = "id, name, description, visibility, archived, web_url.")
     public Map<String, Object> teamDetails(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> t = HttpJson.req(P, "GET", g(base) + "/teams/" + HttpJson.enc(team)).bearer(token).send(ctx).map();
         Map<String, Object> e = new LinkedHashMap<>();
         e.put("id", t.get("id"));
@@ -3280,10 +3772,13 @@ public final class Microsoft365Package {
             panel = "access_token, team_id, channel_id | base_url")
     @Output(name = "channel", type = OoaType.DICTIONARY, description = "id, name, description, membership_type, email, created, web_url.")
     public Map<String, Object> channelDetails(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
             @Input(name = "channel_id", type = OoaType.STRING, description = "Channel id.") String channel,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> c = HttpJson.req(P, "GET", g(base) + "/teams/" + HttpJson.enc(team) + "/channels/" + HttpJson.enc(channel)).bearer(token).send(ctx).map();
         Map<String, Object> e = new LinkedHashMap<>();
         e.put("id", c.get("id"));
@@ -3301,9 +3796,12 @@ public final class Microsoft365Package {
             panel = "access_token, user | base_url")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "id, name, email, user_principal_name, job_title, department, office, mobile_phone.")
     public Map<String, Object> getUser(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = "me, or a user's id or email address.") String user,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> u = HttpJson.req(P, "GET", root(base, user) + "?$select=id,displayName,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone")
                 .bearer(token).send(ctx).map();
         Map<String, Object> e = new LinkedHashMap<>();
@@ -3332,7 +3830,7 @@ public final class Microsoft365Package {
     @Output(name = "message_id", type = OoaType.STRING, description = "Message id.")
     @Output(name = "chat_id", type = OoaType.STRING, description = "Chat the message went to.")
     public Map<String, Object> sendChatMessage(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "chat_id", type = OoaType.STRING, required = false, description = "Chat id, e.g. from Create chat; or give to instead.") String chat,
             @Input(name = "message", type = OoaType.STRING, description = "Message text (HTML allowed when html is true).") String message,
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Message is HTML.") boolean html,
@@ -3340,6 +3838,9 @@ public final class Microsoft365Package {
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "to", type = OoaType.STRING, required = false, example = "ann@contoso.com", description = "Person's email address or user id; their one-on-one chat with the signed-in user is used, or started. Used instead of chat_id.") String to,
             @Input(name = "mentions", type = OoaType.LIST, required = false, example = "[\"ann@contoso.com\"]", description = "People in the chat to @mention, by email address or user id. Write @[ann@contoso.com] in the message where a mention goes; others are put at the start.") List<Object> mentions) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         boolean byChat = chat != null && !chat.isBlank(), byPerson = to != null && !to.isBlank();
         if (byChat == byPerson) throw new ActionException(P + ".BAD_INPUT", byChat ? "Give chat_id or to, not both" : "A chat or a person is required", "Set chat_id, or to with an email address.");
         Map<String, Object> body = chatBody(message, html, importance);
@@ -3354,9 +3855,12 @@ public final class Microsoft365Package {
             panel = "access_token, user | base_url")
     @Output(name = "chat_id", type = OoaType.STRING, description = "Chat id for Send chat message.")
     public Map<String, Object> createChat(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, description = "Other person's id or email address.") String user,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String me = s(HttpJson.req(P, "GET", g(base) + "/me?$select=id").bearer(token).send(ctx).map().get("id"));
         List<Object> members = new ArrayList<>();
         for (String u : List.of(me, user.trim()))
@@ -3390,6 +3894,9 @@ public final class Microsoft365Package {
             @Input(name = "site", type = OoaType.STRING, required = false, description = D_SITE) String site,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         List<Object> rows = new ArrayList<>();
         SharePointSite sp = spSite(ctx, session);
         if (sp != null) {   // G3: SharePoint's own REST API
@@ -3428,6 +3935,9 @@ public final class Microsoft365Package {
             @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session,
             @Input(name = "match", type = OoaType.DICTIONARY, required = false, example = "{\"Status\":\"Open\",\"Priority\":1}",
                     description = "Only items whose fields have these values, all of them (G3); combined with filter when both are given.") Map<String, Object> match) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         SharePointSite sp = spSite(ctx, session);
         filter = withMatch(filter, match, sp == null ? "fields/" : "");
         if (sp != null) return restItems(ctx, sp, list, filter, columns, max);
@@ -3527,6 +4037,9 @@ public final class Microsoft365Package {
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field internal names and values, e.g. {\"Title\":\"Laptop\",\"Status\":\"Open\"}.") Map<String, Object> fields,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         SharePointSite sp = spSite(ctx, session);
         if (sp != null) {
             Map<String, Object> body = new LinkedHashMap<>(Map.of("__metadata", Map.of("type", sp.itemType(ctx, list))));
@@ -3553,6 +4066,9 @@ public final class Microsoft365Package {
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field internal names and their new values.") Map<String, Object> fields,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         SharePointSite sp = spSite(ctx, session);
         if (sp != null) {
             Map<String, Object> body = new LinkedHashMap<>(Map.of("__metadata", Map.of("type", sp.itemType(ctx, list))));
@@ -3575,6 +4091,9 @@ public final class Microsoft365Package {
             @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         SharePointSite sp = spSite(ctx, session);
         if (sp != null) { sp.call(ctx, "POST", SharePointSite.list(list) + "/items(" + itemNo(id) + ")/recycle()", null, null, null); return Map.of(); }
         HttpJson.req(P, "DELETE", spList(base, need(site, "site"), list) + "/items/" + HttpJson.enc(id)).bearer(token).send(ctx);
@@ -3618,6 +4137,8 @@ public final class Microsoft365Package {
             @Input(name = "windows_password", type = OoaType.CREDENTIAL, required = false, description = "Windows password from the vault.") Object password,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"sharepoint\"", description = "Session name the later SharePoint steps use.") String session,
             @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same site session.") boolean share) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
         // an access token, else a Windows user name and password (NTLM), else the runner's own Windows account (Kerberos or NTLM)
         SharePointSite sp = token != null ? new SharePointSite(siteUrl, token, null, null, null, null)
                 : user != null && !user.isBlank() ? new SharePointSite(siteUrl, null, "user_password", user.strip(), domain, password)
@@ -3648,6 +4169,9 @@ public final class Microsoft365Package {
             @Input(name = "description", type = OoaType.STRING, required = false, description = "A description shown on the list.") String description,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String t = template == null || template.isBlank() ? "genericList" : template.strip();
         int code = SharePointSite.template(t);
         SharePointSite sp = spSite(ctx, session);
@@ -3674,6 +4198,9 @@ public final class Microsoft365Package {
             @Input(name = "description", type = OoaType.STRING, required = false, description = "The new description; unchanged when empty.") String description,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         boolean rename = newName != null && !newName.isBlank(), describe = description != null && !description.isBlank();
         if (!rename && !describe) throw new ActionException(P + ".BAD_INPUT", "Nothing to change", "Give new_name, description or both.");
         SharePointSite sp = spSite(ctx, session);
@@ -3700,6 +4227,9 @@ public final class Microsoft365Package {
             @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
             @Input(name = "session", type = OoaType.STRING, required = false, description = D_SP_SESSION) String session) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         SharePointSite sp = spSite(ctx, session);
         if (sp != null) { sp.call(ctx, "POST", SharePointSite.list(list) + "/recycle()", null, null, null); return Map.of(); }
         HttpJson.req(P, "DELETE", spList(base, need(site, "site"), list)).bearer(token).send(ctx);
@@ -3738,7 +4268,7 @@ public final class Microsoft365Package {
             panel = "access_token, site, list, column_name, type, [Choices: choices], required | display_name, lookup_list, lookup_column, base_url")
     @Output(name = "column_id", type = OoaType.STRING, description = "The new column's id.")
     public Map<String, Object> addListColumn(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "list", type = OoaType.STRING, description = D_LIST) String list,
             @Input(name = "column_name", type = OoaType.STRING, example = "Status", description = "The column's internal name (no spaces is safest).") String name,
@@ -3751,6 +4281,9 @@ public final class Microsoft365Package {
             @Input(name = "lookup_list", type = OoaType.STRING, required = false, visibleWhen = "type=lookup", description = "Id of the list a lookup column reads from.") String lookupList,
             @Input(name = "lookup_column", type = OoaType.STRING, required = false, visibleWhen = "type=lookup", description = "Column of that list to show, e.g. Title.") String lookupColumn,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", need(name, "column_name"));
         body.put("displayName", displayName == null || displayName.isBlank() ? name.strip() : displayName.strip());
@@ -3861,11 +4394,14 @@ public final class Microsoft365Package {
     @Output(name = "channel_id", type = OoaType.STRING, description = "Id of the new channel.")
     @Output(name = "web_url", type = OoaType.STRING, description = "Link to open the channel in Teams.")
     public Map<String, Object> createChannel(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
             @Input(name = "name", type = OoaType.STRING, description = "Channel name, up to 50 characters, unique in the team.") String name,
             @Input(name = "description", type = OoaType.STRING, required = false, description = "What the channel is for.") String description,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String t = need(team, "team_id"), n = need(name, "name");
         if (n.length() > 50) throw new ActionException(P + ".BAD_INPUT", "A channel name can have at most 50 characters", "Shorten the name.");
         if (n.matches(".*[~#%&*{}+/\\\\:<>?|'\"].*") || n.startsWith("_") || n.startsWith("."))
@@ -3884,12 +4420,15 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, created, from, subject, text, body, content_type, reply_to_id, web_url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages.")
     public Map<String, Object> channelMessages(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
             @Input(name = "channel_id", type = OoaType.STRING, description = "Channel id.") String channel,
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Only posts created at or after this time (UTC); all posts when empty.") LocalDateTime since,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Most posts to return.") int max,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         if (max < 1) throw new ActionException(P + ".BAD_INPUT", "max_results must be at least 1", "Set max_results to 1 or more.");
         String first = channelUrl(base, team, channel) + "/messages?$top=" + Math.min(50, max);
         String cutoff = since == null ? null : UTC.format(since);
@@ -3923,13 +4462,16 @@ public final class Microsoft365Package {
             panel = "access_token, team_id, channel_id, message_id, message | html, base_url")
     @Output(name = "reply_id", type = OoaType.STRING, description = "Id of the reply.")
     public Map<String, Object> replyToMessage(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
             @Input(name = "channel_id", type = OoaType.STRING, description = "Channel id.") String channel,
             @Input(name = "message_id", type = OoaType.STRING, description = "Id of the post to reply to, e.g. from Get channel messages.") String messageId,
             @Input(name = "message", type = OoaType.STRING, description = "Reply text (HTML allowed when html is true).") String message,
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Reply is HTML.") boolean html,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String url = channelUrl(base, team, channel) + "/messages/" + HttpJson.enc(need(messageId, "message_id")) + "/replies";
         if (message == null || message.isBlank()) throw new ActionException(P + ".BAD_INPUT", "The reply has no text", "Fill in message.");
         Map<String, Object> r = HttpJson.req(P, "POST", url).bearer(token).json(chatBody(message, html, "normal")).send(ctx).map();
@@ -3961,9 +4503,12 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, title, created, group_id.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of plans.")
     public Map<String, Object> listPlans(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "group_id", type = OoaType.STRING, description = "Microsoft 365 group id; a team's id is its group id.") String group,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> p : pages(ctx, token, g(base) + "/groups/" + HttpJson.enc(need(group, "group_id")) + "/planner/plans", 0, null)) {
             Object owner = at(p, "container", "containerId");
@@ -3978,11 +4523,14 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, title, bucket_id, percent_complete, due, start, created, completed, assigned_to, priority.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of tasks.")
     public Map<String, Object> listTasks(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "plan_id", type = OoaType.STRING, description = "Plan id, e.g. from List plans.") String plan,
             @Input(name = "bucket_id", type = OoaType.STRING, required = false, description = "Only tasks in this bucket; all buckets when empty.") String bucket,
             @Input(name = "assigned_to", type = OoaType.STRING, required = false, description = "Only tasks assigned to this user id; everyone's when empty.") String assignee,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String p = need(plan, "plan_id");
         String who = assignee == null || assignee.isBlank() ? null : userIds(assignee.trim()).get(0);
         List<Object> rows = new ArrayList<>();
@@ -4002,7 +4550,7 @@ public final class Microsoft365Package {
             panel = "access_token, plan_id, bucket_id, title, due_date, assigned_to | base_url")
     @Output(name = "task_id", type = OoaType.STRING, description = "Id of the new task.")
     public Map<String, Object> createTask(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "plan_id", type = OoaType.STRING, description = "Plan id, e.g. from List plans.") String plan,
             @Input(name = "bucket_id", type = OoaType.STRING, required = false, description = "Bucket (column) to put the task in; leave empty for none.") String bucket,
             @Input(name = "title", type = OoaType.STRING, description = "Task title.") String title,
@@ -4010,6 +4558,9 @@ public final class Microsoft365Package {
             @Input(name = "assigned_to", type = OoaType.LIST, required = false, example = "[\"0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0\"]",
                     description = "User ids of the people to assign; Get user gives a person's id.") List<Object> assignees,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("planId", need(plan, "plan_id"));
         if (bucket != null && !bucket.isBlank()) body.put("bucketId", bucket.trim());
@@ -4026,12 +4577,15 @@ public final class Microsoft365Package {
             description = "Change a Planner task's title, progress or due date; fields left empty keep their values.",
             panel = "access_token, task_id, title, percent_complete, due_date | base_url")
     public Map<String, Object> updateTask(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "task_id", type = OoaType.STRING, description = "Task id, e.g. from List tasks.") String task,
             @Input(name = "title", type = OoaType.STRING, required = false, description = "New title.") String title,
             @Input(name = "percent_complete", type = OoaType.NUMBER, required = false, description = "Progress from 0 to 100; Planner shows 0 as not started, 1 to 99 as in progress and 100 as completed.") Integer percent,
             @Input(name = "due_date", type = OoaType.DATETIME, required = false, description = "New due date (UTC).") LocalDateTime due,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String url = g(base) + "/planner/tasks/" + HttpJson.enc(need(task, "task_id"));
         if (percent != null && (percent < 0 || percent > 100)) throw new ActionException(P + ".BAD_INPUT", "percent_complete must be from 0 to 100", "Set percent_complete between 0 and 100.");
         Map<String, Object> body = new LinkedHashMap<>();
@@ -4096,7 +4650,7 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, user_principal_name, email, department, job_title, enabled, last_sign_in.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many users were found.")
     public Map<String, Object> entraFindUsers(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "starts_with", type = OoaType.STRING, required = false, example = "qa.", description = "Sign-in name or display name starts with this text; all users when empty.") String startsWith,
             @Input(name = "department", type = OoaType.STRING, required = false, description = "Only users in this department.") String department,
             @Input(name = "enabled_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out disabled accounts.") boolean enabledOnly,
@@ -4104,6 +4658,9 @@ public final class Microsoft365Package {
             @Input(name = "filter", type = OoaType.STRING, required = false, example = "jobTitle eq 'Analyst'", description = "An extra OData filter, joined with the others by 'and'.") String filter,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "Most users to return.") int max,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         List<String> f = new ArrayList<>();
         if (startsWith != null && !startsWith.isBlank())
             f.add("(startswith(userPrincipalName," + odataText(startsWith.strip()) + ") or startswith(displayName," + odataText(startsWith.strip()) + "))");
@@ -4123,10 +4680,13 @@ public final class Microsoft365Package {
     @Output(name = "user", type = OoaType.DICTIONARY, description = "id, name, user_principal_name, email, department, job_title, enabled, last_sign_in, manager, on_premises_dn.")
     @Output(name = "enabled", type = OoaType.BOOLEAN, description = "Whether the account can sign in.")
     public Map<String, Object> entraGetUser(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, description = D_ENTRA_USER) String user,
             @Input(name = "include_sign_in", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also read the last sign-in time (needs the AuditLog.Read.All permission).") boolean signIn,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String path = graphRoot(base) + "/users/" + HttpJson.enc(required(user, "user"));
         Map<String, Object> u = HttpJson.req(P, "GET", path + "?$select=" + USER_SELECT + (signIn ? ",signInActivity" : "")).bearer(token).send(ctx).map();
         Object manager = null;
@@ -4145,7 +4705,7 @@ public final class Microsoft365Package {
             panel = "access_token, display_name, user_principal_name, password, account_enabled | mail_nickname, department, job_title, force_password_change, fields, base_url")
     @Output(name = "user_id", type = OoaType.STRING, description = "The new user's object id.")
     public Map<String, Object> entraCreateUser(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "display_name", type = OoaType.STRING, description = "Display name.") String name,
             @Input(name = "user_principal_name", type = OoaType.STRING, example = "ann.lee@contoso.com", description = "Sign-in name in one of the tenant's domains.") String upn,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "First password, from the vault.") Object password,
@@ -4156,6 +4716,9 @@ public final class Microsoft365Package {
             @Input(name = "force_password_change", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Ask for a new password at the first sign-in.") boolean force,
             @Input(name = "fields", type = OoaType.DICTIONARY, required = false, example = "{\"usageLocation\": \"IN\"}", description = "More Graph user properties to set.") Map<String, Object> fields,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String u = required(upn, "user_principal_name");
         if (!u.contains("@")) throw new ActionException(P + ".BAD_INPUT", "'" + u + "' is not a sign-in name", "Use name@domain, with one of the tenant's domains.");
         if (!(password instanceof SecureString pw) || pw.reveal().isBlank()) throw new ActionException(P + ".BAD_INPUT", "A first password from the vault is required", "Map password to a vault credential.");
@@ -4176,13 +4739,16 @@ public final class Microsoft365Package {
             description = "Enable or disable an Entra ID account, or change its department, job title or other properties; empty fields stay as they are.",
             panel = "access_token, user, account | department, job_title, fields, base_url")
     public Map<String, Object> entraUpdateUser(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, description = D_ENTRA_USER) String user,
             @Input(name = "account", type = OoaType.STRING, required = false, defaultValue = "\"unchanged\"", enumValues = {"unchanged", "enable", "disable"}, description = "Enable or disable the account.") String account,
             @Input(name = "department", type = OoaType.STRING, required = false, description = "New department.") String department,
             @Input(name = "job_title", type = OoaType.STRING, required = false, description = "New job title.") String jobTitle,
             @Input(name = "fields", type = OoaType.DICTIONARY, required = false, example = "{\"officeLocation\": \"Pune\"}", description = "More Graph user properties to change.") Map<String, Object> fields,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         Map<String, Object> body = new LinkedHashMap<>();
         if (fields != null) body.putAll(fields);
         if ("enable".equals(account)) body.put("accountEnabled", true);
@@ -4198,9 +4764,12 @@ public final class Microsoft365Package {
             description = "Delete an Entra ID user; it stays restorable from Deleted users for 30 days.",
             panel = "access_token, user | base_url")
     public Map<String, Object> entraDeleteUser(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, description = D_ENTRA_USER) String user,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         HttpJson.req(P, "DELETE", graphRoot(base) + "/users/" + HttpJson.enc(required(user, "user"))).bearer(token).send(ctx);
         return Map.of();
     }
@@ -4212,10 +4781,13 @@ public final class Microsoft365Package {
     @Output(name = "names", type = OoaType.LIST, description = "The groups' display names.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many groups.")
     public Map<String, Object> entraUserGroups(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, description = D_ENTRA_USER) String user,
             @Input(name = "nested", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also the groups it belongs to through other groups.") boolean nested,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String url = graphRoot(base) + "/users/" + HttpJson.enc(required(user, "user")) + (nested ? "/transitiveMemberOf" : "/memberOf") + "?$select=id,displayName,mail,securityEnabled";
         List<Object> rows = new ArrayList<>(), names = new ArrayList<>();
         for (Map<String, Object> g : pages(ctx, token, url, 0, null)) {
@@ -4232,10 +4804,13 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, type, name, user_principal_name.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many members.")
     public Map<String, Object> entraGroupMembers(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "group", type = OoaType.STRING, description = D_ENTRA_GROUP) String group,
             @Input(name = "nested", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also the members of groups inside this group.") boolean nested,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String url = graphRoot(base) + "/groups/" + HttpJson.enc(groupId(ctx, token, base, group)) + (nested ? "/transitiveMembers" : "/members");
         List<Object> rows = new ArrayList<>();
         for (Map<String, Object> m : pages(ctx, token, url, 0, null)) {
@@ -4250,10 +4825,13 @@ public final class Microsoft365Package {
             panel = "access_token, group, member | base_url")
     @Output(name = "added", type = OoaType.BOOLEAN, description = "True when it was added; false when it was a member already.")
     public Map<String, Object> entraAddGroupMember(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "group", type = OoaType.STRING, description = D_ENTRA_GROUP) String group,
             @Input(name = "member", type = OoaType.STRING, description = "The user's object id or sign-in name, or another group's object id.") String member,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String gid = groupId(ctx, token, base, group), mid = userId(ctx, token, base, member);
         try {
             HttpJson.req(P, "POST", graphRoot(base) + "/groups/" + HttpJson.enc(gid) + "/members/$ref").bearer(token)
@@ -4270,10 +4848,13 @@ public final class Microsoft365Package {
             panel = "access_token, group, member | base_url")
     @Output(name = "removed", type = OoaType.BOOLEAN, description = "True when it was removed; false when it was not a member.")
     public Map<String, Object> entraRemoveGroupMember(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "group", type = OoaType.STRING, description = D_ENTRA_GROUP) String group,
             @Input(name = "member", type = OoaType.STRING, description = "The user's object id or sign-in name, or another group's object id.") String member,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         String gid = groupId(ctx, token, base, group), mid = userId(ctx, token, base, member);
         try {
             HttpJson.req(P, "DELETE", graphRoot(base) + "/groups/" + HttpJson.enc(gid) + "/members/" + HttpJson.enc(mid) + "/$ref").bearer(token).send(ctx);
@@ -4290,12 +4871,15 @@ public final class Microsoft365Package {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, mail, security, description.")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many groups were found.")
     public Map<String, Object> entraFindGroups(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "starts_with", type = OoaType.STRING, required = false, example = "GRP-QA-", description = "Display name starts with this text; all groups when empty.") String startsWith,
             @Input(name = "security_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Security groups only.") boolean securityOnly,
             @Input(name = "filter", type = OoaType.STRING, required = false, description = "An extra OData filter, joined with the others by 'and'.") String filter,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "Most groups to return.") int max,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         List<String> f = new ArrayList<>();
         if (startsWith != null && !startsWith.isBlank()) f.add("startswith(displayName," + odataText(startsWith.strip()) + ")");
         if (securityOnly) f.add("securityEnabled eq true");
@@ -4312,14 +4896,179 @@ public final class Microsoft365Package {
             description = "End every sign-in session of a user (e.g. when access is removed); apps ask the user to sign in again.",
             panel = "access_token, user | base_url")
     public Map<String, Object> entraSignOutEverywhere(ActionContext ctx,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
             @Input(name = "user", type = OoaType.STRING, description = D_ENTRA_USER) String user,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");   // G3: an open Microsoft 365 session signs the step in
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
         HttpJson.req(P, "POST", graphRoot(base) + "/users/" + HttpJson.enc(required(user, "user")) + "/revokeSignInSessions").bearer(token).json(Map.of()).send(ctx);
         return Map.of();
     }
 
     private static int status(ActionException e) {
         return e.details() != null && e.details().get("status") instanceof Number n ? n.intValue() : 0;
+    }
+
+    // ------------------------------------------------------------------ G3 (AA parity): sign in once, open a workbook once
+
+    static final String M365_SESSION = "m365", EXCEL_SESSION = "m365_excel";
+    private static final String GRAPH_URL = "https://graph.microsoft.com/v1.0";
+
+    /** The step's own address unless it is the default and an open session names another (a national cloud, say). */
+    static String graphBase(ApiSession s, String base) {
+        if (base != null && !base.isBlank() && !base.strip().equals(GRAPH_URL)) return base;
+        String kept = ApiSession.text(s, "base_url", null);
+        return kept != null ? kept : base == null || base.isBlank() ? GRAPH_URL : base;
+    }
+
+    @Action(id = "connect", name = "Connect", category = "Connection",
+            description = "Sign in to Microsoft 365 once: the steps after it leave the access token (and the Graph address) empty and use this sign-in (G3).",
+            panel = "access_token | base_url, session, share")
+    public Map<String, Object> connect(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session's name; the default Microsoft 365 session when empty.") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same sign-in.") boolean share) {
+        Map<String, Object> v = new LinkedHashMap<>();
+        v.put("access_token", token);
+        v.put("base_url", base);
+        ApiSession.open(ctx, session, M365_SESSION, "m365", v, share);
+        return Map.of();
+    }
+
+    @Action(id = "disconnect", name = "Disconnect", category = "Connection",
+            description = "Forget the Microsoft 365 sign-in; later steps then need their own access token (G3).", panel = "session")
+    @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when a sign-in was kept.")
+    public Map<String, Object> disconnect(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The session; the default Microsoft 365 session when empty.") String session) {
+        return Map.of("closed", ApiSession.close(ctx, session, M365_SESSION));
+    }
+
+    @Action(id = "excel_open", name = "Open workbook", category = "Excel online", capabilities = "network",
+            description = "Open a workbook once: the Excel online steps after it may leave the workbook, the sheet and the cell empty and use the open one (G3).",
+            panel = "access_token, remote_path, sheet | drive, base_url, share")
+    @Output(name = "sheets", type = OoaType.LIST, description = "The workbook's worksheet names.")
+    @Output(name = "active_sheet", type = OoaType.STRING, description = "The sheet the steps after it use.")
+    public Map<String, Object> excelOpen(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "The sheet to start on; the first sheet when empty.") String sheet,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Agents this one runs use the same open workbook.") boolean share) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        String d = drive == null || drive.isBlank() ? "me/drive" : drive.strip();
+        Map<String, Object> r = HttpJson.req(P, "GET", book(d, base, remote, "/workbook/worksheets")).bearer(token).send(ctx).map();
+        List<Object> names = new ArrayList<>();
+        for (Object o : r.get("value") instanceof List<?> l ? l : List.of()) if (o instanceof Map<?, ?> w) names.add(String.valueOf(w.get("name")));
+        String active = sheet == null || sheet.isBlank() ? (names.isEmpty() ? "" : String.valueOf(names.get(0))) : sheet.strip();
+        if (!names.isEmpty() && !names.contains(active))
+            throw new ActionException(P + ".NO_SHEET", "The workbook has no sheet named '" + active + "'", "Sheets: " + String.join(", ", names.stream().map(String::valueOf).toList()) + ".");
+        keepBook(ctx, remote, d, active, "A1", share);
+        return Map.of("sheets", names, "active_sheet", active);
+    }
+
+    @Action(id = "excel_activate_sheet", name = "Go to sheet", category = "Excel online",
+            description = "Make another sheet of the open workbook the one the steps after it use (G3).", panel = "sheet")
+    public Map<String, Object> excelActivateSheet(ActionContext ctx,
+            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet) {
+        ApiSession x = openBook(ctx);
+        keepBook(ctx, x.text("remote_path"), x.text("drive"), sheet.strip(), "A1", false);
+        return Map.of();
+    }
+
+    @Action(id = "excel_go_to_cell", name = "Go to cell", category = "Excel online",
+            description = "Make a cell of the open workbook the active cell: Get cell and Set cell use it when their cell is empty (G3).",
+            panel = "(Go to: A cell = cell / Next to the active cell = direction)")
+    @Output(name = "cell", type = OoaType.STRING, description = "The active cell now.")
+    public Map<String, Object> excelGoToCell(ActionContext ctx,
+            @Input(name = "cell", type = OoaType.STRING, required = false, example = "B4", description = "Cell address.") String cell,
+            @Input(name = "direction", type = OoaType.STRING, required = false, enumValues = {"down", "up", "right", "left"},
+                    description = "Or one cell down, up, right or left of the active cell.") String direction) {
+        ApiSession x = openBook(ctx);
+        String now = x.text("cell") == null ? "A1" : x.text("cell");
+        String next = cell != null && !cell.isBlank() ? cell.strip().toUpperCase(Locale.ROOT) : step(now, direction);
+        cell(next);
+        keepBook(ctx, x.text("remote_path"), x.text("drive"), x.text("sheet"), next, false);
+        return Map.of("cell", next);
+    }
+
+    @Action(id = "excel_close", name = "Close workbook", category = "Excel online",
+            description = "Forget the open workbook; later Excel online steps then name their own (G3).", panel = "")
+    @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when a workbook was open.")
+    public Map<String, Object> excelClose(ActionContext ctx) {
+        return Map.of("closed", ApiSession.close(ctx, null, EXCEL_SESSION));
+    }
+
+    private static ApiSession openBook(ActionContext ctx) {
+        ApiSession x = ApiSession.find(ctx, null, EXCEL_SESSION, "m365_excel");
+        if (x == null) throw new ActionException(P + ".NO_WORKBOOK", "No workbook is open", "Add an Open workbook step (Excel online) before this step.");
+        return x;
+    }
+
+    private static void keepBook(ActionContext ctx, String remote, String drive, String sheet, String cell, boolean share) {
+        Map<String, Object> v = new LinkedHashMap<>();
+        v.put("remote_path", remote); v.put("drive", drive); v.put("sheet", sheet); v.put("cell", cell);
+        ApiSession.open(ctx, null, EXCEL_SESSION, "m365_excel", v, share);
+    }
+
+    /** The cell one step away: B4 down is B5; never past row 1 or column A. */
+    static String step(String cell, String direction) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("([A-Z]+)(\\d+)").matcher(cell.toUpperCase(Locale.ROOT));
+        if (!m.matches()) throw new ActionException(P + ".BAD_CELL", "The active cell '" + cell + "' is not a cell address", "Use Go to cell with an address such as B4.");
+        int col = 0;
+        for (char c : m.group(1).toCharArray()) col = col * 26 + (c - 'A' + 1);
+        int row = Integer.parseInt(m.group(2));
+        switch (direction == null ? "" : direction.strip().toLowerCase(Locale.ROOT)) {
+            case "down" -> row++;
+            case "up" -> row = Math.max(1, row - 1);
+            case "right" -> col++;
+            case "left" -> col = Math.max(1, col - 1);
+            default -> throw new ActionException(P + ".BAD_DIRECTION", "Give a cell or a direction", "Directions: down, up, right, left.");
+        }
+        StringBuilder letters = new StringBuilder();
+        for (int c = col; c > 0; c = (c - 1) / 26) letters.insert(0, (char) ('A' + (c - 1) % 26));
+        return letters + String.valueOf(row);
+    }
+
+    @LoopIterator(id = "chat_messages", name = "Each chat message (Teams)",
+            description = "Go through the messages of one Teams chat, newest first, one a turn: id, from, text, created, attachments (G3).")
+    public Iterable<Object> eachChatMessage(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object token,
+            @Input(name = "chat_id", type = OoaType.STRING, description = "The chat's id (from Each chat).") String chat,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Only messages created at or after this time (UTC); all when empty.") LocalDateTime since,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 1, description = "Most messages to go through.") int max,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        ApiSession __ms = ApiSession.find(ctx, null, M365_SESSION, "m365");
+        token = ApiSession.value(__ms, "access_token", token);
+        base = graphBase(__ms, base);
+        if (chat == null || chat.isBlank()) throw new ActionException(P + ".NO_CHAT", "The chat id is missing", "Take it from the id of Each chat.");
+        List<Object> out = new ArrayList<>();
+        String url = base.replaceAll("/+$", "") + "/chats/" + java.net.URLEncoder.encode(chat.strip(), java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20")
+                + "/messages?$top=" + Math.min(Math.max(max, 1), 50) + "&$orderby=createdDateTime%20desc";
+        boolean done = false;
+        while (url != null && !done && out.size() < max) {
+            Map<String, Object> page = HttpJson.req(P, "GET", url).bearer(token).send(ctx).map();
+            for (Object o : page.get("value") instanceof List<?> l ? l : List.of()) {
+                if (out.size() >= max || !(o instanceof Map<?, ?> c)) { done = true; break; }
+                String created = c.get("createdDateTime") == null ? "" : String.valueOf(c.get("createdDateTime"));
+                if (since != null && !created.isEmpty() && java.time.OffsetDateTime.parse(created).toLocalDateTime().isBefore(since)) { done = true; break; }
+                if (!"message".equals(String.valueOf(c.get("messageType")))) continue;   // leave out system events (someone joined, renamed)
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", c.get("id"));
+                Object from = c.get("from") instanceof Map<?, ?> f && f.get("user") instanceof Map<?, ?> u ? u.get("displayName") : null;
+                row.put("from", from == null ? "" : from);
+                Object text = c.get("body") instanceof Map<?, ?> b ? b.get("content") : null;
+                row.put("text", text == null ? "" : String.valueOf(text).replaceAll("<[^>]+>", "").strip());
+                row.put("created", created);
+                row.put("attachments", c.get("attachments") instanceof List<?> a ? BigDecimal.valueOf(a.size()) : BigDecimal.ZERO);
+                out.add(row);
+            }
+            url = page.get("@odata.nextLink") instanceof String n ? n : null;
+        }
+        return out;
     }
 }

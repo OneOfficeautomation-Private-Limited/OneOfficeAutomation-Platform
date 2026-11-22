@@ -100,7 +100,7 @@ class SharePointParityG3Test {
             assertEquals(List.of("Open", "Closed"), ((Map<?, ?>) col.get("choice")).get("choices"));
             assertEquals(true, col.get("required"));
             assertEquals("M365.BAD_INPUT", assertThrows(ActionException.class, () -> pkg.addListColumn(ctx, tok, "site1", "L2", "S", "choice", null, false, null, null, null, f.base())).code());
-            pkg.getListItems(ctx, tok, "site1", "L2", null, null, 10, f.base(), false, null, new LinkedHashMap<>(Map.of("Status", "Open", "Priority", 2)));
+            pkg.getListItems(ctx, tok, "site1", "L2", null, null, 10, f.base(), false, null, orderedMatch());
             assertTrue(f.last("GET", site + "/lists/L2/items").q().contains("$filter=fields/Status eq 'Open' and fields/Priority eq 2"), f.last("GET", site + "/lists/L2/items").q());
             pkg.deleteList(ctx, tok, "site1", "L2", f.base(), null);
             assertFalse(f.all("DELETE", site + "/lists/L2").isEmpty());
@@ -112,4 +112,6 @@ class SharePointParityG3Test {
         assertEquals("Title eq 'O''Neil' and Done eq true", Microsoft365Package.withMatch(" ", new LinkedHashMap<>(Map.of("Title", "O'Neil")) {{ put("Done", true); }}, ""));
         assertEquals("x eq 1", Microsoft365Package.withMatch("x eq 1", null, "fields/"));
     }
+    /** Status first, then Priority: the filter keeps the order the step gives. */
+    static Map<String, Object> orderedMatch() { Map<String, Object> m = new LinkedHashMap<>(); m.put("Status", "Open"); m.put("Priority", 2); return m; }
 }
