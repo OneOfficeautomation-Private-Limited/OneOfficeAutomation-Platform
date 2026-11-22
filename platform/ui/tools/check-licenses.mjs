@@ -3,7 +3,7 @@
 // does not ship, and the licence puts no terms on the files they produce.
 import { readFileSync } from "node:fs";
 
-const PERMISSIVE = ["MIT", "ISC", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "0BSD", "BlueOak-1.0.0", "CC0-1.0", "Python-2.0", "MIT-0"];
+const PERMISSIVE = ["MIT", "ISC", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "0BSD", "BlueOak-1.0.0", "CC0-1.0", "Python-2.0", "MIT-0", "OFL-1.1"];   // OFL-1.1: fonts (Inter), free to bundle and ship
 const BUILD_ONLY = [...PERMISSIVE, "MPL-2.0"];
 const lock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
 

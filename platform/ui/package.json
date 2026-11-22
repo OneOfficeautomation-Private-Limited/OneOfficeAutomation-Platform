@@ -16,6 +16,7 @@
     "peers": "node tools/check-peers.mjs"
   },
   "dependencies": {
+    "@fontsource/inter": "5.1.0",
     "@radix-ui/react-dialog": "1.3.1",
     "@radix-ui/react-dropdown-menu": "2.2.1",
     "@radix-ui/react-tabs": "1.2.1",

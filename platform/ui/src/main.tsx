@@ -1,6 +1,7 @@
 import { setNonce } from "get-nonce";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import "./fonts";
 import "./theme.css";
 import "./components/components.css";
 import "./studio/studio.css";
