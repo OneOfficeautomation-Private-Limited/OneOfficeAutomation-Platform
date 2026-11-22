@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1666 codes in 152 areas.
+1670 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -390,11 +390,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `CONNECTION.INVALID` | connections.json is not valid JSON: … | Fix the file in the workspace. | runner |
-| `CONNECTION.NOT_FOUND` | There is no saved connection named '…' | Create it under Connections (One CommandCenter or OneAgentStudio), or choose another connection on the step. | runner |
+| `CONNECTION.INVALID` | connections.json is not valid JSON: … | Fix the file in the workspace. | packages, runner |
+| `CONNECTION.NOT_FOUND` | Choose the saved connection to use<br>There is no saved connection named '…' | Fill in connection with the name of a saved connection.<br>Create it under Connections (One CommandCenter or OneAgentStudio), or choose another connection.<br>Create it under Connections (One CommandCenter or OneAgentStudio), or choose another connection on the step. | packages, runner |
 | `CONNECTION.SIGN_IN_FAILED` | Cannot sign the sign-in request: …<br>Connection '…' could not reach its sign-in server: …<br>Connection '…' could not sign in (HTTP …)…message……: …message…… | Check the private key in the connection (PEM or the JSON key file as the service gave it).<br>Check the token address and that the runner can reach it.<br>Check the App id, the installation id and the key. | runner |
 | `CONNECTION.SIGN_IN_INCOMPLETE` | The sign-in's private key: …<br>Connection '…': … | Put the key (PEM, or Google's JSON key file) in the vault and pick it in the connection.<br>… | runner |
-| `CONNECTION.WRONG_TOOLKIT` | Connection '…' is for …, not … | Choose a connection made for …. | runner |
+| `CONNECTION.WRONG_TOOLKIT` | Connection '…' is for …, not … | Choose a connection made for …. | packages, runner |
 
 ## CONNECTOR
 
@@ -821,14 +821,14 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `EMAIL.AUTH_FAILED` | Mail sign-in failed: … | Check the user and password or token; Microsoft 365 and Gmail need OAuth or an app password. | packages-email |
-| `EMAIL.BAD_ADDRESS` | The server refused the address(es) …: …<br>Invalid email address: …<br>Invalid email address in …: … | Check the recipient addresses.<br>Check the sender and recipient addresses.<br>Check the addresses. | packages-email |
-| `EMAIL.BAD_INPUT` | Give the user that signs in to …<br>Unknown protocol '…'<br>unread_only and read_only cannot both be true | Fill in user.<br>Use imap or pop3.<br>Choose one of them. | packages-email |
+| `EMAIL.BAD_ADDRESS` | The server refused the address(es) …: …<br>Invalid email address: …<br>Invalid email address in …: … | Check the recipient addresses.<br>Check the sender and recipient addresses, or tick skip_invalid_addresses.<br>Check the addresses. | packages-email |
+| `EMAIL.BAD_INPUT` | Give the user that signs in to …<br>Unknown body type '…'<br>Unknown character set '…' | Fill in user.<br>Use plain, html or rich.<br>Use UTF-8, ISO-8859-1, windows-1252 or another standard name. | packages-email |
 | `EMAIL.ERROR` | … | Check the mail server's address, port and the sign-in in the connection; the message has the server's answer. | packages-email |
 | `EMAIL.MSG_UNAVAILABLE` | Saving .msg files needs the Office module | Install the Office package, or save the email as .eml. | packages |
 | `EMAIL.NOT_FOUND` | No email with id … in … | The email may have been moved or deleted. | packages-email |
 | `EMAIL.NOT_SUPPORTED` | … needs an IMAP mailbox; POP3 has no folders or read status on the server | Connect with protocol imap. | packages-email |
 | `EMAIL.NO_CREDENTIAL` | Give a password or an OAuth access token from the vault | Fill in password or access_token. | packages-email |
-| `EMAIL.NO_FOLDER` | Mail folder '…' not found<br>The server did not create mail folder '…' | Use Get folders to see the exact names.<br>Create it in the mailbox first, or set create_folder to true.<br>Check the folder name and your rights. | packages-email |
+| `EMAIL.NO_FOLDER` | Mail folder '…' not found<br>No mail folder matches '…'<br>The server did not create mail folder '…' | Use Get folders to see the exact names.<br>Create it in the mailbox first, or set create_folder to true.<br>Check the folder name and your rights. | packages-email |
 | `EMAIL.NO_RECIPIENT` | Give at least one address in …<br>The original email has no sender to reply to | Fill in ….<br>Reply only to messages that have a sender; use Send email for a new message instead. | packages-email |
 | `EMAIL.NO_SENDER` | There is no sender address for this email | Fill in from (or user, which is also used as the sender). | packages-email |
 | `EMAIL.NO_SMTP` | No outgoing (SMTP) server for this step | Fill in smtp_host and user, or give Connect an smtp_host so the mailbox session can send. | packages-email |
@@ -932,14 +932,14 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `EXCHANGE.ACCESS_DENIED` | Exchange refused access for … (HTTP 403)<br>… | Check the user may use EWS, and its rights on the mailbox.<br>Give the user rights on the mailbox (full access, Send As, or the ApplicationImpersonation role). | toolkits/microsoft |
 | `EXCHANGE.AUTH_FAILED` | Exchange refused the sign-in of … (HTTP 401) | Check the user (DOMAIN\user or user@domain), the password in the vault and sign_in (ntlm or basic, as the server's EWS site allows). | toolkits/microsoft |
 | `EXCHANGE.BAD_ADDRESS` | Give at least one recipient in to<br>Without the sender there is nobody left to reply to<br>… | Fill in to.<br>Use Reply to email, or give cc.<br>Check the recipient addresses. | toolkits/microsoft |
-| `EXCHANGE.BAD_INPUT` | Unknown sign_in '…'<br>impersonate needs the mailbox to act as<br>unread_only and read_only cannot both be true | Use ntlm or basic.<br>Fill in mailbox, or clear impersonate.<br>Choose one of them. | toolkits/microsoft |
+| `EXCHANGE.BAD_INPUT` | Unknown sign_in '…'<br>impersonate needs the mailbox to act as<br>unread_only and read_only cannot both be true | Use ntlm, basic or oauth.<br>Fill in mailbox, or clear impersonate.<br>Choose one of them. | toolkits/microsoft |
 | `EXCHANGE.BAD_RESPONSE` | Exchange did not give the email's content<br>Exchange did not return the item's id<br>The answer from … is not an EWS answer (HTTP …; often a proxy or sign-in page) | Forward it without as_attachment.<br>The service answered in an unexpected way; try again, and if it keeps happening check the service's status page.<br>Check the EWS address ends with /EWS/Exchange.asmx and that no proxy is in the way. | toolkits/microsoft |
 | `EXCHANGE.BAD_URL` | Invalid EWS address '…'<br>There is no EWS service at … (HTTP 404)<br>Exchange at … redirects elsewhere (HTTP …) | Use the server's EWS address, e.g. https://mail.example.com/EWS/Exchange.asmx.<br>Use the server's EWS address, usually https://<mail server>/EWS/Exchange.asmx.<br>Use the final EWS address (often https:// instead of http://). | toolkits/microsoft |
 | `EXCHANGE.HTTP_ERROR` | Exchange answered HTTP … to ……: … | Try again later, or ask the Exchange administrator to check the server. | toolkits/microsoft |
 | `EXCHANGE.NOT_FOUND` | No email with id …<br>… | The email may have been moved (it then has a new id) or deleted.<br>The email may have been moved (it then has a new id) or deleted; take the id from Find emails. | toolkits/microsoft |
 | `EXCHANGE.NO_FOLDER` | Mail folder '…' not found (no '…')<br>… | Use Get folders to see the exact names, or set create_folder to true.<br>Use Get folders to see the exact names. | toolkits/microsoft |
 | `EXCHANGE.NO_MAILBOX` | … | Check the mailbox address on Connect. | toolkits/microsoft |
-| `EXCHANGE.NO_SECRET` | Input 'password' must come from the vault (a Credential), so nothing was sent | Give a vault reference {"$credential": "locker/credential/attribute"} or a Credential variable. | toolkits/microsoft |
+| `EXCHANGE.NO_SECRET` | OAuth sign-in needs an access token from the vault or a saved sign-in connection<br>Input 'password' must come from the vault (a Credential), so nothing was sent | Give access_token.<br>Give a vault reference {"$credential": "locker/credential/attribute"} or a Credential variable. | toolkits/microsoft |
 | `EXCHANGE.NO_USER` | Give the user that signs in to Exchange | Fill in user as DOMAIN\user or user@domain. | toolkits/microsoft |
 | `EXCHANGE.SERVER_BUSY` | … | Exchange is throttling or busy; try again later. | toolkits/microsoft |
 | `EXCHANGE.SERVER_ERROR` | … | Check the inputs; the response code tells the Exchange administrator what went wrong. | toolkits/microsoft |
@@ -964,13 +964,16 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FILE.BAD_NAME` | The extension or prefix holds a character a file name cannot have | Leave out \ / : * ? " < > \|. | packages |
 | `FILE.BAD_OPERATOR` | Unknown operator '…' | Use eq, ne, gt, ge, lt or le. | packages |
 | `FILE.BAD_OPTION` | Unknown trim '…'<br>Unknown sort '…'<br>Give the number of days | Use none, leading, trailing or both.<br>Use name, modified or size.<br>Fill in 'days'. | packages |
+| `FILE.BAD_RULE` | The file name rules … | Open the step and fix the rule in the file field's Name rule mode. | sdk |
 | `FILE.BAD_TARGET` | The target … is a file | With a pattern, the target must be a folder. | packages |
 | `FILE.EXISTS` | File already exists: …<br>Target exists: …<br>Archive already exists: … | Set overwrite to true or choose another name.<br>Choose another name or turn off fail_if_exists.<br>Turn on overwrite or choose another path. | packages, packages-transfer, packages-windows, toolkits/microsoft |
+| `FILE.IO` | Cannot create the folder for …: …<br>Cannot list …: … | Check the runner may write there, or leave the path empty to use a temporary file.<br>Check the folder exists and the runner may read it. | sdk |
 | `FILE.IO_ERROR` | …<br>Cannot read …: …<br>Cannot write …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check the path and permissions.<br>Check the folder exists and can be written. | packages, packages-browser, packages-email, packages-pdf, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NOT_CREATED` | The PDF … was not written within … s | Check the printer queue and that the target folder is writable. | packages |
-| `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
+| `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, sdk, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NO_FILES` | Give at least one file to print | Fill in the files list, or a folder with matching files. | packages |
-| `FILE.OUTSIDE_WORKSPACE` | This run may only use files in its own workspace, not … | Use a path relative to the workspace. | sdk |
+| `FILE.NO_MATCH` | No file matches: … | Check the folder and the rules (the field's Name rule mode), or wait for the file first with Wait for file. | runner |
+| `FILE.OUTSIDE_WORKSPACE` | This run may only use files in its own workspace, not … | Use a folder relative to the workspace.<br>Use a path relative to the workspace. | runner, sdk |
 | `FILE.READ_FAILED` | Cannot read …: … | Check that the file exists, is not open in another program, and that the runner's account may read it. | toolkits/enterprise |
 | `FILE.TOO_LARGE` | … is … MB; Base64 text is limited to 50 MB of file | Send large files as files (for example with a REST upload) rather than as text. | packages |
 | `FILE.WAIT_TIMEOUT` | No finished file matching … appeared in time | Raise timeout_seconds, or check the folder and name pattern. | packages |
@@ -1630,7 +1633,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `PROCESS.FAILED` | … exited with code …: … | Check the arguments, or set fail_on_error to false to handle the exit code yourself. | packages |
-| `PROCESS.NOT_FOUND` | Cannot start '…': …<br>… is only the Microsoft Store shortcut, not an installed Python | Check the program is installed or give its full path.<br>Check the program is installed and on the PATH, or give its full path.<br>Install Python from python.org (or turn off the Microsoft Store shortcut in App execution aliases), then try again. | packages |
+| `PROCESS.NOT_FOUND` | Cannot start '…': …<br>… is only the Microsoft Store shortcut, not an installed Python | Check the program is installed, or give its full path. A name alone is looked up on the PATH and in Windows' list of installed applications (App Paths), as Win+R does.<br>Check the program is installed and on the PATH, or give its full path.<br>Install Python from python.org (or turn off the Microsoft Store shortcut in App execution aliases), then try again. | packages |
 | `PROCESS.TIMEOUT` | '…' did not finish within … s | Raise timeout_seconds or check the program is not waiting for input. | packages |
 
 ## QUEUE
@@ -2038,6 +2041,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `STUDIO.NO_ACCESS` | This folder cannot be opened: … | Choose another folder. | cli |
 | `STUDIO.NO_BROWSER_MODULE` | The Browser module is not installed | Add packages-browser to ooa.optionalModules in gradle.properties. | cli |
 | `STUDIO.NO_DESKTOP_MODULE` | The Windows desktop module is not installed<br>The Window toolkit is not installed<br>The Desktop objects toolkit is not installed | Add packages-windows to ooa.optionalModules in gradle.properties.<br>Add packages-windows to ooa.optionalModules in gradle.properties and run Studio on Windows. | cli |
+| `STUDIO.NO_NATIVE_DIALOG` | Windows' file dialog is not available here<br>The file dialog was interrupted<br>… | Choose from the list instead (Studio is used from another computer, or not on Windows).<br>Try Browse… again, or choose from the list.<br>Choose from the list instead. | cli |
 | `STUDIO.PORT_IN_USE` | Port … is already in use; another OneAgentStudio may still be running | Stop the other OneAgentStudio (Ctrl+C in its window), or start this one with --port …. | cli |
 | `STUDIO.TOO_LARGE` | Uploads are limited to … MB per file<br>The folder is larger than 200 MB<br>The file is larger than 200 MB | Upload a smaller file, or put large files in a share the runner reads.<br>Download smaller folders, or copy it in File Explorer.<br>Copy it in File Explorer instead. | cli, vendor-tools |
 | `STUDIO.TOO_MANY_RUNS` | Four runs are already in progress | Wait for a run to finish or stop one. | cli |

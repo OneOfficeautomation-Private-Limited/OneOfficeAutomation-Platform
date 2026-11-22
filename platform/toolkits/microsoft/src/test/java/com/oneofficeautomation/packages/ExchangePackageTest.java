@@ -389,6 +389,35 @@ class ExchangePackageTest {
         assertEquals("ab", ExchangePackage.x("a\u0001b"));
     }
 
+    @Test @SuppressWarnings("unchecked")
+    void g5TestConnectionFolderExistsBulkStepsAndStatus() throws Exception {
+        HttpServer s = ews();
+        try {
+            Map<String, Object> good = ex.testConnection(ctx(), url(s), "bot", new SecureString(PW, "t"), "basic", "ACME", "Exchange2013", null, false);
+            assertEquals(true, good.get("ok"), String.valueOf(good));
+            Map<String, Object> bad = ex.testConnection(ctx(), url(s), "ACME\bot", new SecureString("wrong", "t"), "basic", null, "Exchange2013", null, false);
+            assertEquals(false, bad.get("ok"));
+            assertTrue(String.valueOf(bad.get("message")).startsWith("EXCHANGE.AUTH_FAILED"), String.valueOf(bad));
+            assertTrue(sessions.keySet().stream().noneMatch(k -> k.startsWith("ooa.exchange.test")), "the test keeps no session");
+
+            connect(s, null, false);
+            assertTrue(ex.folderExists(ctx(), "Inbox/Invoices", "exchange"));
+            ops.clear(); bodies.clear();
+            assertEquals(new BigDecimal(2), ex.deleteAll(ctx(), "inbox", "any", null, null, null, null, 500, "exchange", false).get("count"));
+            assertEquals(2, ops.stream().filter("DeleteItem"::equals).count());
+            ops.clear(); bodies.clear();
+            List<Object> moved = (List<Object>) ex.moveAll(ctx(), "inbox", "unread", null, "Invoice", null, null, 500, "exchange", "Inbox/Invoices", false).get("new_ids");
+            assertFalse(moved.isEmpty());
+            assertTrue(moved.stream().allMatch("MOVED1"::equals), String.valueOf(moved));
+            assertTrue(bodies.stream().anyMatch(b2 -> b2.contains("message:IsRead")), "the status went to the server");
+            List<Object> files = (List<Object>) ex.saveAllAttachments(ctx(), "inbox", "any", null, null, null, null, 500, "exchange", "att", "*.pdf", false).get("files");
+            assertFalse(files.isEmpty());
+            ops.clear(); bodies.clear();
+            ex.mark(ctx(), ID1, true, null, "exchange", "unread");
+            assertTrue(bodies.get(0).contains("<t:IsRead>false</t:IsRead>"), bodies.get(0));
+        } finally { s.stop(0); }
+    }
+
     static String code(org.junit.jupiter.api.function.Executable run) {
         ActionException e = assertThrows(ActionException.class, run);
         return e.code().startsWith("EXCHANGE.") ? e.code().substring(9) : e.code();

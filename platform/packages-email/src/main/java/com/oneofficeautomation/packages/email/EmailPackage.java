@@ -744,15 +744,20 @@ public final class EmailPackage {
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
+    /** Mark before G5 (the read/unread choice). */
+    public Map<String, Object> mark(ActionContext ctx, Long id, boolean read, String folder, Boolean flagged, String session) { return mark(ctx, id, read, folder, flagged, session, null); }
+
     @Action(id = "mark", name = "Mark read or unread", category = "Mailbox", capabilities = "network", description = "Mark an email as read or unread, and optionally set or clear its follow-up flag.",
-            panel = "id, read, folder | flagged, session")
+            panel = "id, status, read, folder | flagged, session")
     public Map<String, Object> mark(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, required = false, description = D_ID) Long id,
             @Input(name = "read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", label = "Mark as read (untick: mark as unread)", tone = "plain",
                     description = "Ticked = read, not ticked = unread.") boolean read,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
             @Input(name = "flagged", type = OoaType.BOOLEAN, required = false, description = "Set (true) or clear (false) the follow-up flag; unchanged when empty.") Boolean flagged,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session,
+            @Input(name = "status", type = OoaType.STRING, required = false, newStepDefault = "\"read\"", enumValues = {"read", "unread"}, description = "Mark it read or unread (G5); the tick for older steps.") String status) {
+        if (status != null && !status.isBlank()) read = !status.strip().equalsIgnoreCase("unread");
         try {
             MailSession s = ms(ctx, session);
             imapOnly(s, "Change status");
