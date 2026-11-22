@@ -41,9 +41,10 @@ public final class Steps {
             Map<String, Object> s = (Map<String, Object>) o;
             out.add(s);
             // in the order OneAgentStudio shows them, so a step's place in this list is its line number:
-            // children, else-if branches, else, catch blocks, finally, switch cases, default, then for each state of a
+            // children, the handlers (Watch for interruptions, a trigger loop), else-if branches, else, catch blocks, finally, switch cases, default, then for each state of a
             // state machine its entry steps and the steps of each of its transitions
             if (s.get("children") instanceof List<?> l) out.addAll(walk((List<Object>) l));
+            for (Map<String, Object> h : handlers(s)) if (h.get("children") instanceof List<?> l) out.addAll(walk((List<Object>) l));
             if (s.get("elseIf") instanceof List<?> l)
                 for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) out.addAll(walk((List<Object>) c));
             if (s.get("else") instanceof List<?> l) out.addAll(walk((List<Object>) l));
@@ -55,6 +56,17 @@ public final class Steps {
             if (s.get("default") instanceof List<?> l) out.addAll(walk((List<Object>) l));
             for (List<Object> l : stateLists(s)) out.addAll(walk(l));
         }
+        return out;
+    }
+
+    /**
+     * The handlers of a core/interrupt_scope step (each with a condition in "when") or of a core/loop over triggers (each with
+     * a "trigger"); entries that are not objects are left out. Empty for other steps.
+     */
+    @SuppressWarnings("unchecked")
+    public static List<Map<String, Object>> handlers(Map<String, Object> step) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (step.get("handlers") instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> m) out.add((Map<String, Object>) m);
         return out;
     }
 

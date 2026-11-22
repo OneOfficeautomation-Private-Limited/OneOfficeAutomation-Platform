@@ -124,6 +124,11 @@ public final class FlowValidator {
                 for (Map<String, Object> st : Steps.states(step))
                     for (Map<String, Object> t : Steps.transitions(st))
                         if (t.get("when") != null) r.addAll(Expressions.references(normCondition(t.get("when"))));
+                for (Map<String, Object> h : Steps.handlers(step)) {
+                    if (h.get("when") != null) r.addAll(Expressions.references(normCondition(h.get("when"))));
+                    if (h.get("args") != null) r.addAll(Expressions.references(h.get("args")));
+                    if (h.get("max_times") != null) r.addAll(Expressions.references(h.get("max_times")));
+                }
                 refs = r;
             } catch (OoaException e) { p.add(sid, "args", e.getMessage(), e.suggestedFix()); }
             for (String n : refs) if (!declared.containsKey(n) && !Runner.RESERVED.contains(n)) p.add(sid, "args", "Variable '$" + n + "' is not declared", "Declare '" + n + "' in variables or fix the spelling.");
@@ -142,6 +147,9 @@ public final class FlowValidator {
             if (act.equals("core/switch")) checkSwitch(p, sid, step, args, requires, kind);
             if (step.containsKey("states") && !act.equals("core/state_machine")) p.add(sid, null, "states are only allowed on core/state_machine", null);
             if (act.equals("core/state_machine")) checkStateMachine(p, sid, step, args, requires, kind);
+            if (step.containsKey("handlers")) checkHandlers(p, sid, act, step, args, declared, requires, kind);
+            else if (act.equals("core/loop") && "triggers".equals(args.get("iterator")))
+                p.add(sid, "handlers", "The trigger loop has no handlers", "Add a handler with the event it waits for (a new file, a key press, a new e-mail...).");
             if (act.equals("core/loop")) {
                 Object it = args.get("iterator");
                 if (it instanceof String s && !CorePackage.BUILTIN_ITERATORS.contains(s) && !s.contains("/"))
@@ -280,6 +288,9 @@ public final class FlowValidator {
                     if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) checkList(p, (List<Object>) c, scope, inner, subflow, all, true);
             // each step list of a state machine stands apart for Go to (no jumps in or out); loop exits reach loops around it
             for (List<Object> l : Steps.stateLists(s)) checkList(p, l, Set.of(), inner, subflow, all, true);
+            // a handler's steps run at any moment (an interruption) or once per event (a trigger loop): no Go to in or out
+            for (Map<String, Object> h : Steps.handlers(s))
+                if (h.get("children") instanceof List<?> l) checkList(p, (List<Object>) l, Set.of(), inner, subflow, all, true);
         }
     }
 
@@ -293,6 +304,47 @@ public final class FlowValidator {
             if (in.required() && in.defaultValue() == null && !args.containsKey(in.name()) && !connection && !dynamicArgs)
                 p.add(sid, prefix + in.name(), "Missing required input '" + in.name() + "' for " + what, in.description());
             if (args.containsKey(in.name())) checkLiteral(p, sid, prefix + in.name(), in, args.get(in.name()), !what.startsWith("core/"));
+        }
+    }
+
+    /**
+     * Handlers: only on Watch for interruptions (each with a condition in when) and on a Loop over triggers (each with a
+     * toolkit loop type in trigger, its fields checked like a loop type's, and a declared variable in as).
+     */
+    @SuppressWarnings("unchecked")
+    private void checkHandlers(P p, String sid, String act, Map<String, Object> step, Map<String, Object> args, Map<String, Map<String, Object>> declared,
+                               Map<String, Object> requires, Object kind) {
+        boolean scope = act.equals("core/interrupt_scope"), triggers = act.equals("core/loop") && "triggers".equals(args.get("iterator"));
+        if (!scope && !triggers) {
+            p.add(sid, "handlers", "handlers are only allowed on core/interrupt_scope and on a core/loop whose iterator is triggers",
+                    act.equals("core/loop") ? "Set the loop's iterator to triggers, or remove the handlers." : "Remove the handlers.");
+            return;
+        }
+        if (!(step.get("handlers") instanceof List<?> list)) { p.add(sid, "handlers", "handlers must be a list", null); return; }
+        if (triggers && Steps.handlers(step).isEmpty()) p.add(sid, "handlers", "The trigger loop has no handlers", "Add a handler with the event it waits for.");
+        for (int i = 0; i < list.size(); i++) {
+            String path = "handlers/" + i;
+            if (!(list.get(i) instanceof Map<?, ?> raw)) { p.add(sid, path, "Handler " + (i + 1) + " must be an object", null); continue; }
+            Map<String, Object> h = (Map<String, Object>) raw;
+            if (scope) {
+                if (h.get("when") == null) p.add(sid, path + "/when", "Handler " + (i + 1) + " has no condition", "Choose what marks the interruption, for example a window that appears.");
+                else checkCondition(p, sid, path + "/when", h.get("when"), requires, kind, 0);
+                if (h.containsKey("trigger") || h.containsKey("as")) p.add(sid, path, "trigger and as belong to a trigger loop's handlers, not to Watch for interruptions", "Remove them.");
+            } else {
+                if (h.containsKey("when") || h.containsKey("max_times")) p.add(sid, path, "when and max_times belong to Watch for interruptions, not to a trigger loop", "Remove them.");
+                if (!(h.get("trigger") instanceof String t) || t.isBlank()) { p.add(sid, path + "/trigger", "Handler " + (i + 1) + " has no trigger", "Choose the event the handler waits for."); continue; }
+                ActionSpec ispec = toolkitSpec(p, sid, path + "/trigger", t.strip(), "iterator", "trigger", requires);
+                Object ta = h.get("args");
+                if (ispec != null) {
+                    if (ta != null && !(ta instanceof Map<?, ?>) && !isDynamic(ta)) p.add(sid, path + "/args", "The fields of trigger " + t + " must be a Dictionary", null);
+                    else checkArgs(p, sid, path + "/args/", t + " (trigger)", ispec, ta instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of(), false, isDynamic(ta));
+                    if ("ApiTask".equals(kind) && ispec.capabilities().contains("desktop")) p.add(sid, path + "/trigger", "'" + t + "' needs a desktop and cannot run in an ApiTask", null);
+                }
+                if (h.get("as") instanceof String as && !as.isBlank()) {
+                    String v = Expressions.nameOf(as);
+                    if (!declared.containsKey(v.isEmpty() ? as.strip() : v)) p.add(sid, path + "/as", "Handler variable '" + as + "' is not declared", "Declare a Dictionary variable for the event.");
+                }
+            }
         }
     }
 

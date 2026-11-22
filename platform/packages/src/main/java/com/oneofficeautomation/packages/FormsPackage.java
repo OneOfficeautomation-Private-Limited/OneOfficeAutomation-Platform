@@ -107,6 +107,37 @@ public final class FormsPackage {
         }
     }
 
+    /** The open form (FORMS.NOT_OPEN otherwise); used by the trigger loop's form events. */
+    static FormWindow.Session openForm(ActionContext ctx, String name) { return session(ctx, name); }
+
+    /**
+     * The next event of the open form within `seconds` ({event, element, value, values}), only of these types ("any",
+     * "button", "change" or "submit") and of this element when given; {event: close} when the form was closed; null when
+     * nothing happened. A submit or close ends the form's session, as Wait for form event does.
+     */
+    static Map<String, Object> nextEvent(ActionContext ctx, String name, String types, String element, double seconds) {
+        FormWindow.Session s = session(ctx, name, true);
+        long end = System.nanoTime() + (long) (seconds * 1e9);
+        while (true) {
+            Map<String, Object> e = s.closed && s.events.isEmpty() ? Map.of("type", "close", "element", "") : waitFor(ctx, s, Set.of(types), Math.max(0.05, (end - System.nanoTime()) / 1e9));
+            if (e == null) return null;
+            String type = String.valueOf(e.get("type"));
+            if (type.equals("close") || type.equals("submit")) { if (type.equals("submit")) s.close(); ctx.sessions().remove("form:" + s.name); }
+            if (type.equals("close")) return Map.of("event", "close");
+            if (element != null && !element.isBlank() && !element.strip().equals(String.valueOf(e.get("element"))) && !type.equals("submit")) {
+                if (System.nanoTime() >= end) return null;
+                continue;
+            }
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("event", type);
+            out.put("element", String.valueOf(e.getOrDefault("element", "")));
+            out.put("value", e.get("value") == null ? "" : e.get("value"));
+            out.put("values", answers(s));
+            out.put("form", s.name);
+            return out;
+        }
+    }
+
     private static Map<String, Object> waitFor(ActionContext ctx, FormWindow.Session s, Set<String> types, double timeoutSeconds) {
         long end = System.nanoTime() + (long) (Math.max(0.1, timeoutSeconds) * 1e9);
         while (true) {
@@ -248,27 +279,45 @@ public final class FormsPackage {
     }
 
     @Action(id = "set", name = "Set field value", category = "Interactive forms", capabilities = "desktop", description = "Change a field's value on the open form.",
-            panel = "name, element, value")
+            panel = "name, element, (Set it to: A value = value / A credential = credential) | how")
     public Map<String, Object> set(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
             @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element,
-            @Input(name = "value", type = OoaType.ANY, description = "New value (text, number, true/false for a checkbox, an option for a drop-down).") Object value) {
+            @Input(name = "value", type = OoaType.ANY, required = false, description = "New value (text, number, true/false for a checkbox, an option for a drop-down).") Object value,
+            @Input(name = "how", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", enumValues = {"replace", "append"},
+                    description = "G1 (AA parity): replace the field's value, or add the text after what it holds.") String how,
+            @Input(name = "credential", type = OoaType.CREDENTIAL, required = false,
+                    description = "G1 (AA parity): a credential from the vault for a password field, instead of a value; it never reaches the log.") Object credential) {
+        if (credential != null) value = credential;
         FormWindow.Session s = session(ctx, name);
         if (!isInput(element(s, element))) throw new ActionException("FORMS.NOT_A_FIELD", "'" + element + "' is not a field with a value", "Choose an input field, not a button, heading or area.");
-        synchronized (s) { s.values.put(element.strip(), value == null ? "" : value); s.errors.remove(element.strip()); s.changed(); }
+        String h = how == null || how.isBlank() ? "replace" : how.strip();
+        if (!Set.of("replace", "append").contains(h)) throw new ActionException("FORMS.BAD_MODE", "Unknown way to set '" + how + "'", "Use replace or append.");
+        Object v = value instanceof SecureString sec ? sec.reveal() : value;   // a credential goes into the (masked) field, never into the log
+        synchronized (s) {
+            String id = element.strip();
+            Object put = v == null ? "" : v;
+            if (h.equals("append")) { Object was = s.values.get(id); put = (was == null ? "" : String.valueOf(was)) + (v == null ? "" : String.valueOf(v)); }
+            s.values.put(id, put); s.errors.remove(id); s.changed();
+        }
         return Map.of();
     }
+
+    public Map<String, Object> set(ActionContext ctx, String name, String element, Object value) { return set(ctx, name, element, value, "replace", null); }
+    public Map<String, Object> set(ActionContext ctx, String name, String element, Object value, String how) { return set(ctx, name, element, value, how, null); }
 
     @Action(id = "assign", name = "Assign options", category = "Interactive forms", capabilities = "desktop",
             description = "Fill a drop-down or choice list with options, e.g. from a list or a data table column.",
             panel = "name, element, options, select | mode")
     public Map<String, Object> assign(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
             @Input(name = "element", type = OoaType.STRING, description = "Id of a drop-down or choice field.") String element,
-            @Input(name = "options", type = OoaType.LIST, description = "The options to offer, in order.") List<Object> options,
+            @Input(name = "options", type = OoaType.ANY, description = "The options to offer, in order: a list, or text with the options separated by commas (G1).") Object optionsIn,
             @Input(name = "select", type = OoaType.STRING, required = false, description = "Option to select; the current choice is kept when it is still offered.") String select,
             @Input(name = "mode", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", enumValues = {"replace", "append"},
                     description = "replace: offer only these options. append: add them after the options already offered, skipping ones already there.") String mode) {
         String m = mode == null || mode.isBlank() ? "replace" : mode.strip();
         if (!Set.of("replace", "append").contains(m)) throw new ActionException("FORMS.BAD_MODE", "Unknown mode '" + mode + "'", "Use replace or append.");
+        List<Object> options = optionsIn == null ? List.of() : optionsIn instanceof List<?> l ? new ArrayList<>(l)
+                : Arrays.stream(String.valueOf(optionsIn).split(",")).map(String::strip).filter(x -> !x.isEmpty()).map(x -> (Object) x).toList();
         FormWindow.Session s = session(ctx, name);
         Map<String, Object> f = element(s, element);
         if (!Set.of("dropdown", "radio").contains(String.valueOf(f.get("type")))) throw new ActionException("FORMS.NOT_A_LIST", "'" + element + "' is not a drop-down or choice field", "Choose a drop-down or choice field of the form.");
@@ -391,6 +440,35 @@ public final class FormsPackage {
             @Input(name = "label", type = OoaType.STRING, description = "The new label.") String label) {
         FormWindow.Session s = session(ctx, name); element(s, element); return changed(s, element.strip(), "label", label == null ? "" : label);
     }
+    // G1 (AA parity): the whole form out of the way while the agent works, and back
+    @Action(id = "hide_form", name = "Hide form", category = "Interactive forms", capabilities = "desktop",
+            description = "Move the open form's window out of the way (minimised to the task bar) while the agent works; its answers are kept.", panel = "name")
+    public Map<String, Object> hideForm(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name) {
+        formWindow(ctx, name, true);
+        return Map.of();
+    }
+
+    @Action(id = "show_form", name = "Show form", category = "Interactive forms", capabilities = "desktop",
+            description = "Bring a hidden (minimised) form back in front of the other windows.", panel = "name")
+    public Map<String, Object> showForm(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name) {
+        formWindow(ctx, name, false);
+        return Map.of();
+    }
+
+    /** Tests replace this to check Hide and Show without a desktop: (window title, minimise) to whether it worked. */
+    static java.util.function.BiFunction<String, Boolean, Boolean> minimise = (title, min) -> com.oneofficeautomation.packages.ui.DesktopEvents.installed()
+            .map(d -> d.minimiseWindow(title, min))
+            .orElseThrow(() -> new ActionException("FORMS.WINDOWS_ONLY", "Hiding and showing a form needs a Windows runner with the Window toolkit installed",
+                    "Run this agent on a Windows runner with a signed-in desktop."));
+
+    private static void formWindow(ActionContext ctx, String name, boolean hide) {
+        FormWindow.Session s = session(ctx, name);
+        String title = s.title == null || s.title.isBlank() ? s.name : s.title;
+        if (!Boolean.TRUE.equals(minimise.apply(title, hide)))
+            throw new ActionException("FORMS.NO_WINDOW", "The window of form '" + s.name + "' was not found on the screen",
+                    "Check that the form is still open; a form window renamed by the person cannot be found by its title.", true);
+    }
+
     @Action(id = "change_title", name = "Change form title", category = "Interactive forms", capabilities = "desktop", description = "Change the title shown on the form window.",
             panel = "name, title")
     public Map<String, Object> changeTitle(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
@@ -402,12 +480,20 @@ public final class FormsPackage {
 
     @Action(id = "dynamic_area", name = "Set dynamic area", category = "Interactive forms", capabilities = "desktop",
             description = "Replace what a dynamic area on the form shows with new fields, e.g. one line per invoice found. Their answers are read like any other field.",
-            panel = "name, element, fields")
+            panel = "name, element, how, fields | height")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of fields now in the area.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> dynamicArea(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
             @Input(name = "element", type = OoaType.STRING, description = "Id of a dynamic area on the form.") String element,
-            @Input(name = "fields", type = OoaType.LIST, description = "Fields as Dictionaries with id, type (text, number, checkbox, dropdown, paragraph, button ...), label and optionally options, default, required.") List<Object> list) {
+            @Input(name = "fields", type = OoaType.LIST, required = false, visibleWhen = "how!=clear",
+                    description = "Fields as Dictionaries with id, type (text, number, checkbox, dropdown, paragraph, button ...), label and optionally options, default, required, read_only, tooltip.") List<Object> list,
+            @Input(name = "how", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", enumValues = {"replace", "append", "clear"},
+                    description = "G1 (AA parity): replace the area's fields, add these after them, or empty the area.") String how,
+            @Input(name = "height", type = OoaType.NUMBER, required = false, min = 40,
+                    description = "G1 (AA parity): the area's height in pixels; more fields then scroll inside it. As tall as its fields when empty.") Integer height) {
+        String h = how == null || how.isBlank() ? "replace" : how.strip();
+        if (!Set.of("replace", "append", "clear").contains(h)) throw new ActionException("FORMS.BAD_MODE", "Unknown way '" + how + "'", "Use replace, append or clear.");
+        if (h.equals("clear")) list = List.of();
         FormWindow.Session s = session(ctx, name);
         Map<String, Object> area = element(s, element);
         if (!"area".equals(area.get("type"))) throw new ActionException("FORMS.NOT_AN_AREA", "'" + element + "' is not a dynamic area", "Add a Dynamic area in the form designer.");
@@ -424,16 +510,25 @@ public final class FormsPackage {
         }
         synchronized (s) {
             List<Map<String, Object>> before = fields(area.get("fields"));
+            boolean append = h.equals("append");
             for (Map<String, Object> f : fs) {
                 Map<String, Object> clash = find(s.form, String.valueOf(f.get("id")));
-                if (clash != null && before.stream().noneMatch(x -> x == clash))
+                if (clash != null && (append || before.stream().noneMatch(x -> x == clash)))
                     throw new ActionException("FORMS.BAD_FIELD", "The form already has a field '" + f.get("id") + "'", "Use ids that are not used elsewhere on the form.");
             }
-            for (Map<String, Object> old : before) { s.values.remove(String.valueOf(old.get("id"))); s.elements.remove(String.valueOf(old.get("id"))); }
-            area.put("fields", fs);
+            List<Map<String, Object>> now = new ArrayList<>();
+            if (append) now.addAll(before);
+            else for (Map<String, Object> old : before) { s.values.remove(String.valueOf(old.get("id"))); s.elements.remove(String.valueOf(old.get("id"))); }
+            now.addAll(fs);
+            area.put("fields", now);
             for (Map<String, Object> f : fs) if (isInput(f)) s.values.put(String.valueOf(f.get("id")), initial(f));
+            if (height != null) s.el(element.strip()).put("height", height);
             s.changed();
+            return Map.of("count", new BigDecimal(now.size()));
         }
-        return Map.of("count", new BigDecimal(fs.size()));
+    }
+
+    public Map<String, Object> dynamicArea(ActionContext ctx, String name, String element, List<Object> list) {
+        return dynamicArea(ctx, name, element, list, "replace", null);
     }
 }

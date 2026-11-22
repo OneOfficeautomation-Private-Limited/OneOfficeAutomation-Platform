@@ -1,6 +1,6 @@
 import type { Flow, FlowStep, PackageManifest } from "../api/client";
 import { explainSteps } from "./AgentsTogether";
-import { stateLists } from "./flowEdit";
+import { innerLists } from "./flowEdit";
 import { describeAction, plainValue } from "./toolkits";
 
 /**
@@ -15,9 +15,7 @@ export type DocBlock =
 
 /** Every step of a list, inner ones included (blocks, branches, cases, states). */
 function flatSteps(steps: FlowStep[] = []): FlowStep[] {
-  return steps.flatMap((s) => [s, ...flatSteps(s.children), ...flatSteps(s.else), ...(s.elseIf ?? []).flatMap((b) => flatSteps(b.children)),
-    ...(s.catch ?? []).flatMap((c) => flatSteps(c.children)), ...flatSteps(s.finally), ...(s.cases ?? []).flatMap((c) => flatSteps(c.children)),
-    ...flatSteps(s.default), ...stateLists(s).flatMap((l) => flatSteps(l))]);
+  return steps.flatMap((s) => [s, ...innerLists(s).flatMap((l) => flatSteps(l))]);
 }
 
 /** explainSteps lines ("1. x", "  - y", "  Otherwise:") as outline items with their depth. */

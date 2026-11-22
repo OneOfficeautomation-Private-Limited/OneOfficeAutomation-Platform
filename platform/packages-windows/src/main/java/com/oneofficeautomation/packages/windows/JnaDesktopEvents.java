@@ -34,6 +34,14 @@ public final class JnaDesktopEvents implements DesktopEvents {
         return first(pattern).map(w -> { User32.INSTANCE.PostMessage(w.hwnd(), WM_CLOSE, new WinDef.WPARAM(0), new WinDef.LPARAM(0)); return true; }).orElse(false);
     }
 
+    @Override public boolean minimiseWindow(String pattern, boolean minimise) {
+        return first(pattern).map(w -> {
+            User32.INSTANCE.ShowWindow(w.hwnd(), minimise ? WinUser.SW_MINIMIZE : WinUser.SW_RESTORE);
+            if (!minimise) WindowPackage.bringToFront(w.hwnd());
+            return true;
+        }).orElse(false);
+    }
+
     @Override public boolean activateWindow(String pattern) {
         return first(pattern).map(w -> WindowPackage.bringToFront(w.hwnd())).orElse(false);
     }

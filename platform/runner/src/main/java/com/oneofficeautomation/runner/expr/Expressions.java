@@ -200,7 +200,16 @@ public final class Expressions {
             if (base == null) return null;
             if (base instanceof Map<?, ?> m) {
                 String k = key instanceof BigDecimal d ? d.toBigInteger().toString() : String.valueOf(key);
-                return ((Map<String, Object>) m).get(k);
+                if (m.containsKey(k) || !(key instanceof BigDecimal d)) return ((Map<String, Object>) m).get(k);
+                // a record's column by its position, as $row[0]$ (the first column), when it has no column named 0
+                if (m.containsKey("columns") && m.containsKey("rows")) return null;
+                try {
+                    int idx = d.intValueExact();
+                    if (idx < 0 || idx >= m.size()) return null;
+                    int i = 0;
+                    for (Object v : m.values()) if (i++ == idx) return v;
+                } catch (ArithmeticException e) { return null; }
+                return null;
             }
             if (base instanceof List<?> list) {
                 try { int idx = Values.toNumber(key).intValueExact(); return idx >= 0 && idx < list.size() ? list.get(idx) : null; }

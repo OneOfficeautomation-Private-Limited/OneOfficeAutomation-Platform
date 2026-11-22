@@ -90,7 +90,11 @@
     if (f.type === "heading") return wrap(el("h2", { text: label }), { tag: "div", cls: "" });
     if (f.type === "paragraph") return wrap(el("p", { class: "block", text: st.label !== undefined ? st.label : f.text || f.label || "" }), { cls: "" });
     if (f.type === "button") return wrap(el("button", { type: "button", id: "f_" + f.id, disabled: !!st.disabled, onclick: () => send({ type: "button", element: f.id }) }, label || f.id), { cls: "inline-btn" });
-    if (f.type === "area") return wrap((f.fields || []).map(field).filter(Boolean), { cls: "area" });
+    if (f.type === "area") {   // G1: an area may be given a height; more fields then scroll inside it
+      const a = wrap((f.fields || []).map(field).filter(Boolean), { cls: "area" });
+      if (a && st.height) { a.style.maxHeight = st.height + "px"; a.style.overflowY = "auto"; }
+      return a;
+    }
     const id = "f_" + f.id, v = values[f.id];
     const change = (val) => { values[f.id] = val; send({ type: "change", element: f.id }); };
     let input;
@@ -102,11 +106,14 @@
       case "checkbox": return wrap(el("label", { class: "check" }, el("input", { type: "checkbox", id, checked: v === true || v === "true", disabled: !!st.disabled, onchange: (e) => change(e.target.checked) }), label, f.required ? el("span", { class: "req", text: "*" }) : null,
           (state.errors || {})[f.id] ? el("div", { class: "error", text: state.errors[f.id] }) : null));
       default: {
-        const type = { number: "number", email: "email", date: "date" }[f.type] || "text";
+        const type = { number: "number", email: "email", date: "date", password: "password" }[f.type] || "text";
         input = el("input", { id, type, placeholder: f.placeholder || null, min: f.min, max: f.max, disabled: !!st.disabled, onchange: (e) => change(e.target.value), onfocus: () => { editing = f.id; }, onblur: () => { editing = null; } });
         input.value = v ?? "";
       }
     }
+    // G1: a field can be read-only (shown, not changed) and carry a hover text
+    if (input && f.read_only) input.setAttribute("readonly", "");
+    if (input && f.tooltip) input.title = f.tooltip;
     return wrap([el("label", { for: id }, label, f.required ? el("span", { class: "req", text: "*" }) : null), input,
       f.help ? el("div", { class: "help", text: f.help }) : null, (state.errors || {})[f.id] ? el("div", { class: "error", text: state.errors[f.id] }) : null]);
   }

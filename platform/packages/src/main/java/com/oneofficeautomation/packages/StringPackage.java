@@ -11,7 +11,7 @@ public final class StringPackage {
 
     @Action(id = "extract_text", name = "Extract text", category = "Text", idempotent = true,
             description = "Return the text before, after or between markers.",
-            panel = "text, after, after_occurrence, before, before_occurrence, if_not_found, [Limit the length: max_length], ignore_case, trim, remove_line_breaks | until")
+            panel = "text, after, after_occurrence, before, before_occurrence, markers, if_not_found, [Limit the length: max_length, length_mode], ignore_case, trim, remove_line_breaks | until")
     @Output(name = "result", type = OoaType.STRING, description = "Extracted text, empty when a marker is missing.")
     public Map<String, Object> extractText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
@@ -24,9 +24,16 @@ public final class StringPackage {
             @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"empty\"", enumValues = {"empty", "source"},
                     description = "Result when a marker is missing: empty text, or the whole source text.") String ifNotFound,
             @Input(name = "max_length", type = OoaType.NUMBER, required = false, min = 0, description = "Keep at most this many characters of the result.") Integer maxLength,
-            @Input(name = "remove_line_breaks", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove line breaks from the result.") boolean removeLineBreaks,
+            @Input(name = "remove_line_breaks", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true", description = "Remove line breaks from the result.") boolean removeLineBreaks,
             @Input(name = "until", type = OoaType.STRING, required = false, defaultValue = "\"marker\"", enumValues = {"marker", "end_of_line", "end_of_text"},
-                    description = "Where the result ends when the 'before' marker is empty or not found: as before (marker), at the end of the line, or at the end of the text.") String until) {
+                    description = "Where the result ends when the 'before' marker is empty or not found: as before (marker), at the end of the line, or at the end of the text.") String until,
+            @Input(name = "markers", type = OoaType.STRING, required = false, defaultValue = "\"either\"", enumValues = {"either", "both"},
+                    description = "G1 (AA parity): with both markers given, whether either one found is enough, or both must be found (else the marker is missing).") String markers,
+            @Input(name = "length_mode", type = OoaType.STRING, required = false, defaultValue = "\"up_to\"", enumValues = {"up_to", "exactly"}, visibleWhen = "max_length!=",
+                    description = "G1 (AA parity): keep up to max_length characters, or exactly that many (a shorter result counts as not found).") String lengthMode) {
+        String both = markers == null || markers.isBlank() ? "either" : markers.strip(), lmode = lengthMode == null || lengthMode.isBlank() ? "up_to" : lengthMode.strip();
+        if (!List.of("either", "both").contains(both)) throw new ActionException("STRING.BAD_OPTION", "Unknown markers option '" + markers + "'", "Use either or both.");
+        if (!List.of("up_to", "exactly").contains(lmode)) throw new ActionException("STRING.BAD_OPTION", "Unknown length option '" + lengthMode + "'", "Use up_to or exactly.");
         if (afterOccurrence < 1 || beforeOccurrence < 1) throw new ActionException("STRING.BAD_OCCURRENCE", "Occurrences start at 1", "Use 1 for the first match.");
         String stop = until == null ? "marker" : until;
         if (!List.of("marker", "end_of_line", "end_of_text").contains(stop))
@@ -36,8 +43,13 @@ public final class StringPackage {
         if (after != null) { int i = nth(out, after, afterOccurrence, ignoreCase); if (i >= 0) out = out.substring(i + after.length()); else { out = ""; missing = true; } }
         int cut = before == null || missing ? -1 : nth(out, before, beforeOccurrence, ignoreCase);
         if (cut >= 0) out = out.substring(0, cut);
+        else if (!missing && before != null && !before.isEmpty() && both.equals("both")) { out = ""; missing = true; }   // both markers must be found
         else if (!missing && stop.equals("end_of_line")) { int nl = out.indexOf('\n'), cr = out.indexOf('\r'); int e = nl < 0 ? cr : cr < 0 ? nl : Math.min(nl, cr); if (e >= 0) out = out.substring(0, e); }
         else if (before != null && !missing && after == null && stop.equals("marker")) { out = ""; missing = true; }
+        if (!missing && lmode.equals("exactly") && maxLength != null) {   // shorter than asked: as not found
+            String c = removeLineBreaks ? out.replace("\r", "").replace("\n", "") : out;
+            if ((trim ? stripSpace(c) : c).length() < maxLength) { out = ""; missing = true; }
+        }
         if (missing && "source".equals(ifNotFound)) out = text;
         if (removeLineBreaks) out = out.replace("\r", "").replace("\n", "");
         if (trim) out = stripSpace(out);
@@ -51,6 +63,11 @@ public final class StringPackage {
     public Map<String, Object> extractText(ActionContext ctx, String text, String before, String after, boolean trim, int afterOccurrence, int beforeOccurrence,
             boolean ignoreCase, String ifNotFound, Integer maxLength, boolean removeLineBreaks) {
         return extractText(ctx, text, before, after, trim, afterOccurrence, beforeOccurrence, ignoreCase, ifNotFound, maxLength, removeLineBreaks, "marker");
+    }
+
+    public Map<String, Object> extractText(ActionContext ctx, String text, String before, String after, boolean trim, int afterOccurrence, int beforeOccurrence,
+            boolean ignoreCase, String ifNotFound, Integer maxLength, boolean removeLineBreaks, String until) {
+        return extractText(ctx, text, before, after, trim, afterOccurrence, beforeOccurrence, ignoreCase, ifNotFound, maxLength, removeLineBreaks, until, "either", "up_to");
     }
 
     /** Position of the n-th (1-based) occurrence of a marker, or -1. */
@@ -739,20 +756,25 @@ public final class StringPackage {
 
     @Action(id = "fill_template", name = "Fill a template", category = "Text", idempotent = true,
             description = "Put values into a text with {name} places, e.g. \"Dear {first_name}, invoice {number} is due on {due}.\" from a Dictionary or a table row.",
-            panel = "template, values | if_missing")
+            panel = "template, values, from_agent | if_missing")
     @Output(name = "result", type = OoaType.STRING, description = "The filled text.")
     @Output(name = "missing", type = OoaType.LIST, description = "Places that had no value.")
     public Map<String, Object> fillTemplate(ActionContext ctx,
             @Input(name = "template", type = OoaType.STRING, description = "Text with places in curly brackets, e.g. {name}; {{ and }} write a bracket.") String template,
-            @Input(name = "values", type = OoaType.DICTIONARY, description = "The values by name: a Dictionary or a table row (a Record).") Map<String, Object> values,
+            @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "The values by name: a Dictionary or a table row (a Record).") Map<String, Object> values,
             @Input(name = "if_missing", type = OoaType.STRING, required = false, defaultValue = "\"keep\"", enumValues = {"keep", "empty", "error"},
-                    description = "A place without a value: keep {name}, leave it empty, or fail with STRING.MISSING_VALUE.") String ifMissing) {
+                    description = "A place without a value: keep {name}, leave it empty, or fail with STRING.MISSING_VALUE.") String ifMissing,
+            @Input(name = "from_agent", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "G1 (AA parity): also fill $name$ places with the agent's own variables now, for a text read while the agent runs (from a file or a web page). Credentials are never filled in.") boolean fromAgent) {
         String t = template == null ? "" : template;
+        if (values == null && !fromAgent)
+            throw new ActionException("STRING.NO_VALUES", "Give the values to fill in", "Fill in values, or tick 'from the agent's variables'.");
+        List<Object> missing = new ArrayList<>();
+        if (fromAgent) t = fillFromAgent(ctx, t, ifMissing, missing);
         Map<String, Object> vals = new LinkedHashMap<>();
         if (values != null) values.forEach((k, v) -> vals.put(k.toLowerCase(Locale.ROOT), v));
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{\\{|\\}\\}|\\{([^{}]+)\\}").matcher(t);
         StringBuilder sb = new StringBuilder();
-        List<Object> missing = new ArrayList<>();
         while (m.find()) {
             String rep;
             if (m.group().equals("{{")) rep = "{";
@@ -770,6 +792,40 @@ public final class StringPackage {
         }
         m.appendTail(sb);
         return Out.of("result", sb.toString(), "missing", missing);
+    }
+
+    public Map<String, Object> fillTemplate(ActionContext ctx, String template, Map<String, Object> values, String ifMissing) {
+        return fillTemplate(ctx, template, values, ifMissing, false);
+    }
+
+    /** $name$ (and $name.field$) places filled with the agent's variables; $F$1-style cell references are left alone. */
+    static String fillFromAgent(ActionContext ctx, String t, String ifMissing, List<Object> missing) {
+        com.oneofficeautomation.runner.FlowVariables fv;
+        try { fv = ctx.service(com.oneofficeautomation.runner.FlowVariables.SERVICE, com.oneofficeautomation.runner.FlowVariables.class); }
+        catch (OoaException e) { throw new ActionException("STRING.NO_VARIABLES", "This run cannot read its variables", "Give the values in values instead."); }
+        Map<String, String> declared = new HashMap<>();
+        fv.declared().forEach((k, type) -> declared.put(k.toLowerCase(Locale.ROOT), type));
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\$([A-Za-z_][\\w]*)((?:\\.[A-Za-z_][\\w]*)*)\\$(?![0-9])").matcher(t);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String name = m.group(1), path = m.group(2);
+            String type = declared.get(name.toLowerCase(Locale.ROOT));
+            String rep;
+            if (type == null || "Credential".equalsIgnoreCase(type)) {
+                missing.add(name + path);
+                if ("error".equals(ifMissing)) throw new ActionException("STRING.MISSING_VALUE", "The text needs $" + name + path + "$, which is not a variable of the agent"
+                        + ("Credential".equalsIgnoreCase(type) ? " that may be filled in (a credential)" : ""), "Check the name, or choose to keep or empty places without a value.");
+                rep = "empty".equals(ifMissing) ? "" : m.group();
+            } else {
+                Object v = fv.value(fv.declared().keySet().stream().filter(k -> k.equalsIgnoreCase(name)).findFirst().orElse(name));
+                for (String part : path.isEmpty() ? new String[0] : path.substring(1).split("\\."))
+                    v = v instanceof Map<?, ?> mm ? mm.get(part) : null;
+                rep = v == null ? "" : Values.text(v);
+            }
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(rep));
+        }
+        m.appendTail(sb);
+        return sb.toString();
     }
 
     @Action(id = "encode", name = "Encode or decode text", category = "Text", idempotent = true,

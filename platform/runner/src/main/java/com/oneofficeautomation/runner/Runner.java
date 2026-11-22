@@ -236,6 +236,33 @@ public final class Runner {
     /** File fields that read a picture: an Image variable may be given to them directly. */
     static final Set<String> PICTURE_INPUTS = Set.of("image", "template");
 
+    /** One Watch for interruptions step being run: its handlers, how often each has responded, and its options. */
+    record InterruptScope(String stepId, List<Map<String, Object>> handlers, java.util.concurrent.atomic.AtomicIntegerArray fired, double every, boolean retry) {}
+
+    /** A thread's view of the interruption scopes around it, and whether a handler (or its check) is running now. */
+    static final class Watch {
+        final ArrayDeque<InterruptScope> scopes = new ArrayDeque<>();
+        int handling;
+        long lastCheck = System.nanoTime();
+        Watch copy() { Watch w = new Watch(); w.scopes.addAll(scopes); w.handling = handling; return w; }
+        boolean active() { return !scopes.isEmpty() && handling == 0; }
+    }
+
+    /**
+     * Session key prefix (then ":" and the run id) of the check UI toolkits call before they act (UiGuard), so Watch for
+     * interruptions also covers their waits: a Supplier of the names of the handlers that responded.
+     */
+    public static final String INTERRUPT_CHECK_SESSION = "ooa.interrupt_scope.check";
+    /** Service a toolkit uses to work out a condition object as If does (an interrupt rule's when_condition): Function to Boolean. */
+    public static final String CONDITION_SERVICE = "condition_evaluator";
+    /**
+     * Service that reads the items of a loop type or a command's list output, for the trigger loop's new items:
+     * {source: "toolkit/id", inputs, connection, list_output, step} to a List.
+     */
+    public static final String ITEM_SOURCE_SERVICE = "item_source";
+    /** Most items one look at a source reads. */
+    static final int MAX_SOURCE_ITEMS = 10_000;
+
     static final class Scope {
         final Map<String, String> types = new LinkedHashMap<>();
         final Map<String, Object> values = new HashMap<>();
@@ -305,6 +332,11 @@ public final class Runner {
         final InheritableThreadLocal<ArrayDeque<String[]>> calls = new InheritableThreadLocal<>() {
             @Override protected ArrayDeque<String[]> initialValue() { return new ArrayDeque<>(); }
             @Override protected ArrayDeque<String[]> childValue(ArrayDeque<String[]> parent) { return new ArrayDeque<>(parent); }
+        };
+        /** Watch for interruptions: the scopes this thread is inside (innermost last); parallel branches start with a copy. */
+        final InheritableThreadLocal<Watch> watch = new InheritableThreadLocal<>() {
+            @Override protected Watch initialValue() { return new Watch(); }
+            @Override protected Watch childValue(Watch parent) { return parent.copy(); }
         };
 
         @SuppressWarnings("unchecked")
@@ -760,7 +792,7 @@ public final class Runner {
                 if (sid.equals(id)) return new ArrayList<>(List.of(sid));
                 List<List<Object>> sections = new ArrayList<>();
                 for (String k : List.of("children", "else", "finally", "default")) sections.add(list(s, k));
-                for (String k : List.of("elseIf", "catch", "cases"))
+                for (String k : List.of("elseIf", "catch", "cases", "handlers"))
                     for (Object b : list(s, k)) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) sections.add((List<Object>) c);
                 sections.addAll(Steps.stateLists(s));
                 for (List<Object> sec : sections) {
@@ -798,6 +830,7 @@ public final class Runner {
             if (holdsStart(kids)) {
                 switch (act) {
                     case "core/try" -> tryBlock(step);
+                    case "core/interrupt_scope" -> interruptScope(step, step.get("args") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of(), sid);
                     case "core/parallel" -> { for (Object b : kids) if (holdsStart(List.of(b))) { execSteps(List.of(b), false); break; } }
                     case "core/loop" -> {
                         Map<String, Object> a = step.get("args") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
@@ -810,7 +843,7 @@ public final class Runner {
                 return;
             }
             for (String k : List.of("else", "finally", "default")) if (holdsStart(list(step, k))) { execSteps(list(step, k), false); return; }
-            for (String k : List.of("elseIf", "catch", "cases"))
+            for (String k : List.of("elseIf", "catch", "cases", "handlers"))
                 for (Object b : list(step, k))
                     if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c && holdsStart((List<Object>) c)) { execSteps((List<Object>) c, false); return; }
         }
@@ -916,6 +949,7 @@ public final class Runner {
                 case "state_machine" -> stateMachine(step, a, sid, null, null);
                 case "loop" -> loop(step, a);
                 case "try" -> tryBlock(step);
+                case "interrupt_scope" -> interruptScope(step, a, sid);
                 case "step" -> execSteps(list(step, "children"), false);
                 case "parallel" -> parallel(step, a);
                 case "set" -> assign((String) a.get("variable"), a.get("value"), sid);
@@ -1149,6 +1183,8 @@ public final class Runner {
             long end = System.nanoTime() + (long) (seconds * 1e9);
             while (true) {
                 check();
+                // Watch for interruptions is also watched while the agent waits (Delay, Wait for condition, keep checking)
+                if (watch.get().active()) watchInterrupts(null, true);
                 long left = end - System.nanoTime();
                 if (left <= 0) return;
                 try { Thread.sleep(Math.min(left / 1_000_000 + 1, 50)); }
@@ -1182,7 +1218,10 @@ public final class Runner {
                 if (m.containsKey("expr")) return Expressions.truthy(Expressions.evaluate(String.valueOf(m.get("expr")), this::lookup));
                 if (m.containsKey("op")) {
                     Map<String, Object> opts = new HashMap<>();
-                    for (String k : List.of("ignoreCase", "trim", "includeTime", "ignoreLineBreaks")) if (m.containsKey(k)) opts.put(k, resolve(m.get(k)));
+                    for (String k : List.of("ignoreCase", "trim", "includeTime", "ignoreLineBreaks")) if (m.containsKey(k)) opts.put(k, onOff(m.get(k), k));
+                    // the ticks as OneAgentStudio words them, for a value taken from a variable: Match case, Compare the date only
+                    if (m.containsKey("matchCase") && !opts.containsKey("ignoreCase")) opts.put("ignoreCase", !onOff(m.get("matchCase"), "matchCase"));
+                    if (m.containsKey("dateOnly") && !opts.containsKey("includeTime")) opts.put("includeTime", !onOff(m.get("dateOnly"), "dateOnly"));
                     Object left = resolve(m.get("left")), right = resolve(m.get("right"));
                     if (Boolean.TRUE.equals(opts.get("ignoreLineBreaks"))) { left = noBreaks(left); right = noBreaks(right); }
                     return Conditions.compare(String.valueOf(m.get("op")), left, right, opts);
@@ -1200,6 +1239,12 @@ public final class Runner {
         }
 
         Object noBreaks(Object v) { return v instanceof String s ? s.replace("\r", "").replace("\n", "") : v; }
+
+        /** A comparison option (a tick or a Boolean variable) as true or false; empty is false. */
+        boolean onOff(Object raw, String name) {
+            Object v = resolve(raw);
+            return v != null && !"".equals(v) && Boolean.TRUE.equals(Values.coerce(v, "Boolean", name));
+        }
 
         Long optLong(Object raw, String name) {
             Object v = resolve(raw);
@@ -1228,6 +1273,7 @@ public final class Runner {
             if ((from != null && from < 0) || (to != null && to < 0))
                 throw new OoaException("LOOP.BAD_RANGE", "from_index and to_index cannot be negative", "Indexes start at 0.");
             boolean reverse = flag(a, "reverse", false);
+            if (it.equals("triggers")) { triggerLoop(step, a, sid, label, limit); return; }
             Iterator<Object[]> items;
             AutoCloseable release = null;   // a toolkit iterator holding something open (an input hook) is closed when the loop ends
             switch (it) {
@@ -1319,6 +1365,79 @@ public final class Runner {
                 }
             } finally {
                 if (release != null) try { release.close(); } catch (Exception ignored) { }
+            }
+        }
+
+        /** End of one trigger's events in a trigger loop. */
+        static final Object TRIGGER_ENDED = new Object();
+
+        /**
+         * core/loop with iterator "triggers": every handler's trigger (a toolkit loop type such as ooa.triggerloop/file_arrives)
+         * is watched at once; each event runs the steps of its handler, in the order the events came (events that come while
+         * steps run wait their turn). The loop ends when every trigger has ended (its max_events or max_seconds), on Exit loop,
+         * at max_iterations (LOOP.LIMIT) or when the run is stopped. A trigger's error ends the loop with that error.
+         */
+        @SuppressWarnings("unchecked")
+        void triggerLoop(Map<String, Object> step, Map<String, Object> a, String sid, String label, long limit) {
+            List<Map<String, Object>> hs = new ArrayList<>();
+            for (Map<String, Object> h : Steps.handlers(step)) if (!Boolean.TRUE.equals(h.get("disabled"))) hs.add(h);
+            if (hs.isEmpty()) throw new OoaException("LOOP.NO_TRIGGERS", "The trigger loop has no handlers", "Add a handler with the event it waits for (a new file, a key press, a new e-mail...).");
+            BlockingQueue<Object[]> events = new LinkedBlockingQueue<>(1000);
+            AtomicBoolean done = new AtomicBoolean();
+            List<Thread> pumps = new ArrayList<>();
+            List<AutoCloseable> releases = new ArrayList<>();
+            try {
+                for (int k = 0; k < hs.size(); k++) {
+                    Map<String, Object> h = hs.get(k);
+                    String trig = h.get("trigger") instanceof String t ? t.strip() : "";
+                    if (!trig.contains("/")) throw new OoaException("LOOP.NO_TRIGGERS", "Handler " + (k + 1) + " of the trigger loop has no trigger", "Choose the event the handler waits for.");
+                    String pid = trig.substring(0, trig.indexOf('/')), iid = trig.substring(trig.indexOf('/') + 1);
+                    PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
+                    ActionSpec spec = pkg.spec("iterator", iid);
+                    if (spec == null) throw new OoaException("FLOW.UNKNOWN_ITERATOR", "Unknown trigger '" + trig + "'", "Update the runner; the agent uses a trigger this runner does not know.");
+                    Object res = invoke(pkg, spec, prepareArgs(spec, (Map<String, Object>) resolve(h.getOrDefault("args", Map.of()))), ctx(sid));
+                    Iterator<Object> src = ((Iterable<Object>) res).iterator();
+                    if (src instanceof AutoCloseable c) releases.add(c);
+                    int idx = k;
+                    pumps.add(Thread.ofVirtual().name("ooa-trigger-" + runId + "-" + k).start(() -> {
+                        try {
+                            while (!done.get() && src.hasNext()) events.put(new Object[]{idx, src.next()});
+                            if (!done.get()) events.put(new Object[]{idx, TRIGGER_ENDED});
+                        } catch (InterruptedException ie) { /* the loop ended */ }
+                        catch (RuntimeException e) {
+                            if (!done.get()) events.offer(new Object[]{idx, e instanceof OoaException ? e
+                                    : new OoaException("TRIGGER.FAILED", "Trigger '" + trig + "' failed: " + e, "Check the trigger's settings, then run the agent again.")});
+                        }
+                    }));
+                }
+                int ended = 0;
+                long n = 0;
+                while (ended < hs.size()) {
+                    check();
+                    Object[] ev;
+                    try { ev = events.poll(100, TimeUnit.MILLISECONDS); }
+                    catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted", "The run was stopped before this step finished. Run the agent again when it should go on."); }
+                    if (ev == null) continue;
+                    if (ev[1] == TRIGGER_ENDED) { ended++; continue; }
+                    if (ev[1] instanceof OoaException e) throw e;
+                    if (n >= limit) throw new OoaException("LOOP.LIMIT", "Loop exceeded " + limit + " iterations", "Check the loop condition or raise max_iterations.");
+                    Map<String, Object> h = hs.get((Integer) ev[0]);
+                    Object item = ev[1];
+                    String as = h.get("as") instanceof String s && !s.isBlank() ? s.strip() : a.get("as") instanceof String s2 ? s2 : null;
+                    if (as != null) scope.set(Expressions.nameOf(as).isEmpty() ? as : Expressions.nameOf(as), item);
+                    if (a.get("index") instanceof String idxVar) scope.set(idxVar, BigDecimal.valueOf(n));
+                    n++;
+                    log("info", "Trigger loop: " + handlerName(h, (Integer) ev[0]) + " fired", sid);
+                    loopItems.push(item == null ? NO_ITEM : item);
+                    try { execSteps(list(h, "children"), false); }
+                    catch (ContinueSignal c) { if (c.label != null && !c.label.equals(label)) throw c; }
+                    catch (BreakSignal b) { if (b.label != null && !b.label.equals(label)) throw b; break; }
+                    finally { loopItems.poll(); }
+                }
+            } finally {
+                done.set(true);
+                pumps.forEach(Thread::interrupt);
+                for (AutoCloseable c : releases) try { c.close(); } catch (Exception ignored) { }
             }
         }
 
@@ -1481,6 +1600,98 @@ public final class Runner {
             }
         }
 
+        /**
+         * core/interrupt_scope (Watch for interruptions): runs its steps while its handlers are watched, before each toolkit
+         * step, while the agent waits (Delay, Wait for condition, a check that keeps checking) and before UI toolkits act. A
+         * handler whose condition is true runs its steps, then the others are checked; nothing is watched while a handler
+         * runs. With retry_failed_step, a toolkit step that failed runs once more when a handler then dealt with something.
+         */
+        void interruptScope(Map<String, Object> step, Map<String, Object> a, String sid) {
+            List<Map<String, Object>> hs = new ArrayList<>();
+            for (Map<String, Object> h : Steps.handlers(step)) if (!Boolean.TRUE.equals(h.get("disabled"))) hs.add(h);
+            Object ev = resolve(a.get("check_every_seconds"));
+            double every = ev == null || "".equals(ev) ? 0.5 : Math.max(0.1, Values.toNumber(ev).doubleValue());
+            InterruptScope s = new InterruptScope(sid, hs, new java.util.concurrent.atomic.AtomicIntegerArray(hs.size()), every, flag(a, "retry_failed_step", false));
+            sessions.putIfAbsent(INTERRUPT_CHECK_SESSION + ":" + runId, (java.util.function.Supplier<List<String>>) () -> watchInterrupts(null, false));
+            Watch w = watch.get();
+            w.scopes.addLast(s);
+            if (hs.isEmpty()) log("warning", "Watch for interruptions has no handlers: nothing is watched", sid);
+            try { execSteps(list(step, "children"), false); }
+            finally {
+                w.scopes.removeLastOccurrence(s);
+                int total = 0;
+                for (int i = 0; i < hs.size(); i++) total += s.fired().get(i);
+                if (total > 0) log("info", "Watch for interruptions: handlers responded " + total + " time(s)", sid);
+            }
+        }
+
+        /** The name a handler is known by in the log: its name, or its position. */
+        String handlerName(Map<String, Object> h, int i) {
+            return h.get("name") instanceof String n && !n.isBlank() ? n.strip() : "handler " + (i + 1);
+        }
+
+        /**
+         * Checks the handlers of the scopes this thread is in (the innermost scope first, each scope's handlers in order) and
+         * runs the steps of each whose condition is true. Returns the names of the handlers that responded. `sid` is the step
+         * about to run (null while waiting); with `due`, only when check_every_seconds has passed since the last check.
+         */
+        List<String> watchInterrupts(String sid, boolean due) {
+            Watch w = watch.get();
+            if (!w.active()) return List.of();
+            long now = System.nanoTime();
+            if (due) {
+                double every = Double.MAX_VALUE;
+                for (InterruptScope s : w.scopes) every = Math.min(every, s.every());
+                if (now - w.lastCheck < (long) (every * 1e9)) return List.of();
+            }
+            List<String> done = new ArrayList<>();
+            w.handling++;
+            try {
+                Iterator<InterruptScope> it = w.scopes.descendingIterator();
+                while (it.hasNext()) {
+                    InterruptScope s = it.next();
+                    for (int i = 0; i < s.handlers().size(); i++) {
+                        Map<String, Object> h = s.handlers().get(i);
+                        Object maxRaw = resolve(h.get("max_times"));
+                        int max = maxRaw == null || "".equals(maxRaw) ? 0 : Values.toNumber(maxRaw).intValue();
+                        if (max > 0 && s.fired().get(i) >= max) continue;
+                        String name = handlerName(h, i);
+                        boolean hit;
+                        try { hit = condition(h.get("when"), s.stepId()); }
+                        catch (OoaException e) {
+                            if ("RUN.CANCELLED".equals(e.code()) || "RUN.TIMEOUT".equals(e.code())) throw e;
+                            log("warning", "Interruption '" + name + "' could not be checked: " + e.getMessage(), s.stepId());
+                            continue;
+                        }
+                        if (!hit) continue;
+                        s.fired().incrementAndGet(i);
+                        done.add(name);
+                        emit("interrupt.handled", s.stepId(), data("handler", name, "beforeStep", sid, "times", s.fired().get(i)));
+                        log("info", "Interruption '" + name + "' found" + (sid == null ? " while waiting" : " before step " + sid) + ": running its steps", s.stepId());
+                        try { execSteps(list(h, "children"), false); }
+                        catch (GotoSignal g) {
+                            throw new OoaException("FLOW.BAD_GOTO", "Go to label '" + g.label + "' would leave the steps of interruption handler '" + name + "'",
+                                    "Go to can only jump to a label inside the same handler.");
+                        }
+                    }
+                }
+            } finally {
+                w.handling--;
+                w.lastCheck = System.nanoTime();
+            }
+            return done;
+        }
+
+        /** After a toolkit step failed: true when a scope around it retries failed steps and a handler then dealt with something. */
+        boolean retryAfterInterrupt(String sid, OoaException err) {
+            Watch w = watch.get();
+            if (!w.active() || w.scopes.stream().noneMatch(InterruptScope::retry)) return false;
+            List<String> handled = watchInterrupts(sid, false);
+            if (handled.isEmpty()) return false;
+            log("warning", "Step " + sid + " failed with " + err.code() + " while an interruption was showing (" + String.join(", ", handled) + "); running it again", sid);
+            return true;
+        }
+
         @SuppressWarnings("unchecked")
         void parallel(Map<String, Object> step, Map<String, Object> a) {
             int n = Values.toNumber(resolve(a.getOrDefault("max_concurrency", BigDecimal.valueOf(4)))).intValue();
@@ -1518,8 +1729,20 @@ public final class Runner {
             Map<String, Object> args = (Map<String, Object>) resolve(a);
             String automation = Values.text(args.get("automation"));
             Object version = args.get("version") == null || "".equals(args.get("version")) ? "production" : args.get("version");
-            int repeat = args.get("repeat") == null ? 1 : Values.toNumber(args.get("repeat")).intValue();
+            String mode = args.get("repeat_mode") == null || "".equals(args.get("repeat_mode")) ? "times" : Values.text(args.get("repeat_mode")).strip();
+            if (!List.of("times", "for_duration", "until_stopped").contains(mode))
+                throw new OoaException("CHILD.BAD_REPEAT", "Unknown repeat_mode '" + mode + "'", "Use times, for_duration or until_stopped.");
+            int repeat = !mode.equals("times") ? Integer.MAX_VALUE : args.get("repeat") == null || "".equals(args.get("repeat")) ? 1 : Values.toNumber(args.get("repeat")).intValue();
             if (repeat < 1) throw new OoaException("CHILD.BAD_REPEAT", "repeat must be 1 or more, got " + repeat, "Use 1 to run the child once.");
+            long repeatEnd = Long.MAX_VALUE;
+            if (mode.equals("for_duration")) {
+                Object fs = args.get("repeat_for_seconds");
+                if (fs == null || "".equals(fs)) throw new OoaException("CHILD.BAD_REPEAT", "repeat_for_seconds is needed to repeat for a length of time", "Give the number of seconds to keep running the child.");
+                double secs = Values.toNumber(fs).doubleValue();
+                if (secs < 0) throw new OoaException("CHILD.BAD_REPEAT", "repeat_for_seconds cannot be negative", "Use 0 or more seconds.");
+                repeatEnd = System.nanoTime() + (long) (secs * 1e9);
+            }
+            boolean numbered = repeat > 1;
             double repeatDelay = args.get("repeat_delay_seconds") == null ? 0 : Values.toNumber(args.get("repeat_delay_seconds")).doubleValue();
             boolean failOnError = args.get("fail_on_error") == null || Boolean.TRUE.equals(Values.coerce(args.get("fail_on_error"), "Boolean", "fail_on_error"));
             boolean same = args.get("same_session") != null && Boolean.TRUE.equals(Values.coerce(args.get("same_session"), "Boolean", "same_session"));
@@ -1530,9 +1753,12 @@ public final class Runner {
             String status = "success";
             int runs = 0;
             for (int r = 0; r < repeat; r++) {
+                // for a length of time: a new run starts only while time is left (the first always runs); until stopped: Stop ends it
+                if (r > 0 && System.nanoTime() >= repeatEnd) break;
+                if (r > 0) check();
                 if (r > 0 && repeatDelay > 0) sleep(repeatDelay);
                 Map<String, Object> childFlow = repo.get(automation, version);
-                Run child = new Run(childFlow, runId + "." + step.get("id") + (repeat > 1 ? "." + (r + 1) : ""), cancel, timeout, depth + 1);
+                Run child = new Run(childFlow, runId + "." + step.get("id") + (numbered ? "." + (r + 1) : ""), cancel, timeout, depth + 1);
                 child.pause = pause;
                 child.debugger = debugger;
                 child.parent = this;
@@ -1627,6 +1853,9 @@ public final class Runner {
                 m.putIfAbsent(RunSuspension.SERVICE, suspension());
                 // coded agents (G70): a toolkit command the code calls runs as part of the calling step
                 m.putIfAbsent("action_invoker", (java.util.function.Function<Map<String, Object>, Object>) this::invokeForCode);
+                // an interrupt rule's condition (Add interrupt rule, when_condition) is worked out as If's condition is
+                m.putIfAbsent(CONDITION_SERVICE, (java.util.function.Function<Object, Object>) c -> condition(c, "interrupt"));
+                m.putIfAbsent(ITEM_SOURCE_SERVICE, (java.util.function.Function<Map<String, Object>, Object>) this::readItems);
                 // the item of the innermost loop around the step: "the current email" for steps that leave their id empty
                 m.putIfAbsent(ActionContext.LOOP_ITEM_SERVICE, (java.util.function.Supplier<Object>) () -> { Object o = loopItems.peek(); return o == NO_ITEM ? null : o; });
                 stepServices = java.util.Collections.unmodifiableMap(m);
@@ -1653,6 +1882,42 @@ public final class Runner {
             Map<String, Object> args = prepareArgs(spec, req.get("inputs") instanceof Map<?, ?> in ? (Map<String, Object>) in : Map.of());
             emit("log", sid, logData("info", "The code calls " + action));
             return invoke(pkg, spec, args, ctx(sid));
+        }
+
+        /**
+         * The items of a loop type, or the list output of a command, read once (the trigger loop's new items): checked and
+         * run as a step's are (inputs, a saved connection with its vault credentials, the agent's toolkit versions).
+         */
+        @SuppressWarnings("unchecked")
+        Object readItems(Map<String, Object> req) {
+            String source = String.valueOf(req.get("source")).strip();
+            int slash = source.lastIndexOf('/');
+            if (slash <= 0) throw new OoaException("TRIGGER.NO_SOURCE", "Name the source as toolkit/loop type or toolkit/command", "For example ooa.email/emails.");
+            String pid = source.substring(0, slash), id = source.substring(slash + 1);
+            PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
+            ActionSpec spec = pkg.spec("iterator", id);
+            boolean command = spec == null;
+            if (command) spec = pkg.spec("action", id);
+            if (spec == null) throw new OoaException("TRIGGER.NO_SOURCE", pid + "@" + pkg.version() + " has no loop type or command '" + id + "'", "Choose a loop type or a command that gives a list.");
+            String sid = String.valueOf(req.getOrDefault("step", "trigger"));
+            Map<String, Object> raw = spec.currentArgs(req.get("inputs") instanceof Map<?, ?> in ? new LinkedHashMap<>((Map<String, Object>) in) : new LinkedHashMap<>());
+            if (req.get("connection") instanceof String cn && !cn.isBlank()) raw = withConnection(cn.strip(), pid, spec, raw);
+            Object res = invoke(pkg, spec, prepareArgs(spec, raw), ctx(sid));
+            List<Object> out = new ArrayList<>();
+            if (!command) {
+                Iterator<Object> it = ((Iterable<Object>) res).iterator();
+                try { while (it.hasNext() && out.size() < MAX_SOURCE_ITEMS) out.add(it.next()); }
+                finally { if (it instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { } }
+                return out;
+            }
+            Map<String, Object> result = res instanceof Map<?, ?> r ? (Map<String, Object>) r : Map.of();
+            String name = req.get("list_output") instanceof String lo && !lo.isBlank() ? lo.strip() : null;
+            if (name == null) for (ActionSpec.OutputSpec o : spec.outputs()) if (o.type() == OoaType.LIST) { name = o.name(); break; }
+            if (name == null || !(result.get(name) instanceof List<?> l))
+                throw new OoaException("TRIGGER.NO_LIST", source + " gives no list" + (name == null ? "" : " in output '" + name + "'"),
+                        "Name the output that holds the list in list_output.");
+            for (Object o : l) { if (out.size() >= MAX_SOURCE_ITEMS) break; out.add(o); }
+            return out;
         }
 
         /** Suspend and resume for this run (G36): where it may stop, what it saves, and the answer when it comes back. */
@@ -1860,7 +2125,9 @@ public final class Runner {
             long stepEnd = start + (long) Math.min(timeoutSeconds * 1e9, Long.MAX_VALUE / 4.0);
             if (deadlineNanos != Long.MAX_VALUE && start >= deadlineNanos)
                 throw new OoaException("RUN.TIMEOUT", "Run exceeded its maximum duration", "Raise the run time limit or split the bot.");
-            Future<Object> f = ex.submit(fn);
+            // the step's Watch for interruptions goes with it, so a UI toolkit's check on the worker sees the same scopes
+            Watch caller = watch.get().copy();
+            Future<Object> f = ex.submit(() -> { watch.set(caller); try { return fn.call(); } finally { watch.remove(); } });
             try {
                 // the step's own timeout, the run's time limit and Stop all end a running step (a long Databricks wait used to
                 // run far past the run limit, and Stop waited for the step to finish)
@@ -1917,6 +2184,8 @@ public final class Runner {
             double timeout = step.get("timeoutSeconds") != null ? Values.toNumber(step.get("timeoutSeconds")).doubleValue() : spec.timeoutSeconds();
             int attempt = 0;
             Object result;
+            boolean againAfterInterrupt = false;
+            watchInterrupts(sid, false);   // Watch for interruptions: a pop-up showing now is dealt with before the step acts
             while (true) {
                 OoaException err;
                 try {
@@ -1934,6 +2203,7 @@ public final class Runner {
                     err = new ActionException("ACTION.UNEXPECTED", pid + "/" + aid + " raised " + e.getClass().getSimpleName() + ": " + e.getMessage(),
                             "Report this to the toolkit publisher with the run id.");
                 }
+                if (!againAfterInterrupt && mocks == null && retryAfterInterrupt(sid, err)) { againAfterInterrupt = true; continue; }
                 List<Object> codes = policy.get("codes") instanceof List<?> l ? (List<Object>) l : null;
                 boolean retry = attempt < maxRetry && (codes != null ? !codes.isEmpty() && ErrorCodes.anyMatches(codes, err.code()) : err.retryable());
                 if (!retry) throw err;

@@ -27,6 +27,11 @@ public interface DesktopEvents {
      * first), so points taken in it land where they were taken (M2). False when no window matches or it cannot be resized.
      */
     default boolean resizeWindow(String titlePattern, int width, int height) { return false; }
+    /**
+     * Minimises the first matching window to the task bar (minimise true), or restores it and brings it to the front
+     * (G1: Hide form and Show form). False when no window matches or this implementation cannot.
+     */
+    default boolean minimiseWindow(String titlePattern, boolean minimise) { return false; }
 
     /**
      * Calls back on every press of a global hotkey such as "CTRL+ALT+F9" while the returned handle is open.

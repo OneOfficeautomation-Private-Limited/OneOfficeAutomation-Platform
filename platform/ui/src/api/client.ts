@@ -96,6 +96,11 @@ export type FlowStep = {
   children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; message_to?: string; line_to?: string; continueOnError?: boolean; screenshot?: boolean | string; rethrow?: boolean; children?: FlowStep[] }[]; finally?: FlowStep[];
   /** Switch: the cases, tried in order (a case value is a value to compare, or a condition when match is expression), and the default steps. */
   cases?: { values?: unknown[]; children?: FlowStep[] }[]; default?: FlowStep[];
+  /**
+   * G1 (AA parity): Watch for interruptions (core/interrupt_scope) and a trigger loop (core/loop over "triggers") hold
+   * handlers: each with its own steps, run when its condition (when) becomes true, or for each event of its trigger.
+   */
+  handlers?: FlowHandler[];
   /** State machine: named states, each with entry steps and transitions tried in order (one without "when" is the default); a final state ends it. */
   states?: FlowState[];
 };
@@ -145,6 +150,8 @@ export type RunState = { run_id: string; state: string; debug?: DebugState; elap
 export type RunWindowSize = "small" | "medium" | "large";
 export type RunOptions = { debug?: boolean; breakpoints?: string[]; stopAtStart?: boolean; start_at?: string; only_step?: string; carry_over?: boolean;
   run_window?: false | { size: RunWindowSize } };
+/** One handler of Watch for interruptions (when, max_times) or of a trigger loop (trigger, args, as). */
+export type FlowHandler = { name?: string; when?: unknown; max_times?: number; trigger?: string; args?: Record<string, unknown>; as?: string; disabled?: boolean; children?: FlowStep[] };
 export type DebugCommand = "continue" | "stepOver" | "stepInto" | "stepOut";
 
 /** Starts an agent on its own: a file arriving in a folder, a schedule, or a call to a webhook address. */

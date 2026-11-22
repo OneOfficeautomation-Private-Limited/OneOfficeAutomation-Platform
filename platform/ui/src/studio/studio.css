@@ -1162,3 +1162,8 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
   background: var(--ui-run); color: #ffffff; font-size: 11px; cursor: pointer; padding: 0; }
 .st-run-more:hover { background: #166338; }
 .st-run-more:focus-visible { outline: none; box-shadow: var(--ui-focus); }
+/* G1 (AA parity, 21 Nov 2026): a value check's options under it, and "keep checking" under the whole condition */
+.st-cond-ticks { display: flex; flex-wrap: wrap; gap: 2px 14px; flex-basis: 100%; font-size: 12px; }
+.st-cond-ticks .st-check-line { margin: 0; }
+.st-cond-wait { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; margin-top: 4px; }
+.st-cond-wait .st-var-field { width: 6em; flex: none; }

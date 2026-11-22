@@ -37,11 +37,19 @@ public final class UiGuard {
         return ctx.sessions().get(HOOKS_PREFIX + session) instanceof ElementHooks h ? h : null;
     }
 
-    /** Checks the run's interrupt rules and responds to any that match; returns the names of the rules that responded. */
+    /**
+     * Checks the run's interrupt rules and responds to any that match, then the handlers of the Watch for interruptions
+     * blocks around the step (which run their own steps); returns the names of the rules and handlers that responded.
+     */
+    @SuppressWarnings("unchecked")
     public static List<String> before(ActionContext ctx) {
+        List<String> out = new java.util.ArrayList<>();
         InterruptRules rules = InterruptRules.existing(ctx);
-        if (rules == null || rules.isEmpty()) return List.of();
-        return rules.check(probe(ctx), responder(ctx), ctx::warn);
+        if (rules != null && !rules.isEmpty()) out.addAll(rules.check(probe(ctx), responder(ctx), ctx::warn));
+        for (var e : List.copyOf(ctx.sessions().entrySet()))
+            if (e.getKey().startsWith(com.oneofficeautomation.runner.Runner.INTERRUPT_CHECK_SESSION) && e.getValue() instanceof java.util.function.Supplier<?> check)
+                out.addAll((List<String>) check.get());
+        return out;
     }
 
     static InterruptRules.Probe probe(ActionContext ctx) {
@@ -50,6 +58,11 @@ public final class UiGuard {
             public Boolean elementPresent(String session, String selector) {
                 ElementHooks h = hooks(ctx, session);
                 return h == null ? null : h.present(selector);
+            }
+            @SuppressWarnings("unchecked")
+            public Boolean conditionTrue(Object condition) {
+                try { return Boolean.TRUE.equals(ctx.service(com.oneofficeautomation.runner.Runner.CONDITION_SERVICE, java.util.function.Function.class).apply(condition)); }
+                catch (com.oneofficeautomation.sdk.OoaException e) { if ("SERVICE.UNAVAILABLE".equals(e.code())) return null; throw e; }
             }
         };
     }

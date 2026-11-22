@@ -118,6 +118,33 @@ public final class ScriptPackage {
     private static final String D_ARGS = "Arguments passed to the script, one list item each.";
     private static final String D_INPUT = "Text sent to the script's standard input (e.g. JSON).";
 
+    /**
+     * G1 (AA parity): If a script succeeded. Runs the script as its Run step would and is true when it ends with exit
+     * code 0, false when it ends with another code; a script that cannot start (no interpreter, no file) or runs past its
+     * time limit stops the step, as it is not an answer about the script.
+     */
+    @Condition(id = "script_succeeded", name = "Script succeeded",
+            description = "Run a PowerShell, Python, JavaScript or VBScript script and be true when it ends without an error (exit code 0).")
+    public boolean scriptSucceeded(ActionContext ctx,
+            @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"powershell\"", enumValues = {"powershell", "python", "javascript", "vbscript"},
+                    description = "The script's language.") String language,
+            @Input(name = "script", type = OoaType.STRING, required = false, description = D_SCRIPT) String script,
+            @Input(name = "file", type = OoaType.FILE, required = false, description = D_FILE) String file,
+            @Input(name = "arguments", type = OoaType.LIST, required = false, description = D_ARGS) List<Object> args,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, description = "Maximum run time.") double timeout) {
+        String lang = language == null || language.isBlank() ? "powershell" : language.strip();
+        Map<String, Object> r = switch (lang) {
+            case "powershell" -> runPowerShell(ctx, script, file, args, null, timeout, false, null, null, null);
+            case "python" -> runPython(ctx, script, file, args, null, timeout, false, null, null, null);
+            case "javascript" -> runJavaScript(ctx, script, file, args, null, timeout, false, null, null, null);
+            case "vbscript" -> runVbScript(ctx, script, file, args, null, timeout, false, null, null);
+            default -> throw new ActionException("SCRIPT.BAD_LANGUAGE", "Unknown script language '" + language + "'", "Use powershell, python, javascript or vbscript.");
+        };
+        boolean ok = r.get("exit_code") instanceof Number n && n.intValue() == 0;
+        if (!ok) ctx.info("The script ended with exit code " + r.get("exit_code") + ": the condition is false");
+        return ok;
+    }
+
     @Action(id = "run_powershell", name = "Run PowerShell", category = "Scripts", timeoutSeconds = 3600, description = "Run a PowerShell script (PowerShell 7 if installed, otherwise Windows PowerShell).",
             panel = "(Script: Type it here = script / Use a file = file), arguments | input, timeout_seconds, fail_on_error, working_folder, environment, interpreter")
     @Output(name = "output", type = OoaType.STRING, description = "Standard output.")

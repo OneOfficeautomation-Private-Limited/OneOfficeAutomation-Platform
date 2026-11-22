@@ -205,17 +205,21 @@ public final class CurrencyPackage {
             @Input(name = "base_currency", type = OoaType.STRING, required = false, visibleWhen = "source=json|fixed", description = D_BASE) String base,
             @Input(name = "rates", type = OoaType.DICTIONARY, required = false, visibleWhen = "source=fixed", description = D_RATES) Map<String, Object> fixed,
             @Input(name = "date", type = OoaType.DATETIME, required = false, example = "2026-03-31",
-                    description = "Convert at the rates of this past day (ecb source only); on a weekend or holiday the last working day before it is used. Today's rates when empty.") Object date) {
+                    description = "Convert at the rates of this past day: ecb uses its history (on a weekend or holiday the last working day before); json puts the day (yyyy-MM-dd) where {date} is in the url. Today's rates when empty.") Object date) {
         if (amount == null) throw new ActionException(P + ".NO_AMOUNT", "Give an amount to convert", "Fill in the amount to convert.");
         if (decimals < 0 || decimals > 12) throw new ActionException(P + ".BAD_DECIMALS", "decimals must be between 0 and 12", "Set decimals between 0 and 12.");
         Rates r;
         if (date != null && !(date instanceof String ds && ds.isBlank())) {
             String src = source == null || source.isBlank() ? "ecb" : source;
-            if (!src.equals("ecb")) throw new ActionException(P + ".DATE_NOT_SUPPORTED", "A past date works only with the ecb source", "Use source ecb, or leave date empty.");
+            if (!src.equals("ecb") && !src.equals("json")) throw new ActionException(P + ".DATE_NOT_SUPPORTED", "A past date works with the ecb or json source", "Use source ecb or json, or leave date empty.");
             java.time.LocalDate day;
             try { day = Values.toDateTime(date).toLocalDate(); }
             catch (OoaException e) { throw new ActionException(P + ".BAD_DATE", "Cannot read " + Values.safeRepr(date) + " as a date", "Use a date such as 2026-03-31."); }
-            r = ecbOn(ctx, day, url);
+            if (src.equals("json")) {   // G1 (AA parity): a past day from any rates service that takes the day in its address
+                if (url == null || !url.contains("{date}"))
+                    throw new ActionException(P + ".DATE_NOT_SUPPORTED", "For a past date the json url needs {date} where the day goes", "For example https://api.example.com/{date}?base=EUR.");
+                r = rates(ctx, "json", url.replace("{date}", day.toString()), path, base, fixed);
+            } else r = ecbOn(ctx, day, url);
         } else r = rates(ctx, source, url, path, base, fixed);
         BigDecimal rate = rate(r, from, to);
         return Out.of("amount", amount.multiply(rate, MC).setScale(decimals, RoundingMode.HALF_UP), "rate", rate.stripTrailingZeros(),

@@ -141,6 +141,92 @@ public final class Microsoft365Package {
                 row -> (Map<String, Object>) getMail(ctx, token, String.valueOf(row.get("id")), false, false, mailbox, base).get("email"));
     }
 
+    // ---------------------------------------------------------------- G1 (AA parity): loop types for Teams, the calendar and Excel online
+
+    /** The rows of a command's table, one record a turn. */
+    @SuppressWarnings("unchecked")
+    private static Iterable<Object> eachRow(Map<String, Object> result) {
+        List<Object> out = new ArrayList<>(MailRecord.rows(result.get("table")));
+        return out;
+    }
+
+    @LoopIterator(id = "teams", name = "Each team (Teams)", description = "Go through the teams a person belongs to, one a turn: id, name, description.")
+    public Iterable<Object> eachTeam(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "user", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = "me, or a user's id or email address.") String user,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        return eachRow(listTeams(ctx, token, user, base));
+    }
+
+    @LoopIterator(id = "channels", name = "Each channel of a team (Teams)", description = "Go through a team's channels, one a turn: id, name, description, membership_type.")
+    public Iterable<Object> eachChannel(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        return eachRow(listChannels(ctx, token, team, base));
+    }
+
+    @LoopIterator(id = "channel_messages", name = "Each message in a channel (Teams)",
+            description = "Go through a Teams channel's posts (as Get channel messages reads them), one a turn: id, created, from, subject, text, body, content_type, reply_to_id, web_url.")
+    public Iterable<Object> eachChannelMessage(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
+            @Input(name = "channel_id", type = OoaType.STRING, description = "Channel id.") String channel,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Only posts created at or after this time (UTC); all posts when empty.") LocalDateTime since,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Most posts to go through.") int max,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        return eachRow(channelMessages(ctx, token, team, channel, since, max, base));
+    }
+
+    @LoopIterator(id = "chats", name = "Each chat (Teams)", description = "Go through a person's Teams chats, one a turn: id, topic, chat_type, updated.")
+    public Iterable<Object> eachChat(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "50", min = 1, description = "At most this many chats.") int max,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        List<Object> out = new ArrayList<>();
+        String url = base.replaceAll("/+$", "") + "/me/chats?$top=" + Math.min(Math.max(max, 1), 50);
+        while (url != null && out.size() < max) {
+            Map<String, Object> page = HttpJson.req(P, "GET", url).bearer(token).send(ctx).map();
+            for (Object o : page.get("value") instanceof List<?> l ? l : List.of()) {
+                if (out.size() >= max || !(o instanceof Map<?, ?> c)) break;
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", c.get("id")); row.put("topic", c.get("topic") == null ? "" : c.get("topic"));
+                row.put("chat_type", c.get("chatType")); row.put("updated", c.get("lastUpdatedDateTime"));
+                out.add(row);
+            }
+            url = page.get("@odata.nextLink") instanceof String n ? n : null;
+        }
+        return out;
+    }
+
+    @LoopIterator(id = "calendar_events", name = "Each calendar event (Outlook)",
+            description = "Go through the events between two dates, one a turn: id, subject, start, end, location, organizer.")
+    public Iterable<Object> eachEvent(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "start", type = OoaType.DATETIME, description = "Start of the period (UTC).") LocalDateTime from,
+            @Input(name = "end", type = OoaType.DATETIME, description = "End of the period (UTC).") LocalDateTime to,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Only events whose title contains this text.") String subject,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone of the start and end times, e.g. Europe/London.") String tz,
+            @Input(name = "calendar", type = OoaType.STRING, required = false, description = "Read this calendar instead of the default one.") String calendar,
+            @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 0, description = "At most this many events (0: every event in the period).") int max,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        return eachRow(listEvents(ctx, token, from, to, subject, tz, calendar, mailbox, base, max));
+    }
+
+    @LoopIterator(id = "excel_rows", name = "Each row of a sheet (Excel online)",
+            description = "Go through the rows of a worksheet (or a range) in OneDrive or SharePoint, one record a turn, the first row giving the column names.")
+    public Iterable<Object> eachExcelRow(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, example = "Finance/budget.xlsx", description = "Workbook path in the drive.") String remote,
+            @Input(name = "sheet", type = OoaType.STRING, example = "Sheet1", description = "Worksheet name.") String sheet,
+            @Input(name = "range", type = OoaType.STRING, required = false, example = "A1:D20", description = "Range address; all cells in use on the sheet when empty.") String range,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "The first row holds the column names.") boolean header,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        return eachRow(excelRead(ctx, token, remote, sheet, range, drive, base, header, "value"));
+    }
+
     @Action(id = "get_mail", name = "Read email", category = "Mail", capabilities = "network", description = "Read one email's details and body; optionally mark it read.",
             panel = "access_token, id, mark_read, body_as_text | mailbox, base_url")
     @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id. Also, the same on every mail service: id, from, to, cc, subject, received, text, html, attachments (names), has_attachments, unread, message_id.")

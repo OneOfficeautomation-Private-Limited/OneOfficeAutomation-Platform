@@ -240,40 +240,85 @@ public final class DateTimePackage {
         return a.atOffset(ZoneOffset.UTC).atZoneSameInstant(z).toLocalDate().compareTo(b.atOffset(ZoneOffset.UTC).atZoneSameInstant(z).toLocalDate());
     }
 
+    /**
+     * G1 (AA parity): a date given to a date condition: a date, a Date variable, or text typed in the pattern (dd/MM/yyyy,
+     * MM/dd/yyyy HH:mm...); ISO text such as 2026-11-21 needs no pattern.
+     */
+    static final String D_PATTERN = "Pattern of dates written as text, e.g. dd/MM/yyyy; ISO dates (2026-11-21) and Date variables need none.";
+    static LocalDateTime dateOf(Object v, String pattern, String name) {
+        if (v == null || (v instanceof String s && s.isBlank()))
+            throw new ActionException("DATETIME.MISSING", "Input '" + name + "' has no date", "Give a date such as 2026-10-18, or text in the pattern.");
+        if (v instanceof String s && pattern != null && !pattern.isBlank()) {
+            String p = pattern.strip(), t = s.strip();
+            try {
+                DateTimeFormatter f = strictPattern(p, Locale.ENGLISH);
+                return p.contains("H") || p.contains("h") ? LocalDateTime.parse(t, f) : LocalDate.parse(t, f).atStartOfDay();
+            } catch (RuntimeException e) {
+                try { return com.oneofficeautomation.runner.Values.toDateTime(t); }   // an ISO date (2026-11-21) is read as such
+                catch (RuntimeException iso) {
+                    throw new ActionException("DATETIME.PARSE_FAILED", "'" + t + "' (" + name + ") does not fit the pattern " + p, "Check the text or the pattern, e.g. dd/MM/yyyy.");
+                }
+            }
+        }
+        try { return com.oneofficeautomation.runner.Values.toDateTime(v); }
+        catch (OoaException e) { throw new ActionException("DATETIME.PARSE_FAILED", "Cannot read " + name + " '" + v + "' as a date", "Give the pattern of the text, e.g. dd/MM/yyyy."); }
+    }
+
     @Condition(id = "is_after", name = "Date is after", description = "True when the first date is later than the second.")
     public boolean isAfter(ActionContext ctx,
-            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
-            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other,
+            @Input(name = "value", description = "Date to check. A date, a Date variable, or text in the pattern below.") Object value,
+            @Input(name = "other", description = "Date to compare with. A date, a Date variable, or text in the pattern below.") Object other,
             @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, example = "dd/MM/yyyy", description = D_PATTERN) String pattern) {
+        return cmp(dateOf(value, pattern, "value"), dateOf(other, pattern, "other"), includeTime, tz) > 0;
+    }
+
+    public boolean isAfter(ActionContext ctx, LocalDateTime value, LocalDateTime other, boolean includeTime, String tz) {
         return cmp(value, other, includeTime, tz) > 0;
     }
 
     @Condition(id = "is_before", name = "Date is before", description = "True when the first date is earlier than the second.")
     public boolean isBefore(ActionContext ctx,
-            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
-            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other,
+            @Input(name = "value", description = "Date to check. A date, a Date variable, or text in the pattern below.") Object value,
+            @Input(name = "other", description = "Date to compare with. A date, a Date variable, or text in the pattern below.") Object other,
             @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, example = "dd/MM/yyyy", description = D_PATTERN) String pattern) {
+        return cmp(dateOf(value, pattern, "value"), dateOf(other, pattern, "other"), includeTime, tz) < 0;
+    }
+
+    public boolean isBefore(ActionContext ctx, LocalDateTime value, LocalDateTime other, boolean includeTime, String tz) {
         return cmp(value, other, includeTime, tz) < 0;
     }
 
     @Condition(id = "is_equal", name = "Dates are equal", description = "True when both dates are the same moment, or the same day when the time is not included.")
     public boolean isEqual(ActionContext ctx,
-            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
-            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other,
+            @Input(name = "value", description = "Date to check. A date, a Date variable, or text in the pattern below.") Object value,
+            @Input(name = "other", description = "Date to compare with. A date, a Date variable, or text in the pattern below.") Object other,
             @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, example = "dd/MM/yyyy", description = D_PATTERN) String pattern) {
+        return cmp(dateOf(value, pattern, "value"), dateOf(other, pattern, "other"), includeTime, tz) == 0;
+    }
+
+    public boolean isEqual(ActionContext ctx, LocalDateTime value, LocalDateTime other, boolean includeTime, String tz) {
         return cmp(value, other, includeTime, tz) == 0;
     }
 
     @Condition(id = "is_between", name = "Date is between", description = "True when the date lies between two dates, both included.")
     public boolean isBetween(ActionContext ctx,
-            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
-            @Input(name = "from", type = OoaType.DATETIME, description = "Earliest date.") LocalDateTime from,
-            @Input(name = "to", type = OoaType.DATETIME, description = "Latest date.") LocalDateTime to,
+            @Input(name = "value", description = "Date to check. A date, a Date variable, or text in the pattern below.") Object value,
+            @Input(name = "from", description = "Earliest date. A date, a Date variable, or text in the pattern below.") Object from,
+            @Input(name = "to", description = "Latest date. A date, a Date variable, or text in the pattern below.") Object to,
             @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, example = "dd/MM/yyyy", description = D_PATTERN) String pattern) {
+        LocalDateTime v = dateOf(value, pattern, "value");
+        return cmp(v, dateOf(from, pattern, "from"), includeTime, tz) >= 0 && cmp(v, dateOf(to, pattern, "to"), includeTime, tz) <= 0;
+    }
+
+    public boolean isBetween(ActionContext ctx, LocalDateTime value, LocalDateTime from, LocalDateTime to, boolean includeTime, String tz) {
         return cmp(value, from, includeTime, tz) >= 0 && cmp(value, to, includeTime, tz) <= 0;
     }
 

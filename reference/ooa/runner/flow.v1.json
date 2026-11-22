@@ -138,7 +138,24 @@
         "note": {"type": "string", "description": "A name or note shown on the step in the editor (Rename, Shown on the step); it does not change what the step does."},
         "args": {"type": "object", "description": "Action inputs, validated against the package manifest. Values may be literals, $references, '${expr}' interpolations or {\"expr\": \"...\"} objects."},
         "out": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Map of action output name to variable name."},
-        "children": {"$ref": "#/$defs/stepList", "description": "Body of a container step (if/loop/try/step/parallel)."},
+        "children": {"$ref": "#/$defs/stepList", "description": "Body of a container step (if/loop/try/step/parallel/interrupt_scope)."},
+        "handlers": {
+          "type": "array",
+          "description": "Handlers of core/interrupt_scope (each with a condition in when: its steps run when the condition becomes true while the scope's steps run) or of a core/loop whose iterator is triggers (each with a trigger: its steps run for each of the trigger's events, in the order the events came).",
+          "items": {
+            "type": "object", "required": ["children"], "additionalProperties": false,
+            "properties": {
+              "name": {"type": "string", "description": "Name shown in OneAgentStudio and the run log."},
+              "when": {"description": "Interrupt scope: the condition, as for core/if, that marks the interruption."},
+              "max_times": {"type": "integer", "minimum": 0, "description": "Interrupt scope: respond at most this many times while the scope runs; 0 or none = no limit."},
+              "trigger": {"type": "string", "pattern": "^[a-z][a-z0-9_.]*/[a-z][a-z0-9_]*$", "description": "Trigger loop: the loop type whose events this handler takes, e.g. ooa.triggerloop/file_arrives."},
+              "args": {"type": "object", "description": "Trigger loop: the trigger's fields."},
+              "as": {"type": "string", "description": "Trigger loop: variable that receives the event (the loop's own as when empty)."},
+              "disabled": {"type": "boolean", "default": false, "description": "A disabled handler is not watched."},
+              "children": {"$ref": "#/$defs/stepList"}
+            }
+          }
+        },
         "else": {"$ref": "#/$defs/stepList", "description": "Else branch of core/if."},
         "elseIf": {
           "type": "array",

@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1670 codes in 152 areas.
+1688 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -337,9 +337,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `CHILD.BAD_REPEAT` | repeat must be 1 or more, got … | Use 1 to run the child once. | runner |
+| `CHILD.BAD_REPEAT` | Unknown repeat_mode '…'<br>repeat must be 1 or more, got …<br>repeat_for_seconds is needed to repeat for a length of time | Use times, for_duration or until_stopped.<br>Use 1 to run the child once.<br>Give the number of seconds to keep running the child. | runner |
 | `CHILD.BAD_TIMEOUT` | timeout_seconds must be more than 0 | Leave it empty for no limit. | runner |
 | `CHILD.DEPTH` | Child agent nesting is too deep | Keep child agent chains under … levels; check for recursion. | runner |
+| `CHILD.NO_AGENT` | Choose the agent to run | Pick the published agent whose success is checked. | runner |
 | `CHILD.OUTPUT_MISSING` | Child agent '…' has no output '…' | Outputs: …, …. | runner |
 
 ## CLI
@@ -583,7 +584,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `CURRENCY.BAD_RATE` | Rate for … is not a number<br>Rate for … must be greater than 0 | Give each rate as a number, for example 1.08.<br>Give each rate as a number greater than 0. | packages |
 | `CURRENCY.BAD_RESPONSE` | The ECB answer contained no exchange rates<br>No rates object at '…$…' in the answer<br>The rates object has no numeric rates | Check the url returns the eurofxref XML.<br>Set rates_path to the field holding {"CODE": rate, ...}.<br>Check rates_path. | packages |
 | `CURRENCY.BAD_SOURCE` | Unknown rate source '…' | Use ecb, json or fixed. | packages |
-| `CURRENCY.DATE_NOT_SUPPORTED` | A past date works only with the ecb source | Use source ecb, or leave date empty. | packages |
+| `CURRENCY.DATE_NOT_SUPPORTED` | A past date works with the ecb or json source<br>For a past date the json url needs {date} where the day goes | Use source ecb or json, or leave date empty.<br>For example https://api.example.com/{date}?base=EUR. | packages |
 | `CURRENCY.NO_AMOUNT` | Give an amount to convert | Fill in the amount to convert. | packages |
 | `CURRENCY.NO_BASE` | The answer does not say which currency the rates are against<br>The fixed source needs base_currency | Set base_currency.<br>Name the currency your rates are quoted against. | packages |
 | `CURRENCY.NO_RATES` | The fixed source needs a rates Dictionary | … | packages |
@@ -646,9 +647,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `DATETIME.BAD_WEEKEND` | The weekend cannot be every day of the week<br>'…' is not a day of the week | Leave at least one working day, e.g. weekend SAT,SUN.<br>Write the weekend as days such as SAT,SUN or FRI,SAT, or NONE when every day is a working day. | packages |
 | `DATETIME.BAD_ZONE` | Unknown time zone '…' | Use an IANA name such as Europe/London or Asia/Kolkata. | packages |
 | `DATETIME.CALENDAR_NOT_FOUND` | There is no holiday calendar '…' in One CommandCenter | Check the name under Manage > Schedules > Holiday calendars (names are exact), or give the holidays and weekend on the step. | packages |
-| `DATETIME.MISSING` | Input '…' has no date<br>Give a date or a year<br>Give the number of working days | Give a date such as 2026-10-18 or 2026-10-18T14:30:00.<br>Fill in 'value' or 'year'.<br>Fill in 'days', e.g. 5 or -2. | packages |
+| `DATETIME.MISSING` | Input '…' has no date<br>Give a date or a year<br>Give the number of working days | Give a date such as 2026-10-18, or text in the pattern.<br>Give a date such as 2026-10-18 or 2026-10-18T14:30:00.<br>Fill in 'value' or 'year'. | packages |
 | `DATETIME.NO_COMMAND_CENTER` | The holiday calendar '…' is kept in One CommandCenter, and this run is not connected to it<br>This One CommandCenter is too old to give holiday calendars to agents | Run the agent from One CommandCenter, or leave the calendar empty and give the holidays and weekend on the step.<br>Update One CommandCenter, or give the holidays and weekend on the step. | packages |
-| `DATETIME.PARSE_FAILED` | Cannot read '…' as …<br>Cannot read '…' with pattern '…' | Check the text matches the chosen standard format.<br>Check the pattern matches the text exactly. | packages |
+| `DATETIME.PARSE_FAILED` | Cannot read '…' as …<br>Cannot read '…' with pattern '…'<br>'…' (…) does not fit the pattern … | Check the text matches the chosen standard format.<br>Check the pattern matches the text exactly.<br>Check the text or the pattern, e.g. dd/MM/yyyy. | packages |
 
 ## DB
 
@@ -723,6 +724,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `DESKTOP_UI.BAD_INPUT` | Give the window title or its program<br>Give the control's name, role or path | Fill in the window's title or its program.<br>Give a control's name, role or path; Capture in the step fills them in. | packages-windows |
 | `DESKTOP_UI.BAD_OBJECT` | … | Capture the object again with Pick object, or fix the object dictionary. | packages-windows |
 | `DESKTOP_UI.BAD_OPTION` | levels must be 1 to 50 | Go up 1 to 50 levels. | packages-windows |
+| `DESKTOP_UI.BAD_STATE` | Unknown state '…' | Use exists, enabled or focused. | packages-windows |
 | `DESKTOP_UI.BRIDGE_FAILED` | The UI Automation helper did not start…<br>Cannot start the UI Automation helper: … | Check that Windows PowerShell 5.1 and .NET Framework 4 are available on this machine.<br>Check that powershell.exe is on the PATH (Windows PowerShell 5.1). | packages-windows |
 | `DESKTOP_UI.BRIDGE_STOPPED` | The UI Automation helper has stopped…<br>The UI Automation helper stopped while working… | Run the step again. | packages-windows |
 | `DESKTOP_UI.BRIDGE_TIMEOUT` | The application did not answer UI Automation within … s | The application may be busy or not responding; wait for it or raise the timeout. | packages-windows |
@@ -737,7 +739,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `DICT.KEY_NOT_FOUND` | Key '…' is not in the dictionary | Keys: …, ….<br>Check the key; keys are case-sensitive. | packages |
+| `DICT.BAD_POSITION` | Position … is outside the dictionary (0 to …) | Use 0 for the first place, or leave it empty for the end. | packages |
+| `DICT.KEY_NOT_FOUND` | Key '…' is not in the dictionary<br>There is no key at position … (the dictionary has …) | Keys: …, ….<br>Use a position from 0 to ….<br>Check the key; keys are case-sensitive. | packages |
+| `DICT.NO_KEY` | Give the key to remove, or its position | Fill in the key, or the position counted from 0. | packages |
 
 ## DLL
 
@@ -991,7 +995,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FLOW.SCHEMA_MISSING` | flow.v1.json is not on the classpath | Run gradlew :adapters-jackson:syncFlowSchema | adapters-jackson |
 | `FLOW.UNKNOWN_ACTION` | Unknown core action '…'<br>…@… has no action '…' | Update the runner; the agent uses a command this runner does not know.<br>Install the toolkit version the agent was built with, or update the step to the installed version. | runner |
 | `FLOW.UNKNOWN_CONDITION` | Unknown condition '…' | Update the runner; the agent uses a condition this runner does not know. | runner |
-| `FLOW.UNKNOWN_ITERATOR` | Unknown iterator '…' | Update the runner; the agent uses a loop kind this runner does not know. | runner |
+| `FLOW.UNKNOWN_ITERATOR` | Unknown iterator '…'<br>Unknown trigger '…' | Update the runner; the agent uses a loop kind this runner does not know.<br>Update the runner; the agent uses a trigger this runner does not know. | runner |
 
 ## FOLDER
 
@@ -1015,7 +1019,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FORMS.BAD_FIELD` | Each field must be a Dictionary with at least id and type<br>Field ids must be unique and use letters, digits and _ ('…')<br>A dynamic area cannot hold another area | Give each field as a dictionary with at least id and type.<br>Give every field its own id of letters, digits and _.<br>Put the inner area's fields directly in the outer area. | packages |
 | `FORMS.BAD_FORM` | Not a form from the form designer: … (…) | Open it in OneAgentStudio's form designer and save it again. | packages |
 | `FORMS.BAD_KIND` | Unknown highlight kind '…' | Use color, warning or error. | packages |
-| `FORMS.BAD_MODE` | Unknown mode '…' | Use replace or append. | packages |
+| `FORMS.BAD_MODE` | Unknown way to set '…'<br>Unknown mode '…'<br>Unknown way '…' | Use replace or append.<br>Use replace, append or clear. | packages |
 | `FORMS.ELEMENT_NOT_FOUND` | The form has no field or button '…'<br>The form has no field '…' to fill in | Use an id from the form designer (select the field to see its id).<br>Use field ids from the form designer. | packages |
 | `FORMS.NOT_AN_AREA` | '…' is not a dynamic area | Add a Dynamic area in the form designer. | packages |
 | `FORMS.NOT_A_FIELD` | '…' is not a field with a value | Choose an input field, not a button, heading or area. | packages |
@@ -1023,8 +1027,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FORMS.NOT_OPEN` | The form '…' is not open | Display it first (Display form) with this name, and do not close it before this step.<br>Check the name given when it was displayed. | packages |
 | `FORMS.NO_BROWSER` | Cannot open a window for the form: … | Install Microsoft Edge or Google Chrome on the runner. | packages |
 | `FORMS.NO_DESKTOP` | Forms need a runner with a desktop and a signed-in person | Run this agent attended, on a runner where someone is signed in. | packages |
+| `FORMS.NO_WINDOW` | The window of form '…' was not found on the screen | Check that the form is still open; a form window renamed by the person cannot be found by its title. | packages |
 | `FORMS.SERVER_FAILED` | Cannot show forms on this computer: … | Make sure the runner has an unlocked desktop session where the form can open. | packages |
 | `FORMS.TIMEOUT` | Nothing happened on the form within … s | Raise the time-out, or handle timed_out. | packages |
+| `FORMS.WINDOWS_ONLY` | Hiding and showing a form needs a Windows runner with the Window toolkit installed | Run this agent on a Windows runner with a signed-in desktop. | packages |
 
 ## FUZZY
 
@@ -1148,6 +1154,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `INSIGHTS.BAD_CATEGORY` | Invalid category '…' | Use letters, digits, - and _. | packages |
 | `INSIGHTS.BAD_TRANSACTION` | Invalid transaction name '…' | Use up to 100 characters without < or >. | packages |
 | `INSIGHTS.NOT_OPEN` | Transaction '…' was not opened | Add Open transaction with the same name before this step. | packages |
+| `INSIGHTS.NO_VARIABLES` | This run cannot list its variables | List the values in values instead. | packages |
 | `INSIGHTS.RESERVED_NAME` | transaction, outcome, started and duration_seconds are recorded automatically | Rename that value. | packages |
 | `INSIGHTS.SECRET` | Credentials cannot be recorded as insights | Record a value that is not a credential, or leave the field out. | packages |
 
@@ -1155,7 +1162,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `INTERRUPT.BAD_RULE` | close_window answers window rules only<br>A rule needs a name<br>Rule '…': give either a window title pattern or an element selector | Use close_window only on window rules.<br>Give the rule a name.<br>Use when_window or when_element, not both. | packages |
+| `INTERRUPT.BAD_RULE` | close_window answers window rules only<br>A rule needs a name<br>Rule '…': give one of a window title pattern, an element selector or a condition | Use close_window only on window rules.<br>Give the rule a name.<br>Use when_window, when_element or when_condition, only one of them. | packages |
 | `INTERRUPT.NO_REPOSITORY` | This run cannot start child agents | Run the agent from OneAgentStudio or One CommandCenter. | packages |
 | `INTERRUPT.NO_SESSION` | No browser session '…' is open to click … | Use x,y screen coordinates for desktop windows, or open the browser session first. | packages |
 
@@ -1338,6 +1345,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `LOOP.BAD_RANGE` | '…' must be a whole number, got …<br>from_index and to_index cannot be negative<br>step must be 1 or more for this iterator, got … | Use 0, 1, 2 ...<br>Indexes start at 0.<br>Use 1 to visit every item, 2 for every second item. | runner |
 | `LOOP.LIMIT` | Loop exceeded … iterations | A reversed loop reads every item first; raise max_iterations or turn reverse off.<br>Check the loop condition or raise max_iterations. | runner |
 | `LOOP.NO_COLUMN` | The current row has no column '…' | Columns: …. | runner |
+| `LOOP.NO_TRIGGERS` | The trigger loop has no handlers<br>Handler … of the trigger loop has no trigger | Add a handler with the event it waits for (a new file, a key press, a new e-mail...).<br>Choose the event the handler waits for. | runner |
 
 ## M365
 
@@ -1831,6 +1839,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SCRIPT.BAD_ARGUMENT` | At most 64 arguments can be passed to a VBScript function<br>VBScript function arguments cannot contain line breaks | Pass at most 64 arguments; put more in a file or a list the function reads.<br>Pass multi-line text through a file instead. | packages |
 | `SCRIPT.BAD_FUNCTION` | Invalid function name '…' | Give a plain Python name such as calculate_total.<br>Give a plain JavaScript name such as calculateTotal.<br>Give a plain VBScript name such as FormatInvoice. | packages |
 | `SCRIPT.BAD_INTERPRETER` | Invalid interpreter '…' | Give the program name or full path, e.g. C:/Python312/python.exe. | packages |
+| `SCRIPT.BAD_LANGUAGE` | Unknown script language '…' | Use powershell, python, javascript or vbscript. | packages |
 | `SCRIPT.BAD_RESULT` | The function result could not be read as JSON | Return numbers, text, lists or dictionaries. | packages |
 | `SCRIPT.FAILED` | Script exited with code …: …<br>… did not return a result (exit code …exit_code…): …error_output…<br>VBScript did not return a result (exit code …exit_code…): …error_output… | Read the error output, fix the script, or set fail_on_error to false.<br>Check the file runs on its own.<br>Check the file runs on its own with cscript. | packages |
 | `SCRIPT.INTERPRETER_NOT_FOUND` | Python is not installed on this runner (tried …, …)<br>…Python is not installed on this runner…Microsoft Store… (python only opens the Microsoft Store)……None of … is installed on this runner | Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter.<br>…Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter, e.g. C:/Python312/python.exe.…Install the interpreter on the runner or add it to the PATH. | packages |
@@ -1842,7 +1851,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `SERVICE.UNAVAILABLE` | No agent repository available for child agents<br>Platform service '…' is not available to this run | Run the agent from One CommandCenter or Studio, which give child agents a repository.<br>Check the run was started with the required platform services. | runner, sdk |
+| `SERVICE.UNAVAILABLE` | This run cannot start child agents<br>No agent repository available for child agents<br>Platform service '…' is not available to this run | Run the agent from OneAgentStudio or One CommandCenter, which give child agents a repository.<br>Run the agent from One CommandCenter or Studio, which give child agents a repository.<br>Check the run was started with the required platform services. | runner, sdk |
 
 ## SERVICENOW
 
@@ -1884,6 +1893,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `SESSION.NOT_FOUND` | Session '…' is not open<br>Several are open (…, …); this step does not say which | Add an 'open' step that creates session '…' before this step.<br>Choose the session on this step. | sdk |
+| `SESSION.NO_NAME` | Give the session's name | Use the name given on the step that opened it, for example excel. | runner |
 | `SESSION.WRONG_TYPE` | Session '…' is a …, expected … | Use the session from the matching Open step (a browser session for browser steps, and so on). | sdk |
 
 ## SLACK
@@ -2000,16 +2010,18 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `STRING.BAD_LENGTH` | max_length cannot be negative<br>Length cannot be negative (…)<br>Length … is out of range | Use 0 or more.<br>Use a length from 0 to 100000.<br>Choose a smaller positive length. | packages |
 | `STRING.BAD_MODE` | Unknown compare mode '…' | Use exact, ignore_case or natural. | packages |
 | `STRING.BAD_OCCURRENCE` | Occurrences start at 1<br>Occurrences start at 1, got … | Use 1 for the first match. | packages |
-| `STRING.BAD_OPTION` | Unknown until option '…' | Use marker, end_of_line or end_of_text. | packages |
+| `STRING.BAD_OPTION` | Unknown markers option '…'<br>Unknown length option '…'<br>Unknown until option '…' | Use either or both.<br>Use up_to or exactly.<br>Use marker, end_of_line or end_of_text. | packages |
 | `STRING.BAD_PATTERN` | The pattern '…' is not valid: … | Fix the pattern, or untick Use a pattern to find the text as it is. | packages |
 | `STRING.BAD_POSITION` | Start position … is outside the text (length …)<br>End position … is before start position …<br>Position … is past the end of the text (length …) | Use a position from 0 to the text length.<br>Use an end at or after the start.<br>Use a position from 0 to …, or -1 for the end. | packages |
 | `STRING.BAD_REGEX` | Invalid regular expression: … | Escape special characters such as ( ) [ ] . * | packages |
 | `STRING.BAD_SEPARATORS` | Decimal and grouping separators are both '…' | Use different separators. | packages |
 | `STRING.CANNOT_DECODE` | The text is not valid …: … | Check that the text really is …-encoded. | packages |
 | `STRING.EMPTY_FIND` | Nothing to count | Fill in the text to count. | packages |
-| `STRING.MISSING_VALUE` | The template needs {…}, which the values do not have | Add … to the values, or choose to keep or empty missing places. | packages |
+| `STRING.MISSING_VALUE` | The template needs {…}, which the values do not have<br>The text needs $…$, which is not a variable of the agent…Credential… that may be filled in (a credential)…… | Add … to the values, or choose to keep or empty missing places.<br>Check the name, or choose to keep or empty places without a value. | packages |
 | `STRING.NOT_A_NUMBER` | '…' is not a number for locale … (decimal '…', grouping '…') | Check the locale or set decimal_separator and grouping_separator. | packages |
 | `STRING.NO_CHARACTER_SET` | No character set selected | Turn on letters, digits or symbols. | packages |
+| `STRING.NO_VALUES` | Give the values to fill in | Fill in values, or tick 'from the agent's variables'. | packages |
+| `STRING.NO_VARIABLES` | This run cannot read its variables | Give the values in values instead. | packages |
 | `STRING.TOO_LONG` | The result would be longer than 1,000,000 characters | Repeat the text fewer times. | packages |
 
 ## STUDIO
@@ -2200,25 +2212,31 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `TRIGGER.BAD_BOT` | Trigger '…': agent not found: … | Choose an agent from the workspace. | cli |
 | `TRIGGER.BAD_CLICK` | … | Give the window title or the process. | packages |
+| `TRIGGER.BAD_EVENT` | Unknown change '…'<br>Unknown watch '…'<br>Unknown event '…' | Use created, modified, deleted, renamed or any.<br>Use files, folders or both.<br>Use starts or stops. | packages |
 | `TRIGGER.BAD_FOLDER` | Trigger '…': folder not found: … | Create the folder first. | cli |
 | `TRIGGER.BAD_ID` | Trigger ids must be unique: letters, digits, - and _ | Give every trigger its own id of letters, digits, - and _. | cli |
 | `TRIGGER.BAD_INPUT` | … | Check the trigger settings. | packages |
 | `TRIGGER.BAD_INTERVAL` | The interval must be greater than 0 seconds<br>interval_seconds must be greater than 0 | Use for example 1.<br>Use for example 60. | packages |
 | `TRIGGER.BAD_KEY` | … | Write the key like F9 or CTRL+ENTER. | packages |
 | `TRIGGER.BAD_LIMIT` | Limits cannot be negative<br>settle_seconds cannot be negative | Use 0 for no limit.<br>Set settle_seconds to 0 or more. | packages |
-| `TRIGGER.BAD_PATTERN` | Invalid file pattern '…' | Use a glob such as *.csv. | packages |
+| `TRIGGER.BAD_PATTERN` | Invalid file pattern '…'<br>Invalid title pattern '…': … | Use a glob such as *.csv.<br>Check the regular expression after re:. | packages |
 | `TRIGGER.BAD_SCHEDULE` | Trigger '…': give either every_minutes or daily_at (HH:mm)<br>every_minutes must be at least 1<br>daily_at must look like 08:30 | Fill in either every_minutes or daily_at.<br>Set every_minutes to 1 or more.<br>Write the time as hours and minutes, for example 08:30. | cli |
 | `TRIGGER.BAD_TYPE` | Trigger '…': type must be file, schedule or webhook | Choose file, schedule or webhook. | cli |
 | `TRIGGER.DISABLED` | Webhook '…' is disabled | Enable the webhook in Details > Triggers. | cli |
+| `TRIGGER.FAILED` | Trigger '…' failed: … | Check the trigger's settings, then run the agent again. | runner |
 | `TRIGGER.FORBIDDEN` | Wrong webhook secret | Use the webhook's current secret from Details > Triggers. | cli |
 | `TRIGGER.HOOK_FAILED` | Cannot watch the keyboard or mouse: … | Run the agent on a Windows runner with a signed-in desktop. | packages |
 | `TRIGGER.INVALID` | Send a list of triggers<br>Each trigger must be an object | Reload the page and save the triggers again. | cli |
-| `TRIGGER.IO_ERROR` | Cannot read folder …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it. | packages |
+| `TRIGGER.IO_ERROR` | Cannot read folder …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check that the folder exists and that the runner's account may read it. | packages |
 | `TRIGGER.NOT_FOUND` | Trigger '…' not found<br>Webhook '…' not found | Reload Details > Triggers; it may have been deleted.<br>Check the webhook's address in Details > Triggers. | cli |
 | `TRIGGER.NO_FOLDER` | Folder not found: …<br>The watched folder was removed: … | Create the folder or check the path.<br>Recreate the folder and start the agent again. | packages |
+| `TRIGGER.NO_LIST` | … gives no list…… in output '…'… | Name the output that holds the list in list_output. | runner |
 | `TRIGGER.NO_PROCESS` | Give the program's executable name | For example notepad.exe.<br>Fill in the program's executable name, for example excel.exe. | packages |
+| `TRIGGER.NO_SERVICE` | Give the service's name | For example Spooler. | packages |
+| `TRIGGER.NO_SOURCE` | Choose the loop type or command to watch<br>Name the source as toolkit/loop type or toolkit/command<br>…@… has no loop type or command '…' | For example ooa.email/emails or ooa.servicenow/query.<br>For example ooa.email/emails.<br>Choose a loop type or a command that gives a list. | packages, runner |
+| `TRIGGER.NO_WINDOW` | Give the window's title or a pattern | For example *Invoice*. | packages |
 | `TRIGGER.WEAK_SECRET` | Trigger '…': webhook secret must be at least 16 characters | Use a webhook secret of at least 16 characters. | cli |
-| `TRIGGER.WINDOWS_ONLY` | … (this computer runs …os.name…) | Run this agent on a Windows runner with a signed-in desktop. | packages |
+| `TRIGGER.WINDOWS_ONLY` | Watching windows needs a Windows runner with the Window toolkit installed<br>… (this computer runs …os.name…) | Run this agent on a Windows runner with a signed-in desktop. | packages |
 
 ## UI
 

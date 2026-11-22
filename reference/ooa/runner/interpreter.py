@@ -151,6 +151,10 @@ class _Run:
         self.max_jumps = DEFAULT_MAX_JUMPS
         self.jumps = 0
         self.subflow_depth = 0
+        # Watch for interruptions: the scopes being run (innermost last) and whether a handler runs now
+        self.interrupt_scopes: list[dict] = []
+        self.handling = 0
+        self.last_watch = time.monotonic()
 
     # ---------- events ----------
     def emit(self, type_: str, step_id: str | None = None, **data) -> None:
@@ -448,6 +452,8 @@ class _Run:
             return self._try(step)
         if aid == "step":
             return self._exec_steps(step.get("children"))
+        if aid == "interrupt_scope":
+            return self._interrupt_scope(step, a)
         if aid == "parallel":
             return self._parallel(step, a)
         if aid == "set":
@@ -574,10 +580,113 @@ class _Run:
             raise OoaError(f"Go to label '{g.label}' would leave the state machine", code="FLOW.BAD_GOTO",
                            suggested_fix="Go to can only jump to a label in the same step list of a state, or a list inside it.")
 
+    def _interrupt_scope(self, step: dict, a: dict) -> None:
+        """core/interrupt_scope: the steps run while the handlers are watched (before each toolkit step and while the agent
+        waits); a handler whose condition is true runs its steps, and nothing is watched while it runs."""
+        handlers = [h for h in step.get("handlers") or [] if isinstance(h, dict) and not h.get("disabled")]
+        every = resolve(a.get("check_every_seconds"), self.lookup)
+        scope = {"id": step["id"], "handlers": handlers, "fired": [0] * len(handlers),
+                 "every": max(0.1, float(coerce(every, "Number"))) if every not in (None, "") else 0.5,
+                 "retry": bool(resolve(a.get("retry_failed_step"), self.lookup))}
+        self.interrupt_scopes.append(scope)
+        try:
+            self._exec_steps(step.get("children"))
+        finally:
+            self.interrupt_scopes.remove(scope)
+
+    def _watch(self, sid: str | None, due: bool = False) -> list[str]:
+        if not self.interrupt_scopes or self.handling:
+            return []
+        if due and time.monotonic() - self.last_watch < min(s["every"] for s in self.interrupt_scopes):
+            return []
+        done = []
+        self.handling += 1
+        try:
+            for scope in reversed(list(self.interrupt_scopes)):
+                for i, h in enumerate(scope["handlers"]):
+                    most = int(coerce(resolve(h.get("max_times") or 0, self.lookup), "Number"))
+                    if most and scope["fired"][i] >= most:
+                        continue
+                    if not self.condition(h.get("when"), scope["id"]):
+                        continue
+                    scope["fired"][i] += 1
+                    name = h.get("name") or f"handler {i + 1}"
+                    done.append(name)
+                    self.emit("interrupt.handled", scope["id"], handler=name, beforeStep=sid, times=scope["fired"][i])
+                    self._exec_steps(h.get("children"))
+        finally:
+            self.handling -= 1
+            self.last_watch = time.monotonic()
+        return done
+
+    def _trigger_loop(self, step: dict, a: dict, limit: int) -> None:
+        """core/loop over triggers: every handler's trigger is watched at once and each event runs its handler's steps,
+        in the order the events came; the loop ends when every trigger has ended, on Exit loop or at max_iterations."""
+        import queue
+        handlers = [h for h in step.get("handlers") or [] if isinstance(h, dict) and not h.get("disabled")]
+        if not handlers:
+            raise OoaError("The trigger loop has no handlers", code="LOOP.NO_TRIGGERS", suggested_fix="Add a handler with the event it waits for.")
+        events: queue.Queue = queue.Queue(maxsize=1000)
+        done = threading.Event()
+        ended_mark = object()
+
+        def pump(k, items):
+            try:
+                for item in items:
+                    if done.is_set():
+                        return
+                    events.put((k, item))
+                if not done.is_set():
+                    events.put((k, ended_mark))
+            except Exception as e:  # the trigger's error ends the loop
+                if not done.is_set():
+                    events.put((k, e))
+
+        for k, h in enumerate(handlers):
+            pid, _, iid = str(h.get("trigger") or "").partition("/")
+            pkg = self.r.registry.resolve(pid, self.requires.get(pid))
+            spec = pkg.spec("iterator", iid)
+            if spec is None:
+                raise OoaError(f"Unknown trigger '{h.get('trigger')}'", code="FLOW.UNKNOWN_ITERATOR")
+            args = self._prepare_args(spec, resolve(h.get("args", {}) or {}, self.lookup))
+            threading.Thread(target=pump, args=(k, spec.fn(pkg.instance, self._ctx(step["id"]), **args)), daemon=True).start()
+        ended, n = 0, 0
+        try:
+            while ended < len(handlers):
+                self._check()
+                try:
+                    k, item = events.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                if item is ended_mark:
+                    ended += 1
+                    continue
+                if isinstance(item, Exception):
+                    raise item
+                if n >= limit:
+                    raise OoaError(f"Loop exceeded {limit} iterations", code="LOOP.LIMIT", suggested_fix="Check the loop condition or raise max_iterations.")
+                h = handlers[k]
+                target = h.get("as") or a.get("as")
+                if target:
+                    self.scope.set(target, item)
+                if a.get("index"):
+                    self.scope.set(a["index"], n)
+                n += 1
+                try:
+                    self._exec_steps(h.get("children"))
+                except _Continue:
+                    continue
+                except _Break:
+                    break
+        finally:
+            done.set()
+
     def _sleep(self, seconds: float) -> None:
         end = time.monotonic() + seconds
         while True:
             self._check()
+            if self.interrupt_scopes and not self.handling:
+                self._watch(None, due=True)
             left = end - time.monotonic()
             if left <= 0:
                 return
@@ -623,6 +732,8 @@ class _Run:
             return int(d)
         lo, hi = whole("from_index"), whole("to_index")
         positions = None
+        if it == "triggers":
+            return self._trigger_loop(step, a, limit)
         if it == "times":
             # each pass gives a value (start, start + step ...) to "as" and its position (0, 1, 2 ...) to "index"
             n = int(coerce(resolve(a.get("count"), self.lookup), "Number"))
@@ -779,6 +890,8 @@ class _Run:
         max_retry = int(policy.get("max", 0))
         timeout = float(step.get("timeoutSeconds") or spec.timeout_seconds)
         attempt = 0
+        again = False
+        self._watch(sid)   # Watch for interruptions: deal with a pop-up before the step acts
         while True:
             try:
                 args = self._prepare_args(spec, resolve(step.get("args", {}) or {}, self.lookup))
@@ -792,6 +905,9 @@ class _Run:
             except Exception as e:  # package bug -> typed error, never a crash
                 err = ActionException(f"{pid}/{aid} raised {type(e).__name__}: {e}", code="ACTION.UNEXPECTED",
                                       suggested_fix="Report this to the package publisher with the run id.")
+            if not again and any(s["retry"] for s in self.interrupt_scopes) and self._watch(sid):
+                again = True   # a handler dealt with an interruption after the step failed: run it once more
+                continue
             codes = policy.get("codes")
             should = attempt < max_retry and (err.code in codes if codes else err.retryable)
             if not should:

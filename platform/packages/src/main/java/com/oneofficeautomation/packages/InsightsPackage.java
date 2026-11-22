@@ -92,12 +92,16 @@ public final class InsightsPackage {
 
     @Action(id = "close_transaction", name = "Close transaction", category = "Insights",
             description = "End a transaction opened with Open transaction and record its values, outcome and duration for dashboards.",
-            panel = "transaction, outcome, values")
+            panel = "transaction, outcome, values | status, include_variables")
     @Output(name = "duration_seconds", type = OoaType.NUMBER, description = "Seconds between Open and Close.")
     public Map<String, Object> closeTransaction(ActionContext ctx,
             @Input(name = "transaction", type = OoaType.STRING, description = "Name used in Open transaction.") String name,
             @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Business values to record, e.g. {\"amount\": 120, \"supplier\": \"Acme\"}; leave out sensitive fields. Credentials are refused.") Map<String, Object> values,
-            @Input(name = "outcome", type = OoaType.STRING, required = false, defaultValue = "\"success\"", enumValues = {"success", "failure", "business_exception"}, description = "How the transaction ended.") String outcome) {
+            @Input(name = "outcome", type = OoaType.STRING, required = false, defaultValue = "\"success\"", enumValues = {"success", "failure", "business_exception"}, description = "How the transaction ended.") String outcome,
+            @Input(name = "status", type = OoaType.STRING, required = false, example = "Partially paid",
+                    description = "G1 (AA parity): a status in your own words (or from a variable), recorded instead of the outcome when given.") String status,
+            @Input(name = "include_variables", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "G1 (AA parity): also record every variable of the agent (credentials never), after the values listed.") boolean includeVariables) {
         String k = txKey(name);
         if (!(ctx.sessions().remove(k) instanceof Transaction t))
             throw new ActionException("INSIGHTS.NOT_OPEN", "Transaction '" + name + "' was not opened", "Add Open transaction with the same name before this step.");
@@ -107,10 +111,21 @@ public final class InsightsPackage {
         if (rec.keySet().stream().anyMatch(x -> Set.of("transaction", "outcome", "started", "duration_seconds").contains(x)))
             throw new ActionException("INSIGHTS.RESERVED_NAME", "transaction, outcome, started and duration_seconds are recorded automatically", "Rename that value.");
         rec.put("transaction", t.name());
-        rec.put("outcome", outcome == null || outcome.isBlank() ? "success" : outcome);
+        rec.put("outcome", status != null && !status.isBlank() ? status.strip() : outcome == null || outcome.isBlank() ? "success" : outcome);
+        if (includeVariables) {
+            com.oneofficeautomation.runner.FlowVariables fv;
+            try { fv = ctx.service(com.oneofficeautomation.runner.FlowVariables.SERVICE, com.oneofficeautomation.runner.FlowVariables.class); }
+            catch (OoaException e) { throw new ActionException("INSIGHTS.NO_VARIABLES", "This run cannot list its variables", "List the values in values instead."); }
+            for (var e : fv.declared().entrySet())
+                if (!"Credential".equalsIgnoreCase(e.getValue()) && !rec.containsKey(e.getKey())) rec.put(e.getKey(), fv.value(e.getKey()));
+        }
         rec.put("started", t.startedUtc());
         rec.put("duration_seconds", secs);
         tag(ctx, t.category(), rec);
         return Map.of("duration_seconds", secs);
+    }
+
+    public Map<String, Object> closeTransaction(ActionContext ctx, String name, Map<String, Object> values, String outcome) {
+        return closeTransaction(ctx, name, values, outcome, null, false);
     }
 }

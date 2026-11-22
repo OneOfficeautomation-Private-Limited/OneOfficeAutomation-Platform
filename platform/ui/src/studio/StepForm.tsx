@@ -6,7 +6,7 @@ import { StepErrorFields } from "./ErrorPolicy";
 import { enumWord } from "./enumWords";
 import { ColumnField, knownColumns, knownSessions, MoreConditions, SessionField } from "./TableFields";
 import { DatePatternField, DelimiterField, EncodingField, LocaleField, SizeField, TimeZoneField } from "./PickerFields";
-import { fieldOrder, findAction, groupFields, labelsInScope, loopLabelsAround, parseLoose, setArg, setStepPolicy, showValue, type PanelGroup } from "./flowEdit";
+import { addBranch, fieldOrder, findAction, findStep, groupFields, labelsInScope, loopLabelsAround, parseLoose, setArg, setStepPolicy, showValue, type PanelGroup } from "./flowEdit";
 import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
 import {
@@ -79,7 +79,8 @@ export function StepForm({ step, packages, onArg, onNote }:
   // shows the inputs of its chosen action; a saved connection hides the inputs it supplies
   const applies = (name: string) => shownWhen(props[name]?.["x-ooa-visible-when"], (o) => step.args?.[o] ?? props[o]?.default)
     && (!only || only.has(name)) && !(step.connection && conn.has(name) && !showConn)
-    && !(isLoop && (name === "iterator" || (mode === "times" && name === "index") || (itSpec && (name === "over" || name === "iterator_args"))))
+    && !(isLoop && (name === "iterator" || (mode === "times" && name === "index") || (itSpec && (name === "over" || name === "iterator_args"))
+      || (iterator === "triggers" && name === "over")))
     && !(capturable && ((name === "selector" && !bySelector) || (name === "object" && bySelector)));
   const order = fieldOrder(spec);
   const timeouts = TIMEOUT_FIELDS.filter((n) => n in props && applies(n));
@@ -102,7 +103,7 @@ export function StepForm({ step, packages, onArg, onNote }:
   const labelOf = (name: string) => valueLabel(step) && name === "value" ? valueLabel(step)!
     : isLoop && name === "over" && each ? each.over : isLoop && name === "as" ? (mode === "times" ? "Counter (optional)" : each?.as ?? (itSpec ? "Store each one in" : LOOP_LABELS.as))
     : isLoop && LOOP_LABELS[name] ? LOOP_LABELS[name] : boxed.has(name) ? TIMEOUT_LABELS[name] : props[name]?.["x-ooa-label"] ?? name.replace(/_/g, " ");
-  const req = (name: string) => required.includes(name) || (isLoop && ((mode === "times" && name === "count") || (mode === "each" && name === "over") || (mode === "while" && name === "condition")));
+  const req = (name: string) => required.includes(name) || (isLoop && ((mode === "times" && name === "count") || (mode === "each" && name === "over" && iterator !== "triggers") || (mode === "while" && name === "condition")));
   /** A field shown as the catalogue describes it, under a label of our own (Delay's From and To). */
   const plainInput = (name: string, label: string) => <InputField key={step.id + ":" + name} action={step.action} name={name} label={label} spec={props[name] ?? {}}
     required={req(name)} value={step.args?.[name]} onCommit={(v) => onArg(name, v)} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
@@ -248,8 +249,11 @@ export function StepForm({ step, packages, onArg, onNote }:
             <Select id={id} aria-label="Loop type" value={String(step.args?.iterator ?? "list")} onChange={(e) => {
               if (!vars) { onArg("iterator", e.target.value); return; }
               let f = setArg(vars.flow, step.id, "iterator_args", undefined);
-              if (e.target.value.includes("/")) f = setArg(f, step.id, "over", undefined);
-              vars.edit(setArg(f, step.id, "iterator", e.target.value));
+              if (e.target.value.includes("/") || e.target.value === "triggers") f = setArg(f, step.id, "over", undefined);
+              f = setArg(f, step.id, "iterator", e.target.value);
+              // several triggers: a first one to fill in, under the loop as a part (G1)
+              if (e.target.value === "triggers" && !findStep(f, step.id)?.step.handlers?.length) f = addBranch(f, step.id, "handlers").flow;
+              vars.edit(f);
             }}
               options={[...EACH_KINDS.map((k) => ({ value: k.value, label: k.label })),
                 // the toolkits' loop types by toolkit, as AA's iterator list (C2)
