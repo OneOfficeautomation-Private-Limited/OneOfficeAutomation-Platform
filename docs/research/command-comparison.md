@@ -1580,7 +1580,7 @@ Listed for the next passes; the AA column is filled from the action names where 
 | App integration > Capture text of window | `ooa.desktop_ui/object_action` |
 | Application > Open program/file | `ooa.application/start_program` |
 | Asana > Assign file | : files are paths or variables; no separate assign step |
-| Asana > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Asana > Connect | `ooa.asana/connect` |
 | Asana > Create comment on task | `ooa.asana/add_comment` |
 | Asana > Create project | `ooa.asana/create_section` |
 | Asana > Create subtask | `ooa.asana/create_subtask` |
@@ -1590,7 +1590,7 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Asana > Delete comment | `ooa.asana/delete_comment` |
 | Asana > Delete project | `ooa.asana/delete_project` |
 | Asana > Delete task | `ooa.asana/remove_tag_from_task` |
-| Asana > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Asana > Disconnect | `ooa.asana/disconnect` |
 | Asana > Download attachment | `ooa.asana/download_attachment` |
 | Asana > Duplicate task | `ooa.asana/duplicate_task` |
 | Asana > Get comment | `ooa.asana/list_comments` |
@@ -1614,7 +1614,7 @@ Listed for the next passes; the AA column is filled from the action names where 
 | AWS Comprehend NLP > Named Entities | `ooa.genai/entities` |
 | AWS Comprehend NLP > Get Sentiment | `ooa.genai/sentiment` |
 | Azure DevOps > Add test cases to suite | `ooa.azure_devops/add_test_cases_to_suite` |
-| Azure DevOps > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Azure DevOps > Connect | `ooa.azure_devops/connect` |
 | Azure DevOps > Create pipeline | `ooa.azure_devops/create_pipeline` |
 | Azure DevOps > Create test case | `ooa.azure_devops/create_test_case` |
 | Azure DevOps > Create test plan | `ooa.azure_devops/create_test_plan` |
@@ -1624,7 +1624,7 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Azure DevOps > Delete test case | `ooa.azure_devops/delete_work_item` |
 | Azure DevOps > Delete test plan | `ooa.azure_devops/delete_test_plan` |
 | Azure DevOps > Delete test suite | `ooa.azure_devops/delete_test_suite` |
-| Azure DevOps > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Azure DevOps > Disconnect | `ooa.azure_devops/disconnect` |
 | Azure DevOps > Edit pipeline | `ooa.azure_devops/update_pipeline` |
 | Azure DevOps > Edit test case | `ooa.azure_devops/update_work_item` |
 | Azure DevOps > Edit test plan | `ooa.azure_devops/update_test_plan` |
@@ -1646,13 +1646,13 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Boolean > Invert | `ooa.boolean/invert` |
 | Boolean > To number | `ooa.boolean/to_number` |
 | Boolean > To string | `ooa.boolean/to_text` |
-| Box > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Box > Connect | `ooa.box/connect` |
 | Box > Copy file | `ooa.box/copy_file` |
 | Box > Create folder | `ooa.box/create_folder` |
 | Box > Create shared link | `ooa.box/create_shared_link` |
 | Box > Delete file | `ooa.box/delete_file` |
 | Box > Delete folder | `ooa.box/delete_folder` |
-| Box > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Box > Disconnect | `ooa.box/disconnect` |
 | Box > Download file | `ooa.box/download_file` |
 | Box > Get folder details | `ooa.box/list_folder` |
 | Box > List folder items | `ooa.box/list_folder` |
@@ -1706,9 +1706,9 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Database > Insert/Update/Delete | `ooa.database/execute` |
 | Databricks > Cancel job run | `ooa.databricks/cancel_run` |
 | Databricks > Cancel SQL statement | `ooa.databricks/cancel_statement` |
-| Databricks > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Databricks > Connect | `ooa.databricks/connect` |
 | Databricks > Delete file | `ooa.databricks/delete_file` |
-| Databricks > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Databricks > Disconnect | `ooa.databricks/disconnect` |
 | Databricks > Download file | `ooa.databricks/download_file` |
 | Databricks > Execute SQL statement | `ooa.databricks/execute_sql` |
 | Databricks > Get job run output | `ooa.databricks/get_run` |
@@ -1739,8 +1739,8 @@ Listed for the next passes; the AA column is filled from the action names where 
 | DocuSign > Add recipients | `ooa.docusign/add_recipients` |
 | DocuSign > Assign PDF file | : files are paths or variables; no separate assign step |
 | DocuSign > Assign ZIP file | : files are paths or variables; no separate assign step |
-| DocuSign > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
-| DocuSign > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| DocuSign > Connect | `ooa.docusign/connect` |
+| DocuSign > Disconnect | `ooa.docusign/disconnect` |
 | DocuSign > Download signed PDF | `ooa.docusign/download_zip` |
 | DocuSign > Download signed ZIP | `ooa.docusign/download_zip` |
 | DocuSign > Get document list | `ooa.docusign/list_documents` |
@@ -1885,10 +1885,10 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Generative AI > Microsoft Azure OpenAI | `ooa.genai/prompt` |
 | Generative AI > OpenAI | `ooa.genai/prompt` |
 | GitHub > Add Comment | `ooa.github/add_issue_comment` |
-| GitHub > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| GitHub > Connect | `ooa.github/connect` |
 | GitHub > Create Issue | `ooa.github/create_issue` |
 | GitHub > Create Pull Request | `ooa.github/create_pull_request` |
-| GitHub > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| GitHub > Disconnect | `ooa.github/disconnect` |
 | GitHub > Get Issue | `ooa.github/list_issues` |
 | GitHub > Get Pull Request | `ooa.github/list_pull_requests` |
 | GitHub > Get Repository | `ooa.github/get_repository` |
@@ -1899,10 +1899,10 @@ Listed for the next passes; the AA column is filled from the action names where 
 | GitHub > Merge pull Request | `ooa.github/merge_pull_request` |
 | GitHub > Update issue | `ooa.github/update_issue` |
 | Gmail > Change status | `ooa.google/gmail_mark_message` |
-| Gmail > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Gmail > Connect | `ooa.google/connect` |
 | Gmail > Delete email | `ooa.google/gmail_delete_message` |
 | Gmail > Delete all | `ooa.google/gmail_delete_all` |
-| Gmail > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Gmail > Disconnect | `ooa.google/disconnect` |
 | Gmail > Forward | `ooa.google/gmail_forward_message` |
 | Gmail > Move email | `ooa.google/gmail_move_message` |
 | Gmail > Move all | `ooa.google/gmail_move_all` |
@@ -1912,13 +1912,13 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Gmail > Save all attachments | `ooa.google/gmail_save_all_attachments` |
 | Gmail > Save email | `ooa.google/gmail_save_message_as_eml` |
 | Gmail > Send | `ooa.google/gmail_send` |
-| Google Calendar > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Google Calendar > Connect | `ooa.google/connect` |
 | Google Calendar > Create event | `ooa.google/calendar_create_event` |
 | Google Calendar > Delete event | `ooa.google/calendar_delete_event` |
-| Google Calendar > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Google Calendar > Disconnect | `ooa.google/disconnect` |
 | Google Drive > Assign File | `ooa.google/drive_rename_item` |
 | Google Drive > Check Permissions | `ooa.google/drive_check_permission` |
-| Google Drive > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Google Drive > Connect | `ooa.google/connect` |
 | Google Drive > Copy file | `ooa.google/drive_copy_file` |
 | Google Drive > Copy folder | `ooa.google/drive_copy_folder` |
 | Google Drive > Create file permission | `ooa.google/drive_create_permission` |
@@ -1926,7 +1926,7 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Google Drive > Delete file | `ooa.google/drive_delete_item` |
 | Google Drive > Delete file permission | `ooa.google/drive_delete_permission` |
 | Google Drive > Delete Folder | `ooa.google/drive_delete_permission` |
-| Google Drive > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Google Drive > Disconnect | `ooa.google/disconnect` |
 | Google Drive > Download file | `ooa.google/drive_download_export` |
 | Google Drive > Find file/folder | `ooa.google/drive_find_items` |
 | Google Drive > Get file information | `ooa.google/drive_list` |
@@ -1939,15 +1939,15 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Google Sheets > Activate sheet | : no active sheet: each Sheets step names its sheet (stateless, so parallel steps cannot interfere) |
 | Google Sheets > Autofit columns | `ooa.google/sheets_autofit_columns` |
 | Google Sheets > Autofit rows | `ooa.google/sheets_autofit_rows` |
-| Google Sheets > Close | : no sessions (each step names the spreadsheet) |
-| Google Sheets > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Google Sheets > Close | `ooa.google/sheets_close` |
+| Google Sheets > Connect | `ooa.google/connect` |
 | Google Sheets > Create sheet | `ooa.google/sheets_insert_rows` |
 | Google Sheets > Create workbook | `ooa.google/sheets_insert_rows` |
 | Google Sheets > Delete cell | `ooa.google/sheets_delete_range` |
 | Google Sheets > Delete range | `ooa.google/sheets_delete_range` |
 | Google Sheets > Delete Row/Column | `ooa.google/sheets_delete_rows` |
 | Google Sheets > Delete sheet | `ooa.google/sheets_delete_sheet` |
-| Google Sheets > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Google Sheets > Disconnect | `ooa.google/disconnect` |
 | Google Sheets > Format cells | `ooa.google/sheets_format_cells` |
 | Google Sheets > Get All Sheet Names | `ooa.google/sheets_list_sheets` |
 | Google Sheets > Get cell/text color | `ooa.google/sheets_get_cell_color` |
@@ -1994,17 +1994,17 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Interactive forms > Unhighlight | `ooa.forms/unhighlight` |
 | Interactive forms > Change label | `ooa.forms/change_label` |
 | Interactive forms > Dynamic area | `ooa.forms/dynamic_area` |
-| JavaScript > Close | : no sessions: each step starts Node.js and ends it |
+| JavaScript > Close | `ooa.script/close_session` |
 | JavaScript > Run JavaScript | `ooa.script/run_javascript` |
 | JavaScript > Open | `ooa.script/run_javascript_function` |
 | Jira > Add comment | `ooa.jira/add_comment` |
-| Jira > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Jira > Connect | `ooa.jira/connect` |
 | Jira > Create issue | `ooa.jira/create_issue` |
 | Jira > Create project | `ooa.jira/create_project` |
 | Jira > Delete comment | `ooa.jira/delete_comment` |
 | Jira > Delete issue | `ooa.jira/delete_issue` |
 | Jira > Delete project | `ooa.jira/delete_project` |
-| Jira > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Jira > Disconnect | `ooa.jira/disconnect` |
 | Jira > Get comments | `ooa.jira/get_comments` |
 | Jira > Get issue | `ooa.jira/search` |
 | Jira > Get projects | `ooa.jira/get_projects` |
@@ -2013,19 +2013,19 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Jira > Update project | `ooa.jira/update_project` |
 | JSON utilities > Insert node | `ooa.json/insert_node` |
 | JSON utilities > Convert dictionary to JSON | `ooa.json/stringify` |
-| JSON utilities > End session | : no sessions (see Start session) |
+| JSON utilities > End session | `ooa.json/end_session` |
 | JSON utilities > Get node array | `ooa.json/get_node_array` |
 | JSON utilities > Get nodes | `ooa.json/get_nodes` |
 | JSON utilities > Get node value | `ooa.json/get_node` |
 | JSON utilities > Convert JSON to Dictionary | `ooa.json/parse` |
 | JSON utilities > Convert JSON to Table | `ooa.json/to_table` |
-| JSON utilities > Start session | : no sessions: JSON is an ordinary Dictionary/List variable (ooa.json/parse or read_file), which validates and shows in the variable watch |
+| JSON utilities > Start session | `ooa.json/start_session` |
 | JSON utilities > Update node value | `ooa.json/update_node` |
 | JSON utilities > Validate | `ooa.json/validate` |
 | Kafka > Commit offsets | `ooa.kafka/read_messages` |
-| Kafka > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Kafka > Connect | `ooa.kafka/connect` |
 | Kafka > Consume message | `ooa.kafka/read_messages` |
-| Kafka > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Kafka > Disconnect | `ooa.kafka/disconnect` |
 | Kafka > Publish message | `ooa.kafka/produce_message` |
 | List > Add item | `ooa.list/add_item` |
 | List > Assign | `core/set` |
@@ -2046,18 +2046,18 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Microsoft 365 Calendar > Add attachment | `ooa.microsoft365/add_event_attachment` |
 | Microsoft 365 Calendar > Add attendee | `ooa.microsoft365/add_attendees` |
 | Microsoft 365 Calendar > Cancel meeting | `ooa.microsoft365/cancel_event` |
-| Microsoft 365 Calendar > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Microsoft 365 Calendar > Connect | `ooa.microsoft365/connect` |
 | Microsoft 365 Calendar > Create meeting | `ooa.microsoft365/create_event` |
 | Microsoft 365 Calendar > Delete attendee | `ooa.microsoft365/remove_attendees` |
 | Microsoft 365 Calendar > Delete meeting information | `ooa.microsoft365/remove_attendees` |
-| Microsoft 365 Calendar > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Microsoft 365 Calendar > Disconnect | `ooa.microsoft365/disconnect` |
 | Microsoft 365 Calendar > Get available meeting slot(s) | `ooa.microsoft365/find_meeting_times` |
 | Microsoft 365 Calendar > Modify meeting | `ooa.microsoft365/update_event` |
 | Microsoft 365 Calendar > Respond to meeting | `ooa.microsoft365/respond_to_event` |
 | Microsoft 365 Excel > Autofit columns | `ooa.microsoft365/excel_autofit_columns` |
 | Microsoft 365 Excel > Autofit rows | `ooa.microsoft365/excel_autofit_rows` |
-| Microsoft 365 Excel > Close | : no sessions (workbooks are addressed by item id or path on each step) |
-| Microsoft 365 Excel > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Microsoft 365 Excel > Close | `ooa.microsoft365/excel_close` |
+| Microsoft 365 Excel > Connect | `ooa.microsoft365/connect` |
 | Microsoft 365 Excel > Copy worksheet | `ooa.microsoft365/excel_show_worksheet` |
 | Microsoft 365 Excel > Create table | `ooa.microsoft365/excel_create_table` |
 | Microsoft 365 Excel > Create workbook | `ooa.microsoft365/excel_create_workbook` |
@@ -2067,7 +2067,7 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Microsoft 365 Excel > Delete row or column | `ooa.microsoft365/excel_delete_range` |
 | Microsoft 365 Excel > Delete table | `ooa.microsoft365/excel_delete_table` |
 | Microsoft 365 Excel > Delete worksheet | `ooa.microsoft365/excel_delete_worksheet` |
-| Microsoft 365 Excel > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Microsoft 365 Excel > Disconnect | `ooa.microsoft365/disconnect` |
 | Microsoft 365 Excel > Find | `ooa.microsoft365/excel_find` |
 | Microsoft 365 Excel > Find next empty cell | `ooa.microsoft365/excel_find_next_empty_cell` |
 | Microsoft 365 Excel > Format cell | `ooa.microsoft365/excel_get_cell_format` |
@@ -2091,7 +2091,7 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Microsoft 365 Excel > Insert cell | `ooa.microsoft365/excel_insert_range` |
 | Microsoft 365 Excel > Insert range | `ooa.microsoft365/excel_insert_range` |
 | Microsoft 365 Excel > Insert row or column | `ooa.microsoft365/excel_insert_range` |
-| Microsoft 365 Excel > Open | : no sessions (each step names the workbook) |
+| Microsoft 365 Excel > Open | `ooa.microsoft365/excel_open` |
 | Microsoft 365 Excel > Paste cell | `ooa.microsoft365/excel_write_range` |
 | Microsoft 365 Excel > Read cell format | `ooa.microsoft365/excel_get_cell_format` |
 | Microsoft 365 Excel > Read cell formula | `ooa.microsoft365/excel_read_range` |
@@ -2108,11 +2108,11 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Microsoft 365 Excel > Write from data table | `ooa.microsoft365/excel_write_data_table` |
 | Microsoft 365 OneDrive > Assign file | `ooa.microsoft365/upload_file` |
 | Microsoft 365 OneDrive > Check permission | `ooa.microsoft365/check_permissions` |
-| Microsoft 365 OneDrive > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Microsoft 365 OneDrive > Connect | `ooa.microsoft365/connect` |
 | Microsoft 365 OneDrive > Copy file or folder | `ooa.microsoft365/copy_item` |
 | Microsoft 365 OneDrive > Create folder | `ooa.microsoft365/create_folder` |
 | Microsoft 365 OneDrive > Delete file or folder | `ooa.microsoft365/delete_item` |
-| Microsoft 365 OneDrive > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Microsoft 365 OneDrive > Disconnect | `ooa.microsoft365/disconnect` |
 | Microsoft 365 OneDrive > Download file | `ooa.microsoft365/download_file` |
 | Microsoft 365 OneDrive > Export to PDF | `ooa.microsoft365/export_to_pdf` |
 | Microsoft 365 OneDrive > Find files and folders | `ooa.microsoft365/share_item` |
@@ -2124,10 +2124,10 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Microsoft 365 Outlook > Assign attachment(s) | `ooa.microsoft365/save_mail_attachments` |
 | Microsoft 365 Outlook > Change status | `ooa.microsoft365/mark_mail` |
 | Microsoft 365 Outlook > Check if folder exists | `ooa.microsoft365/mail_folder_exists` |
-| Microsoft 365 Outlook > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Microsoft 365 Outlook > Connect | `ooa.microsoft365/connect` |
 | Microsoft 365 Outlook > Delete | `ooa.microsoft365/delete_mail` |
 | Microsoft 365 Outlook > Delete all | `ooa.microsoft365/delete_all_mail` |
-| Microsoft 365 Outlook > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Microsoft 365 Outlook > Disconnect | `ooa.microsoft365/disconnect` |
 | Microsoft 365 Outlook > Forward | `ooa.microsoft365/forward_mail` |
 | Microsoft 365 Outlook > Move | `ooa.microsoft365/move_mail` |
 | Microsoft 365 Outlook > Move all | `ooa.microsoft365/move_all_mail` |
@@ -2137,8 +2137,8 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Microsoft 365 Outlook > Save attachments | `ooa.microsoft365/save_mail_attachments` |
 | Microsoft 365 Outlook > Save email | `ooa.microsoft365/save_mail_attachments` |
 | Microsoft 365 Outlook > Send | `ooa.microsoft365/send_mail` |
-| Microsoft Teams > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
-| Microsoft Teams > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Microsoft Teams > Connect | `ooa.microsoft365/connect` |
+| Microsoft Teams > Disconnect | `ooa.microsoft365/disconnect` |
 | Microsoft Teams > Get channel by name | `ooa.microsoft365/get_channel_by_name` |
 | Microsoft Teams > Get channel details | `ooa.microsoft365/list_channels` |
 | Microsoft Teams > Get team by name | `ooa.microsoft365/get_team_by_name` |
@@ -2160,10 +2160,10 @@ Listed for the next passes; the AA column is filled from the action names where 
 | OCR > Capture area | `ooa.ocr/read_screen` |
 | Okta > Activate user | `ooa.okta/activate_user` |
 | Okta > Add user to group | `ooa.okta/add_user_to_group` |
-| Okta > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Okta > Connect | `ooa.okta/connect` |
 | Okta > Create user | `ooa.okta/create_user` |
 | Okta > Deactivate user | `ooa.okta/deactivate_user` |
-| Okta > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Okta > Disconnect | `ooa.okta/disconnect` |
 | Okta > Get group ID by name | `ooa.okta/list_groups` |
 | Okta > Get user details | `ooa.okta/list_users` |
 | Okta > List user groups | `ooa.okta/list_user_groups` |
@@ -2205,7 +2205,7 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Prompt > For folder | `ooa.desktop/prompt_folder` |
 | Prompt > For value | `ooa.desktop/prompt_value` |
 | Prompt > For yes/no | `ooa.desktop/prompt_yes_no` |
-| Python script > Close | : no sessions: each step starts Python and ends it |
+| Python script > Close | `ooa.script/close_session` |
 | Python script > Execute function | `ooa.script/run_python_function` |
 | Python script > Execute script | `ooa.script/run_python` |
 | Python script > Open | `ooa.script/run_python_function` |
@@ -2279,12 +2279,12 @@ Listed for the next passes; the AA column is filled from the action names where 
 | ServiceNow > Attachments | `ooa.servicenow/list_attachments` |
 | ServiceNow > Authentication | `ooa.servicenow/revoke_authentication` |
 | ServiceNow > Records | `ooa.servicenow/update_record` |
-| SharePoint > Authentication | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| SharePoint > Authentication | `ooa.microsoft365/sharepoint_connect` |
 | SharePoint > Folder & file | `ooa.microsoft365/share_item` |
 | SharePoint > List & list item | `ooa.microsoft365/update_list_item` |
 | Simulate keystrokes > Simulate keystrokes | `ooa.desktop/type_text` |
-| Slack > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
-| Slack > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Slack > Connect | `ooa.slack/connect` |
+| Slack > Disconnect | `ooa.slack/disconnect` |
 | Slack > Get channel ID by name | `ooa.slack/get_channel_id_by_name` |
 | Slack > Get channel details | `ooa.slack/get_conversation_history` |
 | Slack > Get conversation details | `ooa.slack/get_conversation_history` |
@@ -2300,10 +2300,10 @@ Listed for the next passes; the AA column is filled from the action names where 
 | SNMP > Walk | `ooa.network/snmp_walk` |
 | Snowflake > Bulk export | `ooa.snowflake/execute_statement` |
 | Snowflake > Bulk load | `ooa.snowflake/execute_statement` |
-| Snowflake > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Snowflake > Connect | `ooa.snowflake/connect` |
 | Snowflake > Insert Row | `ooa.snowflake/insert_rows` |
 | Snowflake > Delete rows | `ooa.snowflake/execute_statement` |
-| Snowflake > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Snowflake > Disconnect | `ooa.snowflake/disconnect` |
 | Snowflake > Execute DDL | `ooa.snowflake/execute_statement` |
 | Snowflake > Execute stored procedure | `ooa.snowflake/execute_statement` |
 | Snowflake > Select rows | `ooa.snowflake/execute_statement` |
@@ -2336,7 +2336,7 @@ Listed for the next passes; the AA column is filled from the action names where 
 | UI Agent - Web > End Session | `ooa.web_agent/end_session` |
 | UI Agent - Web > Run | `ooa.web_agent/run` |
 | UI Agent - Web > Start Session | `ooa.web_agent/start_session` |
-| VBScript > Close | : no sessions: each step starts the script host and ends it |
+| VBScript > Close | `ooa.script/close_session` |
 | VBScript > Run function | `ooa.script/run_vbscript_function` |
 | VBScript > Open | `ooa.script/run_vbscript_function` |
 | Wait > Wait for condition | `core/wait_until` |
@@ -2372,22 +2372,22 @@ Listed for the next passes; the AA column is filled from the action names where 
 | Workload > Insert work item | `ooa.workload/add_item` |
 | Workload > Update work item | `ooa.workload/update_item` |
 | XML > Delete node | `ooa.xml/delete_nodes` |
-| XML > End session | : no sessions (see Start session) |
+| XML > End session | `ooa.xml/end_session` |
 | XML > Execute XPath function | `ooa.xml/xpath_function` |
 | XML > Get multiple nodes | `ooa.xml/get_nodes` |
 | XML > Get single node | `ooa.xml/get_value` |
 | XML > Insert node | `ooa.xml/insert_node` |
 | XML > Save session data | `ooa.xml/save_file` |
-| XML > Start session | : no sessions: actions take the XML text or a file and return the changed XML |
+| XML > Start session | `ooa.xml/start_session` |
 | XML > Update node | `ooa.xml/set_value` |
 | XML > Validate XML document | `ooa.xml/validate` |
 | Zendesk > Add comment | `ooa.zendesk/add_comment` |
-| Zendesk > Connect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Zendesk > Connect | `ooa.zendesk/connect` |
 | Zendesk > Create organization | `ooa.zendesk/create_organization` |
 | Zendesk > Create ticket | `ooa.zendesk/create_ticket` |
 | Zendesk > Create user | `ooa.zendesk/create_user` |
 | Zendesk > Delete ticket | `ooa.zendesk/delete_ticket` |
-| Zendesk > Disconnect | : no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect |
+| Zendesk > Disconnect | `ooa.zendesk/disconnect` |
 | Zendesk > Download attachment | `ooa.zendesk/download_attachment` |
 | Zendesk > Download attachment via assign file | `ooa.zendesk/download_attachment` |
 | Zendesk > Get organization | `ooa.zendesk/list_organizations` |

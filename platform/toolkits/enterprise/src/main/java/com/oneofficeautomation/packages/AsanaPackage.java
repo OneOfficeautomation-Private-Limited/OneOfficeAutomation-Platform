@@ -897,4 +897,24 @@ public final class AsanaPackage {
         return Out.of("user", Out.of("gid", d.get("gid"), "name", d.get("name"), "email", d.get("email"), "workspaces", names(d.get("workspaces"), "name")),
                 "user_id", d.get("gid"));
     }
+
+    // ------------------------------------------------------------------ Item 9 (AA parity): sign in once with a saved connection
+
+    @Action(id = "connect", name = "Connect", category = "Connection",
+            description = "Sign in once with a saved connection: the later Asana steps of this agent use it unless they choose another.",
+            panel = "connection | session, share")
+    @Output(name = "connection", type = OoaType.STRING, description = "The saved connection the later steps use.")
+    public Map<String, Object> connectSaved(ActionContext ctx,
+            @Input(name = "connection", type = OoaType.STRING, description = SavedConnections.D_CONNECTION) String connection,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "A name for this sign-in; the toolkit's own when empty.") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = SavedConnections.D_SHARE) boolean share) {
+        return SavedConnections.connect(ctx, "ooa.asana", connection, session, share);
+    }
+
+    @Action(id = "disconnect", name = "Disconnect", category = "Connection",
+            description = "Forget the connection Connect chose; later Asana steps then use their own.", panel = "session")
+    public Map<String, Object> disconnectSaved(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The sign-in's name; every one of this toolkit when empty.") String session) {
+        return SavedConnections.disconnect(ctx, "ooa.asana", session);
+    }
 }

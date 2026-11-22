@@ -564,4 +564,24 @@ public final class BoxPackage {
         req("DELETE", api(base) + "/collaborations/" + id("collaboration", collab), token, asUser).send(ctx);
         return Map.of();
     }
+
+    // ------------------------------------------------------------------ Item 9 (AA parity): sign in once with a saved connection
+
+    @Action(id = "connect", name = "Connect", category = "Connection",
+            description = "Sign in once with a saved connection: the later Box steps of this agent use it unless they choose another.",
+            panel = "connection | session, share")
+    @Output(name = "connection", type = OoaType.STRING, description = "The saved connection the later steps use.")
+    public Map<String, Object> connectSaved(ActionContext ctx,
+            @Input(name = "connection", type = OoaType.STRING, description = SavedConnections.D_CONNECTION) String connection,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "A name for this sign-in; the toolkit's own when empty.") String session,
+            @Input(name = "share", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = SavedConnections.D_SHARE) boolean share) {
+        return SavedConnections.connect(ctx, "ooa.box", connection, session, share);
+    }
+
+    @Action(id = "disconnect", name = "Disconnect", category = "Connection",
+            description = "Forget the connection Connect chose; later Box steps then use their own.", panel = "session")
+    public Map<String, Object> disconnectSaved(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, description = "The sign-in's name; every one of this toolkit when empty.") String session) {
+        return SavedConnections.disconnect(ctx, "ooa.box", session);
+    }
 }
