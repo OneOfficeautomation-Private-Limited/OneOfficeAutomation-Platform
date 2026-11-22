@@ -948,7 +948,7 @@ body .cc-app .cc-sums button.cc-sum:hover span, body .cc-app .cc-sums a.cc-sum:h
  * bar with a brand-blue line, dark table headers with column and row lines everywhere, and a left menu whose section
  * headings stand apart from their pages. Light theme only; the dark theme keeps its own colours.
  * ==================================================================================================================== */
-:root:not([data-theme="dark"]) .cc-app { --ui-size: 14px; --ui-frame: #1c2840; font-family: var(--ui-font); }
+:root:not([data-theme="dark"]) .cc-app { --ui-size: 14px; --ui-frame: #1c2840; font-family: var(--ui-font); color: var(--ui-text); }
 /* Text a step larger and heavier than before (F1): body 14 px medium, tables 13.5 px, page titles 22 px */
 :root:not([data-theme="dark"]) .cc-app .cc-main { font-size: 14px; }
 :root:not([data-theme="dark"]) .cc-app .cc-main h1 { font-size: 22px; }

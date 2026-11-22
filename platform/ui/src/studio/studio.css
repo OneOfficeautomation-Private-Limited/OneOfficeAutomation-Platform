@@ -1175,3 +1175,77 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-bapi .st-picker-list { max-height: 360px; overflow: auto; margin: 0; }
 .st-bapi-params { font-size: 12px; align-self: start; }
 .st-bapi-params td, .st-bapi-params th { padding: 3px 6px; text-align: left; vertical-align: top; }
+
+/* ======================================================================================================================
+ * F1 final for OneAgentStudio (22 Nov 2026), the look chosen for One CommandCenter, kept to Studio's own layout: darker,
+ * heavier text, brand blue #08507c for links and Save, brand purple #7148c9 for the selected tab, an ink top bar, one 30 px
+ * control height, dark table headers with column and row lines, and menu headings set apart from their pages.
+ * Light theme only. Contrast: text 19.8:1 / 15.1:1 / 10.9:1, blue 8.6:1, borders 3.1:1 (as the console's block).
+ * ==================================================================================================================== */
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) {
+  --ui-font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --ui-text: #0a0a0a; --ui-text-2: #262626; --ui-text-3: #3d3d3d;
+  --ui-border: #8a93a2; --ui-line: #5c6575; --ui-divider: #b4bcc8; --ui-col-line: #b4bcc8; --ui-field: #5c6575;
+  --ui-soft: #f1f3f7; --ui-tint: #f1f3f7; --ui-row-hover: #e9eef6; --ui-selected: #e6eef6; --ui-pill-text: #08507c;
+  --ui-accent: #08507c; --ui-accent-text: #08507c;
+  --ui-frame: #1c2840;
+  --ui-h: 30px; --ui-bar-h: 30px;
+  font-family: var(--ui-font); font-size: 14px; font-weight: 500; color: var(--ui-text);
+}
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-top { border-bottom: 3px solid #0b6ba3; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .ui-btn-primary:hover:not(:disabled) { background: #063a5a; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-page-head h1 { font-size: 22px; font-weight: 700; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main a:not(.ui-btn) { color: var(--ui-accent-text); }
+
+/* The agent editor stays dense: 13.5 px in the step list and the Actions, Properties and Variables panels */
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-actions, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-steps, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-step { font-size: 13.5px; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right .ui-input, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right select, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right .ui-search-select-field,
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-actions .st-panel-search .ui-input { height: var(--ui-h); font-size: 13px; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right textarea.ui-input, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right .ui-textarea { height: auto; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right .ui-field-label, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right label { font-size: 13px; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right .ui-field-hint, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right .st-prop-about { font-size: 12.5px; color: var(--ui-text-2); }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right .st-prop-head strong { font-size: 14px; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right [role="tab"] { height: var(--ui-h); font-size: 13px; }
+
+/* Controls: one height */
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .ui-btn, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .ui-input:not(textarea), :root:not([data-theme="dark"]) .st-app:not(.cc-app) select, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .ui-search-select-field, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-page-tab { height: var(--ui-h); }
+
+/* Selected tabs: the purple underline */
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-tab.is-active { border-bottom-color: #7148c9; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-page-tab[aria-selected="true"] { border-bottom-color: #7148c9; color: var(--ui-text); font-weight: 700; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) [role="tab"][aria-selected="true"] { box-shadow: inset 0 -3px 0 #7148c9; font-weight: 700; }
+
+/* Tables: a dark header, column and row lines, stripes and an outline */
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main table { border-collapse: collapse; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main table:not(.st-bare) { outline: 1px solid var(--ui-border); outline-offset: -1px; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main thead th { background: #1c2840; color: #ffffff; font-weight: 700; border-bottom: 0; height: 34px; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main thead th + th { border-left: 1px solid #4a5874; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main thead th button, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main thead th a, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main thead th svg { color: #ffffff; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main tbody td { border-bottom: 1px solid var(--ui-divider); }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main tbody td + td, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main tbody th + td { border-left: 1px solid var(--ui-col-line); }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main tbody tr:nth-child(even) > td { background: var(--ui-soft); }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-main tbody tr:hover > td { background: var(--ui-row-hover); }
+
+/* Panels: a clear outline and a line under each panel title */
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-actions { border-right-color: var(--ui-border); }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right { border-left-color: var(--ui-border); }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-right .st-prop-head, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-panel-head { border-bottom: 1px solid var(--ui-line); }
+
+/* Left menu: headings in bold white capitals with their coloured icon, pages lighter and indented */
+.st-app:not(.cc-app) .st-menu-heading { color: #ffffff; background: #212a3a; font-size: 11.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; padding: 8px 8px; margin-top: 4px; }   /* 14.4:1 */
+.st-app:not(.cc-app) .st-menu-heading .ui-tile { display: inline-flex; }
+.st-app:not(.cc-app) .st-menu-heading .st-menu-caret { color: #9aa6b8; }
+.st-app:not(.cc-app) .st-menu-item { color: #c8d1de; font-size: 13px; font-weight: 500; }   /* 11.1:1 */
+.st-app:not(.cc-app) .st-menu-item:hover { color: #ffffff; }
+.st-app:not(.cc-app) .st-menu-item.is-current { background: #24406f; color: #ffffff; font-weight: 700; box-shadow: inset 3px 0 0 #4d8dff; border-radius: 0 5px 5px 0; }   /* 10.3:1 */
+
+/* Pieces that set their own colours */
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-page-desc { color: var(--ui-text-2); font-size: 13px; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-help-link { color: var(--ui-accent-text); }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .ui-tree-label, :root:not([data-theme="dark"]) .st-app:not(.cc-app) h1, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-folders strong { color: var(--ui-text); }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .ui-panel-toggle { width: var(--ui-h); height: var(--ui-h); }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-group-name, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-seg-btn, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-advanced > summary { font-size: 13px; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-count { font-size: 12px; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-tool-label { font-size: 12.5px; }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-prop-section { font-size: 12px; color: var(--ui-text); }
+:root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-tool-text, :root:not([data-theme="dark"]) .st-app:not(.cc-app) .st-seg-btn { height: var(--ui-h); }
