@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1674 codes in 152 areas.
+1740 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -289,14 +289,16 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `BROWSER.BAD_ACTION` | Unknown element action '…' | Choose one of the actions the step offers. | packages-browser |
+| `BROWSER.BAD_ARGUMENT` | Argument … (…) is not a … | Change the argument or its type. | packages-browser |
 | `BROWSER.BAD_FUNCTION` | Invalid JavaScript function name '…' | Give a name such as calculateTotal or app.utils.calculateTotal. | packages-browser |
-| `BROWSER.BAD_INDEX` | select_by_index needs a whole number | Give the option's position as a whole number, from 0. | packages-browser |
+| `BROWSER.BAD_INDEX` | select_by_index counts from 1; … is not an item<br>select_by_index needs a whole number | Give 1 for the first item.<br>Give the item's position as a whole number, from 1.<br>Give the option's position as a whole number. | packages-browser |
 | `BROWSER.BAD_INPUT` | upload_file needs the file path(s) in value<br>Then wait for … needs wait_selector<br>Each column needs a name and an XPath | Fill in value with the file's path (several separated by \|).<br>Give the selector of the element to wait for.<br>For example {"Name": "td[1]", "Link": ".//a/@href"}. | packages-browser |
 | `BROWSER.BAD_MATCH` | Property … has an unknown match rule '…' | Use one of … | packages-browser |
 | `BROWSER.BAD_MODIFIER` | Unknown modifier key '…' | Use CTRL, SHIFT, ALT or WIN, joined with +. | packages-browser |
 | `BROWSER.BAD_OBJECT` | The captured object has no …<br>No property is selected for the search<br>The index must be 0 or more, or -1 for the last match | Capture the element again, or search by properties.<br>Tick at least one property in the captured object, or search by CSS or XPath.<br>Set the index to 0 or more, or -1 for the last match. | packages-browser |
 | `BROWSER.BAD_PORT` | The port must be between 1 and 65535 | Use a port between 1 and 65535 (Chrome's usual debugging port is 9222). | packages-browser |
 | `BROWSER.BAD_RETURN` | The function returned '…', not a number<br>The function did not return a list<br>The function did not return a dictionary | Make the script's function return the type the step's Return as setting expects.<br>Choose one of the return types the step offers. | packages-browser |
+| `BROWSER.BAD_TYPE` | Argument … has the unknown type … | Use auto, text, number, boolean, list, dictionary or date. | packages-browser |
 | `BROWSER.BAD_WINDOW` | Unknown window source '…'<br>The window must be a dictionary such as {"source": "browser", "title": "..."}<br>Unknown window match rule '…' | Use browser, application or variable.<br>Give the window as a dictionary, for example {"source": "browser", "title": "Orders"}.<br>Use one of … | packages-browser |
 | `BROWSER.BAD_XPATH` | An XPath of the columns or rows is not valid: … | Check row_xpath and each column's XPath. | packages-browser |
 | `BROWSER.CONNECTOR_NOT_CONNECTED` | …No browser…The … browser… is not connected to ONEOFFICEAUTOMATION<br>Lost the connection to the browser: … | Open the browser with the ONEOFFICEAUTOMATION Browser Connector extension loaded (run: ooa browser-connector install), or use a browser the agent starts itself.<br>Check that the browser is still open and its OOA extension is turned on, then run the step again. | packages-browser |
@@ -326,7 +328,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `BROWSER.SIGN_IN_FAILED` | The server refused the sign-in (…) | Check the user name and password, or the agent user's Windows access. | packages-browser |
 | `BROWSER.STILL_VISIBLE` | … is still on the page after … ms | Raise timeout_ms. | packages-browser |
 | `BROWSER.TIMEOUT` | … timed out: …<br>No element matches … within … ms<br>The page did not finish loading after the click | Check the selector matches an element on the page, or raise timeout_ms.<br>Raise timeout_ms.<br>Raise timeout_ms, or check the elements. | packages-browser |
-| `BROWSER.VALUE_REQUIRED` | Give the script to run, or a script file<br>The action '…' needs a value<br>The action '…' needs a row and a column (1 for the first) | Fill in Script, or Script file.<br>Fill in Value for this action.<br>Fill in row and column, from 1. | packages-browser |
+| `BROWSER.VALUE_REQUIRED` | Give the script to run, or a script file<br>The action '…' needs find_text, the text of the cell to find<br>The action '…' needs a value | Fill in Script, or Script file.<br>Fill in find_text.<br>Fill in Value for this action. | packages-browser |
 | `BROWSER.WINDOW_NOT_FOUND` | No open tab is titled '…'… or at ……<br>The browser at … has no open window<br>No open tab is titled '…'…… or at … | Choose the window again from the list; it may have been closed or navigated.<br>Open a window in that browser, or start it with an Open browser step first.<br>Open or attach the browser first (open, attach or open_for_automation), or check the variable holds the session name. | packages-browser |
 
 ## CALENDAR
@@ -339,9 +341,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `CHILD.BAD_REPEAT` | repeat must be 1 or more, got … | Use 1 to run the child once. | runner |
+| `CHILD.BAD_REPEAT` | Unknown repeat_mode '…'<br>repeat must be 1 or more, got …<br>repeat_for_seconds is needed to repeat for a length of time | Use times, for_duration or until_stopped.<br>Use 1 to run the child once.<br>Give the number of seconds to keep running the child. | runner |
 | `CHILD.BAD_TIMEOUT` | timeout_seconds must be more than 0 | Leave it empty for no limit. | runner |
 | `CHILD.DEPTH` | Child agent nesting is too deep | Keep child agent chains under … levels; check for recursion. | runner |
+| `CHILD.NO_AGENT` | Choose the agent to run | Pick the published agent whose success is checked. | runner |
 | `CHILD.OUTPUT_MISSING` | Child agent '…' has no output '…' | Outputs: …, …. | runner |
 
 ## CLI
@@ -525,7 +528,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `CR.TARGET_NOT_ALLOWED` | Agents may be promoted only to the One CommandCenters listed in Settings | Allowed: …, … | control-room |
 | `CR.TLS_CONFIG` | Cannot read …: …<br>The certificate file … named in … does not exist<br>The environment variable … is not set | Correct the HTTPS settings (ooa-tls.properties: keystore, its password and alias) and restart the service.<br>Run: ooa tls configure --pfx FILE<br>Set the environment variable for the service's account, then restart the service. | control-room |
 | `CR.TOOLKIT_DISABLED` | The toolkit '…' is switched off in this One CommandCenter (step …id…)<br>The toolkit '…' is switched off in this One CommandCenter (its code in step …id… may call it) | Ask an administrator to switch it on under Toolkits, or remove the step.<br>Ask an administrator to switch it on under Toolkits, or take it out of the step's Toolkits it may call. | control-room |
-| `CR.TOO_LARGE` | A shared value is at most 100000 characters<br>The request is larger than the Largest upload setting allows<br>The upload is larger than the Largest upload setting allows | Keep shared values under 100,000 characters; put larger data in a file in the repository instead.<br>Raise Settings > Largest upload, or send a smaller file<br>Raise Settings > Largest upload, or send fewer files at once | control-room, modules/ai-services, modules/document-automation |
+| `CR.TOO_LARGE` | The file is larger than … MB<br>A shared value is at most 100000 characters<br>The request is larger than the Largest upload setting allows | Keep large files on a file share the runner can read.<br>Keep shared values under 100,000 characters; put larger data in a file in the repository instead.<br>Raise Settings > Largest upload, or send a smaller file | control-room, modules/ai-services, modules/document-automation |
 | `CR.TRIGGER_DISABLED` | This webhook is disabled | Enable the trigger in Manage > Triggers. | control-room |
 | `CR.TRIGGER_SIGN_IN` | Microsoft sign-in failed: …<br>… | Sign in to Microsoft again in the trigger's connection, or check that the app may still read the mailbox.<br>Check that this server can reach Microsoft; the trigger tries again at its next check. | control-room |
 | `CR.UNAUTHENTICATED` | Please sign in<br>MCP sign-in with OAuth is not set up<br>The access token was refused: … | Sign in again; your session may have ended.<br>An administrator sets the MCP audience in Settings > AI assistants.<br>Get a new access token (Administration > Settings > API access) and use it in place of the old one. | control-room, modules/document-automation, modules/integration, modules/low-code |
@@ -572,6 +575,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `CSV.BAD_DELIMITER` | Delimiter must be one character | Use , ; \| tab or regional. | packages |
 | `CSV.BAD_OPTION` | skip_lines cannot be negative<br>Unknown trim option '…' | Use 0 or more.<br>Use none, leading, trailing or both. | packages |
+| `CSV.NO_SOURCE` | Give the file to read, or an open CSV/TXT session | Fill in the file path, or the session of an Open step. | packages |
 | `CSV.UNCLOSED_QUOTE` | A quoted field is not closed | Check for a missing closing quote. | packages |
 
 ## CURRENCY
@@ -585,7 +589,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `CURRENCY.BAD_RATE` | Rate for … is not a number<br>Rate for … must be greater than 0 | Give each rate as a number, for example 1.08.<br>Give each rate as a number greater than 0. | packages |
 | `CURRENCY.BAD_RESPONSE` | The ECB answer contained no exchange rates<br>No rates object at '…$…' in the answer<br>The rates object has no numeric rates | Check the url returns the eurofxref XML.<br>Set rates_path to the field holding {"CODE": rate, ...}.<br>Check rates_path. | packages |
 | `CURRENCY.BAD_SOURCE` | Unknown rate source '…' | Use ecb, json or fixed. | packages |
-| `CURRENCY.DATE_NOT_SUPPORTED` | A past date works only with the ecb source | Use source ecb, or leave date empty. | packages |
+| `CURRENCY.DATE_NOT_SUPPORTED` | A past date works with the ecb or json source<br>For a past date the json url needs {date} where the day goes | Use source ecb or json, or leave date empty.<br>For example https://api.example.com/{date}?base=EUR. | packages |
 | `CURRENCY.NO_AMOUNT` | Give an amount to convert | Fill in the amount to convert. | packages |
 | `CURRENCY.NO_BASE` | The answer does not say which currency the rates are against<br>The fixed source needs base_currency | Set base_currency.<br>Name the currency your rates are quoted against. | packages |
 | `CURRENCY.NO_RATES` | The fixed source needs a rates Dictionary | … | packages |
@@ -648,9 +652,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `DATETIME.BAD_WEEKEND` | The weekend cannot be every day of the week<br>'…' is not a day of the week | Leave at least one working day, e.g. weekend SAT,SUN.<br>Write the weekend as days such as SAT,SUN or FRI,SAT, or NONE when every day is a working day. | packages |
 | `DATETIME.BAD_ZONE` | Unknown time zone '…' | Use an IANA name such as Europe/London or Asia/Kolkata. | packages |
 | `DATETIME.CALENDAR_NOT_FOUND` | There is no holiday calendar '…' in One CommandCenter | Check the name under Manage > Schedules > Holiday calendars (names are exact), or give the holidays and weekend on the step. | packages |
-| `DATETIME.MISSING` | Input '…' has no date<br>Give a date or a year<br>Give the number of working days | Give a date such as 2026-10-18 or 2026-10-18T14:30:00.<br>Fill in 'value' or 'year'.<br>Fill in 'days', e.g. 5 or -2. | packages |
+| `DATETIME.MISSING` | Input '…' has no date<br>Give a date or a year<br>Give the number of working days | Give a date such as 2026-10-18, or text in the pattern.<br>Give a date such as 2026-10-18 or 2026-10-18T14:30:00.<br>Fill in 'value' or 'year'. | packages |
 | `DATETIME.NO_COMMAND_CENTER` | The holiday calendar '…' is kept in One CommandCenter, and this run is not connected to it<br>This One CommandCenter is too old to give holiday calendars to agents | Run the agent from One CommandCenter, or leave the calendar empty and give the holidays and weekend on the step.<br>Update One CommandCenter, or give the holidays and weekend on the step. | packages |
-| `DATETIME.PARSE_FAILED` | Cannot read '…' as …<br>Cannot read '…' with pattern '…' | Check the text matches the chosen standard format.<br>Check the pattern matches the text exactly. | packages |
+| `DATETIME.PARSE_FAILED` | Cannot read '…' as …<br>Cannot read '…' with pattern '…'<br>'…' (…) does not fit the pattern … | Check the text matches the chosen standard format.<br>Check the pattern matches the text exactly.<br>Check the text or the pattern, e.g. dd/MM/yyyy. | packages |
 
 ## DB
 
@@ -662,13 +666,14 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `DB.BAD_INPUT` | Give a jdbc_url or a database_type<br>… needs a database file<br>odbc needs a data source | Choose the database type and fill in its server or file, or type the full JDBC URL.<br>Fill in file with the path of the database file.<br>Fill in database with a DSN name (see Windows' ODBC Data Sources) or an ODBC connection string. | packages |
 | `DB.BAD_NAME` | Invalid … name '…' | Use letters, digits and underscores, optionally schema.name. | packages |
 | `DB.BAD_PARAMETER` | Parameter … has direction '…direction…'<br>Unknown parameter type '…' | Use in, out or inout.<br>Use one of …, …. | packages |
-| `DB.COLUMN_MISMATCH` | columns lists … names but the Data Table has … columns<br>Line … has … fields but … columns are inserted | Give one database column per Data Table column.<br>Give one database column per field in columns, or check the delimiter. | packages |
+| `DB.COLUMN_MISMATCH` | The Data Table has no column '…'<br>columns lists … names but the Data Table has … columns<br>Line … has … fields but … columns are inserted | Use the Data Table's column names on the left of column_map.<br>Give one database column per Data Table column.<br>Give one database column per field in columns, or check the delimiter. | packages |
 | `DB.CONNECT_FAILED` | Cannot connect: … | Check the URL, network access and credentials. | packages |
 | `DB.EXPORT_FAILED` | Cannot write …: … | Check the folder exists and the file is not open. | packages |
 | `DB.FILE_EXISTS` | File already exists: … | Set overwrite to true or choose another name. | packages |
-| `DB.NO_COLUMNS` | The Data Table has no columns<br>No database columns | Give a Data Table with at least one column.<br>…The file has no header line at start_row; fill in columns.…Fill in columns with the database column of each field. | packages |
+| `DB.NO_COLUMNS` | column_map maps no column<br>The Data Table has no columns<br>No database columns | Map at least one Data Table column to a database column.<br>Give a Data Table with at least one column.<br>…The file has no header line at start_row; fill in columns.…Fill in columns with the database column of each field. | packages |
 | `DB.NO_DRIVER` | JDBC driver … is not installed on the runner<br>No JDBC driver found for …:… | Ask an administrator to install the database driver on the runner.<br>The runner includes drivers for SQL Server, PostgreSQL, MySQL/MariaDB, Oracle, SQLite, H2 and Access, and reaches any ODBC data source on Windows (database_type odbc); for another database ask an administrator to put its driver JAR in the runner's lib folder. | packages |
 | `DB.NO_RESULT` | The procedure … returned no rows to export | Choose a procedure that ends with a SELECT, or use Run stored procedure. | packages |
+| `DB.NO_SECRET` | The address needs { {…}}, which secrets does not give | Add … to secrets, with a vault reference. | packages |
 | `DB.READ_ONLY` | The session was opened read-only, so …this statement…procedure…stored procedures (which may change data)… cannot run…: only SELECT, WITH, VALUES, SHOW, DESCRIBE and EXPLAIN are allowed…… | Connect again with read_only off to change data. | packages |
 | `DB.SQL_ERROR` | … (SQLState …)…… | Check the SQL and that parameters match the ? placeholders. | packages |
 | `DB.TABLE_NOT_FOUND` | Table '…' was not found | Use List tables to see the exact names. | packages |
@@ -725,12 +730,16 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `DESKTOP_UI.BAD_INPUT` | Give the window title or its program<br>Give the control's name, role or path | Fill in the window's title or its program.<br>Give a control's name, role or path; Capture in the step fills them in. | packages-windows |
 | `DESKTOP_UI.BAD_OBJECT` | … | Capture the object again with Pick object, or fix the object dictionary. | packages-windows |
 | `DESKTOP_UI.BAD_OPTION` | levels must be 1 to 50 | Go up 1 to 50 levels. | packages-windows |
+| `DESKTOP_UI.BAD_STATE` | Unknown state '…' | Use exists, enabled or focused. | packages-windows |
 | `DESKTOP_UI.BRIDGE_FAILED` | The UI Automation helper did not start…<br>Cannot start the UI Automation helper: … | Check that Windows PowerShell 5.1 and .NET Framework 4 are available on this machine.<br>Check that powershell.exe is on the PATH (Windows PowerShell 5.1). | packages-windows |
 | `DESKTOP_UI.BRIDGE_STOPPED` | The UI Automation helper has stopped…<br>The UI Automation helper stopped while working… | Run the step again. | packages-windows |
 | `DESKTOP_UI.BRIDGE_TIMEOUT` | The application did not answer UI Automation within … s | The application may be busy or not responding; wait for it or raise the timeout. | packages-windows |
+| `DESKTOP_UI.ITEM_NOT_FOUND` | No cell of the grid has the text … | Check the text, or read the grid with get_table. | packages-windows |
 | `DESKTOP_UI.NOT_IN_BACKGROUND` | A … click needs the mouse, which Run in background does not use<br>Focus brings the window to the front, which Run in background does not do<br>This … cannot be used without the mouse and keyboard: … | Use a left click, or turn off Run in background.<br>Turn off Run in background.<br>Turn off Run in background for this step (the window will then come to the front). | packages-windows |
-| `DESKTOP_UI.NO_ITEM` | Give the item text or item_index to select | Fill in the item's text, or item_index. | packages-windows |
+| `DESKTOP_UI.NO_CELL` | The action '…' needs a row and a column (1 for the first) | Fill in row and column. | packages-windows |
+| `DESKTOP_UI.NO_ITEM` | item_index counts from 1; … is not an item<br>Give the item text or item_index to select<br>Give item_index, the button's position on the tool bar | Give 1 for the first item.<br>Fill in the item's text, or item_index.<br>Fill in item_index. | packages-windows |
 | `DESKTOP_UI.NO_PROPERTY` | Give the property to read | For example Name, Value or IsEnabled. | packages-windows |
+| `DESKTOP_UI.NO_TEXT` | The action '…' needs text<br>The action '…' needs find_text, the text of the cell to find | Fill in text.<br>Fill in find_text. | packages-windows |
 | `DESKTOP_UI.OBJECT_NOT_FOUND` | The desktop object … was not found within … s<br>No open window matches …'…'…<br>No control ……named '…' ……with role '…' …in the window | Check the application window is open, or capture the object again and review which properties are used.<br>Open the application first, or check the title.<br>Use Find legacy objects to see the names and roles the application gives its controls. | packages-windows |
 | `DESKTOP_UI.UNKNOWN_PROPERTY` | The object has no property '…' | Available: …, …. | packages-windows |
 | `DESKTOP_UI.WAIT_TIMEOUT` | The desktop object …wait_appear… did not appear… did not disappear… within … s<br>The desktop object … did not appear… did not disappear… within … s | Raise timeout_seconds, or use Wait for object with fail_on_timeout false to branch instead.<br>Raise timeout_seconds, or set fail_on_timeout to false to branch instead. | packages-windows |
@@ -739,7 +748,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `DICT.KEY_NOT_FOUND` | Key '…' is not in the dictionary | Keys: …, ….<br>Check the key; keys are case-sensitive. | packages |
+| `DICT.BAD_POSITION` | Position … is outside the dictionary (0 to …) | Use 0 for the first place, or leave it empty for the end. | packages |
+| `DICT.KEY_NOT_FOUND` | Key '…' is not in the dictionary<br>There is no key at position … (the dictionary has …) | Keys: …, ….<br>Use a position from 0 to ….<br>Check the key; keys are case-sensitive. | packages |
+| `DICT.NO_KEY` | Give the key to remove, or its position | Fill in the key, or the position counted from 0. | packages |
 
 ## DLL
 
@@ -789,8 +800,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
+| `DOTNET.BAD_INPUT` | Give the type (for a static method) or the object's name | Fill in type or object_name. | packages |
+| `DOTNET.FAILED` | .NET reported …type…: …message… | Check the type, method and arguments; Read assembly lists them. | packages |
 | `DOTNET.MISSING` | Fill in … | Fill in the field the message names. | packages |
 | `DOTNET.NO_CODE` | Type the C# code<br>Type the VB.NET code | Fill in code. | packages |
+| `DOTNET.NO_SESSION` | No .NET session named '…dotnet…' is open | Add Open assembly before this step. | packages |
 
 ## EC2
 
@@ -854,12 +868,13 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `EXCEL.AUTOFIT_FAILED` | Cannot measure the text to fit the columns: … | On a Linux server install a font package (for example fontconfig and dejavu fonts), or set widths with set_column_width. | packages-office |
+| `EXCEL.BAD_CELL` | Give both the row and the column<br>Give the cell the search starts at | Fill in both, or leave both empty for the active cell.<br>Fill in start_cell, e.g. C10. | packages-office |
 | `EXCEL.BAD_CLEAR` | Clear must be contents, formats or all, not '…' | Pick one of the three. | packages-office |
 | `EXCEL.BAD_COLOR` | '…' is not a colour | Use a hex colour such as #FFC000, red,green,blue numbers such as 255,192,0, or a name: …, …. | packages-office |
 | `EXCEL.BAD_COLUMN` | No column given<br>'…' is not a column<br>Column number … is out of range | Give a column letter such as C or a number such as 3.<br>Columns are numbered 1 to 16384.<br>Pick columns inside the range. | packages-office |
 | `EXCEL.BAD_COUNT` | Count must be at least 1 | Set count to 1 or more. | packages-office |
 | `EXCEL.BAD_DIRECTION` | Direction must be down or right, not '…'<br>Direction must be down, up, right or left, not '…' | Use down or right.<br>Use down, up, right or left. | packages-office |
-| `EXCEL.BAD_FILTER` | The between operator needs value and value_to | Set both bounds. | packages-office |
+| `EXCEL.BAD_FILTER` | An Excel filter needs a header row for its buttons<br>The between operator needs value and value_to | Tick header, or leave apply_in_file off.<br>Set both bounds. | packages-office |
 | `EXCEL.BAD_FORMAT` | Unsupported format '…' | Use xlsx, xls or csv. | packages-office |
 | `EXCEL.BAD_FORMULA` | Invalid formula '…': …<br>Replacing in … gives an invalid formula '…' | Check the formula syntax.<br>Check the replacement text. | packages-office |
 | `EXCEL.BAD_FUNCTION` | '…' is not a summary function | Use sum, count, average, max or min, e.g. Amount:average. | packages-office |
@@ -867,12 +882,13 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `EXCEL.BAD_LINK` | The new link is empty | Give the path of the new source workbook. | packages-office |
 | `EXCEL.BAD_MOVE` | Unknown move '…'<br>The move goes past the edge of the sheet | Use none, left, right, up, down, row_start, row_end, column_start or column_end.<br>Start from another cell. | packages-office |
 | `EXCEL.BAD_NAME` | '…' cannot be a table name | Start with a letter; use letters, digits, _ and .; it must not look like a cell address. | packages-office |
-| `EXCEL.BAD_OPERATOR` | Unknown operator '…' | Use equals, not_equals, contains, starts_with, ends_with, gt, gte, lt, lte, empty or not_empty. | packages-office |
+| `EXCEL.BAD_OPERATOR` | Unknown operator '…' | Use equals, not_equals, contains, starts_with, ends_with, gt, gte, lt, lte, between, empty or not_empty.<br>Use equals, not_equals, contains, starts_with, ends_with, gt, gte, lt, lte, empty or not_empty. | packages-office |
+| `EXCEL.BAD_OPTION` | select must be range, rows, columns or whole_sheet, not '…'<br>Unknown start '…'<br>sort_as must be auto, number or text, not '…' | Pick range, rows, columns or whole_sheet.<br>Use top, active_cell, cell or end.<br>Pick auto, number or text. | packages-office |
 | `EXCEL.BAD_PASTE` | Paste must be all, values, formulas or formats, not '…' | Pick one of the four. | packages-office |
 | `EXCEL.BAD_PATH` | Give the workbook's path in the drive after onedrive:, for example onedrive:Reports/2026/sales.xlsx | Write the path after onedrive:, for example onedrive:Reports/2026/sales.xlsx. | packages-office |
 | `EXCEL.BAD_POSITION` | Position must be between 1 and …<br>Table '…' has no column … | Leave position empty to add at the end.<br>Use a position between 1 and …. | packages-office |
 | `EXCEL.BAD_RANGE` | '…' is not a range<br>End row … is before start row …<br>The copy would go past the edge of the sheet | Use an address such as A1:D20.<br>Give an end row at or after the start row.<br>Pick a destination nearer the top-left. | packages-office |
-| `EXCEL.BAD_ROW` | Row number … is out of range | Rows are numbered from 1. | packages-office |
+| `EXCEL.BAD_ROW` | Row … comes before row …<br>Row number … is out of range<br>'…' is not a row or rows | Give from_row first and to_row at or after it.<br>Rows are numbered from 1.<br>Write a row number such as 3, or rows such as 3:5. | packages-office |
 | `EXCEL.BAD_SHEET` | A sheet name cannot be empty<br>Sheet name '…' has … characters; Excel allows at most 31<br>Sheet name '…' contains one of : \ / ? * [ ] | Give the sheet a name.<br>Shorten the sheet name to 31 characters or fewer.<br>Remove : \ / ? * [ ] from the sheet name. | packages-office |
 | `EXCEL.BAD_SHEET_NAME` | … | Sheet names are at most 31 characters and cannot contain : \ / ? * [ ]. | packages-office |
 | `EXCEL.BAD_SHIFT` | Shift must be up or left, not '…' | Use up or left. | packages-office |
@@ -888,22 +904,23 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `EXCEL.NOTHING_TO_LOCK` | No password was given<br>Neither the structure nor the windows were chosen | Give a password to open the file, a structure password, or both.<br>Set lock_structure or lock_windows to true. | packages-office |
 | `EXCEL.NOTHING_TO_UNLOCK` | Nothing to unprotect was chosen | Give the structure password, set remove_open_password, or both. | packages-office |
 | `EXCEL.NOT_FOUND` | Workbook not found: … | Set create to true or fix the path.<br>Fix the path. | packages-office |
-| `EXCEL.NOT_SUPPORTED` | A password to open needs an .xlsx workbook | Save the workbook as .xlsx first. | packages-office |
+| `EXCEL.NOT_SUPPORTED` | A password to edit needs an .xlsx workbook<br>A password to open needs an .xlsx workbook | Save the workbook as .xlsx first. | packages-office |
 | `EXCEL.NO_EMPTY_CELL` | No empty cell before the edge of the sheet | Start from another cell or search in the other direction. | packages-office |
 | `EXCEL.NO_LINK` | The workbook has no link to '…' | Use get_links to see the linked workbooks. | packages-office |
 | `EXCEL.NO_SELECTION` | No range given and the sheet has no active cell | Set the range, or run select_range or go_to_cell first. | packages-office |
-| `EXCEL.NO_SHEET` | Sheet '…' not found<br>There is no sheet number … (the workbook has …)<br>Give a sheet name or index | Sheets: …, ….<br>Use an index from 1 to ….<br>Set the sheet name or its 1-based index. | packages-office |
+| `EXCEL.NO_SHEET` | Sheet '…' not found… among the visible sheets (the workbook was opened to skip hidden sheets)……<br>There is no sheet number … (the workbook has … visible……)<br>Give a sheet name or index | Sheets: …, ….<br>Use an index from 1 to ….<br>Set the sheet name or its 1-based index. | packages-office |
 | `EXCEL.NO_TABLE` | Excel table '…' not found | …The workbook has no Excel tables.…Tables: …, …. | packages-office |
-| `EXCEL.NO_TOKEN` | A onedrive: path needs access_token | Pick the Microsoft Graph token from the vault. | packages-office |
+| `EXCEL.NO_TOKEN` | A SharePoint or OneDrive link needs access_token<br>A onedrive: path needs access_token | Pick the Microsoft Graph token from the vault. | packages-office |
 | `EXCEL.NO_VALUES` | No value fields given | Name at least one field to summarise, e.g. ["Amount"]. | packages-office |
-| `EXCEL.OPEN_FAILED` | Cannot open …: …<br>… | Close the file in Excel and check it is a valid workbook.<br>Check that the workbook exists, is a valid .xlsx or .xls file, and is not open in Excel with a lock. | packages-office |
+| `EXCEL.OPEN_FAILED` | Cannot open …: …<br>Cannot read …: …<br>… | Close the file in Excel and check it is a valid workbook.<br>Check that the file is there and not locked.<br>Check that the workbook exists, is a valid .xlsx or .xls file, and is not open in Excel with a lock. | packages-office |
 | `EXCEL.OVERLAP` | The range overlaps the table … | Pick a range outside existing tables. | packages-office |
 | `EXCEL.PASSWORD_REQUIRED` | The workbook … is password-protected<br>An empty password would leave the sheet unprotected | Set the password input from the credential vault.<br>Give a password, ideally a credential from the vault. | packages-office |
-| `EXCEL.READ_ONLY` | The workbook was opened read-only | Use save_as with another path, or open it without read_only. | packages-office |
-| `EXCEL.SAVE_FAILED` | Cannot save …: … | Close the file if it is open in Excel. | packages-office |
-| `EXCEL.SHEET_EXISTS` | Sheet '…' already exists | Set replace to true or choose another name.<br>Choose another name. | packages-office |
+| `EXCEL.READ_ONLY` | The workbook was opened read-only | Turn off save, or open the workbook without read_only.<br>Use save_as with another path, or open it without read_only. | packages-office |
+| `EXCEL.SAVE_FAILED` | Cannot save …: … | Close the file if it is open in another program.<br>Close the file if it is open in Excel. | packages-office |
+| `EXCEL.SHEET_EXISTS` | Sheet '…' already exists | Choose another name, or tick replace to delete that sheet and its content first.<br>Choose another name. | packages-office |
+| `EXCEL.WRONG_EDIT_PASSWORD` | The password to edit … is wrong | Check the password stored in the credential vault, or open the file read-only without it. | packages-office |
 | `EXCEL.WRONG_PASSWORD` | The password for … is wrong<br>The workbook password is wrong<br>The sheet password is wrong | Check the password stored in the credential vault. | packages-office |
-| `EXCEL.XLSX_ONLY` | … is only supported for .xlsx workbooks | Save the workbook as .xlsx first (save_as with format xlsx). | packages-office |
+| `EXCEL.XLSX_ONLY` | Sensitivity labels are only supported for .xlsx workbooks<br>… is only supported for .xlsx workbooks<br>An Excel filter in the file needs an .xlsx workbook | Save the workbook as .xlsx first.<br>Save the workbook as .xlsx first (save_as with format xlsx).<br>Save the workbook as .xlsx first, or use hide_rows. | packages-office |
 
 ## EXCEL_DESKTOP
 
@@ -916,6 +933,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `EXCEL_DESKTOP.EXISTS` | A file already exists at … | Set overwrite to true or choose another path. | packages |
 | `EXCEL_DESKTOP.FAILED` | Excel reported an error: … | Check the workbook, macro name and that macros are allowed. | packages |
 | `EXCEL_DESKTOP.NOT_INSTALLED` | Microsoft Excel is not installed on this runner | Install Excel, or use Excel (no Office needed). | packages |
+| `EXCEL_DESKTOP.NO_SESSION` | No Excel session named '…' is open | Open the workbook with Excel's Open step first, or leave the session empty and give the path. | packages |
 | `EXCEL_DESKTOP.PDF_UNAVAILABLE` | Excel cannot export to PDF on this runner and the Microsoft Print to PDF printer is missing. Office 2007 needs Microsoft's Save as PDF or XPS add-in; Office 2010 and later export directly. | Install the add-in, a newer Office, or the Microsoft Print to PDF printer (Windows features). | packages |
 | `EXCEL_DESKTOP.TOO_MANY_ARGS` | At most 10 macro arguments | Pass at most 10 arguments; put more in cells the macro reads. | packages |
 | `EXCEL_DESKTOP.WRONG_PASSWORD` | Excel could not open the workbook with the given password | Check the password stored in the credential vault. | packages |
@@ -963,18 +981,20 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `FILE.BAD_BASE64` | The text is not Base64: … | Pass the Base64 text exactly as the web service returned it. | packages |
 | `FILE.BAD_ENCODING` | Unknown text encoding '…'<br>Unknown encoding '…' | Use utf-8, utf-8-bom, ansi, unicode, utf-16 or windows-1251.<br>Use utf-8, utf-16le, windows-1252 or ansi. | packages |
-| `FILE.BAD_NAME` | The extension or prefix holds a character a file name cannot have | Leave out \ / : * ? " < > \|. | packages |
+| `FILE.BAD_NAME` | Invalid file name '…'<br>The extension or prefix holds a character a file name cannot have | Give only the new name, without a folder or the characters < > : " \| ? *.<br>Leave out \ / : * ? " < > \|. | packages |
 | `FILE.BAD_OPERATOR` | Unknown operator '…' | Use eq, ne, gt, ge, lt or le. | packages |
-| `FILE.BAD_OPTION` | Unknown trim '…'<br>Unknown sort '…'<br>Give the number of days | Use none, leading, trailing or both.<br>Use name, modified or size.<br>Fill in 'days'. | packages |
+| `FILE.BAD_OPTION` | Unknown trim '…'<br>Unknown if_exists '…'<br>Unknown sort '…' | Use none, leading, trailing or both.<br>Use fail, replace, keep_both or keep.<br>Use name, modified or size. | packages |
 | `FILE.BAD_RULE` | The file name rules … | Open the step and fix the rule in the file field's Name rule mode. | sdk |
-| `FILE.BAD_TARGET` | The target … is a file | With a pattern, the target must be a folder. | packages |
-| `FILE.EXISTS` | File already exists: …<br>Target exists: …<br>Archive already exists: … | Set overwrite to true or choose another name.<br>Choose another name or turn off fail_if_exists.<br>Turn on overwrite or choose another path. | packages, packages-transfer, packages-windows, toolkits/microsoft |
+| `FILE.BAD_TARGET` | … is a folder<br>The target … is a file | Give the path of a file, including its name.<br>With name rules choosing several files, the target must be a folder.<br>With a pattern, the target must be a folder. | packages |
+| `FILE.EXISTS` | File already exists: …<br>A file named '…' already exists in …<br>The file … is already there | Set overwrite to true or choose another name.<br>Choose another name or turn off fail_if_exists.<br>Choose another name, or choose what to do when it exists. | packages, packages-transfer, packages-windows, toolkits/microsoft |
 | `FILE.IO` | Cannot create the folder for …: …<br>Cannot list …: … | Check the runner may write there, or leave the path empty to use a temporary file.<br>Check the folder exists and the runner may read it. | sdk |
-| `FILE.IO_ERROR` | …<br>Cannot read …: …<br>Cannot write …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check the path and permissions.<br>Check the folder exists and can be written. | packages, packages-browser, packages-email, packages-pdf, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
+| `FILE.IO_ERROR` | …<br>Cannot read …: …<br>Cannot write …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check that the temporary folder may be written.<br>Check the path and permissions. | packages, packages-browser, packages-email, packages-pdf, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
 | `FILE.NOT_CREATED` | The PDF … was not written within … s | Check the printer queue and that the target folder is writable. | packages |
 | `FILE.NOT_FOUND` | File not found: …<br>Python module not found: …<br>Messages file not found: … | Check the path.<br>Check the path; the file may have been moved or renamed.<br>Check the key path. | packages, packages-email, packages-office, packages-pdf, packages-transfer, sdk, toolkits/ai, toolkits/enterprise, toolkits/google, toolkits/microsoft |
+| `FILE.NO_COMMAND_CENTER` | Getting a file from One CommandCenter works when One CommandCenter runs the agent | Run the agent from One CommandCenter, or add the file to the agent's files (Details > Files from One CommandCenter). | packages |
 | `FILE.NO_FILES` | Give at least one file to print | Fill in the files list, or a folder with matching files. | packages |
 | `FILE.NO_MATCH` | No file matches: … | Check the folder and the rules (the field's Name rule mode), or wait for the file first with Wait for file. | runner |
+| `FILE.NO_PATH` | Give the file's path in One CommandCenter | For example Templates/invoice.xlsx. | packages |
 | `FILE.OUTSIDE_WORKSPACE` | This run may only use files in its own workspace, not … | Use a folder relative to the workspace.<br>Use a path relative to the workspace. | runner, sdk |
 | `FILE.READ_FAILED` | Cannot read …: … | Check that the file exists, is not open in another program, and that the runner's account may read it. | toolkits/enterprise |
 | `FILE.TOO_LARGE` | … is … MB; Base64 text is limited to 50 MB of file | Send large files as files (for example with a REST upload) rather than as text. | packages |
@@ -993,21 +1013,21 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FLOW.SCHEMA_MISSING` | flow.v1.json is not on the classpath | Run gradlew :adapters-jackson:syncFlowSchema | adapters-jackson |
 | `FLOW.UNKNOWN_ACTION` | Unknown core action '…'<br>…@… has no action '…' | Update the runner; the agent uses a command this runner does not know.<br>Install the toolkit version the agent was built with, or update the step to the installed version. | runner |
 | `FLOW.UNKNOWN_CONDITION` | Unknown condition '…' | Update the runner; the agent uses a condition this runner does not know. | runner |
-| `FLOW.UNKNOWN_ITERATOR` | Unknown iterator '…' | Update the runner; the agent uses a loop kind this runner does not know. | runner |
+| `FLOW.UNKNOWN_ITERATOR` | Unknown iterator '…'<br>Unknown trigger '…' | Update the runner; the agent uses a loop kind this runner does not know.<br>Update the runner; the agent uses a trigger this runner does not know. | runner |
 
 ## FOLDER
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `FOLDER.BAD_NAME` | Invalid folder name '…' | Give only the new name, without slashes or the characters < > : " \| ? *. | packages |
-| `FOLDER.BAD_OPTION` | Sizes cannot be negative<br>larger_than_kb … is not below smaller_than_kb …, so no folder can match<br>modified_after … is not before modified_before …, so no folder can match | Use 0 or more KB.<br>Give a size range whose lower limit is below its upper limit, or fill in only one of them.<br>Give a date range whose start is before its end, or fill in only one of them. | packages |
+| `FOLDER.BAD_OPTION` | Unknown if_exists '…'<br>Sizes cannot be negative<br>larger_than_kb … is not below smaller_than_kb …, so no folder can match | Use use, replace, numbered or fail.<br>Use 0 or more KB.<br>Give a size range whose lower limit is below its upper limit, or fill in only one of them. | packages |
 | `FOLDER.BAD_TARGET` | Cannot move … into itself | Choose a destination outside the folder. | packages |
-| `FOLDER.EXISTS` | Folder already exists: …<br>A file or folder named '…' already exists in …<br>'…' already exists | Choose another name or turn off fail_if_exists.<br>Choose another name.<br>Turn on overwrite to merge into it, or choose another destination. | packages |
+| `FOLDER.EXISTS` | Folder already exists: …<br>A file, not a folder, is at …<br>A file or folder named '…' already exists in … | Choose another name, or choose to use the existing folder.<br>Choose another name.<br>Turn on overwrite to merge into it, or choose another destination. | packages |
 | `FOLDER.IO_ERROR` | Cannot read the size of …: …<br>Cannot rename …: …<br>Cannot move …: … | Close any program using the folder and try again. | packages |
 | `FOLDER.NOT_EMPTY` | Folder is not empty: … | Set recursive to true to delete its contents. | packages |
 | `FOLDER.NOT_FOUND` | Folder not found: … | Check the folder path. | packages |
 | `FOLDER.OPEN_FAILED` | Cannot open …: … | Check a file manager is installed on the runner. | packages |
-| `FOLDER.PROTECTED` | Refusing to delete …<br>Refusing to rename …<br>Refusing to move … | Point to a specific sub-folder. | packages |
+| `FOLDER.PROTECTED` | Refusing to replace …<br>Refusing to delete …<br>Refusing to rename … | Point to a specific sub-folder. | packages |
 
 ## FORMS
 
@@ -1017,7 +1037,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FORMS.BAD_FIELD` | Each field must be a Dictionary with at least id and type<br>Field ids must be unique and use letters, digits and _ ('…')<br>A dynamic area cannot hold another area | Give each field as a dictionary with at least id and type.<br>Give every field its own id of letters, digits and _.<br>Put the inner area's fields directly in the outer area. | packages |
 | `FORMS.BAD_FORM` | Not a form from the form designer: … (…) | Open it in OneAgentStudio's form designer and save it again. | packages |
 | `FORMS.BAD_KIND` | Unknown highlight kind '…' | Use color, warning or error. | packages |
-| `FORMS.BAD_MODE` | Unknown mode '…' | Use replace or append. | packages |
+| `FORMS.BAD_MODE` | Unknown way to set '…'<br>Unknown mode '…'<br>Unknown way '…' | Use replace or append.<br>Use replace, append or clear. | packages |
 | `FORMS.ELEMENT_NOT_FOUND` | The form has no field or button '…'<br>The form has no field '…' to fill in | Use an id from the form designer (select the field to see its id).<br>Use field ids from the form designer. | packages |
 | `FORMS.NOT_AN_AREA` | '…' is not a dynamic area | Add a Dynamic area in the form designer. | packages |
 | `FORMS.NOT_A_FIELD` | '…' is not a field with a value | Choose an input field, not a button, heading or area. | packages |
@@ -1025,8 +1045,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `FORMS.NOT_OPEN` | The form '…' is not open | Display it first (Display form) with this name, and do not close it before this step.<br>Check the name given when it was displayed. | packages |
 | `FORMS.NO_BROWSER` | Cannot open a window for the form: … | Install Microsoft Edge or Google Chrome on the runner. | packages |
 | `FORMS.NO_DESKTOP` | Forms need a runner with a desktop and a signed-in person | Run this agent attended, on a runner where someone is signed in. | packages |
+| `FORMS.NO_WINDOW` | The window of form '…' was not found on the screen | Check that the form is still open; a form window renamed by the person cannot be found by its title. | packages |
 | `FORMS.SERVER_FAILED` | Cannot show forms on this computer: … | Make sure the runner has an unlocked desktop session where the form can open. | packages |
 | `FORMS.TIMEOUT` | Nothing happened on the form within … s | Raise the time-out, or handle timed_out. | packages |
+| `FORMS.WINDOWS_ONLY` | Hiding and showing a form needs a Windows runner with the Window toolkit installed | Run this agent on a Windows runner with a signed-in desktop. | packages |
 
 ## FUZZY
 
@@ -1139,9 +1161,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `IMAGE.NOT_FOUND` | Image did not appear within … s (best similarity …similarity…%)<br>Image not found on screen (best similarity …similarity…%) | Check the screen resolution and scaling match the captured picture, or raise the tolerance.<br>Check the window is visible and not covered, or raise the tolerance. | packages |
 | `IMAGE.NOT_STEADY` | The screen region kept changing for … s | Raise timeout_seconds or threshold_percent, or choose a smaller region. | packages |
 | `IMAGE.NO_CHANGE` | The screen region did not change within … s | Raise timeout_seconds, or lower threshold_percent. | packages |
+| `IMAGE.NO_WINDOW` | No open window matches '…' | Check the window's title. | packages |
 | `IMAGE.SIZE_MISMATCH` | The pictures differ in size: … x … and … x … | Capture both at the same size, or set size_mismatch to scale. | packages |
 | `IMAGE.STILL_VISIBLE` | Image was still on the screen after … s | Raise the timeout or lower the tolerance. | packages |
 | `IMAGE.UNSUPPORTED` | Not a readable image: … | Use PNG, JPG, BMP or GIF. | packages |
+| `IMAGE.WINDOW_UNAVAILABLE` | Searching inside a window needs a Windows runner with the Window toolkit installed | Leave window empty to search the screen. | packages |
 
 ## INSIGHTS
 
@@ -1150,6 +1174,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `INSIGHTS.BAD_CATEGORY` | Invalid category '…' | Use letters, digits, - and _. | packages |
 | `INSIGHTS.BAD_TRANSACTION` | Invalid transaction name '…' | Use up to 100 characters without < or >. | packages |
 | `INSIGHTS.NOT_OPEN` | Transaction '…' was not opened | Add Open transaction with the same name before this step. | packages |
+| `INSIGHTS.NO_VARIABLES` | This run cannot list its variables | List the values in values instead. | packages |
 | `INSIGHTS.RESERVED_NAME` | transaction, outcome, started and duration_seconds are recorded automatically | Rename that value. | packages |
 | `INSIGHTS.SECRET` | Credentials cannot be recorded as insights | Record a value that is not a credential, or leave the field out. | packages |
 
@@ -1157,7 +1182,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `INTERRUPT.BAD_RULE` | close_window answers window rules only<br>A rule needs a name<br>Rule '…': give either a window title pattern or an element selector | Use close_window only on window rules.<br>Give the rule a name.<br>Use when_window or when_element, not both. | packages |
+| `INTERRUPT.BAD_RULE` | close_window answers window rules only<br>A rule needs a name<br>Rule '…': give one of a window title pattern, an element selector or a condition | Use close_window only on window rules.<br>Give the rule a name.<br>Use when_window, when_element or when_condition, only one of them. | packages |
 | `INTERRUPT.NO_REPOSITORY` | This run cannot start child agents | Run the agent from OneAgentStudio or One CommandCenter. | packages |
 | `INTERRUPT.NO_SESSION` | No browser session '…' is open to click … | Use x,y screen coordinates for desktop windows, or open the browser session first. | packages |
 
@@ -1173,11 +1198,12 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `JAVA_APPS.ATTACH_FAILED` | The Java application did not answer the agent<br>Cannot connect to the Java application …: … | Turn on the Java Access Bridge on the runner (jabswitch -enable) and start the application again.<br>The application must run as the same user as the runner, on Java 8 or later, and allow agents (no -XX:-EnableDynamicAgentLoading). | packages-windows |
-| `JAVA_APPS.BAD_INPUT` | Give the control's name, role or path | Give a control's name, role or path; Capture in the step fills them in. | packages-windows |
+| `JAVA_APPS.BAD_INPUT` | Give the control's name, role or path<br>Give the text of the cell to find in value | Give a control's name, role or path; Capture in the step fills them in.<br>Fill in value. | packages-windows |
 | `JAVA_APPS.FAILED` | The Java application refused: …error… | Check that the Java application is open and its Access Bridge is on; the message has its answer. | packages-windows |
 | `JAVA_APPS.NOT_INSTALLED` | The Java applications agent is missing from this runner | Reinstall the runner. | packages-windows |
 | `JAVA_APPS.NOT_REACHABLE` | The Java application … no longer answers: … | Check it is still open. | packages-windows |
 | `JAVA_APPS.OBJECT_NOT_FOUND` | No control ……named '…' ……with role '…' …in a Java window…… titled '…'… | Use Find Java objects to see the controls, or Get Java applications to see which programs are reachable. | packages-windows |
+| `JAVA_APPS.PICK_TIMEOUT` | No control was picked within … s | Press Ctrl+Shift+C while pointing at the control. | packages-windows |
 
 ## JIRA
 
@@ -1215,15 +1241,17 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `JSON.BAD_INDENT` | Indent must be between 0 and 16 | Use 2 or 4. | packages |
+| `JSON.BAD_OPTION` | Unknown if_list '…' | Use replace or add. | packages |
 | `JSON.BAD_PATH` | 'paths' must be a Dictionary or a List<br>Entry '…' has no path<br>Entry '…' has an unknown key '…' | Example: {"id": "order.id"}.<br>Write it as {"path": "order.total", "type": "Number"}.<br>Use only path and type. | packages |
 | `JSON.BAD_SCHEMA` | Referenced schema … is larger than 5 MB<br>Cannot load a schema from '…'<br>Referenced schema … is not valid JSON: … | Keep referenced schemas under 5 MB, or copy the part you need into the main schema.<br>Use a file next to the schema or an http(s) URL.<br>Check the referenced file. | packages |
-| `JSON.BAD_TYPE` | Unknown type '…' for '…' | Use String, Number, DateTime or Boolean. | packages |
-| `JSON.CONVERT_FAILED` | '…': cannot convert … to … | …Number…Check the value is numeric, e.g. 1234.50, or leave the type out.…DateTime…Use ISO dates such as 2026-10-18 or 2026-10-18T14:30:00, or leave the type out.…Boolean…Use true/false, yes/no or 1/0, or leave the type out.…Leave the type out. | packages |
+| `JSON.BAD_TYPE` | Unknown type '…' for '…'<br>Unknown value type '…' | Use String, Number, DateTime or Boolean.<br>Use as_given, text, number, boolean, json or null.<br>Use String, Number, Boolean, List, Dictionary or Null. | packages |
+| `JSON.CONVERT_FAILED` | '…': cannot convert … to …<br>The new value … cannot be made … | …Number…Check the value is numeric, e.g. 1234.50, or leave the type out.…DateTime…Use ISO dates such as 2026-10-18 or 2026-10-18T14:30:00, or leave the type out.…Boolean…Use true/false, yes/no or 1/0, or leave the type out.…Leave the type out.<br>…json…Give valid JSON text, e.g. {"a": 1} or [1, 2].…Check the value, or choose another type. | packages |
 | `JSON.INVALID` | Invalid JSON at line …, column …: …<br>…<br>…: … | Check commas, quotes and brackets.<br>Check the JSON syntax. | adapters-jackson, packages |
 | `JSON.NODE_EXISTS` | Key '…' already exists at '…' | Use update_node to change it, or set if_exists. | packages |
 | `JSON.NOT_AN_ARRAY` | The node at '…' is …, not a list<br>Expected a list of objects, got … | Point the path at a JSON array. | packages |
 | `JSON.NOT_A_DOCUMENT` | Expected a Dictionary, List or JSON text, got … | Parse the JSON first. | packages |
 | `JSON.NOT_OBJECTS` | Item … is …, not an object | Every array item must be a JSON object. | packages |
+| `JSON.NO_SOURCE` | Give the JSON to work on, or an open JSON session<br>…Both a value and a file are given…Nothing to load<br>Give the JSON to check: text or a value, a file or a session | Fill in the value, or the session of a Start session step.<br>Give either JSON text or a value, or a file.<br>Fill in json, path or session. | packages |
 | `JSON.PATH_NOT_FOUND` | Path '…' does not exist<br>'…' in path '…' is not a list index<br>Index … in path '…' is outside the list (size …) | Check the path; keys are case-sensitive.<br>Use a number such as [0] for list items.<br>Indexes start at 0. | packages |
 | `JSON.REF_NOT_FOUND` | Referenced schema file not found: … | Check the $ref file name; it is read relative to the schema file's folder. | packages |
 | `JSON.REF_UNREACHABLE` | Cannot load referenced schema …: HTTP …<br>Cannot load referenced schema …: … | Check the $ref URL.<br>Check the network and the $ref URL. | packages |
@@ -1306,13 +1334,13 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `LOG.BAD_ENCODING` | Unknown encoding '…' | Use utf-8, utf-16le or ansi. | packages |
 | `LOG.BAD_FIELD` | '…' cannot be a log field name | Start with a letter; use letters, digits, _ . and -, at most 64 characters. | packages |
-| `LOG.BAD_LEVEL` | Unknown level '…' | Use DEBUG, INFO, WARN or ERROR. | packages |
+| `LOG.BAD_LEVEL` | Unknown level '…' | Use DEBUG, INFO, WARN, ERROR, CRITICAL or EMERGENCY. | packages |
 | `LOG.BAD_TIMESTAMP_FORMAT` | Invalid timestamp format '…' | Use a pattern such as yyyy-MM-dd HH:mm:ss. | packages |
 | `LOG.BAD_TYPE` | Unknown variable type '…' | Use all, String, Number, Boolean, DateTime, List, Dictionary, Table, Record, File, Window, UIElement, Credential, Any, Time, TimeSpan, Image or Binary. | packages |
 | `LOG.IO_ERROR` | Cannot write log …: … | Check the folder exists and is writable. | packages |
 | `LOG.NOTHING_TO_LOG` | No variables to log | Fill in variables, or choose a type in all_of_type. | packages |
 | `LOG.NO_FIELDS` | No log fields given | Give at least one name and value. | packages |
-| `LOG.NO_VARIABLES` | This run cannot list its variables | List the variables in the variables input instead. | packages |
+| `LOG.NO_VARIABLES` | This run cannot list its variables | List the variables in the variables input instead.<br>Put the values in details instead. | packages |
 | `LOG.TOO_MANY_FIELDS` | A run can have at most 50 log fields | Remove fields that are no longer needed. | packages |
 
 ## LONGRUN
@@ -1341,6 +1369,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `LOOP.BAD_RANGE` | '…' must be a whole number, got …<br>from_index and to_index cannot be negative<br>step must be 1 or more for this iterator, got … | Use 0, 1, 2 ...<br>Indexes start at 0.<br>Use 1 to visit every item, 2 for every second item. | runner |
 | `LOOP.LIMIT` | Loop exceeded … iterations | A reversed loop reads every item first; raise max_iterations or turn reverse off.<br>Check the loop condition or raise max_iterations. | runner |
 | `LOOP.NO_COLUMN` | The current row has no column '…' | Columns: …. | runner |
+| `LOOP.NO_TRIGGERS` | The trigger loop has no handlers<br>Handler … of the trigger loop has no trigger | Add a handler with the event it waits for (a new file, a key press, a new e-mail...).<br>Choose the event the handler waits for. | runner |
 
 ## M365
 
@@ -1353,16 +1382,22 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `M365.BAD_OPTION` | Unknown … '…'<br>Unknown weekday '…' in recurrence_days_of_week<br>Unknown recurrence_week_of_month '…' | Use …, ….<br>Use full English day names such as monday or friday.<br>Use first, second, third, fourth or last. | toolkits/microsoft |
 | `M365.BAD_RANGE` | Invalid range '…'<br>Invalid start cell '…'<br>Invalid cell '…' | Example: A1:D20.<br>Example: A1.<br>Example: B2. | toolkits/microsoft |
 | `M365.BAD_RESPONSE` | The next page is on another server (…)<br>Planner did not return the task's version (ETag) | Check base_url.<br>The service answered in an unexpected way; try again, and if it keeps happening check the service's status page. | toolkits/microsoft |
+| `M365.BAD_SITE` | The site address must start with https://, e.g. https://contoso.sharepoint.com/sites/Finance | Copy the site's address from the browser. | toolkits/microsoft |
 | `M365.BAD_STATUS` | Unknown status '…' | Use read, unread, flagged, unflagged or complete. | toolkits/microsoft |
+| `M365.BAD_TEMPLATE` | Unknown list template … | Pick one of the templates the step offers. | toolkits/microsoft |
 | `M365.BAD_TIMES` | The end must be after the start<br>The event's start and end could not be read<br>The event's start could not be read | Set the end later than the start.<br>Give start and end.<br>Give start. | toolkits/microsoft |
 | `M365.CONFLICT` | The task kept changing while it was being updated | Try again. | toolkits/microsoft |
 | `M365.COPY_FAILED` | The copy failed: …error…message… | Check the destination and that the name is free. | toolkits/microsoft |
 | `M365.EXISTS` | A file named … already exists there | Set if_exists to replace or rename. | toolkits/microsoft |
 | `M365.NOTHING_TO_DO` | No formatting was given<br>No changes were given<br>Nothing was ticked to clear | Set at least one formatting input, such as fill_color, bold or font_name.<br>Set at least one of subject, start, end, body or location.<br>Tick at least one detail to clear. | toolkits/microsoft |
-| `M365.NOT_FOUND` | No calendar named '…'<br>No worksheet at position …<br>No … named '…' | …Check the name and the account's access.…Available: …, ….<br>The workbook has … worksheet(s); the first is 1.<br>Check the group's display name, or give its object id. | toolkits/microsoft |
+| `M365.NOT_FOUND` | No calendar named '…'<br>The link did not lead to a file in OneDrive or SharePoint<br>No worksheet at position … | …Check the name and the account's access.…Available: …, ….<br>Paste the link from the browser's address bar or from File > Info > Copy path, and check the sign-in may read the file.<br>The workbook has … worksheet(s); the first is 1. | toolkits/microsoft |
+| `M365.NO_ATTACHMENT` | The item has no attachment named … | Use Get SharePoint item attachments to see the names. | toolkits/microsoft |
+| `M365.NO_DIGEST` | SharePoint did not give a form digest for changes | Check that the account may change the site. | toolkits/microsoft |
 | `M365.NO_FOLDER` | Mail folder '…' not found | Check the path, e.g. Inbox/Invoices; names are not case-sensitive. | toolkits/microsoft |
+| `M365.NO_LIST` | SharePoint did not describe the list … | Check the list's title or id. | toolkits/microsoft |
 | `M365.NO_OLDER_VERSION` | The file has no earlier version | Version history starts after the file is changed. | toolkits/microsoft |
 | `M365.NO_RECIPIENTS` | No recipients to forward to<br>Without the sender there is nobody left to reply to<br>Nobody to share with | Give at least one address.<br>Turn off exclude_sender.<br>Give at least one email address. | toolkits/microsoft |
+| `M365.NO_SESSION` | No SharePoint site session named '…' | Add Sign in to SharePoint site before this step, or leave the session empty and give access_token and site. | toolkits/microsoft |
 | `M365.NO_VALUES` | The range returned no cells<br>There are no values to write<br>The Data Table is empty | Check the sheet and range.<br>Give a list of rows, each a list of cell values.<br>Check that the table has columns and rows. | toolkits/microsoft |
 | `M365.UPLOAD_EXPIRED` | The upload session expired after … of … bytes<br>The upload session expired | Run the step again to start a new upload. | toolkits/microsoft |
 | `M365.UPLOAD_FAILED` | The service did not open an upload session<br>The service accepted every byte but did not create the file | Try again later. | toolkits/microsoft |
@@ -1456,6 +1491,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `OCR.ACCESS_DENIED` | Adding a Windows language needs administrator rights | Run the step on a runner with administrator rights, or ask IT to add the OCR language. | packages |
 | `OCR.BAD_ENGINE` | The cloud engine is azure or google | Set the cloud engine to azure or google. | packages |
+| `OCR.BAD_INPUT` | where must be right, below, left or above<br>Give the label to look for<br>action must be read, click or type | Pick where the field sits from its label.<br>Fill in label.<br>Pick one of them. | packages |
 | `OCR.BAD_LANGUAGE` | Invalid language '…'<br>Invalid language tag '…' | Examples: eng, deu, eng+fra.<br>Use a tag such as de-DE or fr-FR. | packages |
 | `OCR.BAD_MODE` | Image mode must be none, gray or black_white | Use none, gray or black_white. | packages |
 | `OCR.BAD_REGION` | A region needs x, y, width and height, with width and height above 0<br>The region lies outside the image (…x…)<br>The area starts outside the window (…x…) | Set all four, or none for the whole image.<br>Check the coordinates.<br>Check x and y against the window's size. | packages |
@@ -1467,9 +1503,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `OCR.LANGUAGE_MISSING` | Tesseract language data '…' is not installed<br>The Windows OCR engine has no language for '…'<br>Windows has no OCR language '…' installed…… (installed: …)… | Install the language pack for Tesseract.<br>Use a language Windows knows (…, …) or install Tesseract.<br>Add the language in Windows Settings > Time & language > Language (with its OCR feature), or install Tesseract with that language. | packages |
 | `OCR.LANGUAGE_UNAVAILABLE` | Windows has no OCR language pack for … | Check the tag; Get OCR engines lists the installed ones. | packages |
 | `OCR.NOT_INSTALLED` | No OCR engine on this runner: Tesseract is not installed…… (the Windows OCR engine needs Windows 10 or later)…<br>The Windows OCR engine is only on Windows<br>No OCR engine: Tesseract is not installed and Windows OCR is not available on this Windows version | Install Tesseract (on Windows the UB Mannheim installer, on Linux the tesseract-ocr package) or set OOA_TESSERACT to its program.<br>Install Tesseract, or unset OOA_OCR_ENGINE.<br>Install Tesseract (the UB Mannheim installer) or set OOA_TESSERACT to tesseract.exe. | packages |
+| `OCR.NO_PDF` | Reading PDFs needs the PDF toolkit, which is not installed on this runner | Install the PDF toolkit, or turn the PDF into images first. | packages |
 | `OCR.SCREEN` | Cannot keep the screen picture: … | Check that the runner's temporary folder has space and may be written. | packages |
-| `OCR.TEXT_NOT_FOUND` | '…' was not found on the screen… … times…… | Check the window is visible; try a shorter phrase. | packages |
-| `OCR.UNSUPPORTED_IMAGE` | Not a readable image: …<br>The address did not return a readable image | Use PNG, JPG, BMP or GIF.<br>Use the direct address of a PNG, JPG, BMP or GIF image. | packages |
+| `OCR.TEXT_NOT_FOUND` | '…' was not found on the screen… … times……<br>The label '…' was not found on the screen | Check the window is visible; try a shorter phrase.<br>Check the window is visible, or try a shorter part of the label. | packages |
+| `OCR.UNSUPPORTED_IMAGE` | Not a readable image: …<br>The address did not return a readable image<br>The address did not return a readable image or PDF | Use PNG, JPG, BMP or GIF.<br>Use the direct address of a PNG, JPG, BMP or GIF image.<br>Use the direct address of a PNG, JPG, BMP, GIF image or a PDF. | packages |
 
 ## OFFICE
 
@@ -1501,6 +1538,8 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `OUTLOOK.BAD_ACCOUNT` | No account … in this Outlook profile | Leave From account empty to send from the default account. | packages |
+| `OUTLOOK.BAD_FORMAT` | Unknown file type … | Use msg, txt, html or mht. | packages |
+| `OUTLOOK.BAD_NAME` | The file name … has a character files cannot have | Leave out \ / : * ? " < > \|. | packages |
 | `OUTLOOK.FAILED` | Outlook reported an error: … | Check that Outlook is installed, set up for the runner's account and not showing a dialog.<br>Check that Outlook has a mail profile for the runner's user and is not showing a dialog. | packages |
 | `OUTLOOK.FOLDER_NOT_FOUND` | No folder … in the mailbox | Use Get folders to see the folder paths, e.g. Inbox/Invoices. | packages |
 | `OUTLOOK.MAILBOX_NOT_FOUND` | The mailbox … is not open in this Outlook profile | Add it to the runner user's Outlook, or check its name. | packages |
@@ -1512,7 +1551,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `PDF.BAD_AREA` | Width and height must be greater than 0 | Measure the area in points from the top-left corner of the page. | packages-pdf |
+| `PDF.BAD_AREA` | Width and height must be greater than 0<br>Area '…' must be {page, x, y, width, height}<br>Area '…' has no … | Measure the area in points from the top-left corner of the page.<br>Give the area as a Dictionary.<br>Give x, y, width and height in points. | packages-pdf |
 | `PDF.BAD_BOOKMARK_LEVEL` | bookmark_level must be 1 or more, not … | Use 1 for top-level bookmarks, 2 to include their sub-bookmarks. | packages-pdf |
 | `PDF.BAD_COLOR` | Colour must be color, gray or black_white | Use color, gray or black_white. | packages-pdf |
 | `PDF.BAD_FORMAT` | Unsupported image format '…' | Use png, jpg, bmp, gif or tiff. | packages-pdf |
@@ -1531,13 +1570,16 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `PDF.NEED_FILES` | Give at least two PDFs to merge | Fill in files, or a folder with two or more PDFs. | packages-pdf |
 | `PDF.NO_BOOKMARKS` | The PDF has no bookmarks pointing to pages | Use another split mode, or add bookmarks to the PDF. | packages-pdf |
 | `PDF.NO_FIELD` | Fields not found: … | Use Read form fields without field names to see the exact names.<br>Use Read form fields to see the exact field names. | packages-pdf |
+| `PDF.NO_FIELDS` | Give at least one named area | Mark the areas with the area picker, or type {name: {page, x, y, width, height}}. | packages-pdf |
 | `PDF.NO_FORM` | This PDF has no form fields | Use a PDF with form fields, or write the text onto the page instead. | packages-pdf |
 | `PDF.NO_PAGE` | There is no page … (the file has …) | Use a page from 1 to …. | packages-pdf |
 | `PDF.NO_PAGES` | Every page of the PDF is blank | Check the file, or use another split mode. | packages-pdf |
+| `PDF.NO_PASSWORD` | Give an opening password, a permissions password, or both | Fill in user_password or owner_password from the vault. | packages-pdf |
 | `PDF.PASSWORD_REQUIRED` | The PDF is password-protected or the password is wrong | Provide the password from the vault. | packages-pdf |
 | `PDF.RENDER_FAILED` | … | Check that the file is a PDF that is not damaged or password-protected. | packages-pdf |
 | `PDF.SPLIT_FAILED` | … | Check that the file is a PDF that is not damaged or password-protected. | packages-pdf |
 | `PDF.TEXT_FAILED` | … | Check that the file is a PDF that is not damaged or password-protected. | packages-pdf |
+| `PDF.XFA_DYNAMIC` | This is a dynamic XFA form (Adobe LiveCycle), whose fields only Adobe Reader can fill | Ask for the form as a normal PDF form, or fill it in Adobe Reader with keyboard steps. | packages-pdf |
 
 ## PGP
 
@@ -1564,6 +1606,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `PGP.NOT_INSTALLED` | Only the gpg that comes with Git for Windows was found; it cannot work with Windows paths<br>GnuPG is not installed on this runner | Install Gpg4win, or set OOA_GPG to the full path of a Windows gpg.exe.<br>Install Gpg4win (Windows) or GnuPG, or set OOA_GPG. | packages |
 | `PGP.NO_RECIPIENT` | Give at least one recipient or a passphrase | Fill in recipients, public_key_file or passphrase. | packages |
 | `PGP.NO_TARGET` | Give the file to encrypt<br>Cannot work out the decrypted file name: '…' does not end in .pgp, .gpg or .asc | Fill in 'path'.<br>Fill in 'target'. | packages |
+| `PGP.NO_USER_ID` | Give the key owner's name, e-mail address, or both | Fill in name or email. | packages |
 | `PGP.SIGN_FAILED` | Signing failed: …the key folder has no signing key…no signing key for '…'…<br>Signing failed: … | Create or import a key with its private part first.<br>Check the key and passphrase. | packages |
 
 ## PKG
@@ -1619,6 +1662,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `PPT.PASSWORD_NOT_SUPPORTED` | Passwords can be kept in .pptx files only, not .…<br>Password-protected .… files cannot be opened | Save as .pptx, or clear the password.<br>Remove the password in PowerPoint, or save the file as .pptx. | packages-office |
 | `PPT.READ_ONLY` | The presentation was opened read-only | Use save_as with another path, or open it without read_only. | packages-office |
 | `PPT.SAVE_FAILED` | Cannot save .… here<br>Cannot save …: … | Save as .pptx.<br>Close the file if it is open in PowerPoint.<br>Check the folder is writable. | packages-office |
+| `PPT.WRONG_EDIT_PASSWORD` | The password to edit … is wrong | Check the password stored in the credential vault, or open the file without it. | packages-office |
 
 ## PRINTER
 
@@ -1710,7 +1754,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `RUN.CANCELLED` | Run thread interrupted<br>Interrupted<br>The wait was stopped | The run was stopped before this step finished. Run the agent again when it should go on.<br>Start the import again.<br>Nothing to fix: someone stopped the run in One CommandCenter. | cli, control-room, packages, packages-browser, packages-windows, runner, sdk, toolkits/ai, toolkits/cloud-data, toolkits/microsoft |
+| `RUN.CANCELLED` | Run thread interrupted<br>Interrupted<br>The wait was stopped | The run was stopped before this step finished. Run the agent again when it should go on.<br>Start the import again.<br>The run was stopped. | cli, control-room, packages, packages-browser, packages-windows, runner, sdk, toolkits/ai, toolkits/cloud-data, toolkits/microsoft |
 | `RUN.INPUT_INVALID` | Input '…' must be one of … | Give one of the values the message lists. | runner |
 | `RUN.INPUT_MISSING` | Required input '…' has no value | …description…description…Provide a …type… value for '…'. | runner |
 | `RUN.INPUT_UNKNOWN` | Unknown input(s): …, … | Only variables with direction 'input' can be supplied. | runner |
@@ -1834,18 +1878,22 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SCRIPT.BAD_ARGUMENT` | At most 64 arguments can be passed to a VBScript function<br>VBScript function arguments cannot contain line breaks | Pass at most 64 arguments; put more in a file or a list the function reads.<br>Pass multi-line text through a file instead. | packages |
 | `SCRIPT.BAD_FUNCTION` | Invalid function name '…' | Give a plain Python name such as calculate_total.<br>Give a plain JavaScript name such as calculateTotal.<br>Give a plain VBScript name such as FormatInvoice. | packages |
 | `SCRIPT.BAD_INTERPRETER` | Invalid interpreter '…' | Give the program name or full path, e.g. C:/Python312/python.exe. | packages |
-| `SCRIPT.BAD_RESULT` | The function result could not be read as JSON | Return numbers, text, lists or dictionaries. | packages |
+| `SCRIPT.BAD_LANGUAGE` | Unknown script language '…'<br>Unknown language … | Use powershell, python, javascript or vbscript.<br>Use python, javascript or vbscript. | packages |
+| `SCRIPT.BAD_RESULT` | The function result could not be read as JSON<br>The … session sent an answer that could not be read | Return numbers, text, lists or dictionaries. | packages |
 | `SCRIPT.FAILED` | Script exited with code …: …<br>… did not return a result (exit code …exit_code…): …error_output…<br>VBScript did not return a result (exit code …exit_code…): …error_output… | Read the error output, fix the script, or set fail_on_error to false.<br>Check the file runs on its own.<br>Check the file runs on its own with cscript. | packages |
-| `SCRIPT.INTERPRETER_NOT_FOUND` | Python is not installed on this runner (tried …, …)<br>…Python is not installed on this runner…Microsoft Store… (python only opens the Microsoft Store)……None of … is installed on this runner | Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter.<br>…Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter, e.g. C:/Python312/python.exe.…Install the interpreter on the runner or add it to the PATH. | packages |
-| `SCRIPT.NO_SCRIPT` | Give the script text or a script file | Fill in 'script' or 'file'. | packages |
+| `SCRIPT.INTERPRETER_NOT_FOUND` | Python is not installed on this runner (tried …, …)<br>…Python is not installed on this runner…Microsoft Store… (python only opens the Microsoft Store)……None of … is installed on this runner<br>Could not start … or ……: … | Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter.<br>…Install Python 3 from python.org (tick Add to PATH) or give its program in interpreter, e.g. C:/Python312/python.exe.…Install the interpreter on the runner or add it to the PATH.<br>Install it on the runner, or give its program in interpreter. | packages |
+| `SCRIPT.NO_SCRIPT` | Give the script text or a script file<br>Give the code or a script file | Fill in 'script' or 'file'.<br>Fill in script or file. | packages |
+| `SCRIPT.NO_SESSION` | No script session named '…script…' is open | Add Open script session before this step. | packages |
 | `SCRIPT.NO_SOURCE` | Give the … file or type the script | Fill in file or script. | packages |
+| `SCRIPT.SESSION_ENDED` | The … session has ended<br>The … session has ended: …<br>The … session ended: … | Open the session again.<br>Open the session again; the code may have called exit. | packages |
+| `SCRIPT.TIMEOUT` | The … code did not finish within … s; the session was closed | Raise timeout_seconds, or check the code for a loop that never ends. | packages |
 | `SCRIPT.VBSCRIPT_ERROR` | … | Fix the VBScript function or its arguments. | packages |
 
 ## SERVICE
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
-| `SERVICE.UNAVAILABLE` | No agent repository available for child agents<br>Platform service '…' is not available to this run | Run the agent from One CommandCenter or Studio, which give child agents a repository.<br>Check the run was started with the required platform services. | runner, sdk |
+| `SERVICE.UNAVAILABLE` | This run cannot start child agents<br>No agent repository available for child agents<br>Platform service '…' is not available to this run | Run the agent from OneAgentStudio or One CommandCenter, which give child agents a repository.<br>Run the agent from One CommandCenter or Studio, which give child agents a repository.<br>Check the run was started with the required platform services. | runner, sdk |
 
 ## SERVICENOW
 
@@ -1887,6 +1935,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | Code | What it means | What to do | Where |
 |---|---|---|---|
 | `SESSION.NOT_FOUND` | Session '…' is not open<br>Several are open (…, …); this step does not say which | Add an 'open' step that creates session '…' before this step.<br>Choose the session on this step. | sdk |
+| `SESSION.NO_NAME` | Give the session's name | Use the name given on the step that opened it, for example excel. | runner |
 | `SESSION.WRONG_TYPE` | Session '…' is a …, expected … | Use the session from the matching Open step (a browser session for browser steps, and so on). | sdk |
 
 ## SLACK
@@ -1913,8 +1962,8 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SNMP.BAD_RESPONSE` | Cannot read the SNMP message: … | Check the device speaks SNMP v2c on this port. | packages |
 | `SNMP.BAD_SECURITY` | Unknown sign-in protocol '…'<br>Unknown privacy protocol '…'<br>SNMP v3 needs the security user name | Use none, md5, sha, sha256 or sha512.<br>Use none, des or aes128.<br>Fill in the SNMP v3 user name. | packages |
 | `SNMP.BAD_TRAP_TYPE` | Unknown generic trap type '…' | Use one of …. | packages |
-| `SNMP.BAD_TYPE` | Unsupported value type …<br>Unknown value type '…'<br>counter64 values need SNMP v2c | Use one of the value types the step offers.<br>Use integer, string, oid, ip_address, counter32, gauge32, timeticks or counter64.<br>Use version v2c. | packages |
-| `SNMP.BAD_VALUE` | Invalid IPv4 address '…'<br>Value … is out of range for … | Use the form 192.168.1.10.<br>Give an IPv4 address such as 192.168.1.10.<br>Give a value within the range of the type the message names. | packages |
+| `SNMP.BAD_TYPE` | Unsupported value type …<br>Unknown value type '…'<br>counter64 values need SNMP v2c | Use one of the value types the step offers.<br>Use integer, string, hex_string, decimal_bytes, null, oid, ip_address, counter32, gauge32, timeticks or counter64.<br>Use version v2c. | packages |
+| `SNMP.BAD_VALUE` | Invalid IPv4 address '…'<br>Value … is out of range for …<br>'…' is not hex bytes | Use the form 192.168.1.10.<br>Give an IPv4 address such as 192.168.1.10.<br>Give a value within the range of the type the message names. | packages |
 | `SNMP.BAD_VERSION` | Unsupported SNMP version '…' | Use v1, v2c or v3. | packages |
 | `SNMP.DECRYPTION` | The encrypted answer has a bad length<br>Cannot decrypt the SNMP message: …<br>The device could not decrypt the request | Check the privacy protocol and password against the device's settings.<br>Check the privacy protocol and password. | packages |
 | `SNMP.ERROR` | The SNMP agent answered … | …Use a community with write access, and check the object is writable.…Check the OID, value and type.<br>Check the OID, value and type, and that the user may read or write it. | packages |
@@ -2004,16 +2053,18 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `STRING.BAD_LENGTH` | max_length cannot be negative<br>Length cannot be negative (…)<br>Length … is out of range | Use 0 or more.<br>Use a length from 0 to 100000.<br>Choose a smaller positive length. | packages |
 | `STRING.BAD_MODE` | Unknown compare mode '…' | Use exact, ignore_case or natural. | packages |
 | `STRING.BAD_OCCURRENCE` | Occurrences start at 1<br>Occurrences start at 1, got … | Use 1 for the first match. | packages |
-| `STRING.BAD_OPTION` | Unknown until option '…' | Use marker, end_of_line or end_of_text. | packages |
+| `STRING.BAD_OPTION` | Unknown markers option '…'<br>Unknown length option '…'<br>Unknown until option '…' | Use either or both.<br>Use up_to or exactly.<br>Use marker, end_of_line or end_of_text. | packages |
 | `STRING.BAD_PATTERN` | The pattern '…' is not valid: … | Fix the pattern, or untick Use a pattern to find the text as it is. | packages |
 | `STRING.BAD_POSITION` | Start position … is outside the text (length …)<br>End position … is before start position …<br>Position … is past the end of the text (length …) | Use a position from 0 to the text length.<br>Use an end at or after the start.<br>Use a position from 0 to …, or -1 for the end. | packages |
 | `STRING.BAD_REGEX` | Invalid regular expression: … | Escape special characters such as ( ) [ ] . * | packages |
 | `STRING.BAD_SEPARATORS` | Decimal and grouping separators are both '…' | Use different separators. | packages |
 | `STRING.CANNOT_DECODE` | The text is not valid …: … | Check that the text really is …-encoded. | packages |
 | `STRING.EMPTY_FIND` | Nothing to count | Fill in the text to count. | packages |
-| `STRING.MISSING_VALUE` | The template needs {…}, which the values do not have | Add … to the values, or choose to keep or empty missing places. | packages |
+| `STRING.MISSING_VALUE` | The template needs {…}, which the values do not have<br>The text needs $…$, which is not a variable of the agent…Credential… that may be filled in (a credential)…… | Add … to the values, or choose to keep or empty missing places.<br>Check the name, or choose to keep or empty places without a value. | packages |
 | `STRING.NOT_A_NUMBER` | '…' is not a number for locale … (decimal '…', grouping '…') | Check the locale or set decimal_separator and grouping_separator. | packages |
 | `STRING.NO_CHARACTER_SET` | No character set selected | Turn on letters, digits or symbols. | packages |
+| `STRING.NO_VALUES` | Give the values to fill in | Fill in values, or tick 'from the agent's variables'. | packages |
+| `STRING.NO_VARIABLES` | This run cannot read its variables | Give the values in values instead. | packages |
 | `STRING.TOO_LONG` | The result would be longer than 1,000,000 characters | Repeat the text fewer times. | packages |
 
 ## STUDIO
@@ -2089,6 +2140,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
+| `TABLE.BAD_COLUMN` | Column names must be filled in and different | Check the list of column names. | packages |
 | `TABLE.BAD_COLUMN_NAME` | Column name is empty<br>The new column name is empty | Give the new column a name.<br>Give the column a name. | packages |
 | `TABLE.BAD_CONDITION` | Condition … is not a column, a comparison and a value<br>Condition … has an unknown comparison '…' | Give each a column, an operator and a value.<br>Use one of …, …. | packages |
 | `TABLE.BAD_DELIMITER` | Delimiter must be one character, got '…' | Use , ; \| or a tab.<br>Use , ; \| or tab. | packages |
@@ -2098,6 +2150,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TABLE.BAD_POSITION` | Column position … is outside 0..… | Use a position from 0 to …. | packages |
 | `TABLE.BAD_REGEX` | Invalid regular expression: … | Escape special characters such as ( ) [ ] . * | packages |
 | `TABLE.BAD_ROW` | The row must be a Dictionary of column values or a List of values | For example {"Name": "Ann"} or ["Ann", 42]. | packages |
+| `TABLE.BAD_ROWS` | rows must be between 0 and 100000 | Use a smaller number of rows. | packages |
 | `TABLE.BAD_SUMMARY` | No summaries given<br>Unknown summary '…' for …<br>Summary '…' for … needs a column | Give at least one, e.g. {"Total": "sum:Amount"}.<br>Use count, sum, avg, min, max, first, last or count_distinct.<br>Write it as …:ColumnName. | packages |
 | `TABLE.BAD_TYPE` | Unknown column type '…' | Use String, Number, DateTime or Boolean. | packages |
 | `TABLE.COLUMNS_DIFFER` | Tables have different columns: … vs … | Use columns = union, or make the columns match. | packages |
@@ -2107,6 +2160,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TABLE.NOTHING_TO_DELETE` | Give a row number, or a column and value | Fill in 'row' or 'column' and 'value'. | packages |
 | `TABLE.NOT_A_TABLE` | Item … in 'tables' is not a table | Pass only tables. | packages |
 | `TABLE.NO_COLUMN` | Column '…' not found<br>Give a column name or a column index<br>Column index … is outside the table (… columns) | Columns: …, ….<br>Fill in 'column' or 'column_index'.<br>Column indexes start at 0. | packages |
+| `TABLE.NO_COLUMNS` | Give the columns, or how many there are | Fill in columns (names) or column_count. | packages |
 | `TABLE.NO_FOLDER` | The folder … does not exist | Create the folder first, or turn on create_folders. | packages |
 | `TABLE.NO_KEYS` | No key columns given<br>key_columns and other_key_columns have different lengths | List the columns to match, e.g. ["id"].<br>Give one second-table column for each key column. | packages |
 | `TABLE.NO_LIST` | No list given | Pass the list whose items fill the new column. | packages |
@@ -2137,7 +2191,9 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TERMINAL.BAD_CODE_PAGE` | Invalid code page '…'<br>Code page '…' is not available | Example: cp037.<br>Use a single-byte EBCDIC code page such as cp037, cp273, cp277, cp280, cp285, cp297 or cp500. | packages |
 | `TERMINAL.BAD_CONDITION` | Unknown condition '…' | Use input_field, unlock, screen_change, screen_blank, cursor_at, cursor_leaves or seconds. | packages |
 | `TERMINAL.BAD_DELAY` | The delay must be between 0 and 600000 ms | Set the delay between 0 and 600,000 ms. | packages |
+| `TERMINAL.BAD_DEVICE_ATTRIBUTES` | device_attributes must look like ?62;1;6c | Give the part after ESC [, ending in c. | packages |
 | `TERMINAL.BAD_EMULATION` | Unknown emulation '…' | Use vt100, vt220, xterm or ansi. | packages |
+| `TERMINAL.BAD_ENCODING` | Unknown encoding … | Use utf-8, ansi, or a name such as Shift_JIS, GBK or EUC-KR. | packages |
 | `TERMINAL.BAD_HOST` | Invalid host '…' | Give a host name or IP address (letters, digits, . - and :). | packages |
 | `TERMINAL.BAD_KEY` | Unknown key '…'<br>Cannot read the escape sequence '…' | …Use Enter, Tab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Escape, Ctrl+C, Alt+X, PF1-PF20, SEQ:\e[24~ for any escape sequence, or a name set with Set key mapping.…Use Enter, Tab, Clear, PF1-PF24 or PA1-PA3, or a name set with Set key mapping.<br>Write Escape as \e or ^[, bytes as \x1b, control keys as ^C, e.g. SEQ:\e[24~.<br>… Or a name set with Set key mapping. | packages |
 | `TERMINAL.BAD_KEY_FILE` | The key file could not be read: … | Use an OpenSSH or PEM private key, and give key_passphrase when the key is protected. | packages |
@@ -2145,7 +2201,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TERMINAL.BAD_MODEL` | Model '…' is not a 5250 display | Use 3179-2 (24 x 80) or 3477-FC (27 x 132). | packages |
 | `TERMINAL.BAD_PATTERN` | Invalid prompt pattern: … | Use a regular expression such as [$#>]\s*$. | packages |
 | `TERMINAL.BAD_PORT` | Invalid port … | Use 23 for telnet, 992 for TLS or 22 for SSH. | packages |
-| `TERMINAL.BAD_POSITION` | Row and column start at 1<br>Row, column and length start at 1<br>Give both row and column, starting at 1 | Give row and column numbers from 1 (the top-left corner is row 1, column 1).<br>Give row, column and length from 1.<br>Fill in both row and column, from 1. | packages |
+| `TERMINAL.BAD_POSITION` | Row and column start at 1<br>Row, column and length start at 1<br>Give both row and column, starting at 1 | Give row and column numbers from 1 (the top-left corner is row 1, column 1).<br>Give row and column from 1.<br>Give row, column and length from 1. | packages |
 | `TERMINAL.BAD_REPEAT` | Repeat must be between 1 and 200 | Set Repeat between 1 and 200. | packages |
 | `TERMINAL.BAD_SCREEN_SIZE` | Screen size … x … is out of range | Use 5-255 rows and 20-255 columns; 24 x 80 suits most hosts. | packages |
 | `TERMINAL.BAD_TIMEOUT` | The timeout must be between 1 and 3600 seconds | Set the timeout between 1 and 3600 seconds. | packages |
@@ -2161,11 +2217,12 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `TERMINAL.KEY_NOT_ON_5250` | … is not a 5250 key<br>The key '…' does not exist on 5250 displays | … | packages |
 | `TERMINAL.KEY_NOT_ON_VT` | The key '…' exists only on 3270 terminals | On VT hosts use Enter, Tab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Escape, Ctrl+C, Alt+X, PF1-PF20 or SEQ:\e[24~ for any escape sequence. | packages |
 | `TERMINAL.NOT_INSTALLED` | The x3270 terminal engine is not installed | Install wc3270 (Windows) or s3270, or set OOA_S3270 to its path. | packages |
+| `TERMINAL.NOT_ON_3270` | Only VT hosts keep lines that scrolled past | Read the screen with Get screen text. | packages |
 | `TERMINAL.NOT_ON_VT` | … is a 3270 command; VT hosts have no such key | Use keys a VT host understands: Enter, Tab, BackTab, arrows, Home, End, PageUp, PageDown, BackSpace, Delete, Insert, Escape, Ctrl+C, PF1-PF20. | packages |
 | `TERMINAL.NO_CURSOR` | The engine did not report a cursor position: … … | Check the session is connected. | packages |
 | `TERMINAL.NO_FIELDS` | The screen has no fields | Wait for a formatted screen before reading fields. | packages |
 | `TERMINAL.NO_POSITION` | Give the row and column for …<br>Give a row and column, or a label | Rows and columns start at 1. | packages |
-| `TERMINAL.NO_PROMPT` | No prompt matching … within … s; the cursor line shows '…' | Check the command finished, or change the prompt pattern. | packages |
+| `TERMINAL.NO_PROMPT` | No prompt matching … within … s; the cursor line shows '…'<br>The host did not ask for the …password…password…user name… in time | Check the command finished, or change the prompt pattern.<br>Leave user empty and sign in with Type text steps, or check the host. | packages |
 | `TERMINAL.NO_SIGN_IN` | Give a password or a key file to sign in to … | Fill in password (a Credential) or key_file. | packages |
 | `TERMINAL.NO_USER` | SSH hosts need a user name | Fill in user. | packages |
 | `TERMINAL.PROTECTED_FIELD` | The field at row …, column … cannot be typed into | Pick an input field; Get all fields shows which are protected. | packages |
@@ -2204,25 +2261,31 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `TRIGGER.BAD_BOT` | Trigger '…': agent not found: … | Choose an agent from the workspace. | cli |
 | `TRIGGER.BAD_CLICK` | … | Give the window title or the process. | packages |
+| `TRIGGER.BAD_EVENT` | Unknown change '…'<br>Unknown watch '…'<br>Unknown event '…' | Use created, modified, deleted, renamed or any.<br>Use files, folders or both.<br>Use starts or stops. | packages |
 | `TRIGGER.BAD_FOLDER` | Trigger '…': folder not found: … | Create the folder first. | cli |
 | `TRIGGER.BAD_ID` | Trigger ids must be unique: letters, digits, - and _ | Give every trigger its own id of letters, digits, - and _. | cli |
 | `TRIGGER.BAD_INPUT` | … | Check the trigger settings. | packages |
 | `TRIGGER.BAD_INTERVAL` | The interval must be greater than 0 seconds<br>interval_seconds must be greater than 0 | Use for example 1.<br>Use for example 60. | packages |
 | `TRIGGER.BAD_KEY` | … | Write the key like F9 or CTRL+ENTER. | packages |
 | `TRIGGER.BAD_LIMIT` | Limits cannot be negative<br>settle_seconds cannot be negative | Use 0 for no limit.<br>Set settle_seconds to 0 or more. | packages |
-| `TRIGGER.BAD_PATTERN` | Invalid file pattern '…' | Use a glob such as *.csv. | packages |
+| `TRIGGER.BAD_PATTERN` | Invalid file pattern '…'<br>Invalid title pattern '…': … | Use a glob such as *.csv.<br>Check the regular expression after re:. | packages |
 | `TRIGGER.BAD_SCHEDULE` | Trigger '…': give either every_minutes or daily_at (HH:mm)<br>every_minutes must be at least 1<br>daily_at must look like 08:30 | Fill in either every_minutes or daily_at.<br>Set every_minutes to 1 or more.<br>Write the time as hours and minutes, for example 08:30. | cli |
 | `TRIGGER.BAD_TYPE` | Trigger '…': type must be file, schedule or webhook | Choose file, schedule or webhook. | cli |
 | `TRIGGER.DISABLED` | Webhook '…' is disabled | Enable the webhook in Details > Triggers. | cli |
+| `TRIGGER.FAILED` | Trigger '…' failed: … | Check the trigger's settings, then run the agent again. | runner |
 | `TRIGGER.FORBIDDEN` | Wrong webhook secret | Use the webhook's current secret from Details > Triggers. | cli |
 | `TRIGGER.HOOK_FAILED` | Cannot watch the keyboard or mouse: … | Run the agent on a Windows runner with a signed-in desktop. | packages |
 | `TRIGGER.INVALID` | Send a list of triggers<br>Each trigger must be an object | Reload the page and save the triggers again. | cli |
-| `TRIGGER.IO_ERROR` | Cannot read folder …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it. | packages |
+| `TRIGGER.IO_ERROR` | Cannot read folder …: … | Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.<br>Check that the folder exists and that the runner's account may read it. | packages |
 | `TRIGGER.NOT_FOUND` | Trigger '…' not found<br>Webhook '…' not found | Reload Details > Triggers; it may have been deleted.<br>Check the webhook's address in Details > Triggers. | cli |
 | `TRIGGER.NO_FOLDER` | Folder not found: …<br>The watched folder was removed: … | Create the folder or check the path.<br>Recreate the folder and start the agent again. | packages |
+| `TRIGGER.NO_LIST` | … gives no list…… in output '…'… | Name the output that holds the list in list_output. | runner |
 | `TRIGGER.NO_PROCESS` | Give the program's executable name | For example notepad.exe.<br>Fill in the program's executable name, for example excel.exe. | packages |
+| `TRIGGER.NO_SERVICE` | Give the service's name | For example Spooler. | packages |
+| `TRIGGER.NO_SOURCE` | Choose the loop type or command to watch<br>Name the source as toolkit/loop type or toolkit/command<br>…@… has no loop type or command '…' | For example ooa.email/emails or ooa.servicenow/query.<br>For example ooa.email/emails.<br>Choose a loop type or a command that gives a list. | packages, runner |
+| `TRIGGER.NO_WINDOW` | Give the window's title or a pattern | For example *Invoice*. | packages |
 | `TRIGGER.WEAK_SECRET` | Trigger '…': webhook secret must be at least 16 characters | Use a webhook secret of at least 16 characters. | cli |
-| `TRIGGER.WINDOWS_ONLY` | … (this computer runs …os.name…) | Run this agent on a Windows runner with a signed-in desktop. | packages |
+| `TRIGGER.WINDOWS_ONLY` | Watching windows needs a Windows runner with the Window toolkit installed<br>… (this computer runs …os.name…) | Run this agent on a Windows runner with a signed-in desktop. | packages |
 
 ## UI
 
@@ -2241,7 +2304,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `VAR.SECURE_LEAK` | A Credential value cannot be used in …<br>Credential cannot be assigned to String variable '…' | Pass the Credential variable directly to an action input that accepts credentials.<br>Keep secrets in Credential variables. | runner |
 | `VAR.SECURE_REQUIRED` | Input '…' needs a Credential, not plain text<br>Input '…' needs a Credential, got …<br>Variable '…' needs a Credential reference, not a plain value | Give a vault reference {"$credential": "locker/credential/attribute"} or a Credential variable.<br>Pass a vault reference like {"$credential": "locker/name/attribute"}. | runner |
 | `VAR.TOO_LARGE` | File … is …: too large to hold in a … variable | Keep large files as files (a File variable) and pass their path. | runner |
-| `VAR.TYPE_MISMATCH` | not a date<br>not a Boolean<br>'…' expects a file path, got … (…) | Give the value as a date, for example 2026-11-13.<br>Give the value as true or false.<br>Give a file path. An Image can be given directly to the picture fields of the Image commands. | packages, runner |
+| `VAR.TYPE_MISMATCH` | not a date<br>not a Boolean<br>'…' expects a file path, got … (…) | Give the value as a date, for example 2026-11-13.<br>Give the value as true or false.<br>Use true or false. | packages, runner |
 | `VAR.UNDECLARED` | Variable '$…' is not declared<br>Variable '…' is not declared | Declare '…' in the agent's variables.<br>Add the variable in the Variables panel, or correct its name. | runner |
 
 ## VAULT
@@ -2292,7 +2355,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `WEBAGENT.NOT_ALLOWED` | … is not one of the allowed sites | Add it to allowed_sites or start elsewhere. | packages-browser |
 | `WEBAGENT.NOT_SUPPORTED` | The web goal agent needs a browser it starts itself | Use Start web agent session, or Open browser with engine playwright. | packages-browser |
 | `WEBAGENT.NO_CONTROL` | There is no control … on the page now | Run the step again; the page changed while the agent was working. | packages-browser |
-| `WEBAGENT.NO_GOAL` | Describe the goal | Describe the goal in a sentence, for example: download last month's invoice. | packages-browser |
+| `WEBAGENT.NO_GOAL` | Describe the goal | Fill in goal, or list the goals.<br>Describe the goal in a sentence, for example: download last month's invoice. | packages-browser |
 | `WEBAGENT.NO_SECRET` | There is no secret named … | Add the secret the message names to the step's secrets. | packages-browser |
 | `WEBAGENT.OPEN_FAILED` | Cannot open …: … | Check the address and the network. | packages-browser |
 | `WEBAGENT.WRITE_FAILED` | Cannot write …: …<br>Cannot write the trajectory file …: … | Check the folder exists and is writable. | packages-browser |
@@ -2355,6 +2418,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `WORD.READ_ONLY` | The document was opened read-only | Use save_as with another path, or open it without read_only. | packages-office |
 | `WORD.SAVE_FAILED` | Cannot save .… here<br>Cannot save …: … | Save as .docx.<br>Close the file if it is open in Word.<br>Check the folder is writable. | packages-office |
 | `WORD.TEXT_NOT_FOUND` | Text '…' was not found in the document<br>Text '…' is not inside a single paragraph's runs | Check the marker text; it must appear exactly.<br>Use new_paragraph true. | packages-office |
+| `WORD.WRONG_EDIT_PASSWORD` | The password to edit … is wrong | Check the password stored in the credential vault, or open the file without it. | packages-office |
 
 ## WORD_OPEN
 
@@ -2402,18 +2466,20 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 
 | Code | What it means | What to do | Where |
 |---|---|---|---|
+| `XML.BAD_DTD` | Cannot check against the DTD: … | Give a local DTD file in dtd_path, or check the DTD.<br>Check the DTD file. | packages |
 | `XML.BAD_NAME` | Invalid attribute name: …<br>Invalid element or attribute name: … | Use an XML name: letters, digits, - _ and ., starting with a letter. | packages |
 | `XML.BAD_NAMESPACE` | Invalid namespace prefix '…'<br>The namespace prefix '…' has no URI | Use a prefix of letters, digits, _ . or -, not starting with xml.<br>Give each prefix its namespace URI. | packages |
 | `XML.BAD_OPTION` | Unknown return_value '…'<br>Unknown position '…'<br>reference_child needs position before or after | Use text, xml or xpath.<br>Use end, start, before or after.<br>Set position to before or after, or leave reference_child empty. | packages |
 | `XML.BAD_POSITION` | Cannot insert next to the root element | Use position end or start, or point the XPath at a child node. | packages |
 | `XML.BAD_RESULT_TYPE` | Unknown result type '…' | Use string, number or boolean. | packages |
 | `XML.BAD_SCHEMA` | Cannot use schema …: … | Check the XSD file. | packages |
-| `XML.BAD_XPATH` | Invalid XPath '…': … | Example: /invoice/lines/line[1]/amount<br>Example: count(//line) or string(/invoice/@id) | packages |
+| `XML.BAD_XPATH` | Invalid XPath '…': …<br>Invalid XPath '…' for column '…': …<br>Cannot read column '…': … | Example: /invoice/lines/line[1]/amount<br>Use a path relative to each node, e.g. sku, @qty or price/amount.<br>Use a path relative to each node. | packages |
 | `XML.EXTERNAL_ENTITY_NOT_ALLOWED` | The XML declares an entity that reads a file or URL (SYSTEM/PUBLIC), which is refused for security<br>The XML refers to an external entity, which is refused for security | Remove the external <!ENTITY ...> declaration; internal entities and DOCTYPE lines are allowed.<br>Remove the external entity or DTD reference. | packages |
 | `XML.INVALID` | Invalid XML: … | Check the document is well-formed XML. | packages |
 | `XML.NOT_A_NUMBER` | The expression '…' did not produce a number | Check the nodes contain numbers, or use result_type string. | packages |
+| `XML.NO_DTD` | The document has no DOCTYPE, so there is no DTD to check against<br>Cannot find the root element <…> to add the DTD before | Give the DTD file in dtd_path, or turn off the DTD check.<br>Add a DOCTYPE to the document. | packages |
 | `XML.NO_REFERENCE` | The node … has no child element '…' | Check reference_child, or leave it empty to insert next to the matched node. | packages |
-| `XML.NO_SOURCE` | Give either XML text or a file path<br>This action changes a file; give its path<br>The XML text is empty | Fill in 'xml' or 'path'.<br>Fill in 'path'.<br>Fill in 'xml'. | packages |
+| `XML.NO_SOURCE` | Give either XML text or a file path<br>Session '…' was loaded from text, not from a file<br>This action changes a file; give its path | Fill in 'xml' or 'path'.<br>Give a file in save_to instead.<br>Fill in 'path'. | packages |
 | `XML.NO_VALUE` | Give the new value | Fill in 'value', or 'attributes' to set several attributes. | packages |
 | `XML.TOO_MANY_ENTITIES` | The XML expands entities beyond the safe limit (an entity-expansion attack or a very unusual document) | Remove the nested entity declarations. | packages |
 | `XML.UNKNOWN_PREFIX` | XPath prefix '…:' is not declared in the document or in namespaces | Add it to namespaces as {"…": "namespace URI"}….…; the document declares ….…<br>Add it to namespaces as {"…": "namespace URI"}. | packages |

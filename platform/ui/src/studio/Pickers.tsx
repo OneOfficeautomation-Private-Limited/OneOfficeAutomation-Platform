@@ -22,6 +22,7 @@ export function pickerFor(step: FlowStep, name: string, props: Record<string, un
   if (step.action === "ooa.soap/send" && name === "url") return <WsdlPicker key="wsdl" step={step} />;
   if (step.action.startsWith("ooa.active_directory/") && DN_FIELDS.has(name)) return <DirectoryPicker key={"dir:" + name} step={step} field={name} />;
   if (step.action === "ooa.pdf/extract_area_text" && name === "x") return <PdfAreaPicker key="area" step={step} />;
+  if (step.action === "ooa.sap_bapi/call_function" && name === "function") return <BapiBrowser key="bapi" step={step} />;
   if (isHtmlBody(step, name, props)) return <HtmlBodyEditor key={"html:" + name} step={step} field={name} />;
   if (POINT_STEPS.test(step.action) && name === "x") return <PointPicker key="point" step={step} />;
   const keys = keyKind(step.action, name);
@@ -154,10 +155,10 @@ type DirEntry = { dn: string; name: string; kind: string };
 const CONTAINERS = new Set(["organizationalUnit", "container", "domainDNS", "builtinDomain", "lostAndFound"]);
 
 /** The connect step's settings in this flow, to sign in the same way while browsing. */
-function connectArgs(flow: Flow): Args | null {
+function connectArgs(flow: Flow, action = "ooa.active_directory/connect"): Args | null {
   let found: Args | null = null;
   const walk = (steps: FlowStep[] | undefined) => { for (const s of steps ?? []) {
-    if (!found && s.action === "ooa.active_directory/connect") found = s.args ?? {};
+    if (!found && s.action === action) found = s.args ?? {};
     walk(s.children); walk(s.else); walk(s.finally);
     for (const b of s.elseIf ?? []) walk(b.children);
     for (const c of s.catch ?? []) walk(c.children);
@@ -386,3 +387,117 @@ function HtmlBodyEditor({ step, field }: { step: FlowStep; field: string }) {
     </Dialog>
   </></PickerRow>;
 }
+
+// ------------------------------------------------------------------ SAP BAPI: find a function and fill in what it needs (G6)
+
+export type BapiParam = { name: string; direction: string; type?: string; optional?: boolean; description?: string };
+type BapiFound = { name: string; group: string; description: string };
+
+/** The Connect step's sign-in without its session name: browsing opens its own session. */
+export function bapiConnect(flow: Flow): Args | null {
+  const c = connectArgs(flow, "ooa.sap_bapi/connect");
+  if (!c) return null;
+  const rest = { ...c };
+  delete rest.session;
+  return rest;
+}
+
+/** Merges the required values into what the step already has: keys the step already fills are left alone. */
+export function mergeRequired(have: unknown, want: unknown): Record<string, unknown> | undefined {
+  if (typeof have === "string" && have.startsWith("$")) return undefined;   // a variable: leave it
+  const w = want && typeof want === "object" && !Array.isArray(want) ? want as Record<string, unknown> : {};
+  const h = have && typeof have === "object" && !Array.isArray(have) ? have as Record<string, unknown> : {};
+  const out = { ...w, ...h };
+  return Object.keys(out).length ? out : undefined;
+}
+
+function BapiBrowser({ step }: { step: FlowStep }) {
+  const vars = useVars();
+  const set = useArgSetter(step);
+  const [open, setOpen] = useState(false);
+  const [pattern, setPattern] = useState("BAPI_*");
+  const [found, setFound] = useState<BapiFound[] | null>(null);
+  const [pick, setPick] = useState("");
+  const [params, setParams] = useState<BapiParam[] | null>(null);
+  const [required, setRequired] = useState<Record<string, unknown> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!vars) return null;
+  const conn = bapiConnect(vars.flow);
+  const run = async (second: FlowStep, outs: string[]) => {
+    const flow: Flow = {
+      kind: "TaskBot", id: "studio_check", name: "OneAgentStudio check",
+      variables: outs.map((v) => ({ name: v, type: "Any", direction: "output" as const })),
+      steps: [{ id: "c", action: "ooa.sap_bapi/connect", args: { ...conn, session: "studio_bapi" } }, second,
+        { id: "d", action: "ooa.sap_bapi/disconnect", args: { session: "studio_bapi" } }],
+    };
+    const r = await runOnce(vars.api, flow, {}, 120_000);
+    if (r.status !== "success") throw new Error(runErrorText(r.error, "The SAP system did not answer"));
+    return r.outputs ?? {};
+  };
+  const search = async () => {
+    setBusy(true); setError(null); setParams(null);
+    try {
+      const o = await run({ id: "s", action: "ooa.sap_bapi/search_functions", args: { pattern: pattern || "BAPI_*", max_rows: 500, session: "studio_bapi" }, out: { table: "t" } }, ["t"]);
+      const t = o.t as { columns: string[]; rows: unknown[][] } | undefined;
+      const ci = (c: string) => t?.columns.indexOf(c) ?? -1;
+      setFound((t?.rows ?? []).map((row) => ({ name: String(row[ci("name")]), group: String(row[ci("group")] ?? ""), description: String(row[ci("description")] ?? "") })));
+    } catch (e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  };
+  const details = async (name: string) => {
+    setPick(name); setBusy(true); setError(null);
+    try {
+      const o = await run({ id: "s", action: "ooa.sap_bapi/get_function_info", args: { function: name, session: "studio_bapi" }, out: { parameters: "p", required_values: "r" } }, ["p", "r"]);
+      setParams((o.p as BapiParam[] | undefined) ?? []);
+      setRequired((o.r as Record<string, unknown> | undefined) ?? null);
+    } catch (e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  };
+  const use = () => {
+    const values: Args = { function: pick };
+    for (const k of ["imports", "changing", "tables"]) {
+      const m = mergeRequired(step.args?.[k], required?.[k]);
+      if (m) values[k] = m;
+    }
+    set(values); setOpen(false);
+  };
+  const start = () => {
+    setOpen(true); setError(null); setParams(null);
+    const now = literal(step.args?.function);
+    setPick(now);
+    if (now) setPattern(now);
+  };
+  return <PickerRow><>
+    <Button kind="plain" onClick={start}>Find a function on the SAP system…</Button>
+    <Dialog open={open} onClose={() => setOpen(false)} title="Find a BAPI or function" width={860} height={560} resizable
+      footer={<><Button kind="secondary" onClick={() => setOpen(false)}>Cancel</Button>
+        <Button kind="primary" disabled={!pick || !params} onClick={use}>Use this function</Button></>}>
+      {!conn && <p className="st-alert" role="alert">Add a Connect step (SAP BAPI) to this agent first; finding signs in the same way.</p>}
+      {error && <p className="st-alert" role="alert">{error}</p>}
+      {conn && <>
+        <div className="st-picker-search">
+          <Field label="Name, * for any characters">{(id) => <TextInput id={id} value={pattern} placeholder="BAPI_SALESORDER*" onChange={(e) => setPattern(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") search(); }} />}</Field>
+          <Button kind="secondary" onClick={search} disabled={busy}>Find</Button>
+        </div>
+        {busy && <p role="status">Asking the SAP system…</p>}
+        <div className="st-bapi">
+          <ul className="st-picker-list" aria-label="Functions found">
+            {(found ?? []).map((f) => <li key={f.name}>
+              <button type="button" className={"st-link" + (pick === f.name ? " is-chosen" : "")} onClick={() => details(f.name)}>{f.name}</button>
+              {" "}<span className="st-muted">{f.description}</span></li>)}
+            {found && !found.length && <li className="st-muted">No function matches.</li>}
+          </ul>
+          {params && <table className="st-table st-bapi-params" aria-label={"Parameters of " + pick}>
+            <thead><tr><th>Parameter</th><th>Direction</th><th>Type</th><th>Needed</th><th>Meaning</th></tr></thead>
+            <tbody>{params.map((p) => <tr key={p.direction + ":" + p.name}>
+              <td><code>{p.name}</code></td><td>{p.direction}</td><td>{p.type ?? ""}</td><td>{p.optional ? "" : "Yes"}</td><td>{p.description ?? ""}</td></tr>)}</tbody>
+          </table>}
+        </div>
+        {params && <p className="st-muted">Use this function fills in the name and adds the needed imports, changing values and table rows with empty values; values the step already has stay.</p>}
+      </>}
+    </Dialog>
+  </></PickerRow>;
+}
+

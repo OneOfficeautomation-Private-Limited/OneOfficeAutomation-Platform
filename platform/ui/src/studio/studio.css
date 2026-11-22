@@ -1167,3 +1167,11 @@ button.st-menu-group-head .st-menu-label { min-width: 0; white-space: nowrap; ov
 .st-cond-ticks .st-check-line { margin: 0; }
 .st-cond-wait { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; margin-top: 4px; }
 .st-cond-wait .st-var-field { width: 6em; flex: none; }
+
+/* ---- SAP BAPI: find a function (G6) ---- */
+.st-picker-search { display: flex; gap: 8px; align-items: flex-end; }
+.st-picker-search > :first-child { flex: 1; }
+.st-bapi { display: grid; grid-template-columns: minmax(220px, 1fr) 2fr; gap: 12px; min-height: 0; }
+.st-bapi .st-picker-list { max-height: 360px; overflow: auto; margin: 0; }
+.st-bapi-params { font-size: 12px; align-self: start; }
+.st-bapi-params td, .st-bapi-params th { padding: 3px 6px; text-align: left; vertical-align: top; }

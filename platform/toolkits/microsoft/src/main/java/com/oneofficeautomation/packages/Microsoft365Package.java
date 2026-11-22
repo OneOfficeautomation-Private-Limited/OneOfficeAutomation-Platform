@@ -3745,7 +3745,7 @@ public final class Microsoft365Package {
             @Input(name = "type", type = OoaType.STRING, required = false, defaultValue = "\"text\"",
                     enumValues = {"text", "multiline_text", "number", "currency", "yes_no", "date_time", "date", "choice", "multi_choice", "person", "hyperlink", "picture", "lookup"},
                     description = "What the column holds.") String type,
-            @Input(name = "choices", type = OoaType.LIST, required = false, visibleWhen = "type=choice,multi_choice", description = "The choices of a choice column.") List<Object> choices,
+            @Input(name = "choices", type = OoaType.LIST, required = false, visibleWhen = "type=choice|multi_choice", description = "The choices of a choice column.") List<Object> choices,
             @Input(name = "required", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Every item must fill it in.") boolean required,
             @Input(name = "display_name", type = OoaType.STRING, required = false, description = "The name people see; column_name when empty.") String displayName,
             @Input(name = "lookup_list", type = OoaType.STRING, required = false, visibleWhen = "type=lookup", description = "Id of the list a lookup column reads from.") String lookupList,
