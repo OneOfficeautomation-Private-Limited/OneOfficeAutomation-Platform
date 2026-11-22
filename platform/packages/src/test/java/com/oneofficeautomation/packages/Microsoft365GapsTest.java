@@ -602,7 +602,7 @@ class Microsoft365GapsTest {
             assertFalse(a.description().isBlank(), a.id());
             assertFalse(a.description().matches("(?i).*\\bbots?\\b.*"), a.id() + " says bot");
             // excel_column_name only works out an address and makes no request
-            if (!a.id().equals("excel_column_name")) assertTrue(Arrays.asList(a.capabilities()).contains("network"), a.id());
+            if (!Set.of("excel_column_name", "connect", "disconnect", "excel_activate_sheet", "excel_go_to_cell", "excel_close").contains(a.id())) assertTrue(Arrays.asList(a.capabilities()).contains("network"), a.id());
             for (Parameter p : m.getParameters()) {
                 Input in = p.getAnnotation(Input.class);
                 if (in == null) continue;

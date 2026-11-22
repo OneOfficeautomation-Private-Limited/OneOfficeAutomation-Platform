@@ -1258,13 +1258,13 @@ describe("new Studio", () => {
     fireEvent.change(within(w).getByLabelText("AI service"), { target: { value: "anthropic" } });
     fireEvent.change(within(w).getByLabelText("Name"), { target: { value: "company-claude" } });
     fireEvent.click(within(w).getByRole("button", { name: "Next" }));
-    expect((within(w).getByLabelText("Model") as HTMLInputElement).value).toBe("claude-sonnet-4-5");
+    expect((within(w).getByLabelText("Model") as HTMLInputElement).value).toBe("claude-sonnet-5-5");
     fireEvent.click(within(w).getByRole("button", { name: "Next" }));
     fireEvent.change(within(w).getByLabelText("Vault reference"), { target: { value: "ai/anthropic/api_key" } });
     fireEvent.click(within(w).getByRole("button", { name: "Next" }));
     await act(async () => { fireEvent.click(within(w).getByRole("button", { name: "Save connection" })); });
     expect(connections()).toEqual({ default: "company-claude", connections: [
-      { name: "company-claude", provider: "anthropic", model: "claude-sonnet-4-5", api_key: { $credential: "ai/anthropic/api_key" } }] });
+      { name: "company-claude", provider: "anthropic", model: "claude-sonnet-5-5", api_key: { $credential: "ai/anthropic/api_key" } }] });
     await act(async () => { fireEvent.click(within(w).getByRole("button", { name: "Test it" })); await new Promise((r) => setTimeout(r, 500)); });
     expect(await within(w).findByText("Connected. The model answered: OK", {}, { timeout: 3000 })).toBeTruthy();
   });

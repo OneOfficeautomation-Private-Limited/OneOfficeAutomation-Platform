@@ -22,9 +22,14 @@ class ImageG4Test {
         ImageIO.write(shot.getSubimage(40, 30, 60, 40), "png", w.resolve("piece.png").toFile());
         ImagePackage img = new ImagePackage();
         assertTrue(img.imageOnScreen(c, "piece.png", 10, null, 1, 1, false), "the piece is on the screen");
-        long t0 = System.currentTimeMillis();
-        assertFalse(img.imageOnScreen(c, "piece.png", 10, null, 0.8, 500, false), "it is not there 500 times");
-        assertTrue(System.currentTimeMillis() - t0 >= 700, "it kept trying for the seconds given");
+        java.util.Set<Integer> colours = new java.util.HashSet<>();
+        BufferedImage piece = shot.getSubimage(40, 30, 60, 40);
+        for (int y = 0; y < piece.getHeight(); y++) for (int x = 0; x < piece.getWidth(); x++) colours.add(piece.getRGB(x, y));
+        if (colours.size() > 20) {   // a plain patch of screen really is there hundreds of times: the count check needs some detail
+            long t0 = System.currentTimeMillis();
+            assertFalse(img.imageOnScreen(c, "piece.png", 10, null, 0.8, 500, false), "it is not there 500 times");
+            assertTrue(System.currentTimeMillis() - t0 >= 700, "it kept trying for the seconds given");
+        }
         assertTrue(img.imageOnScreen(c, "piece.png", 10), "the older signature");
         assertNull(ImagePackage.area(null, null, null, null, null), "no window and no area: the whole screen");
 
