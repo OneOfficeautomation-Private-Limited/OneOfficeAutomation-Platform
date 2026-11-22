@@ -17,7 +17,20 @@ import java.util.*;
 @OoaPackage(id = "ooa.ai_agent", name = "AI Agents", version = "1.0.0", description = "Run an AI agent that works toward a goal using your agents as tools, with approvals and limits.")
 public final class AiAgentPackage {
 
-    record Tool(String name, String botId, Map<String, Object> flow, Map<String, Object> schema, boolean sensitive) {}
+    /**
+     * One agent the AI agent may run. credentialInputs: its Credential inputs, filled from the step's credentials and
+     * never shown to the model; takesWorkspace: it has a workspace_folder input, filled with the step's folder;
+     * fileInputs: its File inputs, which must stay inside that folder (G6).
+     */
+    record Tool(String name, String botId, Map<String, Object> flow, Map<String, Object> schema, boolean sensitive,
+                Set<String> credentialInputs, boolean takesWorkspace, Set<String> fileInputs) {
+        Tool(String name, String botId, Map<String, Object> flow, Map<String, Object> schema, boolean sensitive) {
+            this(name, botId, flow, schema, sensitive, Set.of(), false, Set.of());
+        }
+    }
+
+    /** The input through which an agent run as a tool receives the folder it may work in (G6). */
+    static final String WORKSPACE_INPUT = "workspace_folder";
 
     /** A form the agent may show to the person at the runner to ask for information or a decision. */
     record FormTool(String name, Path path, String title, String description, Map<String, Object> schema) {}
@@ -55,22 +68,38 @@ public final class AiAgentPackage {
         return new FormTool(name.length() > 64 ? name.substring(0, 64) : name, p, title, desc, Map.of("type", "object", "properties", props, "required", List.of()));
     }
 
-    @SuppressWarnings("unchecked")
     static Tool tool(AutomationRepository repo, String botId, boolean sensitive) {
+        return tool(repo, botId, sensitive, Set.of(), false);
+    }
+
+    /**
+     * An agent as a tool. Its Credential inputs are never part of what the model sees: those named in credentials are
+     * filled by reference when it runs; a required one that is not named stops the step. With a workspace folder, its
+     * workspace_folder input is filled with the folder rather than asked of the model (G6).
+     */
+    @SuppressWarnings("unchecked")
+    static Tool tool(AutomationRepository repo, String botId, boolean sensitive, Set<String> credentialNames, boolean workspaceSet) {
         Map<String, Object> flow = repo.get(botId, "production");
         Object desc = flow.get("description");
         if (!(desc instanceof String d) || d.isBlank())
             throw new ActionException("AGENT.TOOL_UNDOCUMENTED", "Agent '" + botId + "' has no description", "Add a description under Properties in OneAgentStudio (with no step selected); the AI agent reads it to decide when to call this agent.");
         Map<String, Object> props = new LinkedHashMap<>();
         List<Object> required = new ArrayList<>();
+        Set<String> credentialInputs = new LinkedHashSet<>(), fileInputs = new LinkedHashSet<>();
+        boolean takesWorkspace = false;
         for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {
             Map<String, Object> v = (Map<String, Object>) o;
             if (!java.util.Arrays.asList("input", "in_out").contains(v.get("direction"))) continue;
+            String vn = String.valueOf(v.get("name"));
             if ("Credential".equals(v.get("type"))) {
-                if (Boolean.TRUE.equals(v.get("required"))) throw new ActionException("AGENT.TOOL_NEEDS_SECRET", "Agent '" + botId + "' needs a Credential input, which a model must never supply",
-                        "Read the credential inside the agent instead of taking it as an input.");
+                if (Boolean.TRUE.equals(v.get("required")) && !credentialNames.contains(vn) && !v.containsKey("default"))
+                    throw new ActionException("AGENT.TOOL_NEEDS_SECRET", "Agent '" + botId + "' needs the Credential input '" + vn + "', which a model must never supply",
+                        "Hand it over in the step's credentials under the name " + vn + ", or read the credential inside the agent instead of taking it as an input.");
+                credentialInputs.add(vn);
                 continue;
             }
+            if (workspaceSet && vn.equals(WORKSPACE_INPUT)) { takesWorkspace = true; continue; }
+            if ("File".equals(v.get("type"))) fileInputs.add(vn);
             Map<String, Object> s = new LinkedHashMap<>(SchemaTypes.forType(OoaType.fromFlowName(String.valueOf(v.get("type")))));
             if (v.get("description") != null) s.put("description", v.get("description"));
             if (v.get("enum") != null) s.put("enum", v.get("enum"));
@@ -79,7 +108,52 @@ public final class AiAgentPackage {
         }
         Map<String, Object> schema = new LinkedHashMap<>(Map.of("type", "object", "properties", props, "required", required));
         String name = botId.replaceAll("[^A-Za-z0-9_-]", "_");
-        return new Tool(name.length() > 64 ? name.substring(0, 64) : name, botId, flow, schema, sensitive);
+        return new Tool(name.length() > 64 ? name.substring(0, 64) : name, botId, flow, schema, sensitive, credentialInputs, takesWorkspace, fileInputs);
+    }
+
+    /**
+     * The inputs an agent run as a tool receives: the model's arguments, with its File arguments resolved inside the
+     * workspace folder (one outside it gives an error text for the model instead), the folder itself, and the
+     * credentials it takes by name (G6). Returns null and puts the error in {@code error[0]} when a path is refused.
+     */
+    static Map<String, Object> toolInputs(Tool t, Map<String, Object> args, Path workspace, Map<String, SecureString> credentials, String[] error) {
+        Map<String, Object> in = new LinkedHashMap<>(args);
+        if (workspace != null) {
+            for (String f : t.fileInputs()) {
+                if (!(in.get(f) instanceof String s) || s.isBlank()) continue;
+                Path p;
+                try { p = workspace.resolve(s.strip()).toAbsolutePath().normalize(); }
+                catch (java.nio.file.InvalidPathException e) { error[0] = "'" + s + "' is not a valid path."; return null; }
+                if (!p.startsWith(workspace)) { error[0] = "The path '" + s + "' is outside the folder this agent may work in. Use a path inside it."; return null; }
+                in.put(f, p.toString());
+            }
+            if (t.takesWorkspace()) in.put(WORKSPACE_INPUT, workspace.toString());
+        }
+        if (credentials != null) for (String c : t.credentialInputs()) if (credentials.containsKey(c)) in.put(c, credentials.get(c));
+        return in;
+    }
+
+    /** True when the path is the workspace folder or inside it; always true without a workspace folder. */
+    static boolean inWorkspace(Path workspace, Path p) {
+        return workspace == null || p.toAbsolutePath().normalize().startsWith(workspace);
+    }
+
+    /** Credentials handed to tools, name to secret; each value a Credential or a vault reference {"$credential": "..."} (G6). */
+    static Map<String, SecureString> credentials(ActionContext ctx, Map<String, Object> given) {
+        Map<String, SecureString> out = new LinkedHashMap<>();
+        if (given == null) return out;
+        for (var e : given.entrySet()) {
+            String n = String.valueOf(e.getKey()).strip();
+            if (!n.matches("^[A-Za-z_][A-Za-z0-9_]{0,63}$")) throw new ActionException("AGENT.BAD_OPTION", "'" + n + "' is not a usable credential name", "Name each credential as the input of the agent that takes it: letters, digits and _.");
+            Object v = e.getValue();
+            if (v instanceof SecureString s) out.put(n, s);
+            else if (v instanceof Map<?, ?> m && m.get("$credential") instanceof String ref) {
+                CredentialVault vault = ctx.service("vault", CredentialVault.class);
+                if (vault == null) throw new ActionException("AGENT.NO_VAULT", "No vault is available for the credential '" + n + "'", "Run the agent where a vault is available (in One CommandCenter, or with the Private workspace's vault set up).");
+                out.put(n, vault.getSecret(ref, null));
+            } else throw new ActionException("AGENT.BAD_OPTION", "The credential '" + n + "' is not a vault credential", "Choose a Credential from the vault for each name; plain text is not accepted here.");
+        }
+        return out;
     }
 
     /** Checks required arguments and rejects unknown ones; returns an error text for the model, or null when valid. */
@@ -174,14 +248,14 @@ public final class AiAgentPackage {
     @SuppressWarnings("unchecked")
     @Action(id = "run", name = "Run AI agent", category = "AI Agents", timeoutSeconds = 1800, capabilities = {"network", "ai"},
             description = "Give an agent a goal and a set of agents it may use; it plans, calls the agents and returns its final answer and a trace.",
-            panel = "goal, instructions, tools, [Let the agent ask a person with forms: forms, form_timeout_seconds], (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | sensitive_tools, role, action_plan, output_fields, allow_cancel, [Toxicity guardrail: toxicity_guardrail, toxicity_level, blocked_terms], max_steps, max_tokens_total, max_duration_seconds, temperature, mask_pii, [Ask approvers in the Task inbox when nobody is at the runner: approvers, approval_timeout_seconds], knowledge_indexes, [Use an MCP server's tools: mcp_server_url, mcp_token, mcp_tools]")
+            panel = "(Goal: Typed here = goal / From a file = goal_file), instructions, tools, [Let the agent ask a person with forms: forms, form_timeout_seconds], (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | sensitive_tools, role, action_plan, output_fields, allow_cancel, workspace_folder, credentials, [Toxicity guardrail: toxicity_guardrail, toxicity_level, blocked_terms], max_steps, max_tokens_total, max_duration_seconds, temperature, mask_pii, [Ask approvers in the Task inbox when nobody is at the runner: approvers, approval_timeout_seconds], knowledge_indexes, [Use an MCP server's tools: mcp_server_url, mcp_token, mcp_tools]")
     @Output(name = "answer", type = OoaType.STRING, description = "The agent's final answer.")
     @Output(name = "status", type = OoaType.STRING, description = "completed, limit_reached, stopped or blocked (by the toxicity guardrail); with output fields also failed or cancelled, as the agent decided.")
     @Output(name = "outputs", type = OoaType.DICTIONARY, description = "The output fields asked for (empty when none were).")
     @Output(name = "trace", type = OoaType.LIST, description = "Each model turn and tool call, for review and audit.")
     @Output(name = "tokens", type = OoaType.NUMBER, description = "Total tokens used.")
     public Map<String, Object> run(ActionContext ctx,
-            @Input(name = "goal", type = OoaType.STRING, description = "What the agent should achieve, e.g. the customer email to handle.") String goal,
+            @Input(name = "goal", type = OoaType.STRING, required = false, visibleWhen = "goal_file=", description = "What the agent should achieve, e.g. the customer email to handle.") String goal,
             @Input(name = "instructions", type = OoaType.STRING, required = false, defaultValue = "\"You are a careful business assistant. Use the tools to act; never invent results.\"", description = "Role, policy and rules for the agent.") String instructions,
             @Input(name = "tools", type = OoaType.LIST, required = false, description = "Ids of the agents it may call, e.g. [\"lookup_order\", \"check_refund_policy\"].") List<Object> toolIds,
             @Input(name = "sensitive_tools", type = OoaType.LIST, required = false, description = "Agent ids that need a person's approval before each call (e.g. issue_refund).") List<Object> sensitiveIds,
@@ -190,7 +264,8 @@ public final class AiAgentPackage {
             @Input(name = "model", type = OoaType.STRING, required = false, description = GenAiPackage.D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base,
-            @Input(name = "max_steps", type = OoaType.NUMBER, required = false, defaultValue = "8", description = "Maximum model turns.") int maxSteps,
+            @Input(name = "max_steps", type = OoaType.NUMBER, required = false, defaultValue = "8", newStepDefault = "25",
+                    description = "Maximum model turns. New steps start at 25, room for longer tasks; steps saved before keep their own value (8 when they never set one).") int maxSteps,
             @Input(name = "max_tokens_total", type = OoaType.NUMBER, required = false, defaultValue = "60000", description = "Stop when this many tokens have been used.") int maxTotal,
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = GenAiPackage.D_MASK) boolean mask,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_AWS_KEY_ID) Object awsKeyId,
@@ -220,10 +295,58 @@ public final class AiAgentPackage {
                     description = "Knowledge indexes (Knowledge Q&A > Build index) the agent searches itself for facts, with a search_knowledge tool.") List<Object> knowledge,
             @Input(name = "mcp_server_url", type = OoaType.STRING, required = false, example = "https://mcp.example.com/mcp", description = "An MCP server whose tools the agent may use (Streamable HTTP).") String mcpUrl,
             @Input(name = "mcp_token", type = OoaType.CREDENTIAL, required = false, description = "The MCP server's bearer token, when it needs one.") Object mcpToken,
-            @Input(name = "mcp_tools", type = OoaType.LIST, required = false, description = "Which of the server's tools it may use (names); empty: all. Name them in sensitive_tools as mcp:NAME to need approval.") List<Object> mcpTools) {
-        return runAgent(ctx, goal, instructions, toolIds, sensitiveIds, provider, connection, model, key, base, maxSteps, maxTotal, mask, awsKeyId, awsRegion,
+            @Input(name = "mcp_tools", type = OoaType.LIST, required = false, description = "Which of the server's tools it may use (names); empty: all. Name them in sensitive_tools as mcp:NAME to need approval.") List<Object> mcpTools,
+            @Input(name = "goal_file", type = OoaType.FILE, required = false, visibleWhen = "goal=", example = "Inbox/request.txt",
+                    description = "A text file holding the goal, read as UTF-8 when the step runs (at most 1 MB).") String goalFile,
+            @Input(name = "workspace_folder", type = OoaType.FILE, required = false, example = "Work/claims",
+                    description = "The folder the agent's tools may work in: file paths the model gives agents are kept inside it (one outside is refused), agents with a workspace_folder input "
+                            + "receive it, and forms and knowledge indexes must be inside it. Any folder when empty.") String workspaceFolder,
+            @Input(name = "credentials", type = OoaType.DICTIONARY, required = false, example = "{\"erp_password\": \"$erpPassword$\"}",
+                    description = "Credentials from the vault the agents it runs may use, by the name of their Credential input. They are handed over directly and never shown to the model.") Map<String, Object> credentials) {
+        String g = goalText(ctx, goal, goalFile);
+        return runAgent(ctx, g, instructions, toolIds, sensitiveIds, provider, connection, model, key, base, maxSteps, maxTotal, mask, awsKeyId, awsRegion,
                 role, plan, outputFields, allowCancel, maxSeconds, temperature, forms, formTimeout, Toxicity.setting(toxicityAction, toxicityLevel, blockedTerms, "AGENT"),
-                new Extras(approvers, approvalTimeout, knowledge, mcpUrl, McpPackage.secret(mcpToken), mcpTools));
+                new Extras(approvers, approvalTimeout, knowledge, mcpUrl, McpPackage.secret(mcpToken), mcpTools, workspace(ctx, workspaceFolder), credentials(ctx, credentials)));
+    }
+
+    /** Before the goal file, workspace folder and credentials (G6): the same agent without them. */
+    public Map<String, Object> run(ActionContext ctx, String goal, String instructions, List<Object> toolIds, List<Object> sensitiveIds, String provider, String connection,
+                                   String model, Object key, String base, int maxSteps, int maxTotal, boolean mask, Object awsKeyId, String awsRegion,
+                                   String role, String plan, Map<String, Object> outputFields, boolean allowCancel, int maxSeconds, double temperature,
+                                   List<Object> forms, double formTimeout, String toxicityAction, String toxicityLevel, List<Object> blockedTerms,
+                                   String approvers, int approvalTimeout, List<Object> knowledge, String mcpUrl, Object mcpToken, List<Object> mcpTools) {
+        return run(ctx, goal, instructions, toolIds, sensitiveIds, provider, connection, model, key, base, maxSteps, maxTotal, mask, awsKeyId, awsRegion,
+                role, plan, outputFields, allowCancel, maxSeconds, temperature, forms, formTimeout, toxicityAction, toxicityLevel, blockedTerms,
+                approvers, approvalTimeout, knowledge, mcpUrl, mcpToken, mcpTools, null, null, null);
+    }
+
+    /** The goal typed on the step, or read from its file as UTF-8 (G6). */
+    static String goalText(ActionContext ctx, String goal, String goalFile) {
+        boolean typed = goal != null && !goal.isBlank(), fromFile = goalFile != null && !goalFile.isBlank();
+        if (typed && fromFile) throw new ActionException("AGENT.BAD_OPTION", "Give the goal as text or as a file, not both", "Clear goal or goal_file.");
+        if (!fromFile) {
+            if (!typed) throw new ActionException("AGENT.NO_GOAL", "The agent has no goal", "Type the goal, or choose a file holding it.");
+            return goal;
+        }
+        Path p = ctx.resolvePath(goalFile);
+        try {
+            if (!java.nio.file.Files.isRegularFile(p)) throw new ActionException("AGENT.GOAL_NOT_FOUND", "Goal file not found: " + p, "Check the path; the file may have been moved or renamed.");
+            if (java.nio.file.Files.size(p) > 1024 * 1024) throw new ActionException("AGENT.BAD_OPTION", "The goal file is larger than 1 MB", "Shorten the goal; give long documents to the agent through a knowledge index or a tool.");
+            String s = new String(java.nio.file.Files.readAllBytes(p), java.nio.charset.StandardCharsets.UTF_8);
+            if (s.startsWith("﻿")) s = s.substring(1);
+            if (s.isBlank()) throw new ActionException("AGENT.NO_GOAL", "The goal file is empty: " + p.getFileName(), "Write the goal into the file, or type it on the step.");
+            return s;
+        } catch (java.io.IOException e) {
+            throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file exists, is not open in another program, and that the runner's account may read it.", true);
+        }
+    }
+
+    /** The workspace folder as an absolute path, or null when none was given; it must exist (G6). */
+    static Path workspace(ActionContext ctx, String folder) {
+        if (folder == null || folder.isBlank()) return null;
+        Path p = ctx.resolvePath(folder).toAbsolutePath().normalize();
+        if (!java.nio.file.Files.isDirectory(p)) throw new ActionException("AGENT.WORKSPACE_NOT_FOUND", "The workspace folder does not exist: " + p, "Create the folder first, or choose another one.");
+        return p;
     }
 
     /** Before approvers, knowledge and MCP (G44): the same agent without them. */
@@ -236,8 +359,12 @@ public final class AiAgentPackage {
     }
 
     /** G44: approvals through the Task inbox, knowledge indexes the agent searches, and an MCP server's tools. */
-    record Extras(String approvers, int approvalTimeout, List<Object> knowledge, String mcpUrl, String mcpToken, List<Object> mcpTools) {
+    record Extras(String approvers, int approvalTimeout, List<Object> knowledge, String mcpUrl, String mcpToken, List<Object> mcpTools,
+                  Path workspace, Map<String, SecureString> credentials) {
         static final Extras NONE = new Extras(null, 600, null, null, null, null);
+        Extras(String approvers, int approvalTimeout, List<Object> knowledge, String mcpUrl, String mcpToken, List<Object> mcpTools) {
+            this(approvers, approvalTimeout, knowledge, mcpUrl, mcpToken, mcpTools, null, Map.of());
+        }
     }
     static final String KNOWLEDGE_TOOL = "search_knowledge";
 
@@ -265,6 +392,7 @@ public final class AiAgentPackage {
         StringBuilder extra = new StringBuilder();
         if (role != null && !role.isBlank()) extra.append("Your role: ").append(role.strip()).append("\n");
         if (plan != null && !plan.isBlank()) extra.append("Action plan: ").append(plan.strip()).append("\n");
+        if (extras.workspace() != null) extra.append("Give file paths relative to the work folder; paths outside it are refused.\n");
         if (structured) {
             List<String> states = new ArrayList<>(List.of("completed", "failed"));
             if (allowCancel) states.add("cancelled");
@@ -275,13 +403,21 @@ public final class AiAgentPackage {
         BotInvoker invoker = ctx.service("bot_invoker", BotInvoker.class);
         Set<String> sensitive = new HashSet<>();
         if (sensitiveIds != null) for (Object o : sensitiveIds) sensitive.add(Values.text(o));
+        Path workspace = extras.workspace();
+        Map<String, SecureString> credentials = extras.credentials() == null ? Map.of() : extras.credentials();
         Map<String, Tool> tools = new LinkedHashMap<>();
-        if (toolIds != null) for (Object o : toolIds) { Tool t = tool(repo, Values.text(o), sensitive.contains(Values.text(o))); tools.put(t.name(), t); }
+        if (toolIds != null) for (Object o : toolIds) { Tool t = tool(repo, Values.text(o), sensitive.contains(Values.text(o)), credentials.keySet(), workspace != null); tools.put(t.name(), t); }
         Map<String, FormTool> forms = new LinkedHashMap<>();
-        if (formPaths != null) for (Object o : formPaths) { FormTool ft = formTool(ctx, Values.text(o)); if (tools.containsKey(ft.name())) throw new ActionException("AGENT.BAD_OPTION", "A tool and a form are both named " + ft.name(), "Give the tool or the form another name; the agent tells them apart by name."); forms.put(ft.name(), ft); }
+        if (formPaths != null) for (Object o : formPaths) {
+            if (!inWorkspace(workspace, ctx.resolvePath(Values.text(o))))
+                throw new ActionException("AGENT.OUTSIDE_WORKSPACE", "The form " + Values.text(o) + " is outside the workspace folder " + workspace, "Move the form into the workspace folder, or choose another folder.");
+            FormTool ft = formTool(ctx, Values.text(o)); if (tools.containsKey(ft.name())) throw new ActionException("AGENT.BAD_OPTION", "A tool and a form are both named " + ft.name(), "Give the tool or the form another name; the agent tells them apart by name."); forms.put(ft.name(), ft);
+        }
         List<Path> indexes = new ArrayList<>();
         if (extras.knowledge() != null) for (Object o : extras.knowledge()) {
             Path ip = ctx.resolvePath(Values.text(o));
+            if (!inWorkspace(workspace, ip))
+                throw new ActionException("AGENT.OUTSIDE_WORKSPACE", "The knowledge index " + Values.text(o) + " is outside the workspace folder " + workspace, "Move the index into the workspace folder, or choose another folder.");
             if (!java.nio.file.Files.isRegularFile(ip)) throw new ActionException("AGENT.KNOWLEDGE_NOT_FOUND", "Knowledge index not found: " + ip, "Build it with Knowledge Q&A > Build index.");
             indexes.add(ip);
         }
@@ -329,6 +465,7 @@ public final class AiAgentPackage {
                 + "if a tool is denied, do not retry it; when finished, reply with the final answer and no tool calls."));
         messages.add(Map.of("role", "user", "content", goal));
         List<Object> trace = new ArrayList<>(trace0);
+        String[] refused = new String[1];
         int tokens = 0;
         for (int step = 1; step <= maxSteps; step++) {
             ctx.checkCancelled();
@@ -384,13 +521,16 @@ public final class AiAgentPackage {
                 } else if (checkArgs(t, tc.args()) != null) {
                     content = JsonLite.write(Map.of("status", "rejected", "error", checkArgs(t, tc.args())));
                     trace.add(Map.of("type", "guardrail", "message", "invalid arguments for " + t.botId()));
+                } else if (toolInputs(t, tc.args(), workspace, credentials, refused) == null) {
+                    content = JsonLite.write(Map.of("status", "rejected", "error", refused[0]));
+                    trace.add(Map.of("type", "guardrail", "message", "path outside the workspace folder for " + t.botId()));
                 } else if (t.sensitive() && !approve(ctx, t.botId(), tc.args(), extras, trace)) {
                     content = JsonLite.write(Map.of("status", "denied", "error", "A person did not approve this action. Do not retry; explain the outcome."));
                     trace.add(Map.of("type", "approval", "tool", t.botId(), "status", "denied"));
                     ctx.warn("Sensitive agent " + t.botId() + " was not approved");
                 } else {
                     if (t.sensitive()) trace.add(Map.of("type", "approval", "tool", t.botId(), "status", "approved"));
-                    RunResult res = invoker.invoke(t.botId(), tc.args());
+                    RunResult res = invoker.invoke(t.botId(), toolInputs(t, tc.args(), workspace, credentials, refused));
                     Map<String, Object> payload = res.ok() ? Out.of("status", "success", "outputs", Values.toJsonable(res.outputs()))
                             : Out.of("status", res.status(), "error", Values.toJsonable(res.error()));
                     content = JsonLite.write(payload);

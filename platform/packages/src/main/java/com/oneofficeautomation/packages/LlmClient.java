@@ -30,15 +30,25 @@ final class LlmClient {
      * accessKeyId the AWS access key id and region the AWS region.
      */
     record Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii,
-                  Object accessKeyId, String region, Options options) {
+                  Object accessKeyId, String region, Options options, Object sessionToken) {
         Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii) {
-            this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, null, null, null);
+            this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, null, null, null, null);
         }
         Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii, Object accessKeyId, String region) {
-            this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, null);
+            this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, null, null);
+        }
+        Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii, Object accessKeyId, String region, Options options) {
+            this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, options, null);
         }
         /** The same settings with call options; it stays linked to its model connection (limits, masking, content check). */
-        Config with(Options o) { Config c = new Config(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, o); ModelConnections.carry(this, c); return c; }
+        Config with(Options o) { Config c = new Config(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, o, sessionToken); ModelConnections.carry(this, c); return c; }
+        /** G6: the same settings with an AWS session token (temporary credentials), kept linked to its model connection. */
+        Config withSessionToken(Object token) {
+            if (token == null) return this;
+            Config c = new Config(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, options, token);
+            ModelConnections.carry(this, c);
+            return c;
+        }
         Options opts() { return options == null ? Options.NONE : options; }
     }
 
@@ -47,9 +57,43 @@ final class LlmClient {
      * Anthropic only; presence and frequency penalties, seed, user and n by OpenAI-style APIs only.
      */
     record Options(Double topP, Integer topK, List<String> stop, Double presencePenalty, Double frequencyPenalty, Integer seed, String user,
-                   Integer n, Integer timeoutSeconds) {
-        static final Options NONE = new Options(null, null, null, null, null, null, null, null, null);
+                   Integer n, Integer timeoutSeconds, Map<String, Object> logitBias, String imageDetail, Map<String, Object> providerOptions, String apiVersion) {
+        static final Options NONE = new Options(null, null, null, null, null, null, null, null, null, null, null, null, null);
+        static final String AZURE_API_VERSION = "2024-06-01";
         int timeout() { return timeoutSeconds == null || timeoutSeconds <= 0 ? 180 : timeoutSeconds; }
+        String azureVersion() { return apiVersion == null ? AZURE_API_VERSION : apiVersion; }
+
+        /**
+         * G6: the same options plus word weights (logit bias), picture detail, provider settings merged into the request
+         * and the Azure OpenAI API version; each checked here, empty values left out.
+         */
+        Options plus(Map<String, Object> logitBias, String imageDetail, Map<String, Object> providerOptions, String apiVersion) {
+            Map<String, Object> bias = null;
+            if (logitBias != null && !logitBias.isEmpty()) {
+                if (logitBias.size() > 300) throw new ActionException(P + ".BAD_OPTION", "logit_bias holds at most 300 tokens", "Give at most 300 token ids in logit_bias.");
+                bias = new LinkedHashMap<>();
+                for (var e : logitBias.entrySet()) {
+                    String k = String.valueOf(e.getKey()).strip();
+                    if (!k.matches("^\\d{1,9}$")) throw new ActionException(P + ".BAD_OPTION", "logit_bias keys are token ids (whole numbers), not '" + k + "'", "Use the model's token ids as keys, for example {\"50256\": -100}.");
+                    BigDecimal v;
+                    try { v = Values.toNumber(e.getValue()); } catch (RuntimeException x) { v = null; }
+                    if (v == null || v.compareTo(BigDecimal.valueOf(-100)) < 0 || v.compareTo(BigDecimal.valueOf(100)) > 0)
+                        throw new ActionException(P + ".BAD_OPTION", "logit_bias values must be numbers from -100 to 100", "Give each token a weight from -100 (never) to 100 (always).");
+                    bias.put(k, v);
+                }
+            }
+            String detail = imageDetail == null || imageDetail.isBlank() ? null : imageDetail.strip().toLowerCase(Locale.ROOT);
+            if (detail != null && !Set.of("auto", "high", "low").contains(detail)) throw new ActionException(P + ".BAD_OPTION", "image_detail is auto, high or low, not '" + imageDetail + "'", "Choose auto, high or low.");
+            String version = apiVersion == null || apiVersion.isBlank() ? null : apiVersion.strip();
+            if (version != null && !version.matches("^[A-Za-z0-9.-]{4,40}$")) throw new ActionException(P + ".BAD_OPTION", "'" + apiVersion + "' is not an API version", "Write the version as the provider names it, for example 2024-10-21.");
+            Map<String, Object> extra = null;
+            if (providerOptions != null && !providerOptions.isEmpty()) {
+                for (Object v : providerOptions.values()) if (v instanceof SecureString) throw new ActionException(P + ".BAD_OPTION", "provider_options cannot hold a Credential", "Pass plain settings only; keys belong in api_key.");
+                @SuppressWarnings("unchecked") Map<String, Object> copy = (Map<String, Object>) Values.toJsonable(new LinkedHashMap<>(providerOptions));
+                extra = copy;
+            }
+            return new Options(topP, topK, stop, presencePenalty, frequencyPenalty, seed, user, n, timeoutSeconds, bias, detail, extra, version);
+        }
 
         /** Builds options from action inputs, checking ranges; empty values mean "provider default". */
         static Options of(Double topP, Integer topK, List<Object> stop, Double presence, Double frequency, Integer seed, String user, Integer n, Integer timeout) {
@@ -66,7 +110,8 @@ final class LlmClient {
                 if (s.size() > 4) throw new ActionException(P + ".BAD_OPTION", "Give at most 4 stop sequences", "Give at most 4 stop sequences.");
                 if (s.isEmpty()) s = null;
             }
-            return new Options(topP, topK, s, presence, frequency, seed, user == null || user.isBlank() ? null : user.strip(), n == null || n == 1 ? null : n, timeout == null || timeout == 0 ? null : timeout);
+            return new Options(topP, topK, s, presence, frequency, seed, user == null || user.isBlank() ? null : user.strip(), n == null || n == 1 ? null : n, timeout == null || timeout == 0 ? null : timeout,
+                    null, null, null, null);
         }
     }
 
@@ -316,7 +361,7 @@ final class LlmClient {
             o.put("role", role);
             if (role.equals("tool")) { o.put("tool_call_id", m.get("tool_call_id")); o.put("content", m.get("content")); }
             else {
-                o.put("content", openAiContent(m.get("content")));
+                o.put("content", openAiContent(m.get("content"), cfg.opts().imageDetail()));
                 if (m.get("tool_calls") instanceof List<?> tcs && !tcs.isEmpty()) {
                     List<Object> l = new ArrayList<>();
                     for (Object t : tcs) { Map<String, Object> tc = (Map<String, Object>) t;
@@ -339,12 +384,34 @@ final class LlmClient {
         if (o.seed() != null) body.put("seed", o.seed());
         if (o.user() != null) body.put("user", o.user());
         if (o.n() != null) body.put("n", o.n());
+        if (o.logitBias() != null) body.put("logit_bias", o.logitBias());
         if (tools != null && !tools.isEmpty()) {
             List<Object> l = new ArrayList<>();
             for (Map<String, Object> t : tools) l.add(Map.of("type", "function", "function", Map.of("name", t.get("name"), "description", t.get("description"), "parameters", t.get("input_schema"))));
             body.put("tools", l);
         } else if (json) body.put("response_format", Map.of("type", "json_object"));
+        return mergeProviderOptions(body, o);
+    }
+
+    /**
+     * G6: provider_options merged into a request body; a dictionary merges into the dictionary of the same name (so
+     * {"generationConfig": {"candidateCount": 2}} adds to Gemini's settings), anything else replaces the value.
+     */
+    static Map<String, Object> mergeProviderOptions(Map<String, Object> body, Options o) {
+        if (o.providerOptions() != null) deepMerge(body, o.providerOptions());
         return body;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void deepMerge(Map<String, Object> into, Map<String, Object> from) {
+        for (var e : from.entrySet()) {
+            Object have = into.get(e.getKey());
+            if (have instanceof Map<?, ?> h && e.getValue() instanceof Map<?, ?> v) {
+                Map<String, Object> copy = new LinkedHashMap<>((Map<String, Object>) h);
+                deepMerge(copy, (Map<String, Object>) v);
+                into.put(e.getKey(), copy);
+            } else into.put(e.getKey(), e.getValue());
+        }
     }
 
     private static Reply openai(ActionContext ctx, Config cfg, String provider, List<Map<String, Object>> msgs, List<Map<String, Object>> tools, boolean json) {
@@ -353,7 +420,7 @@ final class LlmClient {
         HttpJson.Req req;
         if (provider.equals("azure_openai")) {
             if (cfg.baseUrl() == null || cfg.baseUrl().isBlank()) throw new ActionException(P + ".NO_ENDPOINT", "Azure OpenAI needs base_url (your resource endpoint)", "Example: https://myresource.openai.azure.com");
-            url = cfg.baseUrl().replaceAll("/+$", "") + "/openai/deployments/" + HttpJson.enc(cfg.model()) + "/chat/completions?api-version=2024-06-01";
+            url = cfg.baseUrl().replaceAll("/+$", "") + "/openai/deployments/" + HttpJson.enc(cfg.model()) + "/chat/completions?api-version=" + HttpJson.enc(cfg.opts().azureVersion());
             if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required", "Choose the API key's credential in the step's connection (Manage > Credentials holds it).");
             req = HttpJson.req(P, "POST", url).header("api-key", k.reveal());
         } else {
@@ -408,7 +475,7 @@ final class LlmClient {
         signed.put("content-type", "application/json");
         signed.put("accept", "application/json");
         HttpJson.Req req = HttpJson.req(P, "POST", url).bytes(payload, "application/json").header("Accept", "application/json");
-        AwsSigV4.sign("POST", uri, signed, payload, keys[0], keys[1], region, "sagemaker", Instant.now()).forEach(req::header);
+        awsSign(req, uri, signed, payload, cfg, keys, region, "sagemaker");
         Object j = req.timeout(cfg.opts().timeout()).send(ctx).json();
         if (j instanceof Map<?, ?> m && m.get("choices") instanceof List) return openAiReply((Map<String, Object>) m);
         Object first = j instanceof List<?> l && !l.isEmpty() ? l.get(0) : j;
@@ -427,6 +494,25 @@ final class LlmClient {
         if (i > 0) return new String[]{s.substring(0, i).strip(), s.substring(i + 1).strip()};
         throw new ActionException(P + ".NO_ACCESS_KEY", "The AWS access key id from the vault is required",
                 "Map aws_access_key_id to a Credential, or store the key as ACCESS_KEY_ID:SECRET in one Credential.");
+    }
+
+    /** G6: the AWS session token of temporary credentials (from the vault), or null when the keys are long-lived. */
+    static String awsSessionToken(Config cfg) {
+        if (cfg.sessionToken() == null) return null;
+        if (!(cfg.sessionToken() instanceof SecureString t))
+            throw new ActionException(P + ".NO_KEY", "The AWS session token must come from the vault", "Map aws_session_token to a Credential holding the session token.");
+        String s = t.reveal().strip();
+        return s.isEmpty() ? null : s;
+    }
+
+    /**
+     * Signs a request with Signature V4 and adds the headers; with temporary credentials the session token is sent as
+     * X-Amz-Security-Token and is part of the signature (G6).
+     */
+    static void awsSign(HttpJson.Req req, java.net.URI uri, Map<String, String> signed, byte[] payload, Config cfg, String[] keys, String region, String service) {
+        String token = awsSessionToken(cfg);
+        if (token != null) { signed.put("x-amz-security-token", token); req.header("X-Amz-Security-Token", token); }
+        AwsSigV4.sign("POST", uri, signed, payload, keys[0], keys[1], region, service, Instant.now()).forEach(req::header);
     }
 
     /** Region from the action, else from a runtime.sagemaker.REGION or bedrock-runtime.REGION base_url, else the AWS_REGION variable. */
@@ -473,6 +559,7 @@ final class LlmClient {
         Options opt = cfg.opts();
         if (opt.topP() != null || opt.topK() != null) ctx.warn("top_p and top_k are not sent to Anthropic: current Claude models do not take them");
         if (opt.stop() != null) body.put("stop_sequences", opt.stop());
+        mergeProviderOptions(body, opt);
         if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required", "Map api_key to a Credential variable.");
         String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.anthropic.com" : cfg.baseUrl().replaceAll("/+$", "");
         Map<String, Object> r = HttpJson.req(P, "POST", base + "/v1/messages").header("x-api-key", k.reveal()).header("anthropic-version", "2023-06-01")
@@ -542,12 +629,22 @@ final class LlmClient {
         return List.of(Map.of("type", "text", "text", content == null ? "" : String.valueOf(content)));
     }
 
-    static Object openAiContent(Object content) {
+    static Object openAiContent(Object content) { return openAiContent(content, null); }
+
+    /** OpenAI-style parts; a picture file goes as a data URL, a web link as it is, each with the picture detail when one is set (G6). */
+    static Object openAiContent(Object content, String detail) {
         if (!(content instanceof List)) return content;
         List<Object> out = new ArrayList<>();
-        for (Map<String, Object> p : parts(content))
-            if ("image".equals(p.get("type"))) out.add(Map.of("type", "image_url", "image_url", Map.of("url", "data:" + p.get("media_type") + ";base64," + p.get("data"))));
-            else out.add(Map.of("type", "text", "text", String.valueOf(p.get("text"))));
+        for (Map<String, Object> p : parts(content)) {
+            String url = "image".equals(p.get("type")) ? "data:" + p.get("media_type") + ";base64," + p.get("data") : "image_url".equals(p.get("type")) ? String.valueOf(p.get("url")) : null;
+            if ("video".equals(p.get("type"))) throw notForVideo("this provider");
+            if (url != null) {
+                Map<String, Object> iu = new LinkedHashMap<>();
+                iu.put("url", url);
+                if (detail != null) iu.put("detail", detail);
+                out.add(Map.of("type", "image_url", "image_url", iu));
+            } else out.add(Map.of("type", "text", "text", String.valueOf(p.get("text"))));
+        }
         return out;
     }
 
@@ -556,8 +653,46 @@ final class LlmClient {
         List<Object> out = new ArrayList<>();
         for (Map<String, Object> p : parts(content))
             if ("image".equals(p.get("type"))) out.add(Map.of("type", "image", "source", Map.of("type", "base64", "media_type", p.get("media_type"), "data", p.get("data"))));
+            else if ("image_url".equals(p.get("type"))) out.add(Map.of("type", "image", "source", Map.of("type", "url", "url", p.get("url"))));
+            else if ("video".equals(p.get("type"))) throw notForVideo("anthropic");
             else out.add(Map.of("type", "text", "text", String.valueOf(p.get("text"))));
         return out;
+    }
+
+    static ActionException notForVideo(String provider) {
+        return new ActionException(P + ".NOT_SUPPORTED", "Videos can be sent to Gemini models only, not to " + provider, "Choose the google_vertex provider and a Gemini model, or leave videos empty.");
+    }
+
+    /** G6: a picture on the web, sent as a link (the model's provider fetches it). */
+    static Map<String, Object> imageUrlPart(String url) {
+        String u = url.strip();
+        java.net.URI uri;
+        try { uri = java.net.URI.create(u); } catch (IllegalArgumentException e) { uri = null; }
+        if (uri == null || uri.getHost() == null || !("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme())))
+            throw new ActionException(P + ".BAD_IMAGE", "Not a valid picture link: " + u, "Give a full http:// or https:// address, or a picture file.");
+        return Map.of("type", "image_url", "url", u);
+    }
+
+    /** The picture type a link's file name suggests; JPEG when it does not say. */
+    static String urlMediaType(String url) {
+        String n = url.toLowerCase(Locale.ROOT).replaceAll("[?#].*$", "");
+        return n.endsWith(".png") ? "image/png" : n.endsWith(".gif") ? "image/gif" : n.endsWith(".webp") ? "image/webp" : "image/jpeg";
+    }
+
+    static final Map<String, String> VIDEO_TYPES = Map.of(".mp4", "video/mp4", ".mov", "video/quicktime", ".mpeg", "video/mpeg", ".mpg", "video/mpeg",
+            ".avi", "video/x-msvideo", ".wmv", "video/x-ms-wmv", ".webm", "video/webm", ".flv", "video/x-flv", ".3gp", "video/3gpp");
+
+    /** G6: a video file as a part for Gemini models; up to 20 MB, as Vertex AI takes it inline. */
+    static Map<String, Object> videoPart(Path file) {
+        String n = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        int dot = n.lastIndexOf('.');
+        String type = dot < 0 ? null : VIDEO_TYPES.get(n.substring(dot));
+        if (type == null) throw new ActionException(P + ".BAD_VIDEO", "Videos must be .mp4, .mov, .mpeg, .mpg, .avi, .wmv, .webm, .flv or .3gp: " + file.getFileName(), "Use a video in one of those formats.");
+        try {
+            if (!Files.isRegularFile(file)) throw new ActionException(P + ".VIDEO_NOT_FOUND", "Video not found: " + file, "Check the path; the file may have been moved or renamed.");
+            if (Files.size(file) > 20L * 1024 * 1024) throw new ActionException(P + ".VIDEO_TOO_LARGE", "Videos are at most 20 MB: " + file.getFileName(), "Shorten the video or lower its quality to under 20 MB.");
+            return Map.of("type", "video", "media_type", type, "data", Base64.getEncoder().encodeToString(Files.readAllBytes(file)));
+        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), "Check that the file or folder exists, is not open in another program, and that the runner's account may read and write it.", true); }
     }
 
     /** A picture file as an image part; png, jpeg, gif and webp up to 20 MB. */
@@ -600,6 +735,8 @@ final class LlmClient {
                 List<Object> blocks = new ArrayList<>();
                 for (Map<String, Object> p : parts(m.get("content")))
                     if ("image".equals(p.get("type"))) blocks.add(Map.of("image", Map.of("format", String.valueOf(p.get("media_type")).replace("image/", ""), "source", Map.of("bytes", p.get("data")))));
+                    else if ("image_url".equals(p.get("type"))) throw new ActionException(P + ".NOT_SUPPORTED", "Amazon Bedrock takes pictures as files, not web links", "Download the picture first and give its file.");
+                    else if ("video".equals(p.get("type"))) throw notForVideo("aws_bedrock");
                     else blocks.add(Map.of("text", String.valueOf(p.get("text"))));
                 out.add(new LinkedHashMap<>(Map.of("role", "user", "content", blocks)));
             }
@@ -623,6 +760,7 @@ final class LlmClient {
             for (Map<String, Object> t : tools) l.add(Map.of("toolSpec", Map.of("name", t.get("name"), "description", t.get("description"), "inputSchema", Map.of("json", t.get("input_schema")))));
             body.put("toolConfig", Map.of("tools", l));
         }
+        mergeProviderOptions(body, opt);
         Map<String, Object> r = awsPost(ctx, cfg, "bedrock-runtime", "bedrock", "/model/" + HttpJson.enc(cfg.model()) + "/converse", body).map();
         StringBuilder text = new StringBuilder();
         List<ToolCall> calls = new ArrayList<>();
@@ -652,8 +790,55 @@ final class LlmClient {
         signed.put("content-type", "application/json");
         signed.put("accept", "application/json");
         HttpJson.Req req = HttpJson.req(P, "POST", url).bytes(payload, "application/json").header("Accept", "application/json");
-        AwsSigV4.sign("POST", uri, signed, payload, keys[0], keys[1], region, service, Instant.now()).forEach(req::header);
+        awsSign(req, uri, signed, payload, cfg, keys, region, service);
         return req.timeout(cfg.opts().timeout()).send(ctx);
+    }
+
+    /**
+     * G6: any Amazon SageMaker endpoint called with a body as it is (JSON, JSON lines, CSV, protobuf, a picture) and the
+     * optional InvokeEndpoint headers; signed with Signature V4. The answer comes back as the service sent it.
+     */
+    static HttpJson.Response sagemakerInvoke(ActionContext ctx, Config cfg, byte[] body, String contentType, String accept, Map<String, String> extraHeaders) {
+        ModelConnections.beforeCall(ctx, cfg);
+        String[] keys = awsKeys(cfg);
+        String region = awsRegion(cfg);
+        if (!region.matches("^[a-z0-9-]{4,30}$")) throw new ActionException(P + ".BAD_REGION", "'" + region + "' is not an AWS region name", "For example eu-west-1.");
+        String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://runtime.sagemaker." + region + ".amazonaws.com" : cfg.baseUrl().replaceAll("/+$", "");
+        String url = base + "/endpoints/" + HttpJson.enc(cfg.model()) + "/invocations";
+        java.net.URI uri;
+        try { uri = java.net.URI.create(url); }
+        catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_URL", "Invalid SageMaker URL: " + url, "Check the region, endpoint name and base_url."); }
+        Map<String, String> signed = new LinkedHashMap<>();
+        signed.put("content-type", contentType);
+        signed.put("accept", accept);
+        HttpJson.Req req = HttpJson.req(P, "POST", url).bytes(body, contentType).header("Accept", accept).binaryResponse();
+        for (var e : extraHeaders.entrySet()) { signed.put(e.getKey().toLowerCase(Locale.ROOT), e.getValue()); req.header(e.getKey(), e.getValue()); }
+        awsSign(req, uri, signed, body, cfg, keys, region, "sagemaker");
+        long t0 = System.currentTimeMillis();
+        HttpJson.Response r = req.timeout(cfg.opts().timeout()).send(ctx);
+        govern(ctx, cfg, "aws_bedrock_sagemaker", "invoke_endpoint", new Reply(null, List.of(), 0, 0, Map.of()), System.currentTimeMillis() - t0,
+                List.of(Map.of("role", "user", "content", "sha256:" + AwsSigV4.hex(AwsSigV4.sha256(body)))));
+        return r;
+    }
+
+    static final String HUGGINGFACE_INFERENCE_URL = "https://router.huggingface.co/hf-inference/models";
+
+    /**
+     * G6: a Hugging Face model called directly (any task, not only chat): a JSON payload, or a file's bytes for tasks
+     * that read pictures or sound. The answer comes back as the service sent it.
+     */
+    static HttpJson.Response huggingFaceInvoke(ActionContext ctx, Config cfg, byte[] body, String contentType) {
+        ModelConnections.beforeCall(ctx, cfg);
+        String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? HUGGINGFACE_INFERENCE_URL : cfg.baseUrl().replaceAll("/+$", "");
+        HttpJson.Req req = HttpJson.req(P, "POST", base + "/" + HttpJson.encPath(cfg.model())).bytes(body, contentType).header("Accept", "*/*").binaryResponse();
+        if (cfg.apiKey() instanceof SecureString) req.bearer(cfg.apiKey());
+        else if (cfg.baseUrl() == null || cfg.baseUrl().isBlank())
+            throw new ActionException(P + ".NO_KEY", "A Hugging Face access token from the vault is required", "Map api_key to a Credential holding your hf_... token.");
+        long t0 = System.currentTimeMillis();
+        HttpJson.Response r = req.timeout(cfg.opts().timeout()).send(ctx);
+        govern(ctx, cfg, "huggingface", "huggingface_inference", new Reply(null, List.of(), 0, 0, Map.of()), System.currentTimeMillis() - t0,
+                List.of(Map.of("role", "user", "content", "sha256:" + AwsSigV4.hex(AwsSigV4.sha256(body)))));
+        return r;
     }
 
     // ---------- Google Vertex AI (Gemini) ----------
@@ -687,7 +872,8 @@ final class LlmClient {
             } else {
                 List<Object> ps = new ArrayList<>();
                 for (Map<String, Object> p : parts(m.get("content")))
-                    if ("image".equals(p.get("type"))) ps.add(Map.of("inlineData", Map.of("mimeType", p.get("media_type"), "data", p.get("data"))));
+                    if ("image".equals(p.get("type")) || "video".equals(p.get("type"))) ps.add(Map.of("inlineData", Map.of("mimeType", p.get("media_type"), "data", p.get("data"))));
+                    else if ("image_url".equals(p.get("type"))) ps.add(Map.of("fileData", Map.of("mimeType", urlMediaType(String.valueOf(p.get("url"))), "fileUri", p.get("url"))));
                     else ps.add(Map.of("text", String.valueOf(p.get("text"))));
                 contents.add(Map.of("role", "user", "parts", ps));
             }
@@ -711,6 +897,7 @@ final class LlmClient {
             for (Map<String, Object> t : tools) decl.add(Map.of("name", t.get("name"), "description", t.get("description"), "parameters", vertexSchema(t.get("input_schema"))));
             body.put("tools", List.of(Map.of("functionDeclarations", decl)));
         }
+        mergeProviderOptions(body, opt);
         Map<String, Object> r = HttpJson.req(P, "POST", vertexBase(cfg) + "/publishers/google/models/" + HttpJson.enc(cfg.model()) + ":generateContent")
                 .header("Authorization", "Bearer " + vertexToken(ctx, cfg)).json(body).timeout(opt.timeout()).send(ctx).map();
         List<?> cands = r.get("candidates") instanceof List<?> l ? l : List.of();
@@ -807,8 +994,23 @@ final class LlmClient {
      * Pictures from a text description: OpenAI and OpenAI-compatible (images API), Azure OpenAI, Vertex AI (Imagen)
      * and Amazon Bedrock (Titan Image Generator, Nova Canvas, Stability models). Returns the pictures' bytes.
      */
-    @SuppressWarnings("unchecked")
     static List<byte[]> generateImages(ActionContext ctx, Config cfg, String prompt, int n, int width, int height) {
+        return generateImages(ctx, cfg, prompt, n, width, height, ImageOptions.NONE);
+    }
+
+    /**
+     * G6: picture settings sent where the model takes them. promptStrength: how closely the picture follows the
+     * description (Titan and Nova cfgScale, Stable Diffusion XL cfg_scale); steps: Stable Diffusion XL only; seed: Titan,
+     * Nova and Stability models. Others ignore them with a warning.
+     */
+    record ImageOptions(Double promptStrength, Integer steps, Integer seed) {
+        static final ImageOptions NONE = new ImageOptions(null, null, null);
+        boolean any() { return promptStrength != null || steps != null || seed != null; }
+    }
+
+    @SuppressWarnings("unchecked")
+    static List<byte[]> generateImages(ActionContext ctx, Config cfg, String prompt, int n, int width, int height, ImageOptions io) {
+        if (io == null) io = ImageOptions.NONE;
         String provider = cfg.provider() == null ? "openai" : cfg.provider();
         Map<String, String> mapping = new LinkedHashMap<>();
         Map<String, Integer> counts = new LinkedHashMap<>();
@@ -819,6 +1021,7 @@ final class LlmClient {
         int timeout = cfg.opts().timeout();
         switch (provider) {
             case "openai", "openai_compatible", "azure_openai" -> {
+                if (io.any()) ctx.warn("prompt_strength, steps and seed are not sent to " + provider + ": its picture models do not take them");
                 Map<String, Object> body = new LinkedHashMap<>();
                 body.put("prompt", text);
                 body.put("n", n);
@@ -844,6 +1047,7 @@ final class LlmClient {
                 }
             }
             case "google_vertex" -> {
+                if (io.any()) ctx.warn("prompt_strength, steps and seed are not sent to Imagen models");
                 Map<String, Object> params = new LinkedHashMap<>();
                 params.put("sampleCount", n);
                 params.put("aspectRatio", aspect(width, height));
@@ -854,14 +1058,32 @@ final class LlmClient {
             }
             case "aws_bedrock" -> {
                 Map<String, Object> body = new LinkedHashMap<>();
-                if (String.valueOf(cfg.model()).startsWith("stability.")) { body.put("prompt", text); body.put("aspect_ratio", aspect(width, height)); body.put("output_format", "png"); }
-                else {
+                String m = String.valueOf(cfg.model());
+                if (m.contains("stable-diffusion-xl")) {
+                    // the older Stable Diffusion XL request: weighted prompts, guidance scale and steps
+                    body.put("text_prompts", List.of(Map.of("text", text, "weight", 1)));
+                    body.put("width", width);
+                    body.put("height", height);
+                    body.put("samples", 1);
+                    if (io.promptStrength() != null) body.put("cfg_scale", BigDecimal.valueOf(io.promptStrength()));
+                    if (io.steps() != null) body.put("steps", io.steps());
+                    if (io.seed() != null) body.put("seed", io.seed());
+                } else if (m.startsWith("stability.")) {
+                    body.put("prompt", text); body.put("aspect_ratio", aspect(width, height)); body.put("output_format", "png");
+                    if (io.seed() != null) body.put("seed", io.seed());
+                    if (io.promptStrength() != null || io.steps() != null) ctx.warn("prompt_strength and steps are not sent to " + m + ": it does not take them");
+                } else {
                     body.put("taskType", "TEXT_IMAGE");
                     body.put("textToImageParams", Map.of("text", text));
-                    body.put("imageGenerationConfig", Map.of("numberOfImages", n, "width", width, "height", height));
+                    Map<String, Object> gen = new LinkedHashMap<>(Map.of("numberOfImages", n, "width", width, "height", height));
+                    if (io.promptStrength() != null) gen.put("cfgScale", BigDecimal.valueOf(io.promptStrength()));
+                    if (io.seed() != null) gen.put("seed", io.seed());
+                    if (io.steps() != null) ctx.warn("steps is not sent to " + m + ": it does not take it");
+                    body.put("imageGenerationConfig", gen);
                 }
                 Map<String, Object> r = awsPost(ctx, cfg, "bedrock-runtime", "bedrock", "/model/" + HttpJson.enc(cfg.model()) + "/invoke", body).map();
                 for (Object o : (List<?>) r.getOrDefault("images", List.of())) if (o instanceof String s) b64.add(s);
+                for (Object o : (List<?>) r.getOrDefault("artifacts", List.of())) if (o instanceof Map<?, ?> a && a.get("base64") instanceof String s) b64.add(s);
             }
             default -> throw new ActionException(P + ".NOT_SUPPORTED", "Picture generation is not available for " + provider,
                     "Use openai, azure_openai, openai_compatible, google_vertex or aws_bedrock.");
