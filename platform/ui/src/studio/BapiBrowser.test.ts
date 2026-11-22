@@ -19,3 +19,12 @@ describe("BAPI browser", () => {
     expect(mergeRequired(undefined, {})).toBeUndefined();
   });
 });
+
+describe("model pick list (G6)", () => {
+  it("lists the provider's known models, none for a variable provider", async () => {
+    const { modelsFor } = await import("./Pickers");
+    expect(modelsFor({ id: "1", action: "ooa.genai/prompt", args: {} })).toContain("gpt-4o-mini");
+    expect(modelsFor({ id: "1", action: "ooa.genai/prompt", args: { provider: "anthropic" } })).toContain("claude-sonnet-5-5");
+    expect(modelsFor({ id: "1", action: "ooa.genai/prompt", args: { provider: "$p$" } })).toEqual([]);
+  });
+});

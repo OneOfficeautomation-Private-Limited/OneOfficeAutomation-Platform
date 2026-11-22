@@ -6,6 +6,7 @@ import { Button, Dialog, Field, Select, TextInput } from "../components";
 import { oneStep, runOnce } from "./runOnce";
 import { useVars } from "./VariablesPanel";
 import { KeyPicker, keyKind } from "./KeyPicker";
+import { SERVICES } from "./ConnectionWizard";
 
 /**
  * Pickers beside step fields (gap round 2, 2 Nov 2026), as other RPA designers offer them: choose a SOAP operation from
@@ -23,6 +24,7 @@ export function pickerFor(step: FlowStep, name: string, props: Record<string, un
   if (step.action.startsWith("ooa.active_directory/") && DN_FIELDS.has(name)) return <DirectoryPicker key={"dir:" + name} step={step} field={name} />;
   if (step.action === "ooa.pdf/extract_area_text" && name === "x") return <PdfAreaPicker key="area" step={step} />;
   if (step.action === "ooa.sap_bapi/call_function" && name === "function") return <BapiBrowser key="bapi" step={step} />;
+  if (step.action.startsWith("ooa.genai/") && name === "model" && modelsFor(step).length) return <ModelPicker key="model" step={step} />;
   if (isHtmlBody(step, name, props)) return <HtmlBodyEditor key={"html:" + name} step={step} field={name} />;
   if (POINT_STEPS.test(step.action) && name === "x") return <PointPicker key="point" step={step} />;
   const keys = keyKind(step.action, name);
@@ -499,5 +501,29 @@ function BapiBrowser({ step }: { step: FlowStep }) {
       </>}
     </Dialog>
   </></PickerRow>;
+}
+
+// ------------------------------------------------------------------ Generative AI: pick a model for the step's provider (G6)
+
+/** Known models of the step's provider (OpenAI when the step names none); a variable provider gives no list. */
+export function modelsFor(step: FlowStep): string[] {
+  const p = step.args?.provider;
+  if (typeof p === "string" && p.startsWith("$")) return [];
+  const provider = typeof p === "string" && p ? p : "openai";
+  return SERVICES.find((s) => s.value === provider)?.models ?? [];
+}
+
+function ModelPicker({ step }: { step: FlowStep }) {
+  const set = useArgSetter(step);
+  const models = modelsFor(step);
+  const now = literal(step.args?.model);
+  return <PickerRow><label className="st-picker-inline">
+    <span className="st-muted">Known models:</span>{" "}
+    <select aria-label="Pick a known model" value={models.includes(now) ? now : ""} onChange={(e) => { if (e.target.value) set({ model: e.target.value }); }}>
+      <option value="">Choose…</option>
+      {models.map((m) => <option key={m} value={m}>{m}</option>)}
+    </select>
+    <span className="st-muted"> or type any other model, deployment or variable above.</span>
+  </label></PickerRow>;
 }
 

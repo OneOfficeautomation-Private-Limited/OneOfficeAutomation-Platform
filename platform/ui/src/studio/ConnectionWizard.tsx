@@ -4,10 +4,10 @@ import { Button, Dialog, Field, Select, TextInput } from "../components";
 import { oneStep, runOnce } from "./runOnce";
 
 /** The AI services a connection can use, in plain words, with what each needs (approved design V6.5). */
-const SERVICES: { value: string; label: string; needsAddress: boolean; address?: string; models: string[] }[] = [
+export const SERVICES: { value: string; label: string; needsAddress: boolean; address?: string; models: string[] }[] = [
   { value: "openai", label: "OpenAI", needsAddress: false, models: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"] },
   { value: "azure_openai", label: "Azure OpenAI", needsAddress: true, address: "https://YOUR-RESOURCE.openai.azure.com", models: [] },
-  { value: "anthropic", label: "Anthropic", needsAddress: false, models: ["claude-sonnet-4-5", "claude-haiku-4-5"] },
+  { value: "anthropic", label: "Anthropic", needsAddress: false, models: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-sonnet-4-5", "claude-haiku-4-5"] },
   { value: "aws_bedrock", label: "Amazon Bedrock", needsAddress: false, models: ["anthropic.claude-sonnet-4-5", "amazon.nova-pro-v1:0"] },
   { value: "google_vertex", label: "Google Vertex AI", needsAddress: true, address: "https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION", models: ["gemini-2.5-flash"] },
   { value: "openai_compatible", label: "Other compatible service (LiteLLM, vLLM, Ollama)", needsAddress: true, address: "http://localhost:11434/v1", models: [] },
