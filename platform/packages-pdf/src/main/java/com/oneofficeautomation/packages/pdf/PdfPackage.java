@@ -586,6 +586,12 @@ public final class PdfPackage {
         } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage(), "Check that the file is a PDF that is not damaged or password-protected."); }
     }
 
+    // G4 (AA parity): OCR's Read text from image and from an address hand PDFs to this toolkit
+    static {
+        com.oneofficeautomation.packages.OcrPackage.pdfOcr = (ctx, path, password, pages, lang, psm, after, before, trim) ->
+                new PdfPackage().readTextOcr(ctx, path, password, pages, lang, psm, 300, after, before, trim);
+    }
+
     @Action(id = "read_text_ocr", name = "Read text with OCR", category = "Document", idempotent = true, timeoutSeconds = 1800, capabilities = "filesystem",
             description = "Read the text of a scanned PDF (pages that are pictures, with no text layer) with Tesseract OCR, from every page or chosen pages, optionally keeping only the text between two markers.",
             panel = "path, [The file has a password: password], [Only some pages: pages], language | [Keep only part of the text: after_text, before_text], trim, dpi, page_mode")

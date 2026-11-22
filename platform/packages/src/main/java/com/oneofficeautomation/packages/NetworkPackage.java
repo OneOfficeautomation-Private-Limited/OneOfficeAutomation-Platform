@@ -275,7 +275,8 @@ public final class NetworkPackage {
             return switch (name == null ? "string" : name.toLowerCase(Locale.ROOT)) {
                 case "integer" -> INTEGER; case "string" -> OCTETS; case "oid" -> OID; case "ip_address" -> IPADDR;
                 case "counter32" -> COUNTER32; case "gauge32" -> GAUGE32; case "timeticks" -> TIMETICKS; case "counter64" -> COUNTER64;
-                default -> throw new ActionException("SNMP.BAD_TYPE", "Unknown value type '" + name + "'", "Use integer, string, oid, ip_address, counter32, gauge32, timeticks or counter64.");
+                case "hex_string", "decimal_bytes" -> OCTETS; case "null" -> NULL;   // G4 (AA parity)
+                default -> throw new ActionException("SNMP.BAD_TYPE", "Unknown value type '" + name + "'", "Use integer, string, hex_string, decimal_bytes, null, oid, ip_address, counter32, gauge32, timeticks or counter64.");
             };
         }
 
@@ -449,6 +450,21 @@ public final class NetworkPackage {
     }
 
     /** SNMP walk with the signature before walk_type and max_repetitions were added: a GETNEXT walk. */
+    public Map<String, Object> snmpGet(ActionContext ctx, String host, Object oids, Object community, int port, int timeout, int retries, String version,
+                                       String v3User, String v3Auth, Object v3AuthPw, String v3Priv, Object v3PrivPw, String v3Context) {
+        return snmpGet(ctx, host, oids, community, port, timeout, retries, version, v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, "auto", null);
+    }
+
+    public Map<String, Object> snmpWalk(ActionContext ctx, String host, String oid, Object community, int port, int maxRows, int timeout, int retries, String version,
+                                        String v3User, String v3Auth, Object v3AuthPw, String v3Priv, Object v3PrivPw, String v3Context, String walkType, int maxRepetitions) {
+        return snmpWalk(ctx, host, oid, community, port, maxRows, timeout, retries, version, v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, walkType, maxRepetitions, "within", "auto", null);
+    }
+
+    public Map<String, Object> snmpSet(ActionContext ctx, String host, String oid, Object value, String type, Object community, int port, int timeout, int retries, String version,
+                                       String v3User, String v3Auth, Object v3AuthPw, String v3Priv, Object v3PrivPw, String v3Context) {
+        return snmpSet(ctx, host, oid, value, type, community, port, timeout, retries, version, v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, null);
+    }
+
     public Map<String, Object> snmpWalk(ActionContext ctx, String host, String oid, Object community, int port, int maxRows, int timeout, int retries, String version,
             String v3User, String v3Auth, Object v3AuthPw, String v3Priv, Object v3PrivPw, String v3Context) {
         return snmpWalk(ctx, host, oid, community, port, maxRows, timeout, retries, version, v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, "getnext", 10);
@@ -461,7 +477,7 @@ public final class NetworkPackage {
 
     @Action(id = "snmp_get", name = "SNMP get", category = "SNMP", idempotent = true, timeoutSeconds = 120, capabilities = "network",
             description = "Read one or more values from a device with SNMP v1, v2c or v3.",
-            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oids | context_name, timeout_ms, port, retries")
+            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oids | output_as, log_file, context_name, timeout_ms, port, retries")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "OID to value; empty for objects the device does not have.")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: oid, type, value.")
     public Map<String, Object> snmpGet(ActionContext ctx,
@@ -477,8 +493,12 @@ public final class NetworkPackage {
             @Input(name = "auth_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 sign-in password from the vault.") Object v3AuthPw,
             @Input(name = "privacy_protocol", type = OoaType.STRING, required = false, defaultValue = "\"aes128\"", enumValues = {"none", "des", "aes128"}, visibleWhen = "version=v3", description = D_V3_PRIV) String v3Priv,
             @Input(name = "privacy_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 privacy (encryption) password from the vault.") Object v3PrivPw,
-            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the device uses them; usually empty.") String v3Context) {
+            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the device uses them; usually empty.") String v3Context,
+            @Input(name = "output_as", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "text", "hex"},
+                    description = "Text values as the device sent them (auto: text when readable, else hex), always as text, or always as hex bytes (G4).") String outputAs,
+            @Input(name = "log_file", type = OoaType.FILE, required = false, description = "Also write what was asked and answered to this text file (G4).") String logFile) {
         List<String> list = HttpJson.addressList(oids);
+        log(ctx, logFile, "GET " + host + " " + list);
         if (list.isEmpty()) throw new ActionException("SNMP.BAD_OID", "Give at least one OID", "For example 1.3.6.1.2.1.1.5.0 (device name).");
         List<Snmp.VarBind> vars = new ArrayList<>();
         for (String o : list) { Snmp.parseOid(o); vars.add(new Snmp.VarBind(o.startsWith(".") ? o.substring(1) : o, Snmp.NULL, null)); }
@@ -486,7 +506,9 @@ public final class NetworkPackage {
         Map<String, Object> values = new LinkedHashMap<>();
         List<Object> rows = new ArrayList<>();
         for (Snmp.VarBind vb : m.vars()) { values.put(vb.oid(), vb.value()); rows.add(new ArrayList<>(row(vb).values())); }
-        return Out.of("values", values, "table", com.oneofficeautomation.runner.Values.table(List.of("oid", "type", "value"), rows));
+        Object table = outputAs(com.oneofficeautomation.runner.Values.table(List.of("oid", "type", "value"), rows), outputAs);
+        for (Object r : rows) { List<?> row = (List<?>) r; values.put(String.valueOf(row.get(0)), row.get(2)); log(ctx, logFile, "  " + row.get(0) + " (" + row.get(1) + ") = " + row.get(2)); }
+        return Out.of("values", values, "table", table);
     }
 
     @Action(id = "snmp_get_next", name = "SNMP get next", category = "SNMP", idempotent = true, timeoutSeconds = 120, capabilities = "network",
@@ -517,7 +539,7 @@ public final class NetworkPackage {
 
     @Action(id = "snmp_walk", name = "SNMP walk", category = "SNMP", idempotent = true, timeoutSeconds = 600, capabilities = "network",
             description = "Read every object under an OID, e.g. a whole interface table, with repeated GETNEXT requests or, for v2c and v3, fewer GETBULK requests.",
-            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oid | walk_type, max_repetitions, context_name, timeout_ms, port, retries, max_rows")
+            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oid | scope, walk_type, max_repetitions, output_as, log_file, context_name, timeout_ms, port, retries, max_rows")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: oid, type, value.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of objects read.")
     public Map<String, Object> snmpWalk(ActionContext ctx,
@@ -538,7 +560,14 @@ public final class NetworkPackage {
             @Input(name = "walk_type", type = OoaType.STRING, required = false, defaultValue = "\"getnext\"", enumValues = {"getnext", "getbulk"},
                     description = "getnext asks for one object per request and works with every version; getbulk (v2c and v3 only) asks for up to max_repetitions objects per request, which is much faster on large tables.") String walkType,
             @Input(name = "max_repetitions", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 1, max = 100, visibleWhen = "walk_type=getbulk",
-                    description = "With getbulk, how many objects to ask for in each request; lower it when the device answers tooBig or not at all.") int maxRepetitions) {
+                    description = "With getbulk, how many objects to ask for in each request; lower it when the device answers tooBig or not at all.") int maxRepetitions,
+            @Input(name = "scope", type = OoaType.STRING, required = false, defaultValue = "\"within\"", enumValues = {"within", "all"},
+                    description = "within: only objects under the starting OID; all: go on to the end of the device's tree (up to max_rows) (G4).") String scope,
+            @Input(name = "output_as", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "text", "hex"},
+                    description = "Text values as the device sent them (auto: text when readable, else hex), always as text, or always as hex bytes (G4).") String outputAs,
+            @Input(name = "log_file", type = OoaType.FILE, required = false, description = "Also write what was asked and answered to this text file (G4).") String logFile) {
+        boolean everything = "all".equalsIgnoreCase(scope == null ? "" : scope.strip());
+        log(ctx, logFile, "WALK " + host + " " + oid + (everything ? " (all)" : ""));
         Snmp.parseOid(oid);
         String wt = walkType == null || walkType.isBlank() ? "getnext" : walkType.strip().toLowerCase(Locale.ROOT);
         if (!wt.equals("getnext") && !wt.equals("getbulk"))
@@ -570,25 +599,28 @@ public final class NetworkPackage {
             if (m.vars().isEmpty()) break;
             for (Snmp.VarBind vb : bulk ? m.vars() : m.vars().subList(0, 1)) {
                 // the end of the device's tree, leaving the subtree, or an agent that does not move forward ends the walk
-                if (vb.type() == Snmp.END_OF_MIB || !(vb.oid().equals(root) || vb.oid().startsWith(root + ".")) || compareOids(vb.oid(), current) <= 0) break walk;
+                if (vb.type() == Snmp.END_OF_MIB || (!everything && !(vb.oid().equals(root) || vb.oid().startsWith(root + "."))) || compareOids(vb.oid(), current) <= 0) break walk;
                 rows.add(new ArrayList<>(row(vb).values()));
                 current = vb.oid();
                 if (rows.size() >= limit) break walk;
             }
         }
-        return Out.of("table", com.oneofficeautomation.runner.Values.table(List.of("oid", "type", "value"), rows), "row_count", BigDecimal.valueOf(rows.size()));
+        Object table = outputAs(com.oneofficeautomation.runner.Values.table(List.of("oid", "type", "value"), rows), outputAs);
+        for (Object r : rows) { List<?> row = (List<?>) r; log(ctx, logFile, "  " + row.get(0) + " (" + row.get(1) + ") = " + row.get(2)); }
+        return Out.of("table", table, "row_count", BigDecimal.valueOf(rows.size()));
     }
 
     @Action(id = "snmp_set", name = "SNMP set", category = "SNMP", timeoutSeconds = 120, capabilities = "network",
             description = "Change one value on a device with SNMP; the community (or v3 user) must have write access.",
-            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oid, value_type, value | context_name, timeout_ms, port, retries")
+            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oid, value_type, value | context_name, timeout_ms, port, retries, log_file")
     @Output(name = "value", description = "Value the device reports after the change.")
     public Map<String, Object> snmpSet(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = D_HOST) String host,
             @Input(name = "oid", type = OoaType.STRING, example = "1.3.6.1.2.1.1.6.0", description = "OID of the object to change.") String oid,
             @Input(name = "value", description = "New value.") Object value,
             @Input(name = "value_type", type = OoaType.STRING, required = false, defaultValue = "\"string\"",
-                    enumValues = {"string", "integer", "oid", "ip_address", "counter32", "gauge32", "timeticks", "counter64"}, description = "SNMP type of the new value.") String type,
+                    enumValues = {"string", "integer", "hex_string", "decimal_bytes", "null", "oid", "ip_address", "counter32", "gauge32", "timeticks", "counter64"},
+                    description = "SNMP type of the new value; hex_string takes bytes as hex (0a:1b:ff or 0a1bff), decimal_bytes as numbers (10.27.255), null sends no value (G4).") String type,
             @Input(name = "community", required = false, defaultValue = "\"private\"", description = "SNMP v2c community with write access (text or a Credential).") Object community,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", min = 1, max = 65535, description = "UDP port of the SNMP agent.") int port,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = D_TIMEOUT) int timeout,
@@ -599,15 +631,64 @@ public final class NetworkPackage {
             @Input(name = "auth_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 sign-in password from the vault.") Object v3AuthPw,
             @Input(name = "privacy_protocol", type = OoaType.STRING, required = false, defaultValue = "\"aes128\"", enumValues = {"none", "des", "aes128"}, visibleWhen = "version=v3", description = D_V3_PRIV) String v3Priv,
             @Input(name = "privacy_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 privacy (encryption) password from the vault.") Object v3PrivPw,
-            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the device uses them; usually empty.") String v3Context) {
+            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the device uses them; usually empty.") String v3Context,
+            @Input(name = "log_file", type = OoaType.FILE, required = false, description = "Also write what was sent and answered to this text file (G4).") String logFile) {
         Snmp.parseOid(oid);
         int t = Snmp.typeCode(type);
-        Object v = value instanceof SecureString s ? s.reveal() : com.oneofficeautomation.runner.Values.text(value);
+        Object v = value instanceof SecureString s ? s.reveal() : value == null ? "" : com.oneofficeautomation.runner.Values.text(value);
+        String tn = type == null ? "" : type.strip().toLowerCase(Locale.ROOT);
+        if (tn.equals("hex_string")) v = hexBytes(String.valueOf(v));
+        else if (tn.equals("decimal_bytes")) v = decimalBytes(String.valueOf(v));
+        log(ctx, logFile, "SET " + host + " " + oid + " (" + (tn.isEmpty() ? "string" : tn) + ") = " + (value instanceof SecureString ? SecureString.MASK : v instanceof byte[] b ? Snmp.hex(b) : v));
         Snmp.value(t, v);  // validates before anything is sent
         Snmp.Message m = send(ctx, host, port, community, Snmp.SET, List.of(new Snmp.VarBind(oid, t, v)), timeout, retries, version, v3(v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, version));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("value", m.vars().isEmpty() ? null : m.vars().get(0).value());
+        log(ctx, logFile, "  -> " + out.get("value"));
         return out;
+    }
+
+    static byte[] hexBytes(String v) {
+        String h = v.replaceAll("[\\s:.-]", "");
+        if (h.startsWith("0x") || h.startsWith("0X")) h = h.substring(2);
+        if (!h.matches("([0-9a-fA-F]{2})*")) throw new ActionException("SNMP.BAD_VALUE", "'" + v + "' is not hex bytes", "Write bytes as hex pairs, e.g. 0a:1b:ff.");
+        return java.util.HexFormat.of().parseHex(h.toLowerCase(Locale.ROOT));
+    }
+
+    static byte[] decimalBytes(String v) {
+        String[] parts = v.strip().split("[.\\s,]+");
+        byte[] out = new byte[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            int n;
+            try { n = Integer.parseInt(parts[i]); } catch (NumberFormatException e) { n = -1; }
+            if (n < 0 || n > 255) throw new ActionException("SNMP.BAD_VALUE", "'" + v + "' is not bytes 0-255", "Write bytes as numbers 0-255, e.g. 10.27.255.");
+            out[i] = (byte) n;
+        }
+        return out;
+    }
+
+    /** G4: a line in the step's log file, with the time (nothing when no file is given). */
+    static void log(ActionContext ctx, String file, String line) {
+        if (file == null || file.isBlank()) return;
+        try {
+            java.nio.file.Path p = ctx.resolvePath(file);
+            if (p.getParent() != null) java.nio.file.Files.createDirectories(p.getParent());
+            java.nio.file.Files.writeString(p, java.time.LocalDateTime.now().withNano(0) + " " + line + System.lineSeparator(), StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (java.io.IOException e) { ctx.warn("Cannot write the SNMP log " + file + ": " + e.getMessage()); }
+    }
+
+    /** G4: text values as text, or as hex bytes (auto keeps what the device sent: text when printable). */
+    @SuppressWarnings("unchecked")
+    static Object outputAs(Object table, String as) {
+        String a = as == null || as.isBlank() ? "auto" : as.strip().toLowerCase(Locale.ROOT);
+        if (a.equals("auto") || !(table instanceof Map<?, ?> t) || !(t.get("rows") instanceof List<?> rows)) return table;
+        for (Object r : rows) if (r instanceof List<?> row && row.size() >= 3 && "string".equals(String.valueOf(row.get(1))) && row.get(2) instanceof String v) {
+            boolean isHex = v.matches("([0-9a-f]{2}(:[0-9a-f]{2})*)?") && !v.isEmpty();
+            String out = a.equals("hex") ? (isHex ? v : Snmp.hex(v.getBytes(StandardCharsets.UTF_8))) : (isHex ? new String(hexBytes(v), StandardCharsets.ISO_8859_1) : v);
+            ((List<Object>) row).set(2, out);
+        }
+        return table;
     }
 
     public Map<String, Object> snmpSendTrap(ActionContext ctx, String host, String trapOid, Map<String, Object> variables, Object community, int port) {

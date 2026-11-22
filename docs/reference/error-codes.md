@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1686 codes in 152 areas.
+1690 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -1145,9 +1145,11 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `IMAGE.NOT_FOUND` | Image did not appear within … s (best similarity …similarity…%)<br>Image not found on screen (best similarity …similarity…%) | Check the screen resolution and scaling match the captured picture, or raise the tolerance.<br>Check the window is visible and not covered, or raise the tolerance. | packages |
 | `IMAGE.NOT_STEADY` | The screen region kept changing for … s | Raise timeout_seconds or threshold_percent, or choose a smaller region. | packages |
 | `IMAGE.NO_CHANGE` | The screen region did not change within … s | Raise timeout_seconds, or lower threshold_percent. | packages |
+| `IMAGE.NO_WINDOW` | No open window matches '…' | Check the window's title. | packages |
 | `IMAGE.SIZE_MISMATCH` | The pictures differ in size: … x … and … x … | Capture both at the same size, or set size_mismatch to scale. | packages |
 | `IMAGE.STILL_VISIBLE` | Image was still on the screen after … s | Raise the timeout or lower the tolerance. | packages |
 | `IMAGE.UNSUPPORTED` | Not a readable image: … | Use PNG, JPG, BMP or GIF. | packages |
+| `IMAGE.WINDOW_UNAVAILABLE` | Searching inside a window needs a Windows runner with the Window toolkit installed | Leave window empty to search the screen. | packages |
 
 ## INSIGHTS
 
@@ -1462,6 +1464,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 |---|---|---|---|
 | `OCR.ACCESS_DENIED` | Adding a Windows language needs administrator rights | Run the step on a runner with administrator rights, or ask IT to add the OCR language. | packages |
 | `OCR.BAD_ENGINE` | The cloud engine is azure or google | Set the cloud engine to azure or google. | packages |
+| `OCR.BAD_INPUT` | where must be right, below, left or above<br>Give the label to look for<br>action must be read, click or type | Pick where the field sits from its label.<br>Fill in label.<br>Pick one of them. | packages |
 | `OCR.BAD_LANGUAGE` | Invalid language '…'<br>Invalid language tag '…' | Examples: eng, deu, eng+fra.<br>Use a tag such as de-DE or fr-FR. | packages |
 | `OCR.BAD_MODE` | Image mode must be none, gray or black_white | Use none, gray or black_white. | packages |
 | `OCR.BAD_REGION` | A region needs x, y, width and height, with width and height above 0<br>The region lies outside the image (…x…)<br>The area starts outside the window (…x…) | Set all four, or none for the whole image.<br>Check the coordinates.<br>Check x and y against the window's size. | packages |
@@ -1473,9 +1476,10 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `OCR.LANGUAGE_MISSING` | Tesseract language data '…' is not installed<br>The Windows OCR engine has no language for '…'<br>Windows has no OCR language '…' installed…… (installed: …)… | Install the language pack for Tesseract.<br>Use a language Windows knows (…, …) or install Tesseract.<br>Add the language in Windows Settings > Time & language > Language (with its OCR feature), or install Tesseract with that language. | packages |
 | `OCR.LANGUAGE_UNAVAILABLE` | Windows has no OCR language pack for … | Check the tag; Get OCR engines lists the installed ones. | packages |
 | `OCR.NOT_INSTALLED` | No OCR engine on this runner: Tesseract is not installed…… (the Windows OCR engine needs Windows 10 or later)…<br>The Windows OCR engine is only on Windows<br>No OCR engine: Tesseract is not installed and Windows OCR is not available on this Windows version | Install Tesseract (on Windows the UB Mannheim installer, on Linux the tesseract-ocr package) or set OOA_TESSERACT to its program.<br>Install Tesseract, or unset OOA_OCR_ENGINE.<br>Install Tesseract (the UB Mannheim installer) or set OOA_TESSERACT to tesseract.exe. | packages |
+| `OCR.NO_PDF` | Reading PDFs needs the PDF toolkit, which is not installed on this runner | Install the PDF toolkit, or turn the PDF into images first. | packages |
 | `OCR.SCREEN` | Cannot keep the screen picture: … | Check that the runner's temporary folder has space and may be written. | packages |
-| `OCR.TEXT_NOT_FOUND` | '…' was not found on the screen… … times…… | Check the window is visible; try a shorter phrase. | packages |
-| `OCR.UNSUPPORTED_IMAGE` | Not a readable image: …<br>The address did not return a readable image | Use PNG, JPG, BMP or GIF.<br>Use the direct address of a PNG, JPG, BMP or GIF image. | packages |
+| `OCR.TEXT_NOT_FOUND` | '…' was not found on the screen… … times……<br>The label '…' was not found on the screen | Check the window is visible; try a shorter phrase.<br>Check the window is visible, or try a shorter part of the label. | packages |
+| `OCR.UNSUPPORTED_IMAGE` | Not a readable image: …<br>The address did not return a readable image<br>The address did not return a readable image or PDF | Use PNG, JPG, BMP or GIF.<br>Use the direct address of a PNG, JPG, BMP or GIF image.<br>Use the direct address of a PNG, JPG, BMP, GIF image or a PDF. | packages |
 
 ## OFFICE
 
@@ -1922,8 +1926,8 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `SNMP.BAD_RESPONSE` | Cannot read the SNMP message: … | Check the device speaks SNMP v2c on this port. | packages |
 | `SNMP.BAD_SECURITY` | Unknown sign-in protocol '…'<br>Unknown privacy protocol '…'<br>SNMP v3 needs the security user name | Use none, md5, sha, sha256 or sha512.<br>Use none, des or aes128.<br>Fill in the SNMP v3 user name. | packages |
 | `SNMP.BAD_TRAP_TYPE` | Unknown generic trap type '…' | Use one of …. | packages |
-| `SNMP.BAD_TYPE` | Unsupported value type …<br>Unknown value type '…'<br>counter64 values need SNMP v2c | Use one of the value types the step offers.<br>Use integer, string, oid, ip_address, counter32, gauge32, timeticks or counter64.<br>Use version v2c. | packages |
-| `SNMP.BAD_VALUE` | Invalid IPv4 address '…'<br>Value … is out of range for … | Use the form 192.168.1.10.<br>Give an IPv4 address such as 192.168.1.10.<br>Give a value within the range of the type the message names. | packages |
+| `SNMP.BAD_TYPE` | Unsupported value type …<br>Unknown value type '…'<br>counter64 values need SNMP v2c | Use one of the value types the step offers.<br>Use integer, string, hex_string, decimal_bytes, null, oid, ip_address, counter32, gauge32, timeticks or counter64.<br>Use version v2c. | packages |
+| `SNMP.BAD_VALUE` | Invalid IPv4 address '…'<br>Value … is out of range for …<br>'…' is not hex bytes | Use the form 192.168.1.10.<br>Give an IPv4 address such as 192.168.1.10.<br>Give a value within the range of the type the message names. | packages |
 | `SNMP.BAD_VERSION` | Unsupported SNMP version '…' | Use v1, v2c or v3. | packages |
 | `SNMP.DECRYPTION` | The encrypted answer has a bad length<br>Cannot decrypt the SNMP message: …<br>The device could not decrypt the request | Check the privacy protocol and password against the device's settings.<br>Check the privacy protocol and password. | packages |
 | `SNMP.ERROR` | The SNMP agent answered … | …Use a community with write access, and check the object is writable.…Check the OID, value and type.<br>Check the OID, value and type, and that the user may read or write it. | packages |
@@ -2304,7 +2308,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `WEBAGENT.NOT_ALLOWED` | … is not one of the allowed sites | Add it to allowed_sites or start elsewhere. | packages-browser |
 | `WEBAGENT.NOT_SUPPORTED` | The web goal agent needs a browser it starts itself | Use Start web agent session, or Open browser with engine playwright. | packages-browser |
 | `WEBAGENT.NO_CONTROL` | There is no control … on the page now | Run the step again; the page changed while the agent was working. | packages-browser |
-| `WEBAGENT.NO_GOAL` | Describe the goal | Describe the goal in a sentence, for example: download last month's invoice. | packages-browser |
+| `WEBAGENT.NO_GOAL` | Describe the goal | Fill in goal, or list the goals.<br>Describe the goal in a sentence, for example: download last month's invoice. | packages-browser |
 | `WEBAGENT.NO_SECRET` | There is no secret named … | Add the secret the message names to the step's secrets. | packages-browser |
 | `WEBAGENT.OPEN_FAILED` | Cannot open …: … | Check the address and the network. | packages-browser |
 | `WEBAGENT.WRITE_FAILED` | Cannot write …: …<br>Cannot write the trajectory file …: … | Check the folder exists and is writable. | packages-browser |

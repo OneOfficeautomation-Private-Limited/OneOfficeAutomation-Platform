@@ -86,7 +86,7 @@ public final class WebAgentPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "proxy_server", type = OoaType.STRING, required = false, example = "http://proxy.example.com:3128",
                     description = "Send the browser's traffic through this proxy: host:port, or with http://, https://, socks4:// or socks5:// in front.") String proxyServer,
-            @Input(name = "proxy_username", type = OoaType.STRING, required = false, description = "User name for a proxy that asks for one.") String proxyUser,
+            @Input(name = "proxy_username", type = OoaType.STRING, required = false, acceptsCredential = true, description = "User name for a proxy that asks for one; it may come from the vault (G4).") String proxyUser,
             @Input(name = "proxy_password", type = OoaType.CREDENTIAL, required = false, description = "Password for the proxy, from the vault; never logged.") Object proxyPassword,
             @Input(name = "browser_path", type = OoaType.FILE, required = false, example = "C:\\Program Files\\Google\\Chrome Beta\\Application\\chrome.exe",
                     description = "Start this browser program instead of the installed one (a Chromium-based browser, or Firefox when browser is firefox).") String browserPath) {
@@ -146,9 +146,17 @@ public final class WebAgentPackage {
                 startUrl, outputSchema, outputPath, null);
     }
 
+    /** Reach a goal before G4 (several goals, a time limit for the whole step). */
+    public Map<String, Object> run(ActionContext ctx, String goal, String session, int maxSteps, List<Object> allowedSites, Map<String, Object> secrets,
+            String instructions, String provider, String connection, String model, Object key, String base, boolean mask, Object awsKeyId, String awsRegion, int timeout,
+            String startUrl, Map<String, Object> outputSchema, String outputPath, String trajectoryPath) {
+        return run(ctx, goal, session, maxSteps, allowedSites, secrets, instructions, provider, connection, model, key, base, mask, awsKeyId, awsRegion, timeout,
+                startUrl, outputSchema, outputPath, trajectoryPath, null, 0);
+    }
+
     @Action(id = "run", name = "Reach a goal", category = "Web goal agent", timeoutSeconds = 1800, capabilities = {"browser", "network", "ai"},
             description = "Describe the goal in plain words; the AI model works the page in a browser session until the goal is reached, cannot be reached, or the step limit. Can start from an address and return its findings in a given shape (JSON Schema), also as a file.",
-            panel = "start_url, goal, secrets, (Model: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region), [Return the findings in a fixed shape: output_schema, output_path], timeout_seconds | session, max_steps, allowed_sites, instructions, mask_pii, save_trajectory_to")
+            panel = "start_url, goal, goals, secrets, (Model: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region), [Return the findings in a fixed shape: output_schema, output_path], timeout_seconds, time_limit_seconds | session, max_steps, allowed_sites, instructions, mask_pii, save_trajectory_to")
     @Output(name = "success", type = OoaType.BOOLEAN, description = "Whether the model reports the goal reached.")
     @Output(name = "answer", type = OoaType.STRING, description = "What was done or found.")
     @Output(name = "data", type = OoaType.DICTIONARY, description = "Values the goal asked for, if any.")
@@ -156,8 +164,9 @@ public final class WebAgentPackage {
     @Output(name = "url", type = OoaType.STRING, description = "Address of the page at the end.")
     @Output(name = "input_tokens", type = OoaType.NUMBER, description = "Tokens sent to the model in all steps.")
     @Output(name = "output_tokens", type = OoaType.NUMBER, description = "Tokens the model answered with in all steps.")
+    @Output(name = "goal_results", type = OoaType.LIST, description = "With several goals or a time limit: each goal with its success, answer and data (G4).")
     public Map<String, Object> run(ActionContext ctx,
-            @Input(name = "goal", type = OoaType.STRING, example = "Search for invoice 4711 and tell me its total and due date.", description = "What to achieve, in plain words; ${...} interpolation allowed.") String goal,
+            @Input(name = "goal", type = OoaType.STRING, required = false, example = "Search for invoice 4711 and tell me its total and due date.", description = "What to achieve, in plain words; ${...} interpolation allowed. Empty when goals lists them.") String goal,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Browser session (from Start web agent session or Open browser).") String session,
             @Input(name = "max_steps", type = OoaType.NUMBER, required = false, defaultValue = "15", description = "Most actions to take, 1 to 60.") int maxSteps,
             @Input(name = "allowed_sites", type = OoaType.LIST, required = false, description = "Host names the agent may visit (sub-domains included), e.g. [\"portal.example.com\"]; any site when empty.") List<Object> allowedSites,
@@ -179,7 +188,35 @@ public final class WebAgentPackage {
                     description = "JSON Schema the data output must match; the model is shown it and asked to correct an answer that does not match.") Map<String, Object> outputSchema,
             @Input(name = "output_path", type = OoaType.FILE, required = false, description = "Also write the data output to this JSON file when the goal is reached.") String outputPath,
             @Input(name = "save_trajectory_to", type = OoaType.FILE, required = false, example = "logs/web-agent-run.json",
-                    description = "Keep a record of the run in this JSON file: each step's action, the model's reasoning and a screenshot (saved in a folder next to it). Secrets appear only as placeholders.") String trajectoryPath) {
+                    description = "Keep a record of the run in this JSON file: each step's action, the model's reasoning and a screenshot (saved in a folder next to it). Secrets appear only as placeholders.") String trajectoryPath,
+            @Input(name = "goals", type = OoaType.LIST, required = false, description = "More goals, reached one after another in the same browser (after goal, when it is given); each gets its own result in goal_results, and a goal not reached stops the rest (G4).") List<Object> goals,
+            @Input(name = "time_limit_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", newStepDefault = "120", min = 0, max = 7200,
+                    description = "Most time for the whole step, all goals together; no limit when 0. A goal is not started once the time is used up (G4).") int timeLimit) {
+        if (goals != null && !goals.isEmpty() || timeLimit > 0) {
+            List<String> all = new ArrayList<>();
+            if (goal != null && !goal.isBlank()) all.add(goal);
+            if (goals != null) for (Object g : goals) if (g != null && !Values.text(g).isBlank()) all.add(Values.text(g));
+            if (all.isEmpty()) throw new ActionException(P + ".NO_GOAL", "Describe the goal", "Fill in goal, or list the goals.");
+            long end = timeLimit > 0 ? System.currentTimeMillis() + timeLimit * 1000L : Long.MAX_VALUE;
+            List<Object> results = new ArrayList<>();
+            Map<String, Object> last = null;
+            boolean reached = true;
+            for (int i = 0; i < all.size(); i++) {
+                long left = end - System.currentTimeMillis();
+                if (left <= 0) { ctx.warn("The time limit ran out before the goal: " + all.get(i)); reached = false; break; }
+                int perStep = timeLimit > 0 ? (int) Math.max(5, Math.min(timeout > 0 ? timeout : 180, left / 1000)) : timeout;
+                last = run(ctx, all.get(i), session, maxSteps, allowedSites, secrets, instructions, provider, connection, model, key, base, mask, awsKeyId, awsRegion,
+                        perStep, i == 0 ? startUrl : null, outputSchema, i == all.size() - 1 ? outputPath : null, trajectoryPath, null, 0);
+                Map<String, Object> one = new LinkedHashMap<>();
+                one.put("goal", all.get(i)); one.put("success", last.get("success")); one.put("answer", last.get("answer")); one.put("data", last.get("data"));
+                results.add(one);
+                if (!Boolean.TRUE.equals(last.get("success"))) { reached = false; break; }
+            }
+            Map<String, Object> out = new LinkedHashMap<>(last == null ? Map.of() : last);
+            out.put("success", reached && results.size() == all.size());
+            out.put("goal_results", results);
+            return out;
+        }
         if (goal == null || goal.isBlank()) throw new ActionException(P + ".NO_GOAL", "Describe the goal", "Describe the goal in a sentence, for example: download last month's invoice.");
         if (maxSteps < 1 || maxSteps > 60) throw new ActionException(P + ".BAD_OPTION", "max_steps must be between 1 and 60", "Set max_steps between 1 and 60.");
         if (trajectoryPath != null && !trajectoryPath.isBlank() && !trajectoryPath.strip().toLowerCase(Locale.ROOT).endsWith(".json"))

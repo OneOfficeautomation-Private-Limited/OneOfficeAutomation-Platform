@@ -314,7 +314,7 @@ public final class ImagePackage {
 
     @Action(id = "find_on_screen", name = "Find image on screen", category = "Image", capabilities = "desktop",
             description = "Look for a picture on the screen, optionally in a region and for its n-th appearance; returns the point of the match.",
-            panel = "template, [Search only an area: x, y, width, height], tolerance, occurrence, position, offset_x, offset_y, timeout_seconds | interval_ms")
+            panel = "template, [Search only a window: window], [Search only an area: x, y, width, height], tolerance, occurrence, position, offset_x, offset_y, timeout_seconds | interval_ms")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when found.")
     @Output(name = "x", type = OoaType.NUMBER, description = "Centre x on screen (or the chosen point).")
     @Output(name = "y", type = OoaType.NUMBER, description = "Centre y on screen (or the chosen point).")
@@ -322,7 +322,7 @@ public final class ImagePackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches found (up to occurrence when it is above 1).")
     public Map<String, Object> findOnScreen(ActionContext ctx,
             @Input(name = "template", type = OoaType.FILE, description = "Picture to look for.") String template,
-            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0, max = 100, description = TOL) double tol,
+            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", newStepDefault = "5", min = 0, max = 100, description = TOL) double tol,
             @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = D_OCC) int occurrence,
             @Input(name = "position", type = OoaType.STRING, required = false, defaultValue = "\"center\"", enumValues = {"center", "top_left"}, description = D_POS) String position,
             @Input(name = "offset_x", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_OX) int offsetX,
@@ -331,14 +331,25 @@ public final class ImagePackage {
             @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Search region top.") Integer ry,
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Search region width.") Integer rw,
             @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Search region height.") Integer rh,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 3600,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", newStepDefault = "3", min = 0, max = 3600,
                     description = "Keep looking for up to this many seconds while the picture is not there; 0 looks once. found is false when time runs out.") double timeout,
-            @Input(name = "interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 50, max = 60000,
-                    description = "Pause between two looks at the screen while waiting, in milliseconds.") int intervalMs) {
+            @Input(name = "interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "500", newStepDefault = "300", min = 50, max = 60000,
+                    description = "Pause between two looks at the screen while waiting, in milliseconds.") int intervalMs,
+            @Input(name = "window", type = OoaType.STRING, required = false, description = "Look only inside this window (text in its title, * and ?, or re:); x and y then count from its top-left corner (G4).") String window) {
         checkWait(timeout, intervalMs);
         BufferedImage t = load(ctx, template);
-        Rectangle r = region(rx, ry, rw, rh);
+        Rectangle r = area(window, rx, ry, rw, rh);
         return searchUntil(ctx, () -> screen(r), r, t, tol, occurrence, position, offsetX, offsetY, timeout, intervalMs);
+    }
+
+    public Map<String, Object> findOnScreen(ActionContext ctx, String template, double tol, int occurrence, String position, int offsetX, int offsetY,
+                                            Integer rx, Integer ry, Integer rw, Integer rh, double timeout, int intervalMs) {
+        return findOnScreen(ctx, template, tol, occurrence, position, offsetX, offsetY, rx, ry, rw, rh, timeout, intervalMs, null);
+    }
+
+    public Map<String, Object> clickImage(ActionContext ctx, String template, boolean dbl, double tol, String button, int occurrence, String position, int offsetX, int offsetY,
+                                          double timeout, Integer rx, Integer ry, Integer rw, Integer rh) {
+        return clickImage(ctx, template, dbl, tol, button, occurrence, position, offsetX, offsetY, timeout, rx, ry, rw, rh, null);
     }
 
     /** The waiting options of Find image on screen, checked before the screen is read. */
@@ -471,26 +482,27 @@ public final class ImagePackage {
 
     @Action(id = "click_image", name = "Click image", category = "Image", capabilities = "desktop",
             description = "Find a picture on the screen (optionally waiting for it, in a region, or its n-th appearance) and click it with the chosen button at its centre, corner or an offset.",
-            panel = "template, double_click, button | [Search only an area: x, y, width, height], tolerance, occurrence, position, offset_x, offset_y, timeout_seconds")
+            panel = "template, double_click, button | [Search only a window: window], [Search only an area: x, y, width, height], tolerance, occurrence, position, offset_x, offset_y, timeout_seconds")
     @Output(name = "x", type = OoaType.NUMBER, description = "Clicked x.")
     @Output(name = "y", type = OoaType.NUMBER, description = "Clicked y.")
     public Map<String, Object> clickImage(ActionContext ctx,
             @Input(name = "template", type = OoaType.FILE, description = "Picture to click.") String template,
             @Input(name = "double_click", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Double-click.") boolean dbl,
-            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0, max = 100, description = TOL) double tol,
+            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", newStepDefault = "5", min = 0, max = 100, description = TOL) double tol,
             @Input(name = "button", type = OoaType.STRING, required = false, defaultValue = "\"left\"", enumValues = {"left", "right", "middle"}, description = "Mouse button to click with.") String button,
             @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = D_OCC) int occurrence,
             @Input(name = "position", type = OoaType.STRING, required = false, defaultValue = "\"center\"", enumValues = {"center", "top_left"}, description = D_POS) String position,
             @Input(name = "offset_x", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_OX) int offsetX,
             @Input(name = "offset_y", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_OY) int offsetY,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Keep looking for up to this many seconds before failing; 0 looks once.") double timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", newStepDefault = "3", min = 0, description = "Keep looking for up to this many seconds before failing; 0 looks once.") double timeout,
             @Input(name = "x", type = OoaType.NUMBER, required = false, description = D_RX) Integer rx,
             @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Search region top.") Integer ry,
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Search region width.") Integer rw,
-            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Search region height.") Integer rh) {
+            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Search region height.") Integer rh,
+            @Input(name = "window", type = OoaType.STRING, required = false, description = "Look only inside this window (text in its title, * and ?, or re:); x and y then count from its top-left corner (G4).") String window) {
         int mask = OcrPackage.button(button);
         BufferedImage t = load(ctx, template);
-        Rectangle r = region(rx, ry, rw, rh);
+        Rectangle r = area(window, rx, ry, rw, rh);
         long end = System.nanoTime() + (long) (Math.max(0, timeout) * 1e9);
         Map<String, Object> res;
         while (true) {
@@ -511,9 +523,40 @@ public final class ImagePackage {
     @Condition(id = "image_on_screen", name = "Image is on screen", description = "True when the picture is visible on the screen within the tolerance.")
     public boolean imageOnScreen(ActionContext ctx,
             @Input(name = "template", type = OoaType.FILE, description = "Picture to look for.") String template,
-            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", description = TOL) double tol) {
+            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", newStepDefault = "5", description = TOL) double tol,
+            @Input(name = "window", type = OoaType.STRING, required = false, description = "Look only inside this window (text in its title, * and ?, or re:); x and y then count from its top-left corner (G4).") String window,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", newStepDefault = "3", min = 0, max = 3600,
+                    description = "Keep looking this many seconds until it is there; 0 looks once (G4).") double wait,
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "True only when the picture appears at least this many times (G4).") int occurrence,
+            @Input(name = "click_if_found", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also click the picture when it is there (G4).") boolean click) {
         BufferedImage t = load(ctx, template);
-        return Boolean.TRUE.equals(result(find(DesktopPackage.screen(), t), t, tol).get("found"));
+        Rectangle r = area(window, null, null, null, null);
+        Map<String, Object>[] hit = new Map[1];
+        boolean found = ctx.keepTrying(wait, () -> {
+            Map<String, Object> res = search(screen(r), r, t, tol, Math.max(1, occurrence), "center", 0, 0);
+            hit[0] = res;
+            return Boolean.TRUE.equals(res.get("found"));
+        });
+        if (found && click) {
+            Robot robot = DesktopSupport.robot();
+            robot.mouseMove(((BigDecimal) hit[0].get("x")).intValue(), ((BigDecimal) hit[0].get("y")).intValue());
+            robot.mousePress(java.awt.event.InputEvent.BUTTON1_DOWN_MASK);
+            robot.mouseRelease(java.awt.event.InputEvent.BUTTON1_DOWN_MASK);
+        }
+        return found;
+    }
+
+    public boolean imageOnScreen(ActionContext ctx, String template, double tol) { return imageOnScreen(ctx, template, tol, null, 0, 1, false); }
+
+    /** The area to search: a window (x and y counted from its corner), a region of the screen, or the whole screen (null). */
+    static Rectangle area(String window, Integer rx, Integer ry, Integer rw, Integer rh) {
+        if (window == null || window.isBlank()) return region(rx, ry, rw, rh);
+        com.oneofficeautomation.packages.ui.DesktopEvents d = com.oneofficeautomation.packages.ui.DesktopEvents.installed().orElseThrow(() -> new ActionException("IMAGE.WINDOW_UNAVAILABLE",
+                "Searching inside a window needs a Windows runner with the Window toolkit installed", "Leave window empty to search the screen."));
+        int[] b = d.windowBounds(window).orElseThrow(() -> new ActionException("IMAGE.NO_WINDOW", "No open window matches '" + window + "'", "Check the window's title.", true));
+        if (rx == null && ry == null && rw == null && rh == null) return new Rectangle(b[0], b[1], Math.max(1, b[2]), Math.max(1, b[3]));
+        Rectangle in = region(rx, ry, rw, rh);
+        return in == null ? new Rectangle(b[0], b[1], Math.max(1, b[2]), Math.max(1, b[3])) : new Rectangle(b[0] + in.x, b[1] + in.y, in.width, in.height);
     }
 
     @Condition(id = "image_in_image", name = "Image is in image file", description = "True when the picture appears inside an image file.")
