@@ -549,7 +549,7 @@ public final class AzureDevOpsPackage {
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, description = D_PAT) Object pat,
             @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
-            @Input(name = "active_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out inactive plans.") boolean active,
+            @Input(name = "active_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", newStepDefault = "true", description = "Leave out inactive plans.") boolean active,
             @Input(name = "owner", type = OoaType.STRING, required = false, example = "ana@contoso.com", description = "Only plans owned by this person: identity id or name.") String owner,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "5000", min = 1, description = D_MAX) int max) {
         List<String> q = new ArrayList<>();
@@ -775,9 +775,14 @@ public final class AzureDevOpsPackage {
         return createTestCase(ctx, org, pat, project, title, steps, fields, planId, suiteId, null, null, null, null);
     }
 
+    public Map<String, Object> createTestCase(ActionContext ctx, String org, Object pat, String project, String title, List<Object> steps, Map<String, Object> fields,
+                                              Integer planId, Integer suiteId, String area, String iteration, Integer priority, String automation) {
+        return createTestCase(ctx, org, pat, project, title, steps, fields, planId, suiteId, area, iteration, priority, automation, null);
+    }
+
     @Action(id = "create_test_case", name = "Create test case", category = "Test plans", capabilities = "network",
             description = "Create a Test Case work item with numbered steps (action and expected result), optionally added to a suite.",
-            panel = "organization_url, personal_access_token, project, title, steps, area_path, iteration_path, priority | automation_status, fields, plan_id, suite_id")
+            panel = "organization_url, personal_access_token, project, title, (Steps: A list = steps / A table = steps_table), area_path, iteration_path, priority | automation_status, fields, plan_id, suite_id")
     @Output(name = "id", type = OoaType.NUMBER, description = "Work item id of the test case.")
     public Map<String, Object> createTestCase(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -791,9 +796,25 @@ public final class AzureDevOpsPackage {
             @Input(name = "suite_id", type = OoaType.NUMBER, required = false, min = 1, visibleWhen = "plan_id!=", description = "Suite to add it to.") Integer suiteId,
             @Input(name = "area_path", type = OoaType.STRING, required = false, example = "Finance Portal\\Payments", description = "Area path; the project's root area when empty.") String area,
             @Input(name = "iteration_path", type = OoaType.STRING, required = false, example = "Finance Portal\\Sprint 42", description = "Iteration (sprint) path; the project's root iteration when empty.") String iteration,
-            @Input(name = "priority", type = OoaType.NUMBER, required = false, min = 1, max = 4, description = "Priority from 1 (highest) to 4 (lowest).") Integer priority,
+            @Input(name = "priority", type = OoaType.NUMBER, required = false, newStepDefault = "2", min = 1, max = 4, description = "Priority from 1 (highest) to 4 (lowest); 2 in new steps (G5).") Integer priority,
             @Input(name = "automation_status", type = OoaType.STRING, required = false, enumValues = {"Not Automated", "Planned", "Automated"},
-                    description = "Whether the test is automated: Not Automated, Planned or Automated.") String automation) {
+                    description = "Whether the test is automated: Not Automated, Planned or Automated.") String automation,
+            @Input(name = "steps_table", type = OoaType.TABLE, required = false,
+                    description = "The steps as a table with the columns action and expected, one row per step (G5); used instead of steps.") Map<String, Object> stepsTable) {
+        if (stepsTable != null && (steps == null || steps.isEmpty())) {   // G5: a table of steps
+            List<String> cols = new ArrayList<>();
+            for (Object c : (List<?>) stepsTable.getOrDefault("columns", List.of())) cols.add(Values.text(c).strip().toLowerCase(Locale.ROOT));
+            int a = cols.indexOf("action"), e = cols.indexOf("expected");
+            if (a < 0) throw new ActionException(P + ".BAD_STEPS", "The steps table needs an action column", "Columns: action, expected.");
+            steps = new ArrayList<>();
+            for (Object r : (List<?>) stepsTable.getOrDefault("rows", List.of())) {
+                List<?> row = (List<?>) r;
+                Map<String, Object> st = new LinkedHashMap<>();
+                st.put("action", a < row.size() ? Values.text(row.get(a)) : "");
+                st.put("expected", e >= 0 && e < row.size() && row.get(e) != null ? Values.text(row.get(e)) : "");
+                steps.add(st);
+            }
+        }
         if (priority != null && (priority < 1 || priority > 4))
             throw new ActionException(P + ".BAD_PRIORITY", "Priority " + priority + " is out of range", "Use a whole number from 1 (highest) to 4 (lowest).");
         if (automation != null && !automation.isBlank() && !Set.of("Not Automated", "Planned", "Automated").contains(automation.strip()))
@@ -968,16 +989,24 @@ public final class AzureDevOpsPackage {
     @Action(id = "get_test_run", name = "Get test run details", category = "Test plans", idempotent = true, capabilities = "network",
             description = "Read a test run: state, counts of passed, failed and incomplete tests, dates.",
             panel = "organization_url, personal_access_token, project, run_id")
-    @Output(name = "run", type = OoaType.DICTIONARY, description = "Keys: id, name, state, total_tests, passed_tests, failed_tests, incomplete_tests, started, completed, url.")
+    @Output(name = "run", type = OoaType.DICTIONARY, description = "Keys: id, name, state, total_tests, passed_tests, failed_tests, incomplete_tests, started, completed, url, outcomes (a count per outcome, G5).")
     public Map<String, Object> getTestRun(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, description = D_PAT) Object pat,
             @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
             @Input(name = "run_id", type = OoaType.NUMBER, min = 1, description = "Test run id.") int runId) {
         Map<String, Object> r = call(ctx, "GET", proj(org, project) + "/_apis/test/runs/" + runId, pat, null);
-        return Out.of("run", Out.of("id", r.get("id"), "name", r.get("name"), "state", r.get("state"), "total_tests", r.get("totalTests"),
+        Map<String, Object> outcomes = new LinkedHashMap<>();
+        try {   // G5: how many of each outcome
+            Map<String, Object> st = call(ctx, "GET", proj(org, project) + "/_apis/test/runs/" + runId + "/Statistics", pat, null);
+            if (st.get("runStatistics") instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> m && m.get("outcome") != null)
+                outcomes.merge(String.valueOf(m.get("outcome")), m.get("count") instanceof Number n ? BigDecimal.valueOf(n.longValue()) : BigDecimal.ZERO, (x, y) -> ((BigDecimal) x).add((BigDecimal) y));
+        } catch (ActionException ignored) { /* older servers without run statistics */ }
+        Map<String, Object> run = Out.of("id", r.get("id"), "name", r.get("name"), "state", r.get("state"), "total_tests", r.get("totalTests"),
                 "passed_tests", r.get("passedTests"), "failed_tests", r.get("unanalyzedTests"), "incomplete_tests", r.get("incompleteTests"),
-                "started", r.get("startedDate"), "completed", r.get("completedDate"), "url", r.get("webAccessUrl")));
+                "started", r.get("startedDate"), "completed", r.get("completedDate"), "url", r.get("webAccessUrl"));
+        run.put("outcomes", outcomes);
+        return Out.of("run", run);
     }
 
     // ---------------------------------------------------------------- test management (K7, command review batch 10)
@@ -996,6 +1025,22 @@ public final class AzureDevOpsPackage {
         for (Map<String, Object> s : pages(ctx, proj(org, project) + "/_apis/testplan/Plans/" + planId + "/suites", pat, Math.max(1, max)))
             rows.add(Out.of("id", s.get("id"), "name", s.get("name"), "suite_type", s.get("suiteType"), "parent_suite_id", HttpJson.path(s, "parentSuite.id"), "test_case_count", s.get("testCaseCount")));
         return Out.of("table", HttpJson.table(rows, "id", "name", "suite_type", "parent_suite_id", "test_case_count"), "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    @Action(id = "get_test_suite", name = "Get test suite", category = "Test plans", idempotent = true, capabilities = "network",
+            description = "Read one test suite: its name, type, parent, test case count, requirement or query (G5).", panel = "organization_url, personal_access_token, project, plan_id, suite_id")
+    @Output(name = "suite", type = OoaType.DICTIONARY, description = "Keys: id, name, suite_type, parent_suite_id, test_case_count, requirement_id, query, inherit_default_configurations.")
+    public Map<String, Object> getTestSuite(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = "Test suite id (see List test suites).") int suiteId) {
+        Map<String, Object> s = call(ctx, "GET", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/suites/" + suiteId, pat, null);
+        Map<String, Object> o = Out.of("id", s.get("id"), "name", s.get("name"), "suite_type", s.get("suiteType"), "parent_suite_id", HttpJson.path(s, "parentSuite.id"),
+                "test_case_count", s.get("testCaseCount"), "requirement_id", s.get("requirementId"), "query", s.get("queryString"));
+        o.put("inherit_default_configurations", s.get("inheritDefaultConfigurations"));
+        return Out.of("suite", o);
     }
 
     @Action(id = "list_test_cases", name = "List test cases", category = "Test plans", idempotent = true, capabilities = "network", description = "List the test cases of a suite, with their test points.",
@@ -1065,7 +1110,7 @@ public final class AzureDevOpsPackage {
             @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
             @Input(name = "run_id", type = OoaType.NUMBER, min = 1, description = "Test run id.") int runId,
             @Input(name = "results", type = OoaType.TABLE,
-                    description = "Columns: result_id (or test_point_id), outcome (Passed, Failed, Blocked, NotApplicable...), and optionally comment, duration_seconds, error_message.") Map<String, Object> table) {
+                    description = "Columns: result_id (or test_point_id), outcome (Passed, Failed, Blocked, NotApplicable, Timeout, Aborted, Inconclusive, NotExecuted...), and optionally comment, duration_seconds, error_message.") Map<String, Object> table) {
         List<String> cols = new ArrayList<>();
         for (Object c : (List<?>) table.getOrDefault("columns", List.of())) cols.add(Values.text(c).strip().toLowerCase(Locale.ROOT));
         if (!cols.contains("outcome") || (!cols.contains("result_id") && !cols.contains("test_point_id")))
@@ -1141,9 +1186,17 @@ public final class AzureDevOpsPackage {
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, signInToken = true, description = D_PAT) Object pat,
             @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
             @Input(name = "name", type = OoaType.STRING, description = "Pipeline name.") String name,
-            @Input(name = "repository_id", type = OoaType.STRING, description = "Repository id (a GUID, from List repositories).") String repo,
+            @Input(name = "repository_id", type = OoaType.STRING, description = "Repository: its id (a GUID) or its name (looked up, G5).") String repo,
             @Input(name = "yaml_path", type = OoaType.STRING, example = "/azure-pipelines.yml", description = "Path of the YAML file in the repository.") String yaml,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"\\\\\"", description = "Folder for the pipeline, e.g. \\Finance.") String folder) {
+        if (repo != null && !repo.strip().matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {   // G5: a repository name
+            String want = repo.strip();
+            String id = null;
+            Object v = call(ctx, "GET", proj(org, project) + "/_apis/git/repositories", pat, null).get("value");
+            if (v instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> m && want.equalsIgnoreCase(String.valueOf(m.get("name")))) id = String.valueOf(m.get("id"));
+            if (id == null) throw new ActionException(P + ".NO_REPOSITORY", "No repository named '" + want + "' in " + project, "Check the name with List repositories.");
+            repo = id;
+        }
         Map<String, Object> b = Map.of("name", name, "folder", folder == null || folder.isBlank() ? "\\" : folder,
                 "configuration", Map.of("type", "yaml", "path", yaml, "repository", Map.of("id", repo.strip(), "type", "azureReposGit")));
         return Out.of("pipeline_id", call(ctx, "POST", proj(org, project) + "/_apis/pipelines", pat, b).get("id"));

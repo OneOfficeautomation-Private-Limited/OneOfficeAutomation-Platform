@@ -10,7 +10,7 @@ Generated from the code by `docs/research/tools/make-error-catalogue.py`; do not
   (CommandFixes); an error One CommandCenter sends without one gets the one for its code where the API answers (ServerFixes).
 - An internal error of One CommandCenter shows a reference such as `ERR-…`: give it to an administrator, who finds the details beside it in the server log.
 
-1672 codes in 152 areas.
+1674 codes in 152 areas.
 
 Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert), [APP](#app), [APPLICATION](#application), [ASANA](#asana), [ASSISTANT](#assistant), [AWS_AI](#aws_ai), [AZURE_AI](#azure_ai), [AZURE_DEVOPS](#azure_devops), [AZURE_VM](#azure_vm), [BOOLEAN](#boolean), [BOX](#box), [BROWSER](#browser), [CALENDAR](#calendar), [CHILD](#child), [CLI](#cli), [CLIPBOARD](#clipboard), [CODE](#code), [COMMAND](#command), [COMMS](#comms), [CONNECTION](#connection), [CONNECTOR](#connector), [CONVERT](#convert), [CR](#cr), [CREDMAN](#credman), [CRYPTO](#crypto), [CSV](#csv), [CURRENCY](#currency), [DATA](#data), [DATABRICKS](#databricks), [DATATABLE](#datatable), [DATETIME](#datetime), [DB](#db), [DEBUG](#debug), [DELAY](#delay), [DESKTOP](#desktop), [DESKTOP_UI](#desktop_ui), [DICT](#dict), [DLL](#dll), [DOCS](#docs), [DOCUSIGN](#docusign), [DOTNET](#dotnet), [EC2](#ec2), [EMAIL](#email), [ENCODING](#encoding), [EVENTS](#events), [EXCEL](#excel), [EXCEL_DESKTOP](#excel_desktop), [EXCEL_OPEN](#excel_open), [EXCHANGE](#exchange), [EXPR](#expr), [FILE](#file), [FLOW](#flow), [FOLDER](#folder), [FORMS](#forms), [FUZZY](#fuzzy), [GITHUB](#github), [GLOBALS](#globals), [GOOGLE](#google), [GOOGLE_AI](#google_ai), [GOTO](#goto), [HTTP](#http), [IDP](#idp), [IMAGE](#image), [INSIGHTS](#insights), [INTERRUPT](#interrupt), [JAVA](#java), [JAVA_APPS](#java_apps), [JIRA](#jira), [JOBS](#jobs), [JSON](#json), [KAFKA](#kafka), [KNOWLEDGE](#knowledge), [LDAP](#ldap), [LICENSE](#license), [LIST](#list), [LOCK](#lock), [LOG](#log), [LONGRUN](#longrun), [LOOP](#loop), [M365](#m365), [MAIL](#mail), [MCP](#mcp), [MINING](#mining), [MOVE](#move), [NETWORK](#network), [NUMBER](#number), [OBJECT](#object), [OCR](#ocr), [OFFICE](#office), [OFFICE_ATTACH](#office_attach), [OKTA](#okta), [OUTLOOK](#outlook), [PDF](#pdf), [PGP](#pgp), [PKG](#pkg), [POWERPOINT_DESKTOP](#powerpoint_desktop), [PPT](#ppt), [PRINTER](#printer), [PROCESS](#process), [QUEUE](#queue), [RELEASE](#release), [REPO](#repo), [REST](#rest), [RULES](#rules), [RUN](#run), [RUN_CONTEXT](#run_context), [SAAS](#saas), [SALESFORCE](#salesforce), [SAP](#sap), [SAP_BAPI](#sap_bapi), [SCRIPT](#script), [SERVICE](#service), [SERVICENOW](#servicenow), [SERVICES](#services), [SESSION](#session), [SLACK](#slack), [SNMP](#snmp), [SNOWFLAKE](#snowflake), [SOAP](#soap), [SOUND](#sound), [SSO](#sso), [STATE](#state), [STEP](#step), [STRING](#string), [STUDIO](#studio), [SUBFLOW](#subflow), [SWITCH](#switch), [SYSTEM](#system), [TABLE](#table), [TEMPLATES](#templates), [TERMINAL](#terminal), [TRANSFER](#transfer), [TRIGGER](#trigger), [UI](#ui), [VAR](#var), [VAULT](#vault), [VISION](#vision), [WAIT](#wait), [WEBAGENT](#webagent), [WF](#wf), [WINDOW](#window), [WORD](#word), [WORD_OPEN](#word_open), [WORKDAY](#workday), [WORKSPACE](#workspace), [XML](#xml), [ZENDESK](#zendesk), [ZIP](#zip)
 
@@ -170,7 +170,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `ASANA.BAD_INCLUDE` | Cannot copy '…' | Use notes, assignee, subtasks, attachments, tags, followers, projects or dates. | toolkits/enterprise |
 | `ASANA.BAD_USER` | Invalid user '…' | Use a numeric user id, an email address, or me. | toolkits/enterprise |
 | `ASANA.CONFIRM_REQUIRED` | The project was not deleted because confirm is false | Set confirm to true. | toolkits/enterprise |
-| `ASANA.MISSING_FILTER` | No project, section or assignee given | Fill in project_id, section_id, or assignee together with workspace_id. | toolkits/enterprise |
+| `ASANA.MISSING_FILTER` | No project, section or assignee given<br>Give the workspace or a team | Fill in project_id, section_id, or assignee together with workspace_id.<br>Fill in workspace_id or team_id. | toolkits/enterprise |
 | `ASANA.MISSING_LOCATION` | No project, parent task or workspace given | Fill in project_id, parent_task_id, or workspace_id for a task outside projects. | toolkits/enterprise |
 | `ASANA.NOTHING_TO_UPDATE` | No changes were given<br>Nothing to change | Fill in at least one field to change.<br>Fill in text or pinned.<br>Fill in at least one field. | toolkits/enterprise |
 | `ASANA.NOT_FOUND` | No … named '…'<br>No section named '…' in the project | Check the name, or use its id from its link.<br>Check the name (see List sections), or use its id. | toolkits/enterprise |
@@ -231,6 +231,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `AZURE_DEVOPS.BAD_REPOSITORY_ID` | '…' is not a repository id | Use the repository's id (a GUID) from List repositories. | toolkits/devops |
 | `AZURE_DEVOPS.BAD_RESULTS` | The results need an outcome column and a result_id or test_point_id column | Columns: result_id, outcome, comment, duration_seconds, error_message. | toolkits/devops |
 | `AZURE_DEVOPS.BAD_STAGE` | A stage name in stages_to_skip is empty | List the stage names as written in the YAML, e.g. ["DeployProd"]. | toolkits/devops |
+| `AZURE_DEVOPS.BAD_STEPS` | The steps table needs an action column | Columns: action, expected. | toolkits/devops |
 | `AZURE_DEVOPS.CONFIRM_REQUIRED` | The test plan was not deleted because confirm is false<br>The pipeline was not deleted because confirm is false | Set confirm to true. | toolkits/devops |
 | `AZURE_DEVOPS.MISSING_QUERY` | A query suite needs a query | Fill in a WIQL query. | toolkits/devops |
 | `AZURE_DEVOPS.MISSING_REQUIREMENT` | A requirement suite needs requirement_id | Fill in the work item id. | toolkits/devops |
@@ -239,6 +240,7 @@ Areas: [ACTION](#action), [AD](#ad), [AGENT](#agent), [AI](#ai), [ALERT](#alert)
 | `AZURE_DEVOPS.NOT_ACTIVE` | Pull request … is …status… | Only active pull requests can be completed. | toolkits/devops |
 | `AZURE_DEVOPS.NOT_FOUND` | Run … has no result for test point …test_point_id…<br>Pipeline … was not found | Check the test point id.<br>Check the id with List pipelines. | toolkits/devops |
 | `AZURE_DEVOPS.NOT_YAML` | Pipeline … is a classic pipeline, not a YAML one | Only YAML pipelines can be pointed at another YAML file or repository. | toolkits/devops |
+| `AZURE_DEVOPS.NO_REPOSITORY` | No repository named '…' in … | Check the name with List repositories. | toolkits/devops |
 | `AZURE_DEVOPS.TESTER_NOT_FOUND` | No user matches the tester '…' | Use the person's sign-in email as shown in Azure DevOps. | toolkits/devops |
 
 ## AZURE_VM
