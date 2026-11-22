@@ -197,14 +197,15 @@ public final class GooglePackage {
 
     @Action(id = "drive_download", name = "Download from Drive", category = "Drive", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Download a Drive file by id (Google Docs/Sheets are exported to PDF/XLSX automatically).",
-            panel = "access_token, file_id, local_path, overwrite | base_url")
+            panel = "access_token, file_id, local_path, file_name, overwrite | base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
     public Map<String, Object> driveDownload(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "file_id", type = OoaType.STRING, description = "File id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
-            @Input(name = "local_path", type = OoaType.FILE, description = "Where to save it.") String local,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
-            @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+            @Input(name = "local_path", type = OoaType.FILE, required = false, description = "Where to save it: a file, or a folder (the Drive name is kept); the run's temporary folder when empty (G5).") String local,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", newStepDefault = "false", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
+            @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "file_name", type = OoaType.STRING, required = false, description = "A new name for the saved file, with local_path a folder (G5).") String fileName) {
         id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
         Map<String, Object> meta = HttpJson.req(P, "GET", url("https://www.googleapis.com/drive/v3/files/" + HttpJson.enc(id) + "?fields=mimeType,name", ep)).bearer(token).send(ctx).map();
         String mime = String.valueOf(meta.get("mimeType"));
@@ -216,10 +217,18 @@ public final class GooglePackage {
         };
         String u = export != null ? "https://www.googleapis.com/drive/v3/files/" + HttpJson.enc(id) + "/export?mimeType=" + HttpJson.enc(export)
                 : "https://www.googleapis.com/drive/v3/files/" + HttpJson.enc(id) + "?alt=media";
-        Path p = freeName(ctx.resolvePath(local), overwrite);
+        String name = !blank(fileName) ? fileName.trim() : String.valueOf(meta.get("name")) + (export == null ? "" : export.endsWith("sheet") ? ".xlsx" : ".pdf");
+        Path target = blank(local) ? ctx.outputPath(null, HttpJson.safeName(name))
+                : (Files.isDirectory(ctx.resolvePath(local)) || local.endsWith("/") || local.endsWith("\\") || !blank(fileName)) ? ctx.outputPath(local.replaceAll("[/\\\\]*$", "/"), HttpJson.safeName(name))
+                : ctx.resolvePath(local);
+        Path p = freeName(target, overwrite);
         // K3 (batch 10): straight to the file, so a file of any size does not pass through memory
         HttpJson.req(P, "GET", url(u, ep)).bearer(token).timeout(3600).download(ctx, p);
         return Map.of("path", p.toString());
+    }
+
+    public Map<String, Object> driveDownload(ActionContext ctx, Object token, String id, String local, boolean overwrite, String ep) {
+        return driveDownload(ctx, token, id, local, overwrite, ep, null);
     }
 
     @Action(id = "calendar_create_event", name = "Create Google Calendar event", category = "Calendar", capabilities = "network", description = "Create an event, optionally inviting attendees.",
@@ -232,7 +241,8 @@ public final class GooglePackage {
             @Input(name = "subject", type = OoaType.STRING, description = "Title of the event.") String subject,
             @Input(name = "start", type = OoaType.DATETIME, description = "When the event starts (UTC, or in time_zone when given).") LocalDateTime start,
             @Input(name = "end", type = OoaType.DATETIME, description = "When the event ends; must be after start.") LocalDateTime end,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "IANA time zone of start and end.") String tz,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", newStepDefault = "\"runner\"",
+                    description = "IANA time zone of start and end, e.g. Europe/Berlin; runner for the runner's own zone (G5).") String tz,
             @Input(name = "attendees", required = false, description = "Attendee address(es).") Object attendees,
             @Input(name = "description", type = OoaType.STRING, required = false, description = "Description.") String description,
             @Input(name = "calendar", formerNames = "calendar_id", type = OoaType.STRING, required = false, defaultValue = "\"primary\"", description = "Calendar id.") String cal,
@@ -1489,7 +1499,8 @@ public final class GooglePackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
             @Input(name = "share_with", type = OoaType.STRING, required = false, defaultValue = "\"user\"", enumValues = {"user", "group", "domain", "anyone"}, description = "Who receives access.") String type,
-            @Input(name = "role", type = OoaType.STRING, required = false, defaultValue = "\"reader\"", enumValues = {"reader", "commenter", "writer", "fileOrganizer", "organizer"}, description = "Access level.") String role,
+            @Input(name = "role", type = OoaType.STRING, required = false, defaultValue = "\"reader\"", enumValues = {"reader", "commenter", "writer", "fileOrganizer", "organizer", "owner"},
+                    description = "Access level; owner hands the item over to the person (G5).") String role,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "User or group address (for user and group).") String email,
             @Input(name = "domain", type = OoaType.STRING, required = false, description = "Domain such as example.com (for domain).") String domain,
             @Input(name = "notify", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Send a notification email (user and group only).") boolean notify,
@@ -1509,7 +1520,8 @@ public final class GooglePackage {
         Map<String, Object> q = new LinkedHashMap<>();
         q.put("fields", "id");
         q.put("supportsAllDrives", true);
-        if (t.equals("user") || t.equals("group")) {
+        if ("owner".equals(role)) { q.put("transferOwnership", true); q.put("sendNotificationEmail", true); }
+        else if (t.equals("user") || t.equals("group")) {
             q.put("sendNotificationEmail", notify);
             if (notify && !blank(message)) q.put("emailMessage", message);
         }
@@ -1520,6 +1532,7 @@ public final class GooglePackage {
     @Action(id = "drive_delete_permission", name = "Remove Drive permission", category = "Drive", capabilities = "network",
             description = "Take away a permission from a file or folder.",
             panel = "access_token, item_id, permission_id | base_url")
+    @Output(name = "deleted", type = OoaType.BOOLEAN, description = "True when the permission was removed (G5).")
     public Map<String, Object> driveUnshare(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
@@ -1527,7 +1540,7 @@ public final class GooglePackage {
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
         call(ctx, token, "DELETE", DRIVE + "/" + HttpJson.enc(id) + "/permissions/" + HttpJson.enc(perm) + "?supportsAllDrives=true", ep, null);
-        return Map.of();
+        return Map.of("deleted", true);
     }
 
     @Action(id = "drive_copy_folder", name = "Copy Drive folder", category = "Drive", timeoutSeconds = 1800, capabilities = "network",
@@ -1602,10 +1615,25 @@ public final class GooglePackage {
     public Map<String, Object> driveCheckPermission(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id. A path under My Drive starting with / also works, e.g. /Reports/2026/summary.pdf.") String id,
-            @Input(name = "email", type = OoaType.STRING, description = "The person's email address.") String email,
-            @Input(name = "access", type = OoaType.STRING, required = false, defaultValue = "\"read\"", enumValues = {"read", "comment", "write"}, description = "The access to check.") String access,
+            @Input(name = "email", type = OoaType.STRING, required = false, description = "The person's email address; the signed-in account's own rights when empty (G5).") String email,
+            @Input(name = "access", type = OoaType.STRING, required = false, defaultValue = "\"read\"", enumValues = {"read", "comment", "write", "delete"},
+                    description = "The access to check; delete (own rights only) asks whether the item may be deleted (G5).") String access,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         id = drivePath(ctx, token, id, false, ep);   // K5 (batch 10): an id, or a path starting with /
+        if (blank(email)) {   // G5: what the signed-in account itself may do, from the item's capabilities
+            Map<String, Object> caps = obj(call(ctx, token, "GET", DRIVE + "/" + HttpJson.enc(id) + "?fields=capabilities&supportsAllDrives=true", ep, null).get("capabilities"));
+            String a = blank(access) ? "read" : access.trim().toLowerCase(Locale.ROOT);
+            boolean ok = switch (a) {
+                case "read" -> true;
+                case "comment" -> Boolean.TRUE.equals(caps.get("canComment"));
+                case "write" -> Boolean.TRUE.equals(caps.get("canEdit"));
+                case "delete" -> Boolean.TRUE.equals(caps.get("canDelete")) || Boolean.TRUE.equals(caps.get("canTrash"));
+                default -> throw bad("access must be read, comment, write or delete", null);
+            };
+            String role = Boolean.TRUE.equals(caps.get("canEdit")) ? "writer" : Boolean.TRUE.equals(caps.get("canComment")) ? "commenter" : "reader";
+            return Map.of("has_access", ok, "role", role);
+        }
+        if ("delete".equalsIgnoreCase(access == null ? "" : access.trim())) throw bad("delete can be checked only for the signed-in account", "Leave email empty.");
         String need = switch (blank(access) ? "read" : access.trim().toLowerCase(Locale.ROOT)) {
             case "read" -> "reader"; case "comment" -> "commenter"; case "write" -> "writer";
             default -> throw bad("access must be read, comment or write", null);
@@ -1833,6 +1861,7 @@ public final class GooglePackage {
     }
 
     private static List<String> searchIds(ActionContext ctx, Object token, String query, int max, boolean spamTrash, String ep) {
+        if (max <= 0) { ctx.warn("No limit on the number of messages: every match is handled"); max = 100_000; }   // G5: 0 means no limit
         List<String> ids = new ArrayList<>();
         String page = null;
         do {
@@ -1868,7 +1897,11 @@ public final class GooglePackage {
             case "any" -> { }
             default -> throw bad("status must be any, unread or read", null);
         }
-        if (!blank(label)) q.add("label:" + term(label.trim().replace(' ', '-')));
+        if (!blank(label)) {   // G5: several labels separated by ; match any of them
+            List<String> any = new ArrayList<>();
+            for (String l : label.split(";")) if (!l.isBlank()) any.add("label:" + term(l.trim().replace(' ', '-')));
+            if (!any.isEmpty()) q.add(any.size() == 1 ? any.get(0) : "{" + String.join(" ", any) + "}");
+        }
         if (withAtts) q.add("has:attachment");
         return String.join(" ", q);
     }
@@ -1877,7 +1910,7 @@ public final class GooglePackage {
 
     @Action(id = "gmail_list_messages", name = "Find emails", category = "Gmail", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Find Gmail messages with a Gmail search such as from:billing@acme.com is:unread and return them as a table.",
-            panel = "access_token, status, label, subject_contains, from_contains, since, before, has_attachments_only | query, max_results, include_spam_trash, base_url")
+            panel = "access_token, status, label, subject_contains, from_contains, since, before, has_attachments_only | oldest_first, local_time, query, max_results, include_spam_trash, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, thread_id, from, to, subject, date, snippet, unread, labels, received (date and time, UTC).")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages.")
     public Map<String, Object> gmailList(ActionContext ctx,
@@ -1892,17 +1925,38 @@ public final class GooglePackage {
             @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Only unread or only read messages.") String status,
             @Input(name = "label", type = OoaType.STRING, required = false, description = "Only messages with this label, e.g. INBOX or Invoices.") String label,
             @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only messages with attachments.") boolean withAtts,
-            @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+            @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The oldest messages first (G5).") boolean oldestFirst,
+            @Input(name = "local_time", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "received in the runner's time zone instead of UTC (G5).") boolean localTime) {
         List<Object> rows = new ArrayList<>();
-        for (String id : searchIds(ctx, token, gmailQuery(query, from, subject, since, before, status, label, withAtts), max, spamTrash, ep)) {
+        List<String> found = searchIds(ctx, token, gmailQuery(query, from, subject, since, before, status, label, withAtts), max, spamTrash, ep);
+        if (oldestFirst) Collections.reverse(found);
+        for (String id : found) {
             Map<String, Object> m = call(ctx, token, "GET", GMAIL + "messages/" + HttpJson.enc(id)
                     + "?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date", ep, null);
             Map<String, Object> payload = obj(m.get("payload"));
             List<Object> labels = new ArrayList<>(list(m.get("labelIds")));
+            Object received = MailRecord.headerDate(hdr(payload, "Date"));
+            if (localTime && received instanceof LocalDateTime t) received = t.atOffset(java.time.ZoneOffset.UTC).atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalDateTime();
             rows.add(new ArrayList<>(Arrays.asList(id, m.get("threadId"), hdr(payload, "From"), hdr(payload, "To"), hdr(payload, "Subject"), hdr(payload, "Date"),
-                    m.get("snippet"), labels.contains("UNREAD"), labels, MailRecord.headerDate(hdr(payload, "Date")))));
+                    m.get("snippet"), labels.contains("UNREAD"), labels, received)));
         }
         return Map.of("table", Values.table(List.of("id", "thread_id", "from", "to", "subject", "date", "snippet", "unread", "labels", "received"), rows), "count", num(rows.size()));
+    }
+
+    public Map<String, Object> gmailList(ActionContext ctx, Object token, String query, int max, boolean spamTrash, String from, String subject,
+                                         LocalDateTime since, LocalDateTime before, String status, String label, boolean withAtts, String ep) {
+        return gmailList(ctx, token, query, max, spamTrash, from, subject, since, before, status, label, withAtts, ep, false, false);
+    }
+
+    public Map<String, Object> gmailMoveAll(ActionContext ctx, Object token, Object add, Object remove, String query, String from, String subject,
+                                            LocalDateTime since, LocalDateTime before, String status, String label, int max, String ep) {
+        return gmailMoveAll(ctx, token, add, remove, query, from, subject, since, before, status, label, max, ep, true);
+    }
+
+    public Iterable<Object> gmailMessages(ActionContext ctx, Object token, String query, String label, String status, String from, String subject,
+                                          LocalDateTime since, LocalDateTime before, boolean withAtts, int max, boolean withBody, String ep) {
+        return gmailMessages(ctx, token, query, label, status, from, subject, since, before, withAtts, max, withBody, ep, false, false);
     }
 
     @LoopIterator(id = "gmail_messages", name = "Each email in Gmail",
@@ -1920,8 +1974,10 @@ public final class GooglePackage {
             @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only messages with attachments.") boolean withAtts,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Stop after this many messages.") int max,
             @Input(name = "with_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = MailRecord.D_WITH_BODY) boolean withBody,
-            @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
-        Object table = gmailList(ctx, token, query, max, false, from, subject, since, before, status, label, withAtts, ep).get("table");
+            @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The oldest messages first (G5).") boolean oldestFirst,
+            @Input(name = "local_time", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "received in the runner's time zone instead of UTC (G5).") boolean localTime) {
+        Object table = gmailList(ctx, token, query, max, false, from, subject, since, before, status, label, withAtts, ep, oldestFirst, localTime).get("table");
         return MailRecord.each(MailRecord.rows(table), withBody, row -> (Map<String, Object>) gmailGet(ctx, token, String.valueOf(row.get("id")), false, ep).get("email"));
     }
 
@@ -2002,7 +2058,7 @@ public final class GooglePackage {
 
     @Action(id = "gmail_move_all", name = "Move all emails", category = "Gmail", timeoutSeconds = 600, capabilities = "network",
             description = "Add and remove labels on every Gmail message that matches a search or the filters, e.g. move them from INBOX to Processed.",
-            panel = "access_token, remove_labels, add_labels, status, label, subject_contains, from_contains, since, before | query, max_messages, base_url")
+            panel = "access_token, remove_labels, add_labels, status, label, subject_contains, from_contains, since, before | keep_other_labels, query, max_messages, base_url")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages changed.")
     public Map<String, Object> gmailMoveAll(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -2014,11 +2070,24 @@ public final class GooglePackage {
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
             @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
             @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Only unread or only read messages.") String status,
-            @Input(name = "label", type = OoaType.STRING, required = false, description = "Only messages with this label, e.g. INBOX or Invoices.") String label,
-            @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Upper limit of messages handled in one run.") int max,
-            @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+            @Input(name = "label", type = OoaType.STRING, required = false, newStepDefault = "\"INBOX\"", description = "Only messages with this label, e.g. INBOX or Invoices; several separated by ; (G5).") String label,
+            @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Upper limit of messages handled in one run; 0 for no limit (G5).") int max,
+            @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "keep_other_labels", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Keep the messages' other labels; off removes every label of your own except the ones added (G5).") boolean keepOthers) {
         String q = gmailQuery(query, from, subject, since, before, status, label, false);
         if (blank(q)) throw bad("Give a search query or at least one filter", "This keeps a whole mailbox from being changed by accident.");
+        if (!keepOthers) {
+            List<String> a = labelIds(ctx, token, add, ep), r0 = labelIds(ctx, token, remove, ep);
+            List<String> ids = searchIds(ctx, token, q, max, false, ep);
+            for (String id : ids) {
+                List<String> drop = new ArrayList<>(r0);
+                for (Object l : list(call(ctx, token, "GET", GMAIL + "messages/" + HttpJson.enc(id) + "?format=minimal", ep, null).get("labelIds")))
+                    if (String.valueOf(l).startsWith("Label_") && !a.contains(String.valueOf(l)) && !drop.contains(String.valueOf(l))) drop.add(String.valueOf(l));
+                modify(ctx, token, id, a, drop, ep);
+            }
+            return Map.of("count", num(ids.size()));
+        }
         List<String> a = labelIds(ctx, token, add, ep), r = labelIds(ctx, token, remove, ep);
         if (a.isEmpty() && r.isEmpty()) throw bad("Give labels to add or remove", null);
         List<String> ids = searchIds(ctx, token, q, max, false, ep);
@@ -2048,6 +2117,14 @@ public final class GooglePackage {
         return Map.of("exists", false, "label_id", "");
     }
 
+    @Condition(id = "gmail_label_exists", name = "Gmail label exists", description = "True when the Gmail label exists, by name (not case-sensitive) or id (G5).")
+    public boolean gmailLabelExistsCondition(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "label", type = OoaType.STRING, description = "Label name or id.") String label,
+            @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        return Boolean.TRUE.equals(gmailLabelExists(ctx, token, label, ep).get("exists"));
+    }
+
     @Action(id = "gmail_delete_message", name = "Delete email", category = "Gmail", capabilities = "network",
             description = "Move a Gmail message to the trash, or delete it permanently.",
             panel = "access_token, message_id | permanent, base_url")
@@ -2069,13 +2146,13 @@ public final class GooglePackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "query", type = OoaType.STRING, required = false, example = "from:alerts@acme.com older_than:30d", description = "Gmail search selecting the messages; a search or at least one filter is required so a mailbox is never emptied by accident.") String query,
             @Input(name = "permanent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Delete for good instead of moving to the trash.") boolean permanent,
-            @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Upper limit of messages handled in one run.") int max,
+            @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Upper limit of messages handled in one run; 0 for no limit (G5).") int max,
             @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
             @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains these words; separate several with ; to match any of them.") String subject,
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
             @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
             @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Only unread or only read messages.") String status,
-            @Input(name = "label", type = OoaType.STRING, required = false, description = "Only messages with this label, e.g. INBOX or Invoices.") String label,
+            @Input(name = "label", type = OoaType.STRING, required = false, newStepDefault = "\"INBOX\"", description = "Only messages with this label, e.g. INBOX or Invoices; several separated by ; (G5).") String label,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         String q = gmailQuery(query, from, subject, since, before, status, label, false);
         if (blank(q)) throw bad("A search query is required", "Give a Gmail search such as from:x@y.com older_than:30d, or fill in a filter.");
@@ -2272,10 +2349,10 @@ public final class GooglePackage {
             @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
             @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
             @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Only unread or only read messages.") String status,
-            @Input(name = "label", type = OoaType.STRING, required = false, description = "Only messages with this label, e.g. INBOX or Invoices.") String label,
+            @Input(name = "label", type = OoaType.STRING, required = false, newStepDefault = "\"INBOX\"", description = "Only messages with this label, e.g. INBOX or Invoices; several separated by ; (G5).") String label,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace files of the same name instead of adding a number such as (2).") boolean overwrite,
             @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mark each matching message as read afterwards.") boolean markRead,
-            @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Upper limit of messages handled in one run.") int max,
+            @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Upper limit of messages handled in one run; 0 for no limit (G5).") int max,
             @Input(name = "base_url", formerNames = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         Path dir = ctx.resolvePath(target);
         List<String> ids = searchIds(ctx, token, gmailQuery(query, from, subject, since, before, status, label, true), max, false, ep);
@@ -2312,6 +2389,7 @@ public final class GooglePackage {
     // ------------------------------------------------------------------ Calendar
 
     private static java.time.ZoneId zone(String tz) {
+        if (!blank(tz) && tz.trim().equalsIgnoreCase("runner")) return java.time.ZoneId.systemDefault();   // G5: the runner's own zone
         try { return java.time.ZoneId.of(blank(tz) ? "UTC" : tz.trim()); }
         catch (java.time.DateTimeException e) { throw bad("Unknown time zone '" + tz + "'", "Use an IANA name such as Europe/Berlin or UTC."); }
     }
