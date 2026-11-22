@@ -34,10 +34,13 @@ def env():
 
 
 def run(name: str, timeout=1800):
-    runs = os.path.join(DATA, "runs")
+    runs = os.path.join(DATA, "runs", name)          # each agent its own work folder: helpers run in parallel
     os.makedirs(runs, exist_ok=True)
     flow = os.path.join(AGENTS, name + ".flow.json")
-    p = subprocess.run([OOA, "run", flow], cwd=runs, env=env(), capture_output=True, text=True, encoding="utf-8",
+    cmd = [OOA, "run", flow]
+    if os.environ.get("UT_STANDIN"):                  # a helper's own stand-in (its plugins), e.g. http://127.0.0.1:8793
+        cmd += ["-i", "standin_url=" + os.environ["UT_STANDIN"]]
+    p = subprocess.run(cmd, cwd=runs, env=env(), capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=timeout)
     out = p.stdout
     try:
